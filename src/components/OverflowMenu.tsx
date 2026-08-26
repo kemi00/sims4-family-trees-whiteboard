@@ -15,15 +15,17 @@ import { ToolButton } from './ToolButton.tsx';
 type Props = {
   onSave: () => void;
   onLoad: (file: File) => void;
+  onLoadSave: (file: File) => void;
   onExportPng: () => void;
 };
 
 /** File actions, kept out of the bar because they are used rarely. */
-export function OverflowMenu({ onSave, onLoad, onExportPng }: Props) {
+export function OverflowMenu({ onSave, onLoad, onLoadSave, onExportPng }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<HTMLInputElement>(null);
   const firstItemRef = useRef<HTMLButtonElement>(null);
   const { popRef, style: popStyle } = useDropdownPosition(open, wrapRef);
 
@@ -95,6 +97,14 @@ export function OverflowMenu({ onSave, onLoad, onExportPng }: Props) {
           <button
             type="button"
             role="menuitem"
+            onClick={() => saveRef.current?.click()}
+          >
+            <UploadSimple aria-hidden="true" />
+            Load .save
+          </button>
+          <button
+            type="button"
+            role="menuitem"
             onClick={() => run(onExportPng)}
           >
             <FileImage aria-hidden="true" />
@@ -134,7 +144,7 @@ export function OverflowMenu({ onSave, onLoad, onExportPng }: Props) {
       <input
         ref={fileRef}
         type="file"
-        accept=".json"
+        accept=".json,application/json"
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -142,6 +152,19 @@ export function OverflowMenu({ onSave, onLoad, onExportPng }: Props) {
           if (!f) return;
           setOpen(false);
           onLoad(f);
+        }}
+      />
+      <input
+        ref={saveRef}
+        type="file"
+        accept=".save"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (!f) return;
+          setOpen(false);
+          onLoadSave(f);
         }}
       />
     </div>

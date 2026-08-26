@@ -57,8 +57,9 @@ export function Hint() {
       to zoom.
       <br />• <b>Connect</b>, then tap two sims to link them (Marriage /
       Romance / Divorced / Parent→Child / Sibling). Links <b>you</b> add show
-      in <b style={{ color: '#7c3aed' }}>violet</b>. Two-finger drag pans
-      while Connect is on.
+      in <b style={{ color: '#7c3aed' }}>violet</b> until they exist in an
+      uploaded save, then they turn gray. Two-finger drag pans while Connect
+      is on.
       <br />• Hover or tap a <b>⚭ / ❤ / ⚮</b>, then the <b>+</b>, to add
       an infant under that couple.
       <br />• Tap a <b>⚭ / ❤</b> connection, then a sim, to make that sim
@@ -68,17 +69,20 @@ export function Hint() {
       already-deceased stay.
       <br />• Change one sim's age in <b>Edit</b> to age them up alone
       (logged). Household Age up stays on the house label.
+      <br />• The <b>map</b> in the corner shows the whole board and where you
+      are. Click or drag it to pan; scroll on it to zoom.
       <br />• <b>Undo</b> (Ctrl/⌘ Z) reverses the last add, link, move,
       age-up, edit, or delete.
       <br />• Select a sim, then <b>Filters → Bloodline</b>, to dim everyone
       else. <b>Show everyone</b> on the banner (or Esc, or Bloodline again)
       to leave.
-      <br />• <b>Log</b> lists every link you added. Deleting a link removes
-      that line.
+      <br />• <b>Log</b> lists planned links (violet) and links confirmed by
+      a save (gray). Deleting a link removes that line.
       <br />• Double-tap or long-press a tag to edit name/age.
       <br />• <b>Save .json</b> keeps your work (including the log and
-      filters) and <b>Load</b> brings it back, both under the <b>⋮</b> menu
-      at the top right.
+      filters). <b>Load .json</b> restores it. <b>Load .save</b> merges a
+      Sims 4 save into the current board. All three are under the <b>⋮</b>{' '}
+      menu.
     </div>
   );
 }

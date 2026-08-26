@@ -6,11 +6,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { border, unionAtPoint, unionGeom, type SnapSticky } from '../lib/geometry.ts';
+import { tileSnapOrigin } from '../lib/tiles.ts';
 import {
   CARD_H,
+  CARD_MIN_W,
   DRAG_SLOP_PX,
   EDGE_HIT_SCREEN_PX,
   LONG_PRESS_MS,
+  TILE,
 } from '../lib/constants.ts';
 import { isUserE, siblingsShareParents } from '../lib/utils.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
@@ -23,6 +26,7 @@ import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { Legend } from './Legend.tsx';
+import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
 import { SimNodeView } from './SimNode.tsx';
 import { ViewControls } from './ViewControls.tsx';
@@ -36,13 +40,19 @@ type Props = {
 
 /** Chrome on #stage that owns its own wheel (scroll), not board zoom. */
 const STAGE_WHEEL_SCROLL_SEL =
-  '#legend, .legend-chip, .editor, .menu, .bloodline-banner';
+  '#legend, .legend-chip, .editor, .menu, .bloodline-banner, .minimap';
 
 export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const compact = useCompactChrome();
   const [guides, setGuides] = useState<{ gx: number[]; gy: number[] } | null>(
     null,
   );
+  const [placement, setPlacement] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
   const [tempLine, setTempLine] = useState<{
     x1: number;
     y1: number;
@@ -75,6 +85,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     gid: string;
     sx: number;
     sy: number;
+    originX: number;
+    originY: number;
     base: Record<string, { ox: number; oy: number }>;
     px: number;
     py: number;
@@ -84,6 +96,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     world: string;
     sx: number;
     sy: number;
+    originX: number;
+    originY: number;
     base: Record<string, { ox: number; oy: number }>;
     px: number;
     py: number;
@@ -206,7 +220,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     const el = stageRef.current;
     if (!el) return;
     const chromeSel =
-      '.viewctl, #legend, #hint, #hintIcon, .editor, .menu, #status, .legend-chip, .bloodline-banner';
+      '.viewctl, #legend, #hint, #hintIcon, .editor, .menu, #status, .legend-chip, .bloodline-banner, .minimap';
     const onTouchStart = (ev: TouchEvent) => {
       const t = ev.target as Element | null;
       if (t?.closest?.(chromeSel)) return;
@@ -343,8 +357,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     worldDragRef.current = null;
     panRef.current = null;
     movedRef.current = false;
-    wb.setFastRoute(false);
     setGuides(null);
+    setPlacement(null);
   };
 
   const beginPinch = () => {
@@ -449,7 +463,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
       const dy = wy - d.sy;
-      wb.moveNodesByWorld(d.world, dx, dy, d.base);
+      const snapped = wb.snapHouseholdDrag(d.originX, d.originY, dx, dy);
+      wb.moveNodesByWorld(
+        d.world,
+        snapped?.dx ?? dx,
+        snapped?.dy ?? dy,
+        d.base,
+      );
+      setGuides(snapped?.guides ?? null);
       return;
     }
     if (hhDragRef.current) {
@@ -461,7 +482,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
       const dy = wy - d.sy;
-      const snapped = wb.snapHouseholdDrag(d.gid, dx, dy);
+      const snapped = wb.snapHouseholdDrag(d.originX, d.originY, dx, dy);
       wb.moveNodesByGid(
         d.gid,
         snapped?.dx ?? dx,
@@ -482,10 +503,18 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       wb.setFastRoute(true);
       const rawX = wx - d.dx;
       const rawY = wy - d.dy;
-      const snapped = wb.snapDragPosition(d.n, rawX, rawY, d.sticky);
-      d.sticky = snapped.sticky;
-      wb.updateNode(d.n.id, { x: snapped.x, y: snapped.y });
-      setGuides(wb.snap ? snapped.guides : null);
+      if (wb.snap) {
+        wb.updateNode(d.n.id, { x: rawX, y: rawY });
+        const t = tileSnapOrigin(rawX, rawY);
+        setPlacement({ x: t.x, y: t.y, w: d.n.w || CARD_MIN_W, h: d.n.h || CARD_H });
+        setGuides({ gx: [t.x, t.x + (d.n.w || CARD_MIN_W)], gy: [t.y, t.y + (d.n.h || CARD_H)] });
+      } else {
+        const snapped = wb.snapDragPosition(d.n, rawX, rawY, d.sticky);
+        d.sticky = snapped.sticky;
+        wb.updateNode(d.n.id, { x: snapped.x, y: snapped.y });
+        setGuides(null);
+        setPlacement(null);
+      }
       movedRef.current = true;
       return;
     }
@@ -507,6 +536,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const finishNodePointer = (wasMoved: boolean, n: SimNode) => {
     wb.setFastRoute(false);
     setGuides(null);
+    setPlacement(null);
     if (wasMoved) {
       const cur = wb.byid[n.id];
       if (cur) wb.snapNodeAction(cur);
@@ -561,8 +591,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
 
     if (hhDragRef.current || worldDragRef.current) {
       setGuides(null);
+      setPlacement(null);
       hhDragRef.current = null;
       worldDragRef.current = null;
+      wb.enforceWorldSeparation();
     }
     if (dragRef.current) {
       const n = dragRef.current.n;
@@ -656,27 +688,55 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       >
         <defs>
           <clipPath id="tagclip">
-            <rect x={0} y={0} width={200} height={CARD_H} rx={11} />
+            <rect x={0} y={0} width={CARD_MIN_W} height={CARD_H} rx={11} />
           </clipPath>
+          <pattern
+            id="tilegrid"
+            width={TILE}
+            height={TILE}
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d={`M ${TILE} 0 L 0 0 0 ${TILE}`}
+              fill="none"
+              stroke="#b7b09e"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+          </pattern>
         </defs>
         <g
           id="scene"
           data-vp={JSON.stringify(wb.viewport)}
           transform={`translate(${tx},${ty}) scale(${k})`}
         >
+          {wb.snap && (
+            <rect
+              x={-20000}
+              y={-20000}
+              width={40000}
+              height={40000}
+              fill="url(#tilegrid)"
+              pointerEvents="none"
+            />
+          )}
           <WorldLayer
             nodes={wb.nodes}
             groups={wb.groups}
             worlds={wb.worlds}
             show={wb.show.worlds}
+            zoom={k}
             packVis={wb.nodeVis}
             onWorldDragStart={(world, sx, sy, base, ev) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
+              const members = wb.nodes.filter((n) => n.world === world);
               worldDragRef.current = {
                 world,
                 sx,
                 sy,
+                originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
+                originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
                 base,
                 px: ev.clientX,
                 py: ev.clientY,
@@ -692,10 +752,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             onHouseholdDragStart={(gid, sx, sy, base, ev) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
+              const members = wb.nodes.filter((n) => n.gid === gid);
               hhDragRef.current = {
                 gid,
                 sx,
                 sy,
+                originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
+                originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
                 base,
                 px: ev.clientX,
                 py: ev.clientY,
@@ -788,6 +851,37 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
                 ))}
               </>
             )}
+            {placement && wb.snap && (
+              <g pointerEvents="none">
+                <rect
+                  x={placement.x}
+                  y={placement.y}
+                  width={TILE}
+                  height={TILE}
+                  fill="#1b6cd61a"
+                  stroke="none"
+                />
+                <rect
+                  x={placement.x + TILE}
+                  y={placement.y}
+                  width={TILE}
+                  height={TILE}
+                  fill="#1b6cd61a"
+                  stroke="none"
+                />
+                <rect
+                  x={placement.x}
+                  y={placement.y}
+                  width={placement.w}
+                  height={placement.h}
+                  rx={11}
+                  fill="none"
+                  stroke="#1b6cd6"
+                  strokeWidth={2.4}
+                  strokeDasharray="7 5"
+                />
+              </g>
+            )}
           </g>
           <g id="lNodes">
             {sortedNodes.map((n) => (
@@ -796,6 +890,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
                 node={n}
                 selected={wb.sel?.type === 'node' && wb.sel.id === n.id}
                 connectHighlight={connHighlight === n.id}
+                searchHit={wb.searchHitSet.has(n.id)}
+                searchCurrent={
+                  wb.searchHits[wb.searchHitIndex] === n.id
+                }
                 hiAges={wb.hiAges}
                 hiSingle={wb.hiSingle}
                 partneredIds={wb.partneredIds}
@@ -857,6 +955,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         }}
       />
       <Hint />
+      <Minimap wb={wb} svgRef={svgRef} />
       <ViewControls wb={wb} svgRef={svgRef} />
       {editNode && (
         <SimEditor

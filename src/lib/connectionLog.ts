@@ -7,7 +7,7 @@ import type {
   SimAgeUp,
   SimNode,
 } from '../types/whiteboard.ts';
-import { isUserE } from './utils.ts';
+import { edgeSourceOf } from './utils.ts';
 
 export type LogPart =
   | { kind: 'time'; value: string }
@@ -16,11 +16,14 @@ export type LogPart =
   | { kind: 'text'; value: string }
   | { kind: 'break' };
 
+export type ConnectionLogOrigin = 'planned' | 'save';
+
 export type ConnectionLogEntry = {
   id: string;
   edgeIds: string[];
   simId?: string;
   createdAt?: string;
+  origin?: ConnectionLogOrigin;
   text: string;
   parts: LogPart[];
 };
@@ -188,19 +191,28 @@ function parentParts(parent: SimNode, child: SimNode): LogPart[] {
   ];
 }
 
-function coupleChildParts(
-  pa: SimNode,
-  pb: SimNode,
-  child: SimNode,
-): LogPart[] {
+function parentsChildParts(parents: SimNode[], child: SimNode): LogPart[] {
+  const [first, ...rest] = parents;
+  if (!first) return [];
+  if (!rest.length) return parentParts(first, child);
+  const withClause: LogPart[] = [];
+  rest.forEach((p, i) => {
+    if (i === 0) {
+      withClause.push({ kind: 'text', value: ', with ' });
+    } else if (i === rest.length - 1) {
+      withClause.push({ kind: 'text', value: ' and ' });
+    } else {
+      withClause.push({ kind: 'text', value: ', ' });
+    }
+    withClause.push(...mention(p));
+  });
   return [
-    ...mention(pa),
+    ...mention(first),
     { kind: 'text', value: ' had a ' },
     rel('parent'),
     { kind: 'text', value: ', ' },
     { kind: 'sim', id: child.id, name: simName(child) },
-    { kind: 'text', value: ', with ' },
-    ...mention(pb),
+    ...withClause,
     { kind: 'text', value: '.' },
   ];
 }
@@ -284,9 +296,10 @@ function makeEntry(
   createdAt: string | undefined,
   body: LogPart[],
   simId?: string,
+  origin?: ConnectionLogOrigin,
 ): ConnectionLogEntry {
   const parts = timed(createdAt, body);
-  return { id, edgeIds, simId, createdAt, parts, text: partsToText(parts) };
+  return { id, edgeIds, simId, createdAt, origin, parts, text: partsToText(parts) };
 }
 
 function earliestCreatedAt(edges: Edge[]): string | undefined {
@@ -303,9 +316,9 @@ function earliestCreatedAt(edges: Edge[]): string | undefined {
 }
 
 /**
- * User-made links plus household moves, age-ups, and editor life-stage
- * increases. Parent edges that share a bundleId and the same child collapse
- * into a single "had a child … with" sentence.
+ * User-made and save-imported links plus household moves, age-ups, and editor
+ * life-stage increases. Parent edges that share a bundleId and the same child
+ * collapse into a single "had a child … with" sentence.
  */
 export function buildConnectionLog(
   edges: Edge[],
@@ -315,50 +328,54 @@ export function buildConnectionLog(
   deaths: DeceasedMark[] = [],
   simAgeUps: SimAgeUp[] = [],
 ): ConnectionLogEntry[] {
-  const userEdges = edges.filter(isUserE);
+  const tracked = edges.filter(
+    (e) => edgeSourceOf(e) === 'planned' || edgeSourceOf(e) === 'save',
+  );
   const used = new Set<string>();
   const entries: ConnectionLogEntry[] = [];
 
-  const bundles = new Map<string, Edge[]>();
-  for (const e of userEdges) {
-    if (e.type !== 'parent' || !e.bundleId) continue;
-    const list = bundles.get(e.bundleId) ?? [];
+  const parentsByChild = new Map<string, Edge[]>();
+  for (const e of tracked) {
+    if (e.type !== 'parent') continue;
+    const list = parentsByChild.get(e.b) ?? [];
     list.push(e);
-    bundles.set(e.bundleId, list);
+    parentsByChild.set(e.b, list);
   }
 
-  for (const [bundleId, group] of bundles) {
-    const byChild = new Map<string, Edge[]>();
-    for (const e of group) {
-      const list = byChild.get(e.b) ?? [];
-      list.push(e);
-      byChild.set(e.b, list);
-    }
-    for (const [childId, parents] of byChild) {
-      if (parents.length < 2) continue;
-      const pa = byid[parents[0]!.a];
-      const pb = byid[parents[1]!.a];
-      const child = byid[childId];
-      if (!pa || !pb || !child) continue;
-      parents.forEach((e) => used.add(e.id));
-      entries.push(
-        makeEntry(
-          `${bundleId}:${childId}`,
-          parents.map((e) => e.id),
-          earliestCreatedAt(parents),
-          coupleChildParts(pa, pb, child),
-        ),
-      );
-    }
+  for (const [childId, parents] of parentsByChild) {
+    if (parents.length < 2) continue;
+    const child = byid[childId];
+    const parentNodes = parents
+      .map((e) => byid[e.a])
+      .filter((n): n is SimNode => !!n);
+    if (!child || parentNodes.length < 2) continue;
+    parents.forEach((e) => used.add(e.id));
+    entries.push(
+      makeEntry(
+        `child:${childId}`,
+        parents.map((e) => e.id),
+        earliestCreatedAt(parents),
+        parentsChildParts(parentNodes, child),
+        undefined,
+        parents.every((e) => edgeSourceOf(e) === 'save') ? 'save' : 'planned',
+      ),
+    );
   }
 
-  for (const e of userEdges) {
+  for (const e of tracked) {
     if (used.has(e.id)) continue;
     const a = byid[e.a];
     const b = byid[e.b];
     if (!a || !b) continue;
     entries.push(
-      makeEntry(e.id, [e.id], e.createdAt, sentenceParts(e.type, a, b)),
+      makeEntry(
+        e.id,
+        [e.id],
+        e.createdAt,
+        sentenceParts(e.type, a, b),
+        undefined,
+        edgeSourceOf(e) === 'save' ? 'save' : 'planned',
+      ),
     );
   }
 
@@ -366,7 +383,7 @@ export function buildConnectionLog(
     const sim = byid[move.simId];
     if (!sim) continue;
     entries.push(
-      makeEntry(move.id, [], move.createdAt, moveParts(sim, move), move.simId),
+      makeEntry(move.id, [], move.createdAt, moveParts(sim, move), move.simId, 'planned'),
     );
   }
 
@@ -378,6 +395,7 @@ export function buildConnectionLog(
         event.createdAt,
         ageUpParts(event),
         event.simIds[0],
+        'planned',
       ),
     );
   }
@@ -392,6 +410,7 @@ export function buildConnectionLog(
         event.createdAt,
         simAgeUpParts(sim, event),
         event.simId,
+        'planned',
       ),
     );
   }
@@ -406,6 +425,7 @@ export function buildConnectionLog(
         death.createdAt,
         deceasedParts(sim, death),
         death.simId,
+        'planned',
       ),
     );
   }

@@ -14,7 +14,15 @@ import type {
 export const uKey = (a: string, b: string): string =>
   [a, b].slice().sort().join('|');
 
-export const isUserE = (e: Edge): boolean => String(e.id).charAt(0) === 'u';
+export const isUserE = (e: Edge): boolean => {
+  if (e.source) return e.source === 'planned';
+  return String(e.id).charAt(0) === 'u';
+};
+
+export function edgeSourceOf(e: Edge): 'seed' | 'save' | 'planned' {
+  if (e.source) return e.source;
+  return String(e.id).charAt(0) === 'u' ? 'planned' : 'seed';
+}
 
 /**
  * Next counter for `u…` / `b…` / `h…` / `a…` / `c…` / `d…` ids. Uses the highest numeric suffix already
@@ -29,7 +37,7 @@ export function nextEidc(
   const consider = (raw: string | undefined) => {
     if (!raw) return;
     const ch = raw.charAt(0);
-    if (ch !== 'u' && ch !== 'b' && ch !== 'h' && ch !== 'a' && ch !== 'c' && ch !== 'd') return;
+    if (ch !== 'u' && ch !== 'b' && ch !== 'h' && ch !== 'a' && ch !== 'c' && ch !== 'd' && ch !== 'v') return;
     const n = Number(raw.slice(1));
     if (!Number.isFinite(n) || n < max) return;
     max = n + 1;
@@ -179,7 +187,12 @@ export function migrateWhiteboardData(d: {
       gid: gid(g.gid),
     })),
     worlds: d.worlds?.map((w) => ({ ...w, name: world(w.name) })),
-    edges: sanitizeEdges(d.edges),
+    edges: sanitizeEdges(
+      d.edges.map((e) => ({
+        ...e,
+        source: e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
+      })),
+    ),
     householdMoves: d.householdMoves?.map((m) => ({
       ...m,
       fromGid: gid(m.fromGid),

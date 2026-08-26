@@ -104,10 +104,16 @@ export function Legend({ worlds, liveWorlds, onPickWorld, ref }: Props) {
           }}
         />
         <span>
-          <b style={{ color: '#7c3aed' }}>violet</b> = links you added/changed
+          <b style={{ color: '#7c3aed' }}>violet</b> = planned, not in the save yet
           <br />
           <span style={{ color: '#8a7f63' }}>
-            (canon links keep their colours)
+            gray canon colours = in the save, or original roster links
+          </span>
+          <br />
+          <span style={{ color: '#5b6472' }}>
+            <b>S</b> on a card = in your save, not on the original spreadsheet
+            <br />
+            ＋ / violet dash = you added on the board, not in the save yet
           </span>
         </span>
       </div>

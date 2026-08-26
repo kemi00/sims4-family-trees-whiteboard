@@ -1,47 +1,28 @@
-import {
-  AGES_H,
-  CARD_DETAIL_CH,
-  CARD_H,
-  CARD_MIN_W,
-  CARD_PAD_X,
-  CARD_TEXT_X,
-} from './constants.ts';
+import { AGES_H, CARD_H, CARD_MIN_W, HH_TAG_BAND, TILE } from './constants.ts';
+import { tileSnapOrigin } from './tiles.ts';
 import type { Edge, SimNode, World } from '../types/whiteboard.ts';
 
-/** Name-pill and Age up control height (SVG). */
-const HH_HEADER_PILL_H = 19;
-/** Vertical gap between the name pill and Age up stacked under it. */
-const HH_HEADER_GAP = 6;
 /**
- * Single-row household header band (name pill + clearance above cards)
- * before Age up moved onto its own row.
+ * Tile-native packing. Couple aisle, generation pitch, and household
+ * gutters are one tile so snap cannot collapse them to flush cards.
+ * `hhHeader` must stay equal to `HH_TAG_BAND` (name + Age up in one tile).
  */
-const HH_HEADER_NAME_BAND = 40;
-
-/** Spacing rules — row pitch grows with CARD_H automatically. */
 export const LAYOUT = {
-  gapX: 72,
-  partnerGap: 64,
-  gapYExtra: 48,
-  hhPad: 20,
-  hhHeaderPillH: HH_HEADER_PILL_H,
-  hhHeaderGap: HH_HEADER_GAP,
-  /**
-   * Space above cards for the name pill plus Age up. Extends the name-row
-   * band by the stacked button row so cards keep the same clearance they
-   * had under the name-only header.
-   */
-  hhHeader: HH_HEADER_NAME_BAND + HH_HEADER_GAP + HH_HEADER_PILL_H,
-  hhGap: 28,
-  /** Side-by-side household slots — clears dashed boxes (2×hhPad). */
-  householdGap: 40,
+  gapX: TILE,
+  partnerGap: TILE,
+  gapYExtra: TILE,
+  hhPad: 0,
+  hhHeader: HH_TAG_BAND,
+  hhGap: TILE,
+  /** Side-by-side household slots — one tile of air between dashed boxes. */
+  householdGap: TILE,
   hhPerRow: 3,
   /** Household columns inside the catch-all Other world container. */
   otherHhCols: 7,
   worldRowMaxW: 1600,
   worldCols: 4,
-  worldGapX: 64,
-  worldGapY: 56,
+  worldGapX: TILE,
+  worldGapY: TILE,
   originX: 48,
   originY: 96,
   worldTitle: 32,
@@ -59,13 +40,43 @@ export function cardDetailLine(n: SimNode): string {
     .join(' · ');
 }
 
-export function measureCard(n: SimNode): { w: number; h: number } {
-  const detail = cardDetailLine(n);
-  const w = Math.max(
-    CARD_MIN_W,
-    Math.ceil(CARD_TEXT_X + detail.length * CARD_DETAIL_CH + CARD_PAD_X),
-  );
-  return { w, h: CARD_H };
+export function measureCard(_n?: SimNode): { w: number; h: number } {
+  return { w: CARD_MIN_W, h: CARD_H };
+}
+
+type SpawnRect = { x: number; y: number; w: number; h: number };
+
+function rectsOverlap(a: SpawnRect, b: SpawnRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/**
+ * Where a new infant card should land. First child sits on the tile row
+ * immediately under the parents; later children share that row, one tile
+ * to the right of the rightmost sibling. Nudges down by a tile if the
+ * slot is already occupied.
+ */
+export function spawnChildOrigin(
+  parentY: number,
+  pillX: number,
+  cardW: number,
+  siblings: SpawnRect[],
+  occupied: SpawnRect[],
+  snap = true,
+): { x: number; y: number } {
+  const size = { w: cardW, h: CARD_H };
+  let x = pillX - cardW / 2;
+  let y = parentY + CARD_H;
+  if (siblings.length) {
+    x = Math.max(...siblings.map((s) => s.x + s.w)) + TILE;
+    y = Math.min(...siblings.map((s) => s.y));
+  }
+  for (let i = 0; i < occupied.length + 1; i++) {
+    const next = { x, y, ...size };
+    if (!occupied.some((o) => rectsOverlap(next, o))) break;
+    y += TILE;
+  }
+  return snap ? tileSnapOrigin(x, y) : { x, y };
 }
 
 type PlacedCard = { id: string; x: number; y: number; w: number; h: number };
@@ -1161,11 +1172,46 @@ function placeHouseholdBento(
   return packTilesInColumns(assignments, cols, colWidths);
 }
 
-/** Masonry: worlds fill worldCols side-by-side columns (shortest column next). */
+/** Masonry: named worlds fill worldCols; Other sits in its own column to the right. */
 function placeWorldColumns(
   worldBlocks: WorldBlock[],
 ): Map<string, { x: number; y: number; w: number; h: number }> {
-  const cols = LAYOUT.worldCols;
+  const otherBlocks = worldBlocks.filter((b) => b.world === OTHER_WORLD);
+  const mainBlocks = worldBlocks.filter((b) => b.world !== OTHER_WORLD);
+  const bases = packWorldMasonry(mainBlocks, LAYOUT.worldCols);
+  if (!otherBlocks.length) return bases;
+
+  let namedRight = -Infinity;
+  let namedTop = Infinity;
+  for (const b of bases.values()) {
+    namedRight = Math.max(namedRight, b.x + b.w);
+    namedTop = Math.min(namedTop, b.y);
+  }
+  const hasNamed = Number.isFinite(namedRight);
+
+  for (const block of otherBlocks) {
+    const minPx = Math.min(...block.placed.map((p) => p.x));
+    const minPy = Math.min(...block.placed.map((p) => p.y));
+    const origin = tileSnapOrigin(
+      hasNamed
+        ? namedRight + LAYOUT.worldGapX
+        : LAYOUT.originX + LAYOUT.worldMargin,
+      hasNamed ? namedTop : LAYOUT.originY + LAYOUT.worldTitle,
+    );
+    const ox = origin.x - minPx;
+    const oy = origin.y - minPy;
+    for (const p of block.placed) {
+      bases.set(p.id, { x: ox + p.x, y: oy + p.y, w: p.w, h: p.h });
+    }
+  }
+  return bases;
+}
+
+/** Shortest-column pack for named worlds. */
+function packWorldMasonry(
+  worldBlocks: WorldBlock[],
+  cols: number,
+): Map<string, { x: number; y: number; w: number; h: number }> {
   const colHeights = new Array<number>(cols).fill(LAYOUT.originY);
   const colWidths = new Array<number>(cols).fill(0);
   const assignments: { block: WorldBlock; col: number }[] = [];
@@ -1494,5 +1540,80 @@ export function computeLayout(
       x: base.x + (n.ox ?? 0),
       y: base.y + (n.oy ?? 0),
     };
+  });
+}
+
+/**
+ * Keep existing cards where they are. Pack brand-new households in a grid
+ * under each world's current cards so a save merge does not restack the board.
+ */
+export function offsetsForNewGids(
+  prevById: Record<string, SimNode>,
+  nextCore: SimNode[],
+  worlds: World[],
+  edges: Edge[],
+): SimNode[] {
+  const bases = layoutBases(nextCore, worlds, edges);
+  const newcomers = nextCore.filter((n) => !prevById[n.id]);
+  const pack = new Map<string, { x: number; y: number }>();
+  const gidsByWorld = new Map<string, string[]>();
+  const seenGid = new Set<string>();
+  for (const n of newcomers) {
+    if (seenGid.has(n.gid)) continue;
+    seenGid.add(n.gid);
+    const world = n.world || OTHER_WORLD;
+    const list = gidsByWorld.get(world) ?? [];
+    list.push(n.gid);
+    gidsByWorld.set(world, list);
+  }
+
+  for (const [world, gids] of gidsByWorld) {
+    const old = Object.values(prevById).filter(
+      (n) => (n.world || OTHER_WORLD) === world,
+    );
+    if (!old.length) continue;
+    const origin = tileSnapOrigin(
+      Math.min(...old.map((n) => n.x)),
+      Math.max(...old.map((n) => n.y + (n.h || CARD_H))) + LAYOUT.worldGapY,
+    );
+    const originX = origin.x;
+    const rowMax =
+      world === OTHER_WORLD ? LAYOUT.worldRowMaxW * 1.4 : LAYOUT.worldRowMaxW;
+    let x = originX;
+    let y = origin.y;
+    let rowH = 0;
+    for (const gid of gids) {
+      const members = newcomers.filter((n) => n.gid === gid);
+      const sizes = members.map((m) => measureCard(m));
+      const blockW =
+        sizes.reduce((s, z) => s + z.w, 0) +
+        LAYOUT.partnerGap * Math.max(0, members.length - 1);
+      const blockH = LAYOUT.hhHeader + Math.max(...sizes.map((z) => z.h), CARD_H);
+      if (x > originX && x + blockW > originX + rowMax) {
+        x = originX;
+        y += rowH + LAYOUT.hhGap;
+        rowH = 0;
+      }
+      let cx = x;
+      for (let i = 0; i < members.length; i++) {
+        pack.set(members[i]!.id, tileSnapOrigin(cx, y + LAYOUT.hhHeader));
+        cx += sizes[i]!.w + LAYOUT.partnerGap;
+      }
+      x += blockW + LAYOUT.householdGap;
+      rowH = Math.max(rowH, blockH);
+    }
+  }
+
+  return nextCore.map((n) => {
+    const base = bases.get(n.id);
+    const prev = prevById[n.id];
+    if (prev && base) {
+      return { ...n, ox: prev.x - base.x, oy: prev.y - base.y };
+    }
+    const p = pack.get(n.id);
+    if (p && base) {
+      return { ...n, ox: p.x - base.x, oy: p.y - base.y };
+    }
+    return n;
   });
 }

@@ -12,6 +12,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "node --test --experimental-strip-types src/lib/*.test.ts src/lib/savegame/*.test.ts",
     "build:data": "node scripts/build-data.mjs",
     "preview": "vite preview"
   },

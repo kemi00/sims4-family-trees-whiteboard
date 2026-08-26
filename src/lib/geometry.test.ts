@@ -1,0 +1,93 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import {
+  TILE,
+  WORLD_TAG_NORMAL_ZOOM,
+  WORLD_TAG_ZOOM_OUT_MAX,
+} from './constants.ts';
+import {
+  separateOverlappingWorldFrames,
+  worldFrame,
+  worldTagZoomScale,
+} from './geometry.ts';
+import type { Group, SimNode } from '../types/whiteboard.ts';
+
+function card(
+  id: string,
+  world: string,
+  gid: string,
+  x: number,
+  y: number,
+): SimNode {
+  return {
+    id,
+    fn: id,
+    ln: '',
+    age: 'Young Adult',
+    gender: 'Female',
+    play: 'Played',
+    pack: 'Base Game',
+    world,
+    gid,
+    x,
+    y,
+    w: TILE * 2,
+    h: TILE,
+    ox: 0,
+    oy: 0,
+  };
+}
+
+describe('worldTagZoomScale', () => {
+  it('is 1 at or above the normal-size zoom (≥ 60%)', () => {
+    assert.equal(worldTagZoomScale(WORLD_TAG_NORMAL_ZOOM), 1);
+    assert.equal(worldTagZoomScale(0.7), 1);
+    assert.equal(worldTagZoomScale(1), 1);
+    assert.equal(worldTagZoomScale(2), 1);
+  });
+
+  it('grows as NORMAL/k when zoomed out further, capped', () => {
+    assert.equal(worldTagZoomScale(0.3), 2);
+    assert.equal(worldTagZoomScale(0.15), 4);
+    assert.equal(worldTagZoomScale(0.1), WORLD_TAG_ZOOM_OUT_MAX);
+  });
+});
+
+describe('separateOverlappingWorldFrames', () => {
+  it('nudges the lower world down by whole tiles until frames clear', () => {
+    const groups: Group[] = [
+      { gid: 'a', name: 'A' },
+      { gid: 'b', name: 'B' },
+    ];
+    const nodes = [
+      card('n1', 'World A', 'a', 0, 0),
+      // Overlaps World A's frame vertically (same column, too close).
+      card('n2', 'World B', 'b', 0, TILE * 2),
+    ];
+    const beforeA = worldFrame('World A', nodes, groups, () => true)!;
+    const beforeB = worldFrame('World B', nodes, groups, () => true)!;
+    assert.ok(
+      beforeA.l < beforeB.r &&
+        beforeA.r > beforeB.l &&
+        beforeA.t < beforeB.b &&
+        beforeA.b > beforeB.t,
+      'fixtures must overlap before separation',
+    );
+
+    const next = separateOverlappingWorldFrames(nodes, groups);
+    const afterA = worldFrame('World A', next, groups, () => true)!;
+    const afterB = worldFrame('World B', next, groups, () => true)!;
+    const overlap =
+      afterA.l < afterB.r &&
+      afterA.r > afterB.l &&
+      afterA.t < afterB.b &&
+      afterA.b > afterB.t;
+    assert.equal(overlap, false);
+
+    const moved = next.find((n) => n.id === 'n2')!;
+    assert.ok(moved.y > nodes[1]!.y);
+    assert.equal(moved.y % TILE, 0);
+    // At least one tile of gap between frames.
+    assert.ok(afterB.t >= afterA.b + TILE);
+  });
+});

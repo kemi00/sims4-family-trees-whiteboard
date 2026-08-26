@@ -7,6 +7,8 @@ import {
   IdentificationBadge,
   LinkSimple,
   MagnifyingGlass,
+  CaretDown,
+  CaretUp,
   ArrowCounterClockwise,
   Scroll,
   Trash,
@@ -52,6 +54,7 @@ export function AppBar({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
   const compactSearchRef = useRef<HTMLInputElement>(null);
+  const queryRef = useRef('');
   const { popRef: filtersPopRef, style: filtersPopStyle } = useDropdownPosition(
     filtersOpen,
     filtersRef,
@@ -75,9 +78,10 @@ export function AppBar({
     wb.addSim(r.width, r.height);
   };
 
-  const search = (value: string) => {
+  const search = (value: string, cycle: 0 | 1 | -1 = 0) => {
+    queryRef.current = value;
     const { w, h } = svgSize();
-    wb.searchSim(value, w, h);
+    wb.searchSim(value, w, h, cycle);
   };
 
   useEffect(() => {
@@ -308,7 +312,36 @@ export function AppBar({
           aria-label="Find a sim"
           placeholder="Find a sim"
           onInput={(e) => search(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              search(e.currentTarget.value, e.shiftKey ? -1 : 1);
+            }
+          }}
         />
+        {wb.searchHits.length > 0 && (
+          <span className="search__nav">
+            <span className="search__count">
+              {wb.searchHitIndex + 1}/{wb.searchHits.length}
+            </span>
+            <button
+              type="button"
+              className="search__step"
+              aria-label="Previous match"
+              onClick={() => search(queryRef.current, -1)}
+            >
+              <CaretUp aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="search__step"
+              aria-label="Next match"
+              onClick={() => search(queryRef.current, 1)}
+            >
+              <CaretDown aria-hidden="true" />
+            </button>
+          </span>
+        )}
       </span>
 
       <span className="appbar__compact-only appbar__compact-tools">
@@ -326,6 +359,7 @@ export function AppBar({
           const { w, h } = svgSize();
           wb.loadJson(f, w, h);
         }}
+        onLoadSave={(f) => wb.previewSave(f)}
         onExportPng={() => {
           if (svgRef.current) wb.exportPng(svgRef.current);
         }}
@@ -340,7 +374,36 @@ export function AppBar({
             aria-label="Find a sim"
             placeholder="Find a sim"
             onInput={(e) => search(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                search(e.currentTarget.value, e.shiftKey ? -1 : 1);
+              }
+            }}
           />
+          {wb.searchHits.length > 0 && (
+            <span className="search__nav">
+              <span className="search__count">
+                {wb.searchHitIndex + 1}/{wb.searchHits.length}
+              </span>
+              <button
+                type="button"
+                className="search__step"
+                aria-label="Previous match"
+                onClick={() => search(queryRef.current, -1)}
+              >
+                <CaretUp aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="search__step"
+                aria-label="Next match"
+                onClick={() => search(queryRef.current, 1)}
+              >
+                <CaretDown aria-hidden="true" />
+              </button>
+            </span>
+          )}
         </div>
       )}
     </header>

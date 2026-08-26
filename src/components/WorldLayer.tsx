@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { worldFrame } from '../lib/geometry.ts';
+import { worldFrame, worldTagMetrics } from '../lib/geometry.ts';
 import { worldColor } from '../lib/utils.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 
@@ -8,6 +8,8 @@ type Props = {
   groups: Group[];
   worlds: World[];
   show: boolean;
+  /** Board zoom `k` — world names grow when zoomed out. */
+  zoom: number;
   packVis: (n: SimNode) => boolean;
   onWorldDragStart: (
     world: string,
@@ -23,6 +25,7 @@ export function WorldLayer({
   groups,
   worlds,
   show,
+  zoom,
   packVis,
   onWorldDragStart,
 }: Props) {
@@ -37,6 +40,8 @@ export function WorldLayer({
     worldNames.push(w);
   }
 
+  const tag = worldTagMetrics(zoom);
+
   return (
     <g id="lWorlds">
       {worldNames.map((w) => {
@@ -47,7 +52,7 @@ export function WorldLayer({
         const by = frame.t;
         const bw = frame.r - frame.l;
         const bh = frame.b - frame.t;
-        const lw = w.length * 8.2 + 46;
+        const lw = (w.length * 8.2 + 46) * tag.scale;
         return (
           <g key={w}>
             <rect
@@ -85,19 +90,26 @@ export function WorldLayer({
                 x={bx}
                 y={by}
                 width={lw}
-                height={26}
-                rx={13}
+                height={tag.pillH}
+                rx={13 * tag.scale}
                 fill={col}
                 stroke={col}
                 strokeWidth={1}
               />
-              <text x={bx + 14} y={by + 18} fontSize={12} fill="#ffffffbb">
+              <text
+                x={bx + 14 * tag.scale}
+                y={by + tag.pillH / 2}
+                dominantBaseline="middle"
+                fontSize={tag.handleSize}
+                fill="#ffffffbb"
+              >
                 ⠿
               </text>
               <text
-                x={bx + 31}
-                y={by + 18}
-                fontSize={14}
+                x={bx + 31 * tag.scale}
+                y={by + tag.pillH / 2}
+                dominantBaseline="middle"
+                fontSize={tag.fontSize}
                 fontWeight={800}
                 fill="#fff"
               >

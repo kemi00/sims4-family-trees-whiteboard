@@ -30,6 +30,10 @@ export interface SimNode {
   breed?: string;
   /** Present on user-added sims (editor). */
   added?: boolean;
+  /** Sims 4 sim id from an imported .save, as a decimal string. */
+  saveSimId?: string;
+  /** In the save and not on the shipped xlsx roster. */
+  fromSave?: boolean;
 }
 
 export type EdgeType =
@@ -40,11 +44,20 @@ export type EdgeType =
   | 'sibling'
   | 'custom';
 
+export type EdgeSource = 'seed' | 'save' | 'planned';
+
 export interface Edge {
   id: string;
   a: string;
   b: string;
   type: EdgeType;
+  /**
+   * seed = shipped canon (gray, not in the log).
+   * save = confirmed or created by a .save import (gray, in the log).
+   * planned = board edit not in the save (violet, in the log).
+   * Absent on older json: inferred from id (`u…` → planned, else seed).
+   */
+  source?: EdgeSource;
   /** ISO time when the user created this link. Absent on canon and older saves. */
   createdAt?: string;
   /** Shared by parent links created together (child of a couple). */

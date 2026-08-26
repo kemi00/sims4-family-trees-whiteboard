@@ -1,3 +1,4 @@
+import { householdChrome, snapGroupDelta, tileSnapOrigin } from './tiles.ts';
 import {
   ALIGN_TH,
   BAND,
@@ -7,9 +8,13 @@ import {
   PILL_W,
   RGAP,
   SNAP_HYST,
-  SNAP_RANGE,
   STUB,
+  TILE,
   UNION_MIN_GAP,
+  WORLD_TAG_FONT,
+  WORLD_TAG_NORMAL_ZOOM,
+  WORLD_TAG_PILL_H,
+  WORLD_TAG_ZOOM_OUT_MAX,
 } from './constants.ts';
 import { LAYOUT } from './layout.ts';
 import type {
@@ -56,39 +61,6 @@ export function edgeVisible(e: Edge, show: ShowToggles): boolean {
 }
 
 export type SnapSticky = { x: number | null; y: number | null };
-
-function collectSnapEdges(
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  nodes: SimNode[],
-  excludeId?: string,
-): { xe: number[]; ye: number[] } {
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-  const xe = new Set<number>();
-  const ye = new Set<number>();
-
-  for (const o of nodes) {
-    if (o.id === excludeId) continue;
-    const ocx = o.x + o.w / 2;
-    const ocy = o.y + o.h / 2;
-    if (
-      Math.abs(ocx - cx) > SNAP_RANGE + (o.w + w) / 2 ||
-      Math.abs(ocy - cy) > SNAP_RANGE + (o.h + h) / 2
-    ) {
-      continue;
-    }
-    xe.add(o.x);
-    xe.add(o.x + o.w - w);
-    xe.add(o.x + o.w / 2 - w / 2);
-    ye.add(o.y);
-    ye.add(o.y + o.h - h);
-    ye.add(o.y + o.h / 2 - h / 2);
-  }
-  return { xe: [...xe], ye: [...ye] };
-}
 
 function snapAxisSticky(
   v: number,
@@ -148,31 +120,29 @@ export function guidesForRect(
   return { gx: [...gx], gy: [...gy] };
 }
 
-/** Snap a top-left position; guides show only the active snap target (0–2 lines). */
+/** Snap a top-left position onto the 1×2 tile grid. */
 export function snapPosition(
   x: number,
   y: number,
   w: number,
   h: number,
-  nodes: SimNode[],
-  excludeId?: string,
+  _nodes: SimNode[],
+  _excludeId?: string,
   snap = true,
-  sticky: SnapSticky = { x: null, y: null },
+  _sticky: SnapSticky = { x: null, y: null },
 ): { x: number; y: number; guides: Guides; sticky: SnapSticky } {
   if (!snap) {
     return { x, y, guides: { gx: [], gy: [] }, sticky: { x: null, y: null } };
   }
-  const { xe, ye } = collectSnapEdges(x, y, w, h, nodes, excludeId);
-  const sx = snapAxisSticky(x, xe, sticky.x);
-  const sy = snapAxisSticky(y, ye, sticky.y);
+  const t = tileSnapOrigin(x, y);
   return {
-    x: sx.v,
-    y: sy.v,
+    x: t.x,
+    y: t.y,
     guides: {
-      gx: sx.guide !== null ? [sx.guide] : [],
-      gy: sy.guide !== null ? [sy.guide] : [],
+      gx: [t.x, t.x + w],
+      gy: [t.y, t.y + h],
     },
-    sticky: { x: sx.sticky, y: sy.sticky },
+    sticky: { x: t.x, y: t.y },
   };
 }
 
@@ -202,7 +172,7 @@ export function hhBox(gid: string, nodes: SimNode[]): HhBox | null {
   };
 }
 
-/** Drawn household box extent (matches drawGroups; includes title width). */
+/** Drawn household box extent (matches GroupLayer; includes title width). */
 export function hhBoxDraw(
   gid: string,
   nodes: SimNode[],
@@ -210,30 +180,17 @@ export function hhBoxDraw(
   packVis: (n: SimNode) => boolean,
 ): HhBoxDraw | null {
   const mem = nodes.filter((n) => n.gid === gid && packVis(n));
-  if (!mem.length) return null;
-  let x0 = 1e9;
-  let y0 = 1e9;
-  let x1 = -1e9;
-  let y1 = -1e9;
-  mem.forEach((n) => {
-    x0 = Math.min(x0, n.x);
-    y0 = Math.min(y0, n.y);
-    x1 = Math.max(x1, n.x + n.w);
-    y1 = Math.max(y1, n.y + n.h);
-  });
-  const g0 = groups.find((g) => g.gid === gid);
-  const pad = LAYOUT.hhPad;
-  const HDROFF = LAYOUT.hhHeader;
-  const label = [
-    g0?.hh,
-    g0?.nb && g0.nb !== '-' && g0.nb !== g0.world ? g0.nb : null,
-    g0?.world,
-  ]
-    .filter(Boolean)
-    .join('  ·  ');
-  const lw = label ? label.length * 6.6 + 30 : 0;
-  const boxW = Math.max(x1 - x0 + pad * 2, lw + pad);
-  return { l: x0 - pad, t: y0 - pad - HDROFF, r: x0 - pad + boxW, b: y1 + pad };
+  const chrome = householdChrome(
+    mem,
+    groups.find((g) => g.gid === gid),
+  );
+  if (!chrome) return null;
+  return {
+    l: chrome.boxL,
+    t: chrome.boxT,
+    r: chrome.boxR,
+    b: chrome.boxB,
+  };
 }
 
 /** Drawn world frame (matches WorldLayer: household union + title/margin). */
@@ -266,6 +223,135 @@ export function worldFrame(
   const M = LAYOUT.worldMargin;
   const TITLE = LAYOUT.worldTitle;
   return { l: x0 - M, t: y0 - TITLE, r: x1 + M, b: y1 + M };
+}
+
+function framesOverlap(a: HhBoxDraw, b: HhBoxDraw): boolean {
+  return a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+}
+
+function tileCeil(v: number): number {
+  if (v <= 0) return 0;
+  return Math.ceil(v / TILE) * TILE;
+}
+
+/**
+ * World-name pill scale for the current board zoom. Zoomed out past
+ * {@link WORLD_TAG_NORMAL_ZOOM} → larger in world space; at/above that
+ * zoom → normal size.
+ */
+export function worldTagZoomScale(k: number): number {
+  if (!(k > 0)) return 1;
+  return Math.min(
+    WORLD_TAG_ZOOM_OUT_MAX,
+    Math.max(1, WORLD_TAG_NORMAL_ZOOM / k),
+  );
+}
+
+export function worldTagMetrics(k: number): {
+  scale: number;
+  pillH: number;
+  fontSize: number;
+  handleSize: number;
+} {
+  const scale = worldTagZoomScale(k);
+  return {
+    scale,
+    pillH: WORLD_TAG_PILL_H * scale,
+    fontSize: WORLD_TAG_FONT * scale,
+    handleSize: 12 * scale,
+  };
+}
+
+/**
+ * Nudge whole worlds apart until drawn frames no longer overlap.
+ * Prefers pushing the lower/righter world by whole tiles. Mutates a copy.
+ */
+export function separateOverlappingWorldFrames(
+  nodes: SimNode[],
+  groups: Group[],
+  packVis: (n: SimNode) => boolean = () => true,
+  gap: number = TILE,
+): SimNode[] {
+  const names = [
+    ...new Set(
+      nodes
+        .filter((n) => n.world && n.world !== '—' && packVis(n))
+        .map((n) => n.world),
+    ),
+  ];
+  if (names.length < 2) return nodes;
+
+  const next = nodes.map((n) => ({ ...n }));
+  for (let pass = 0; pass < 64; pass++) {
+    let moved = false;
+    const frames: { w: string; f: HhBoxDraw }[] = [];
+    for (const w of names) {
+      const f = worldFrame(w, next, groups, packVis);
+      if (f) frames.push({ w, f });
+    }
+    for (let i = 0; i < frames.length; i++) {
+      for (let j = i + 1; j < frames.length; j++) {
+        const A = frames[i]!;
+        const B = frames[j]!;
+        if (!framesOverlap(A.f, B.f)) continue;
+        const aCy = (A.f.t + A.f.b) / 2;
+        const bCy = (B.f.t + B.f.b) / 2;
+        const aCx = (A.f.l + A.f.r) / 2;
+        const bCx = (B.f.l + B.f.r) / 2;
+        const moveName =
+          bCy > aCy || (bCy === aCy && bCx >= aCx) ? B.w : A.w;
+        const stay = moveName === B.w ? A.f : B.f;
+        const mov = moveName === B.w ? B.f : A.f;
+        const dxNeed = stay.r - mov.l + gap;
+        const dyNeed = stay.b - mov.t + gap;
+        let dx = 0;
+        let dy = 0;
+        if (dyNeed > 0 && (dxNeed <= 0 || dyNeed <= dxNeed)) {
+          dy = tileCeil(dyNeed);
+        } else if (dxNeed > 0) {
+          dx = tileCeil(dxNeed);
+        }
+        if (!dx && !dy) continue;
+        for (const n of next) {
+          if (n.world !== moveName) continue;
+          n.x += dx;
+          n.y += dy;
+          n.ox = (n.ox ?? 0) + dx;
+          n.oy = (n.oy ?? 0) + dy;
+        }
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return next;
+}
+
+/**
+ * Apply {@link separateOverlappingWorldFrames} as ox/oy deltas on core nodes
+ * so the separation survives the next layout pass.
+ */
+export function coreOffsetsAfterWorldSeparation(
+  core: SimNode[],
+  laid: SimNode[],
+  groups: Group[],
+  packVis: (n: SimNode) => boolean = () => true,
+): SimNode[] {
+  const separated = separateOverlappingWorldFrames(laid, groups, packVis);
+  const before = new Map(laid.map((n) => [n.id, n]));
+  const after = new Map(separated.map((n) => [n.id, n]));
+  let changed = false;
+  const out = core.map((n) => {
+    const b = before.get(n.id);
+    const a = after.get(n.id);
+    if (!b || !a) return n;
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    if (!dx && !dy) return n;
+    changed = true;
+    return { ...n, ox: (n.ox ?? 0) + dx, oy: (n.oy ?? 0) + dy };
+  });
+  return changed ? out : core;
 }
 
 function rectIntersectionArea(a: HhBoxDraw, b: HhBoxDraw): number {
@@ -350,82 +436,25 @@ export function dominantWorldInViewport(
   return best;
 }
 
-const HH_SNAP_TH = 16;
-
-function hhBoxesNear(b: HhBox, range: number): (o: HhBox) => boolean {
-  return (o) =>
-    !(
-      o.maxx + range < b.minx ||
-      o.minx - range > b.maxx ||
-      o.maxy + range < b.miny ||
-      o.miny - range > b.maxy
-    );
-}
-
-/** Snap a household drag delta; does not mutate nodes. */
+/**
+ * Snap a household or world drag as a rigid tile step.
+ * `originX`/`originY` are the group's top-left at drag start.
+ */
 export function snapHouseholdDelta(
-  gid: string,
-  nodes: SimNode[],
+  originX: number,
+  originY: number,
   dx: number,
   dy: number,
   snap = true,
 ): { dx: number; dy: number; guides: Guides } | null {
   if (!snap) return null;
-  const members = nodes.filter((n) => n.gid === gid);
-  if (!members.length) return null;
-  const b = {
-    minx: Math.min(...members.map((n) => n.x + dx)),
-    miny: Math.min(...members.map((n) => n.y + dy)),
-    maxx: Math.max(...members.map((n) => n.x + n.w + dx)),
-    maxy: Math.max(...members.map((n) => n.y + n.h + dy)),
-  };
-  const others = [
-    ...new Set(nodes.filter((n) => n.gid !== gid).map((n) => n.gid)),
-  ]
-    .map((g) => hhBox(g, nodes))
-    .filter((x): x is HhBox => x !== null)
-    .filter(hhBoxesNear(b, SNAP_RANGE));
-
-  let snapDx = 0;
-  let guideX: number | null = null;
-  let bd = HH_SNAP_TH + 1;
-  others.forEach((o) => {
-    [o.minx - b.minx, o.maxx - b.maxx].forEach((off) => {
-      if (Math.abs(off) < bd) {
-        bd = Math.abs(off);
-        snapDx = off;
-        guideX = off === o.minx - b.minx ? o.minx : o.maxx;
-      }
-    });
-  });
-  if (bd > HH_SNAP_TH) {
-    snapDx = Math.round(b.minx / GRID) * GRID - b.minx;
-    guideX = null;
-  }
-
-  let snapDy = 0;
-  let guideY: number | null = null;
-  bd = HH_SNAP_TH + 1;
-  others.forEach((o) => {
-    [o.miny - b.miny, o.maxy - b.maxy].forEach((off) => {
-      if (Math.abs(off) < bd) {
-        bd = Math.abs(off);
-        snapDy = off;
-        guideY = off === o.miny - b.miny ? o.miny : o.maxy;
-      }
-    });
-  });
-  if (bd > HH_SNAP_TH) {
-    snapDy = Math.round(b.miny / GRID) * GRID - b.miny;
-    guideY = null;
-  }
-
+  const d = snapGroupDelta(originX, originY, dx, dy);
   return {
-    dx: dx + snapDx,
-    dy: dy + snapDy,
+    dx: d.dx,
+    dy: d.dy,
     guides: {
-      gx: guideX !== null ? [guideX] : [],
-      gy: guideY !== null ? [guideY] : [],
+      gx: [originX + d.dx],
+      gy: [originY + d.dy],
     },
   };
 }
@@ -541,52 +570,36 @@ export function buildRects(
   if (show.groups) {
     for (const g of groups) {
       const m = nodes.filter((n) => n.gid === g.gid && packVis(n));
-      if (!m.length) continue;
-      let x0 = 1e9;
-      let y0 = 1e9;
-      m.forEach((n) => {
-        x0 = Math.min(x0, n.x);
-        y0 = Math.min(y0, n.y);
-      });
-      const lw =
-        [g.hh, g.nb && g.nb !== '-' && g.nb !== g.world ? g.nb : null, g.world]
-          .filter(Boolean)
-          .join('  ·  ').length *
-          6.6 +
-        40;
+      const chrome = householdChrome(m, g);
+      if (!chrome) continue;
       R.push({
-        l: x0 - 18 - RGAP,
-        t: y0 - 58,
-        r: x0 - 18 + lw + RGAP,
-        b: y0 - 34,
+        l: chrome.headerX - RGAP,
+        t: chrome.headerY - RGAP,
+        r:
+          Math.max(chrome.headerX + chrome.labelW, chrome.ageX + chrome.ageW) +
+          RGAP,
+        b: chrome.ageY + chrome.pillH + RGAP,
         id: `__t_${g.gid}`,
       });
     }
   }
   if (show.worlds) {
-    const byW: Record<string, SimNode[]> = {};
-    nodes.forEach((n) => {
+    const seen = new Set<string>();
+    for (const n of nodes) {
       const w = n.world;
-      if (!w || w === '—' || !packVis(n)) return;
-      (byW[w] = byW[w] || []).push(n);
-    });
-    Object.keys(byW).forEach((w) => {
-      const m = byW[w]!;
-      let x0 = 1e9;
-      let y0 = 1e9;
-      m.forEach((n) => {
-        x0 = Math.min(x0, n.x);
-        y0 = Math.min(y0, n.y);
-      });
+      if (!w || w === '—' || !packVis(n) || seen.has(w)) continue;
+      seen.add(w);
+      const frame = worldFrame(w, nodes, groups, packVis);
+      if (!frame) continue;
       const lw = w.length * 8.2 + 46;
       R.push({
-        l: x0 - 30 - RGAP,
-        t: y0 - 88,
-        r: x0 - 30 + lw + RGAP,
-        b: y0 - 60,
+        l: frame.l - RGAP,
+        t: frame.t - RGAP,
+        r: frame.l + lw + RGAP,
+        b: frame.t + WORLD_TAG_PILL_H + RGAP,
         id: `__w_${w}`,
       });
-    });
+    }
   }
   const RBANDS: Record<number, Rect[]> = {};
   for (const r of R) {

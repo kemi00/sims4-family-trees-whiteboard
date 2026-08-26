@@ -8,6 +8,8 @@ type Props = {
   node: SimNode;
   selected: boolean;
   connectHighlight: boolean;
+  searchHit: boolean;
+  searchCurrent: boolean;
   hiAges: Set<string>;
   hiSingle: boolean;
   partneredIds: Set<string>;
@@ -19,6 +21,8 @@ export const SimNodeView = memo(function SimNodeView({
   node: n,
   selected,
   connectHighlight,
+  searchHit,
+  searchCurrent,
   hiAges,
   hiSingle,
   partneredIds,
@@ -26,6 +30,7 @@ export const SimNodeView = memo(function SimNodeView({
   onPointerDown,
 }: Props) {
   const added = !!n.added;
+  const fromSave = !!n.fromSave && !added;
   const fill = added ? '#f4efff' : '#ffffff';
   const bcol = added ? UEDIT : n.color;
   const speciesBadge = n.species ? SPECIES[n.species] : null;
@@ -40,12 +45,17 @@ export const SimNodeView = memo(function SimNodeView({
   const bloodMatch = !bloodlineIds || bloodlineIds.has(n.id);
   const dim = (highlighting || !!bloodlineIds) && !(ageMatch && bloodMatch);
   const ageClass = highlighting && ageMatch && bloodMatch ? 'agehl' : dim ? 'agedim' : '';
+  const searchClass = searchCurrent
+    ? 'searchcur'
+    : searchHit
+      ? 'searchhit'
+      : '';
   const detail = cardDetailLine(n);
   const h = n.h || CARD_H;
 
   return (
     <g
-      className={`node ${ageClass} ${selected ? 'sel' : ''}`}
+      className={`node ${ageClass} ${searchClass} ${selected ? 'sel' : ''}`}
       data-id={n.id}
       transform={`translate(${n.x},${n.y})`}
       onPointerDown={(e) => onPointerDown(e, n)}
@@ -70,16 +80,16 @@ export const SimNodeView = memo(function SimNodeView({
         fill={bcol}
         clipPath="url(#tagclip)"
       />
-      <text x={16} y={21} fontSize={13} fontWeight={700} fill="#1b2b3a">
+      <text x={16} y={32} fontSize={13} fontWeight={700} fill="#1b2b3a">
         {n.first} {n.sur}
       </text>
-      <text x={16} y={37} fontSize={10.5} fill="#5b6472">
+      <text x={16} y={52} fontSize={10.5} fill="#5b6472">
         {n.age}
         {n.gender && n.gender !== '-' ? ` · ${n.gender}` : ''}
         {n.species ? ` · ${n.species}` : ''}
       </text>
       {detail ? (
-        <text x={16} y={53} fontSize={10.5} fill="#697380">
+        <text x={16} y={72} fontSize={10.5} fill="#697380">
           {detail}
         </text>
       ) : null}
@@ -124,6 +134,22 @@ export const SimNodeView = memo(function SimNodeView({
             ＋
           </text>
         </>
+      )}
+      {fromSave && (
+        <g
+          transform={`translate(${hasBadge || added ? n.w - 38 : n.w - 15}, 15)`}
+        >
+          <circle r={8} fill={n.color} stroke="#fff" strokeWidth={1.3} />
+          <text
+            y={4}
+            fontSize={10}
+            fontWeight={700}
+            textAnchor="middle"
+            fill="#fff"
+          >
+            S
+          </text>
+        </g>
       )}
     </g>
   );

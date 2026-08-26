@@ -33,7 +33,7 @@ export function ViewControls({ wb, svgRef }: Props) {
     <div className="viewctl" role="group" aria-label="View controls">
       <ToolButton
         icon={GridFour}
-        label="Snap to grid"
+        label="Snap to tiles"
         pressed={wb.snap}
         onClick={() => wb.setSnap((s) => !s)}
       />

@@ -84,9 +84,17 @@ export function ConnectionLogPanel({
   const compact = useCompactChrome();
   const pos = panelPosition(anchorRect, CONNECTION_LOG_PANEL_W);
   const [newestFirst, setNewestFirst] = useState(true);
+  const [origin, setOrigin] = useState<'all' | 'planned' | 'save'>('all');
+  const filtered = useMemo(
+    () =>
+      origin === 'all'
+        ? entries
+        : entries.filter((e) => (e.origin ?? 'planned') === origin),
+    [entries, origin],
+  );
   const rows = useMemo(
-    () => connectionLogRows(sortConnectionLog(entries, newestFirst)),
-    [entries, newestFirst],
+    () => connectionLogRows(sortConnectionLog(filtered, newestFirst)),
+    [filtered, newestFirst],
   );
   if (!pos) return null;
 
@@ -122,12 +130,37 @@ export function ConnectionLogPanel({
           </button>
         </span>
       </div>
+      <div className="connection-log__filters" role="tablist" aria-label="Log source">
+        {(
+          [
+            ['all', 'All'],
+            ['planned', 'Planned'],
+            ['save', 'In save'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={origin === id}
+            className={
+              origin === id
+                ? 'connection-log__filter connection-log__filter--on'
+                : 'connection-log__filter'
+            }
+            onClick={() => setOrigin(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {entries.length === 0 ? (
         <p className="connection-log__empty">
-          Links you add with Connect, and household moves from the editor, show
-          up here. Deleting a link or a sim removes its line. Canon family
-          links stay off this list.
+          Planned links you add with Connect, and links confirmed by a save,
+          show up here. Original roster links stay off this list.
         </p>
+      ) : filtered.length === 0 ? (
+        <p className="connection-log__empty">No connections in this filter.</p>
       ) : (
         <ul className="connection-log__list">
           {rows.map((row, i) => {
@@ -150,6 +183,7 @@ export function ConnectionLogPanel({
             const classes = ['connection-log__item'];
             if (stripe % 2 === 1) classes.push('connection-log__item--alt');
             if (selected) classes.push('connection-log__item--on');
+            const tag = entry.origin === 'save' ? 'in save' : 'planned';
             return (
               <li key={row.key}>
                 <div
@@ -157,6 +191,15 @@ export function ConnectionLogPanel({
                   aria-current={selected ? 'true' : undefined}
                   onClick={() => onPick(entry)}
                 >
+                  <span
+                    className={
+                      entry.origin === 'save'
+                        ? 'connection-log__tag connection-log__tag--save'
+                        : 'connection-log__tag connection-log__tag--planned'
+                    }
+                  >
+                    {tag}
+                  </span>
                   <LogParts
                     parts={entry.parts}
                     createdAt={entry.createdAt}

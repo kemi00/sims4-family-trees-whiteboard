@@ -1,6 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Group, SimNode } from '../types/whiteboard.ts';
-import { LAYOUT } from '../lib/layout.ts';
+import { householdChrome } from '../lib/tiles.ts';
 
 type Props = {
   groups: Group[];
@@ -31,41 +31,31 @@ export function GroupLayer({
     <g id="lGroups">
       {groups.map((g0) => {
         const mem = nodes.filter((n) => n.gid === g0.gid && packVis(n));
-        if (!mem.length) return null;
-        let x0 = 1e9,
-          y0 = 1e9,
-          x1 = -1e9,
-          y1 = -1e9;
-        mem.forEach((n) => {
-          x0 = Math.min(x0, n.x);
-          y0 = Math.min(y0, n.y);
-          x1 = Math.max(x1, n.x + n.w);
-          y1 = Math.max(y1, n.y + n.h);
-        });
-        const pad = LAYOUT.hhPad;
-        const HDROFF = LAYOUT.hhHeader;
-        const pillH = LAYOUT.hhHeaderPillH;
-        const headerGap = LAYOUT.hhHeaderGap;
-        const label = [
-          g0.hh,
-          g0.nb && g0.nb !== '-' && g0.nb !== g0.world ? g0.nb : null,
-          g0.world,
-        ]
-          .filter(Boolean)
-          .join('  ·  ');
-        const ageLabel = 'Age up';
-        const lw = label.length * 6.6 + 30;
-        const ageW = ageLabel.length * 6.6 + 16;
-        const boxW = Math.max(x1 - x0 + pad * 2, lw + pad);
-        const headerY = y0 - pad - HDROFF;
-        const ageY = headerY + pillH + headerGap;
+        const chrome = householdChrome(mem, g0);
+        if (!chrome) return null;
+        const {
+          boxL,
+          boxT,
+          boxR,
+          boxB,
+          headerX,
+          headerY,
+          ageX,
+          ageY,
+          pillH,
+          label,
+          labelW,
+          ageLabel,
+          ageW,
+        } = chrome;
+        const textY = (pillY: number) => pillY + pillH / 2;
         return (
           <g key={g0.gid}>
             <rect
-              x={x0 - pad}
-              y={headerY}
-              width={boxW}
-              height={y1 - y0 + pad * 2 + HDROFF}
+              x={boxL}
+              y={boxT}
+              width={boxR - boxL}
+              height={boxB - boxT}
               rx={14}
               fill={g0.color + '12'}
               stroke={g0.color + '55'}
@@ -95,9 +85,9 @@ export function GroupLayer({
               }}
             >
               <rect
-                x={x0 - pad}
+                x={headerX}
                 y={headerY}
-                width={lw}
+                width={labelW}
                 height={pillH}
                 rx={8}
                 fill={g0.color + '22'}
@@ -105,16 +95,18 @@ export function GroupLayer({
                 strokeWidth={1}
               />
               <text
-                x={x0 - pad + 8}
-                y={headerY + 14}
+                x={headerX + 10}
+                y={textY(headerY)}
+                dominantBaseline="middle"
                 fontSize={12}
                 fill={g0.color + '99'}
               >
                 ⠿
               </text>
               <text
-                x={x0 - pad + 22}
-                y={headerY + 13}
+                x={headerX + 24}
+                y={textY(headerY)}
+                dominantBaseline="middle"
                 fontSize={12}
                 fontWeight={700}
                 fill={g0.color}
@@ -134,7 +126,7 @@ export function GroupLayer({
             >
               <title>Age up this household</title>
               <rect
-                x={x0 - pad}
+                x={ageX}
                 y={ageY}
                 width={ageW}
                 height={pillH}
@@ -144,9 +136,10 @@ export function GroupLayer({
                 strokeWidth={1}
               />
               <text
-                x={x0 - pad + ageW / 2}
-                y={ageY + 13}
-                fontSize={11}
+                x={ageX + ageW / 2}
+                y={textY(ageY)}
+                dominantBaseline="middle"
+                fontSize={12}
                 fontWeight={700}
                 textAnchor="middle"
                 fill="#fff"

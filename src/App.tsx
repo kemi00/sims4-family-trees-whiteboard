@@ -8,6 +8,7 @@ import { ConnectionLogPanel } from './components/ConnectionLogPanel.tsx';
 import { GamesPanel } from './components/GamesPanel.tsx';
 import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { WhiteboardStage } from './components/WhiteboardStage.tsx';
+import { SaveImportDialog } from './components/SaveImportDialog.tsx';
 import { useWhiteboard } from './hooks/useWhiteboard.ts';
 
 /** One icon size and weight for the whole app, set once. */
@@ -27,7 +28,8 @@ export default function App() {
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
-        if (wb.gamesOpen) wb.setGamesOpen(false);
+        if (wb.saveImport) wb.cancelSaveImport();
+        else if (wb.gamesOpen) wb.setGamesOpen(false);
         else if (wb.playOpen) wb.setPlayOpen(false);
         else if (wb.agesOpen) wb.setAgesOpen(false);
         else if (wb.logOpen) wb.setLogOpen(false);
@@ -207,6 +209,16 @@ export default function App() {
               onClose={() => wb.setLogOpen(false)}
             />
           </div>
+        )}
+        {wb.saveImport && (
+          <SaveImportDialog
+            summary={wb.saveImport.summary}
+            onCancel={wb.cancelSaveImport}
+            onConfirm={() => {
+              const r = svgRef.current?.getBoundingClientRect();
+              wb.confirmSaveImport(r?.width ?? 800, r?.height ?? 600);
+            }}
+          />
         )}
       </div>
       <Analytics />

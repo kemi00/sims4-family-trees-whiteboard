@@ -1,9 +1,10 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import seedData from '../data/whiteboard.json';
-import { ADDED_HOUSEHOLD, AGES_H, DECEASED_STATE, FOCUS_SIM_K, PILL_DROP, PILL_H, STATUS_FLASH_MS, UEDIT } from '../lib/constants.ts';
+import { ADDED_HOUSEHOLD, AGES_H, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MAX, ZOOM_MIN } from '../lib/constants.ts';
 import {
   bbox,
   cardOriginAtViewportCenter,
+  coreOffsetsAfterWorldSeparation,
   dominantWorldInViewport,
   snapHouseholdDelta,
   snapPosition,
@@ -13,9 +14,12 @@ import {
   computeLayout,
   layoutBases,
   measureCard,
+  offsetsForNewGids,
   OTHER_WORLD,
   rowPitch,
+  spawnChildOrigin,
 } from '../lib/layout.ts';
+import { snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
 import { bloodVerts, computeEdgeRenderData, hopD } from '../lib/routing.ts';
 import { lineageIds } from '../lib/bloodline.ts';
 import {
@@ -25,6 +29,12 @@ import {
   simName,
 } from '../lib/connectionLog.ts';
 import { fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
+import { parseSaveGame } from '../lib/savegame/parseSave.ts';
+import {
+  mergeSaveIntoBoard,
+  seedNameKeysFromNodes,
+  type SaveMergeResult,
+} from '../lib/savegame/mergeSave.ts';
 import type {
   ConnSrc,
   DeceasedMark,
@@ -105,7 +115,12 @@ export function useWhiteboard() {
     data.nodes.map((n) => toCore(n)),
   );
   const [edges, setEdges] = useState<Edge[]>(() =>
-    sanitizeEdges(data.edges.map((e) => ({ ...e }))),
+    sanitizeEdges(
+      data.edges.map((e) => ({
+        ...e,
+        source: e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
+      })),
+    ),
   );
   const [groups, setGroups] = useState<Group[]>(() =>
     data.groups.map((g) => ({ ...g })),
@@ -143,6 +158,9 @@ export function useWhiteboard() {
   const [householdAgeUps, setHouseholdAgeUps] = useState<HouseholdAgeUp[]>([]);
   const [deceasedMarks, setDeceasedMarks] = useState<DeceasedMark[]>([]);
   const [simAgeUps, setSimAgeUps] = useState<SimAgeUp[]>([]);
+  const [saveImport, setSaveImport] = useState<SaveMergeResult | null>(null);
+  const [searchHits, setSearchHits] = useState<string[]>([]);
+  const [searchHitIndex, setSearchHitIndex] = useState(0);
   const [infantHouseMenu, setInfantHouseMenu] = useState<{
     pa: string;
     pb: string;
@@ -164,10 +182,10 @@ export function useWhiteboard() {
   } | null>(null);
 
   /** Positions and card sizes are derived on every render from layout rules. */
-  const nodes = useMemo(
-    () => computeLayout(nodesCore, worlds, edges),
-    [nodesCore, worlds, edges],
-  );
+  const nodes = useMemo(() => {
+    const laid = computeLayout(nodesCore, worlds, edges);
+    return snap ? snapNodesToTiles(laid) : laid;
+  }, [nodesCore, worlds, edges, snap]);
 
   const byid = useMemo(() => {
     const m: Record<string, SimNode> = {};
@@ -407,7 +425,7 @@ export function useWhiteboard() {
       const id = 'u' + eidcRef.current++;
       nextEdges = sanitizeEdges([
         ...e,
-        { id, a, b, type, createdAt: new Date().toISOString() },
+        { id, a, b, type, source: 'planned', createdAt: new Date().toISOString() },
       ]);
       return nextEdges;
     });
@@ -512,6 +530,11 @@ export function useWhiteboard() {
       if (!hit) break;
       y += pitch;
     }
+    if (snap) {
+      const t = tileSnapOrigin(x, y);
+      x = t.x;
+      y = t.y;
+    }
     const nextCore = [...nodesCore, toCore(n)];
     const bases = layoutBases(nextCore, worlds, edges);
     const newBase = bases.get(id);
@@ -547,7 +570,7 @@ export function useWhiteboard() {
       ];
     });
     setSel({ type: 'node', id });
-  }, [worlds, nodes, nodesCore, groups, nodeVis, viewport, edges, byid, pushUndo]);
+  }, [worlds, nodes, nodesCore, groups, nodeVis, viewport, edges, byid, pushUndo, snap]);
 
   const updateNode = useCallback((id: string, patch: Partial<SimNode>) => {
     const prev = nodesCore.find((n) => n.id === id);
@@ -652,9 +675,9 @@ export function useWhiteboard() {
   );
 
   const snapHouseholdDrag = useCallback(
-    (gid: string, dx: number, dy: number) =>
-      snapHouseholdDelta(gid, nodes, dx, dy, snap),
-    [snap, nodes],
+    (originX: number, originY: number, dx: number, dy: number) =>
+      snapHouseholdDelta(originX, originY, dx, dy, snap),
+    [snap],
   );
 
   const snapNodeAction = useCallback(
@@ -665,6 +688,16 @@ export function useWhiteboard() {
     },
     [snap, nodes, updateNode],
   );
+
+  /** Push world frames apart by whole tiles; persists via ox/oy. */
+  const enforceWorldSeparation = useCallback(() => {
+    setNodesCore((core) => {
+      const laid = snap
+        ? snapNodesToTiles(computeLayout(core, worlds, edges))
+        : computeLayout(core, worlds, edges);
+      return coreOffsetsAfterWorldSeparation(core, laid, groups, () => true);
+    });
+  }, [snap, worlds, edges, groups]);
 
   const makeChildOfCouple = useCallback(
     (pa: string, pb: string, childId: string) => {
@@ -698,6 +731,7 @@ export function useWhiteboard() {
             a: p,
             b: childId,
             type: 'parent',
+            source: 'planned',
             createdAt,
             bundleId,
           });
@@ -716,7 +750,7 @@ export function useWhiteboard() {
   );
 
   const addInfantOfCouple = useCallback(
-    (pa: string, pb: string, destGid: string, rx: number, ry: number) => {
+    (pa: string, pb: string, destGid: string, rx: number, _ry: number) => {
       const a = byid[pa];
       const b = byid[pb];
       if (!a || !b) return;
@@ -766,20 +800,23 @@ export function useWhiteboard() {
         added: true,
       };
       const size = measureCard(infant);
-      let x = rx - size.w / 2;
-      let y = ry + PILL_H / 2 + PILL_DROP;
-      const pitch = rowPitch();
-      for (let i = 0; i < nodes.length + 1; i++) {
-        const hit = nodes.some(
-          (o) =>
-            x < o.x + o.w &&
-            x + size.w > o.x &&
-            y < o.y + o.h &&
-            y + size.h > o.y,
+      const siblings = nodes.filter((n) => {
+        const fromA = edges.some(
+          (e) => e.type === 'parent' && e.a === pa && e.b === n.id,
         );
-        if (!hit) break;
-        y += pitch;
-      }
+        const fromB = edges.some(
+          (e) => e.type === 'parent' && e.a === pb && e.b === n.id,
+        );
+        return fromA && fromB;
+      });
+      const { x, y } = spawnChildOrigin(
+        Math.min(a.y, b.y),
+        rx,
+        size.w,
+        siblings,
+        nodes,
+        snap,
+      );
       const bundleId = 'b' + eidcRef.current++;
       const createdAt = new Date().toISOString();
       const nextEdges: Edge[] = [...edges];
@@ -789,6 +826,7 @@ export function useWhiteboard() {
           a: p,
           b: id,
           type: 'parent',
+          source: 'planned',
           createdAt,
           bundleId,
         });
@@ -817,7 +855,7 @@ export function useWhiteboard() {
         `Linked ✓ — Infant added under ${byid[pa]?.first ?? ''} ＋ ${byid[pb]?.first ?? ''}.`,
       );
     },
-    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo],
+    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap],
   );
 
   const requestInfantOfCouple = useCallback(
@@ -972,7 +1010,7 @@ export function useWhiteboard() {
   const zoomAt = useCallback(
     (f: number, cx: number, cy: number, svgRect: DOMRect) => {
       setViewport((v) => {
-        const nk = Math.min(4, Math.max(0.06, v.k * f));
+        const nk = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v.k * f));
         if (nk === v.k) return v;
         const mx = cx - svgRect.left;
         const my = cy - svgRect.top;
@@ -1011,19 +1049,43 @@ export function useWhiteboard() {
   );
 
   const searchSim = useCallback(
-    (q: string, svgWidth: number, svgHeight: number) => {
+    (
+      q: string,
+      svgWidth: number,
+      svgHeight: number,
+      cycle: 0 | 1 | -1 = 0,
+    ) => {
       const query = q.toLowerCase().trim();
-      if (!query) return;
-      const hit = nodes.find(
-        (n) =>
-          nodeVis(n) &&
-          `${n.first} ${n.sur}`.toLowerCase().includes(query),
-      );
-      if (!hit) return;
-      frameSim(hit, svgWidth, svgHeight);
-      setSel({ type: 'node', id: hit.id });
+      if (!query) {
+        setSearchHits([]);
+        setSearchHitIndex(0);
+        return;
+      }
+      const hits = nodes
+        .filter(
+          (n) =>
+            nodeVis(n) && `${n.first} ${n.sur}`.toLowerCase().includes(query),
+        )
+        .map((n) => n.id);
+      if (!hits.length) {
+        setSearchHits([]);
+        setSearchHitIndex(0);
+        return;
+      }
+      const next =
+        cycle === 0
+          ? 0
+          : (((searchHitIndex + cycle) % hits.length) + hits.length) %
+            hits.length;
+      setSearchHits(hits);
+      setSearchHitIndex(next);
+      const n = byid[hits[next]!];
+      if (n) {
+        frameSim(n, svgWidth, svgHeight);
+        setSel({ type: 'node', id: n.id });
+      }
     },
-    [nodes, nodeVis, frameSim],
+    [nodes, nodeVis, byid, frameSim, searchHitIndex],
   );
 
   const saveJson = useCallback(() => {
@@ -1099,22 +1161,108 @@ export function useWhiteboard() {
           );
           setSel(null);
           setEditNodeId(null);
-          setTimeout(() => fit(svgWidth, svgHeight), 0);
+          // Separate after state commits so layout uses the loaded groups/edges.
+          setTimeout(() => {
+            setNodesCore((core) => {
+              const laid = snap
+                ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
+                : computeLayout(core, worlds, loadedEdges);
+              return coreOffsetsAfterWorldSeparation(
+                core,
+                laid,
+                (d.groups as Group[]) ?? groups,
+                () => true,
+              );
+            });
+            fit(svgWidth, svgHeight);
+          }, 0);
         } catch {
           alert('Bad file');
         }
       };
       rd.readAsText(file);
     },
-    [fit],
+    [fit, snap, worlds, groups],
   );
+
+  const previewSave = useCallback((file: File) => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const buf = new Uint8Array(rd.result as ArrayBuffer);
+        const parsed = parseSaveGame(buf);
+        let n = eidcRef.current;
+        const merged = mergeSaveIntoBoard({
+          nodes: nodesCore,
+          edges,
+          groups,
+          worlds,
+          parsed,
+          seedNameKeys: seedNameKeysFromNodes(data.nodes),
+          now: new Date().toISOString(),
+          nextEdgeId: () => 'v' + n++,
+        });
+        setSaveImport(merged);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not read that save';
+        alert(msg);
+      }
+    };
+    rd.readAsArrayBuffer(file);
+  }, [nodesCore, edges, groups, worlds, data.nodes]);
+
+  const confirmSaveImport = useCallback(
+    (svgWidth: number, svgHeight: number) => {
+      if (!saveImport) return;
+      pushUndo();
+      setEdges(saveImport.edges);
+      setGroups(saveImport.groups);
+      const mergedCore = offsetsForNewGids(
+        byid,
+        saveImport.nodes.map(toCore),
+        worlds,
+        saveImport.edges,
+      );
+      const laid = snap
+        ? snapNodesToTiles(computeLayout(mergedCore, worlds, saveImport.edges))
+        : computeLayout(mergedCore, worlds, saveImport.edges);
+      setNodesCore(
+        coreOffsetsAfterWorldSeparation(
+          mergedCore,
+          laid,
+          saveImport.groups,
+          () => true,
+        ),
+      );
+      eidcRef.current = nextEidc(saveImport.edges, eidcRef.current);
+      const s = saveImport.summary;
+      if (s.hidePacks.length) {
+        setHiddenPacks((prev) => {
+          const next = new Set(prev);
+          for (const p of s.hidePacks) next.add(p);
+          return next;
+        });
+      }
+      setSaveImport(null);
+      setSel(null);
+      flashStatus(
+        s.hidePacks.length
+          ? `Save merged — ${s.matched} updated, ${s.added} added. Hidden ${s.hidePacks.length} games not in this save.`
+          : `Save merged — ${s.matched} updated, ${s.added} added, ${s.confirmed} links confirmed, ${s.newLinks} new links, ${s.stillPlanned} still planned.`,
+      );
+      setTimeout(() => fit(svgWidth, svgHeight), 0);
+    },
+    [saveImport, byid, worlds, pushUndo, flashStatus, fit, snap],
+  );
+
+  const cancelSaveImport = useCallback(() => setSaveImport(null), []);
 
   const exportPng = useCallback(
     (svgEl: SVGSVGElement) => {
       const [x0, y0, x1, y1] = bbox(nodes, nodeVis);
       const pad = 40;
-      const W = x1 - x0 + pad * 2;
-      const H = y1 - y0 + pad * 2;
+      const W = Math.max(1, x1 - x0 + pad * 2);
+      const H = Math.max(1, y1 - y0 + pad * 2);
       const clone = svgEl.cloneNode(true) as SVGSVGElement;
       const sc = clone.querySelector('#scene');
       if (!sc) return;
@@ -1125,6 +1273,7 @@ export function useWhiteboard() {
       clone.setAttribute('width', String(W));
       clone.setAttribute('height', String(H));
       clone.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       const bg = document.createElementNS(
         'http://www.w3.org/2000/svg',
         'rect',
@@ -1135,27 +1284,49 @@ export function useWhiteboard() {
       bg.setAttribute('height', String(H));
       bg.setAttribute('fill', '#f4f1e8');
       sc.parentNode?.insertBefore(bg, sc);
-      const xml = new XMLSerializer().serializeToString(clone);
+      const xml =
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        new XMLSerializer().serializeToString(clone);
+      const svgBlob = new Blob([xml], {
+        type: 'image/svg+xml;charset=utf-8',
+      });
+      const url = URL.createObjectURL(svgBlob);
       const img = new Image();
+      const fail = (why: string) => {
+        URL.revokeObjectURL(url);
+        alert(why);
+      };
+      img.onerror = () => fail('Could not render the PNG.');
       img.onload = () => {
+        const cap = 8192;
+        const s = Math.min(2, cap / W, cap / H);
         const c = document.createElement('canvas');
-        const s = 2;
-        c.width = W * s;
-        c.height = H * s;
-        const ctx = c.getContext('2d')!;
+        c.width = Math.max(1, Math.floor(W * s));
+        c.height = Math.max(1, Math.floor(H * s));
+        const ctx = c.getContext('2d');
+        if (!ctx) {
+          fail('Could not create a PNG canvas.');
+          return;
+        }
         ctx.scale(s, s);
         ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
         c.toBlob((b) => {
-          if (!b) return;
+          if (!b) {
+            alert(
+              'PNG export failed — the board is too large for this browser. Hide unused games in Filters and try again.',
+            );
+            return;
+          }
           const a = document.createElement('a');
-          a.href = URL.createObjectURL(b);
+          const href = URL.createObjectURL(b);
+          a.href = href;
           a.download = `sims4_family_trees_${fileStamp()}.png`;
           a.click();
-        });
+          setTimeout(() => URL.revokeObjectURL(href), 4000);
+        }, 'image/png');
       };
-      img.src =
-        'data:image/svg+xml;base64,' +
-        btoa(unescape(encodeURIComponent(xml)));
+      img.src = url;
     },
     [nodes, nodeVis],
   );
@@ -1394,6 +1565,8 @@ export function useWhiteboard() {
     [sel],
   );
 
+  const searchHitSet = useMemo(() => new Set(searchHits), [searchHits]);
+
   return {
     nodes,
     edges,
@@ -1466,6 +1639,7 @@ export function useWhiteboard() {
     snapDragPosition,
     snapHouseholdDrag,
     snapNodeAction,
+    enforceWorldSeparation,
     handleConnectClick,
     handleConnectUnion,
     confirmConnect,
@@ -1476,8 +1650,15 @@ export function useWhiteboard() {
     focusLogEntry,
     focusSim,
     searchSim,
+    searchHits,
+    searchHitIndex,
+    searchHitSet,
     saveJson,
     loadJson,
+    previewSave,
+    confirmSaveImport,
+    cancelSaveImport,
+    saveImport,
     exportPng,
     togglePack,
     togglePlay,
