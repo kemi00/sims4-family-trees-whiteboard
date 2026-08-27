@@ -104,15 +104,31 @@ export const WORLD_TAG_PILL_H = 26;
 /** World-name type size at zoom 1 (and when zoomed in). */
 export const WORLD_TAG_FONT = 14;
 /**
- * Board zoom at which world labels are already normal size.
- * Below this, labels grow in world-space (`scale = clamp(NORMAL/k, 1, MAX)`).
+ * Board zoom at/above which world labels use world-space size 1
+ * (pill height = {@link WORLD_TAG_PILL_H} screen px at 100% zoom).
  */
-export const WORLD_TAG_NORMAL_ZOOM = 0.6;
+export const WORLD_TAG_NORMAL_ZOOM = 1;
 /**
- * When zoomed out past {@link WORLD_TAG_NORMAL_ZOOM}, world labels grow
- * in world-space up to this factor so they stay readable.
+ * Cap on world-space growth when zoomed out.
+ * With {@link WORLD_TAG_MIN_SCREEN_PX}, ~22px-tall chips down to ~5% zoom.
  */
-export const WORLD_TAG_ZOOM_OUT_MAX = 5;
+export const WORLD_TAG_ZOOM_OUT_MAX = 16;
+/**
+ * Target painted world-chip height on screen while zoomed out.
+ * Legible + grabbable, but not so large that labels occlude the trees
+ * (cartography: labels serve content; they must not become the map).
+ */
+export const WORLD_TAG_MIN_SCREEN_PX = 22;
+/**
+ * Extra hit padding around the painted chip, in screen pixels.
+ * Keep small: large pads / full-width strips steal neighboring worlds.
+ */
+export const WORLD_TAG_HIT_PAD_SCREEN_PX = 10;
+/**
+ * Bumped when packing rules change under saved ox/oy.
+ * Downloads without a matching epoch may be re-packed on load.
+ */
+export const LAYOUT_EPOCH = 1;
 export const ALIGN_TH = 13;
 /** Extra stickiness so snap targets do not flip while dragging. */
 export const SNAP_HYST = 10;
@@ -167,7 +183,11 @@ export const BAND = 170;
 export const STUB = 26;
 export const MINDROP = 46;
 
-/** Drop line length below a union pill before the parent-child trunk. */
+/**
+ * Offset from the union pill center (`ry`) down to the exit point where the
+ * parent→child trunk begins (pill bottom). The mandatory bottom stem below
+ * that exit is {@link STUB}, same length as the child top stem.
+ */
 export const PILL_DROP = 12;
 /** Relationship pill height (rings / heart / divorce capsule). */
 export const PILL_H = 24;
@@ -224,3 +244,5 @@ export const STATUS_FLASH_MS = 2800;
 
 /** Transparent hit stroke in screen pixels, converted to world space by `/ k`. */
 export const EDGE_HIT_SCREEN_PX = 16;
+/** Selected-link stroke thickness in screen pixels (`/ k` → world). */
+export const EDGE_SEL_SCREEN_PX = 5;

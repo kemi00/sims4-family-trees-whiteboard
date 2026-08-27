@@ -1,4 +1,5 @@
 import {
+  ArrowCounterClockwise,
   DotsThreeVertical,
   DownloadSimple,
   EnvelopeSimple,
@@ -17,10 +18,17 @@ type Props = {
   onLoad: (file: File) => void;
   onLoadSave: (file: File) => void;
   onExportPng: () => void;
+  onResetBuiltIn: () => void;
 };
 
 /** File actions, kept out of the bar because they are used rarely. */
-export function OverflowMenu({ onSave, onLoad, onLoadSave, onExportPng }: Props) {
+export function OverflowMenu({
+  onSave,
+  onLoad,
+  onLoadSave,
+  onExportPng,
+  onResetBuiltIn,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -109,6 +117,25 @@ export function OverflowMenu({ onSave, onLoad, onLoadSave, onExportPng }: Props)
           >
             <FileImage aria-hidden="true" />
             Export PNG
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="pop__danger"
+            onClick={() =>
+              run(() => {
+                if (
+                  confirm(
+                    'Reset to the initial starter board (fodder roster)? This clears the browser draft and discards the current board. Download JSON first if you need a copy.',
+                  )
+                ) {
+                  onResetBuiltIn();
+                }
+              })
+            }
+          >
+            <ArrowCounterClockwise aria-hidden="true" />
+            Reset the board
           </button>
           <a
             href={CONTACT_MAILTO}

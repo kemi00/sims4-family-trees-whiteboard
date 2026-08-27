@@ -6,19 +6,32 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { border, unionAtPoint, unionGeom, type SnapSticky } from '../lib/geometry.ts';
-import { tileSnapOrigin } from '../lib/tiles.ts';
+import { householdChrome, tileSnapOrigin } from '../lib/tiles.ts';
 import {
   CARD_H,
   CARD_MIN_W,
   DRAG_SLOP_PX,
   EDGE_HIT_SCREEN_PX,
+  EDGE_SEL_SCREEN_PX,
   LONG_PRESS_MS,
   TILE,
 } from '../lib/constants.ts';
+import {
+  idsForMultiSel,
+  multiSelContainsGid,
+  multiSelContainsNode,
+  multiSelContainsWorld,
+  normalizeRect,
+  resolveMarqueeSelection,
+} from '../lib/marquee.ts';
+import {
+  describeLinkSelection,
+  type ChipObstacle,
+} from '../lib/linkLabel.ts';
 import { isUserE, siblingsShareParents } from '../lib/utils.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import type { SimNode } from '../types/whiteboard.ts';
+import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
 import { EdgeLayer } from './EdgeLayer.tsx';
@@ -26,6 +39,7 @@ import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { Legend } from './Legend.tsx';
+import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
 import { SimNodeView } from './SimNode.tsx';
@@ -59,6 +73,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     x2: number;
     y2: number;
   } | null>(null);
+  const [marqueeBox, setMarqueeBox] = useState<{
+    l: number;
+    t: number;
+    r: number;
+    b: number;
+  } | null>(null);
+  const [stageSize, setStageSize] = useState({ w: 800, h: 600 });
   const [editorPos, setEditorPos] = useState({ left: 0, top: 0 });
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -103,6 +124,27 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     py: number;
     armed: boolean;
   } | null>(null);
+  const marqueeRef = useRef<{
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    px: number;
+    py: number;
+    armed: boolean;
+  } | null>(null);
+  const multiDragRef = useRef<{
+    sel: BoardMultiSel;
+    ids: string[];
+    sx: number;
+    sy: number;
+    originX: number;
+    originY: number;
+    base: Record<string, { ox: number; oy: number }>;
+    px: number;
+    py: number;
+    armed: boolean;
+  } | null>(null);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchRef = useRef<{
     dist: number;
@@ -117,6 +159,18 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   wbRef.current = wb;
 
   const { tx, ty, k } = wb.viewport;
+
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const sync = () => {
+      setStageSize({ w: el.clientWidth, h: el.clientHeight });
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [stageRef]);
 
   const toWorld = useCallback(
     (sx: number, sy: number) => {
@@ -220,7 +274,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     const el = stageRef.current;
     if (!el) return;
     const chromeSel =
-      '.viewctl, #legend, #hint, #hintIcon, .editor, .menu, #status, .legend-chip, .bloodline-banner, .minimap';
+      '.viewctl, #legend, #hint, #hintIcon, .editor, .menu, #status, #autosave-cue, .legend-chip, .bloodline-banner, .minimap';
     const onTouchStart = (ev: TouchEvent) => {
       const t = ev.target as Element | null;
       if (t?.closest?.(chromeSel)) return;
@@ -355,10 +409,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     dragRef.current = null;
     hhDragRef.current = null;
     worldDragRef.current = null;
+    marqueeRef.current = null;
+    multiDragRef.current = null;
     panRef.current = null;
     movedRef.current = false;
     setGuides(null);
     setPlacement(null);
+    setMarqueeBox(null);
   };
 
   const beginPinch = () => {
@@ -409,6 +466,37 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const pastSlop = (sx: number, sy: number, x: number, y: number) =>
     Math.hypot(x - sx, y - sy) >= DRAG_SLOP_PX;
 
+  const beginMultiDrag = (
+    sel: BoardMultiSel,
+    wx: number,
+    wy: number,
+    ev: ReactPointerEvent,
+  ) => {
+    const ids = idsForMultiSel(sel, wb.nodes);
+    if (!ids.length) return false;
+    const members = ids
+      .map((id) => wb.byid[id])
+      .filter((n): n is SimNode => !!n);
+    const base: Record<string, { ox: number; oy: number }> = {};
+    for (const id of ids) {
+      const n = wb.byid[id];
+      if (n) base[id] = { ox: n.ox ?? 0, oy: n.oy ?? 0 };
+    }
+    multiDragRef.current = {
+      sel,
+      ids,
+      sx: wx,
+      sy: wy,
+      originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
+      originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
+      base,
+      px: ev.clientX,
+      py: ev.clientY,
+      armed: false,
+    };
+    return true;
+  };
+
   const onSvgPointerDown = (ev: ReactPointerEvent) => {
     if (ev.button !== 0) return;
     rememberPointer(ev);
@@ -434,7 +522,24 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       return;
     }
     if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
-    wb.clearSel();
+
+    const wantMarquee = wb.selectMode || ev.shiftKey;
+    if (wantMarquee) {
+      const [wx, wy] = toWorld(ev.clientX, ev.clientY);
+      marqueeRef.current = {
+        x0: wx,
+        y0: wy,
+        x1: wx,
+        y1: wy,
+        px: ev.clientX,
+        py: ev.clientY,
+        armed: false,
+      };
+      setMarqueeBox(null);
+      return;
+    }
+
+    // Pan — keep link/node selection until an empty click (unarmed pan up).
     panRef.current = {
       x: ev.clientX,
       y: ev.clientY,
@@ -453,6 +558,39 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       return;
     }
     if (leftoverRef.current != null) return;
+
+    if (marqueeRef.current) {
+      const m = marqueeRef.current;
+      if (!m.armed) {
+        if (!pastSlop(m.px, m.py, ev.clientX, ev.clientY)) return;
+        m.armed = true;
+      }
+      const [wx, wy] = toWorld(ev.clientX, ev.clientY);
+      m.x1 = wx;
+      m.y1 = wy;
+      setMarqueeBox(normalizeRect(m.x0, m.y0, m.x1, m.y1));
+      return;
+    }
+
+    if (multiDragRef.current) {
+      const d = multiDragRef.current;
+      if (!d.armed) {
+        if (!pastSlop(d.px, d.py, ev.clientX, ev.clientY)) return;
+        d.armed = true;
+      }
+      const [wx, wy] = toWorld(ev.clientX, ev.clientY);
+      const dx = wx - d.sx;
+      const dy = wy - d.sy;
+      const snapped = wb.snapHouseholdDrag(d.originX, d.originY, dx, dy);
+      wb.moveNodesByIds(
+        d.ids,
+        snapped?.dx ?? dx,
+        snapped?.dy ?? dy,
+        d.base,
+      );
+      setGuides(snapped?.guides ?? null);
+      return;
+    }
 
     if (worldDragRef.current) {
       const d = worldDragRef.current;
@@ -564,7 +702,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       panRef.current != null ||
       pinchRef.current != null ||
       hhDragRef.current != null ||
-      worldDragRef.current != null;
+      worldDragRef.current != null ||
+      marqueeRef.current != null ||
+      multiDragRef.current != null;
     if (!known) return;
 
     forgetPointer(ev.pointerId);
@@ -589,6 +729,65 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       return;
     }
 
+    if (marqueeRef.current) {
+      const m = marqueeRef.current;
+      marqueeRef.current = null;
+      setMarqueeBox(null);
+      if (m.armed) {
+        const rect = normalizeRect(m.x0, m.y0, m.x1, m.y1);
+        const next = resolveMarqueeSelection(rect, {
+          nodes: wb.nodes,
+          groups: wb.groups,
+          worlds: wb.worlds,
+          zoom: k,
+          packVis: wb.nodeVis,
+          showWorlds: wb.show.worlds,
+          showGroups: wb.show.groups,
+        });
+        wb.clearSel();
+        wb.setMultiSel(next);
+        if (next) {
+          const n =
+            next.kind === 'worlds'
+              ? next.worlds.length
+              : next.kind === 'households'
+                ? next.gids.length
+                : next.ids.length;
+          const label =
+            next.kind === 'worlds'
+              ? 'world'
+              : next.kind === 'households'
+                ? 'household'
+                : 'sim';
+          wb.setStatus(
+            `Selected ${n} ${label}${n === 1 ? '' : 's'} — drag to move`,
+          );
+        } else {
+          wb.setStatus(
+            wb.selectMode
+              ? 'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims'
+              : '',
+          );
+        }
+      } else if (wb.selectMode) {
+        // Tap empty canvas in select mode clears the multi-selection.
+        wb.clearMultiSel();
+        wb.clearSel();
+      }
+      return;
+    }
+
+    if (multiDragRef.current) {
+      const kind = multiDragRef.current.sel.kind;
+      multiDragRef.current = null;
+      setGuides(null);
+      setPlacement(null);
+      if (kind === 'worlds' || kind === 'households') {
+        wb.enforceWorldSeparation();
+      }
+      return;
+    }
+
     if (hhDragRef.current || worldDragRef.current) {
       setGuides(null);
       setPlacement(null);
@@ -603,7 +802,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       finishNodePointer(wasMoved, n);
       return;
     }
-    panRef.current = null;
+    if (panRef.current) {
+      const p = panRef.current;
+      panRef.current = null;
+      // Empty click (no pan slop) = click outside → deselect.
+      if (!p.armed) {
+        wb.clearSel();
+        wb.clearMultiSel();
+      }
+    }
     if (connectTapRef.current && pointersRef.current.size === 0) {
       connectTapRef.current = false;
       wb.cancelConnect();
@@ -631,6 +838,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       return;
     }
     const [wx, wy] = toWorld(ev.clientX, ev.clientY);
+    if (multiSelContainsNode(wb.multiSel, n.id) && wb.multiSel) {
+      beginMultiDrag(wb.multiSel, wx, wy, ev);
+      return;
+    }
+    wb.clearMultiSel();
     dragRef.current = {
       n,
       dx: wx - n.x,
@@ -674,9 +886,83 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const menu = wb.connectMenu;
   const connHighlight =
     typeof wb.connSrc === 'string' ? wb.connSrc : null;
+  const selectedWorlds =
+    wb.multiSel?.kind === 'worlds' ? new Set(wb.multiSel.worlds) : undefined;
+  const selectedGids =
+    wb.multiSel?.kind === 'households' ? new Set(wb.multiSel.gids) : undefined;
+  const selectedNodeIds =
+    wb.multiSel?.kind === 'nodes' ? new Set(wb.multiSel.ids) : undefined;
+  const linkChip =
+    wb.sel?.type === 'link'
+      ? describeLinkSelection(
+          wb.sel.ids,
+          wb.edges,
+          wb.byid,
+          wb.edgeData,
+        )
+      : null;
+
+  const linkChipObstacles: ChipObstacle[] = [];
+  if (linkChip) {
+    for (const n of wb.nodes) {
+      if (!wb.nodeVis(n)) continue;
+      linkChipObstacles.push({
+        l: n.x,
+        t: n.y,
+        r: n.x + n.w,
+        b: n.y + n.h,
+      });
+    }
+    if (wb.show.groups) {
+      for (const g0 of wb.groups) {
+        const mem = wb.nodes.filter((n) => n.gid === g0.gid && wb.nodeVis(n));
+        const chrome = householdChrome(mem, g0);
+        if (!chrome) continue;
+        // Name pill + Age up — the interactive household chrome band.
+        linkChipObstacles.push({
+          l: chrome.headerX,
+          t: chrome.headerY,
+          r: chrome.headerX + chrome.labelW,
+          b: chrome.ageY + chrome.pillH,
+        });
+      }
+    }
+  }
+
+  const onHouseholdDragStart = (
+    gid: string,
+    sx: number,
+    sy: number,
+    base: Record<string, { ox: number; oy: number }>,
+    ev: ReactPointerEvent,
+  ) => {
+    onHandlePointer(ev);
+    if (pinchRef.current || pointersRef.current.size >= 2) return;
+    if (multiSelContainsGid(wb.multiSel, gid) && wb.multiSel) {
+      beginMultiDrag(wb.multiSel, sx, sy, ev);
+      return;
+    }
+    wb.clearMultiSel();
+    const members = wb.nodes.filter((n) => n.gid === gid);
+    hhDragRef.current = {
+      gid,
+      sx,
+      sy,
+      originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
+      originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
+      base,
+      px: ev.clientX,
+      py: ev.clientY,
+      armed: false,
+    };
+  };
 
   return (
-    <div id="stage" ref={stageRef}>
+    <div
+      id="stage"
+      ref={stageRef}
+      className={wb.selectMode ? 'stage--select' : undefined}
+    >
       <svg
         id="svg"
         ref={svgRef}
@@ -721,50 +1007,23 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             />
           )}
           <WorldLayer
+            mode="frames"
             nodes={wb.nodes}
             groups={wb.groups}
             worlds={wb.worlds}
             show={wb.show.worlds}
             zoom={k}
             packVis={wb.nodeVis}
-            onWorldDragStart={(world, sx, sy, base, ev) => {
-              onHandlePointer(ev);
-              if (pinchRef.current || pointersRef.current.size >= 2) return;
-              const members = wb.nodes.filter((n) => n.world === world);
-              worldDragRef.current = {
-                world,
-                sx,
-                sy,
-                originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
-                originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
-                base,
-                px: ev.clientX,
-                py: ev.clientY,
-                armed: false,
-              };
-            }}
+            selectedWorlds={selectedWorlds}
           />
           <GroupLayer
+            mode="frames"
             groups={wb.groups}
             nodes={wb.nodes}
             show={wb.show.groups}
             packVis={wb.nodeVis}
-            onHouseholdDragStart={(gid, sx, sy, base, ev) => {
-              onHandlePointer(ev);
-              if (pinchRef.current || pointersRef.current.size >= 2) return;
-              const members = wb.nodes.filter((n) => n.gid === gid);
-              hhDragRef.current = {
-                gid,
-                sx,
-                sy,
-                originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
-                originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
-                base,
-                px: ev.clientX,
-                py: ev.clientY,
-                armed: false,
-              };
-            }}
+            selectedGids={selectedGids}
+            onHouseholdDragStart={onHouseholdDragStart}
             onAgeUp={(gid) => wb.ageUpHousehold(gid)}
           />
           <EdgeLayer
@@ -777,6 +1036,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             isSelLink={wb.isSelLink}
             connectMode={wb.connectMode}
             hitStroke={EDGE_HIT_SCREEN_PX / k}
+            selStroke={EDGE_SEL_SCREEN_PX / k}
             onLinkClick={(ids, ev) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
@@ -882,13 +1142,39 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
                 />
               </g>
             )}
+            {marqueeBox && (
+              <rect
+                className="marquee"
+                x={marqueeBox.l}
+                y={marqueeBox.t}
+                width={marqueeBox.r - marqueeBox.l}
+                height={marqueeBox.b - marqueeBox.t}
+                fill="#1b6cd61a"
+                stroke="#1b6cd6"
+                strokeWidth={1.5}
+                strokeDasharray="6 4"
+                pointerEvents="none"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
           </g>
           <g id="lNodes">
             {sortedNodes.map((n) => (
               <SimNodeView
                 key={n.id}
                 node={n}
-                selected={wb.sel?.type === 'node' && wb.sel.id === n.id}
+                selected={
+                  (wb.sel?.type === 'node' && wb.sel.id === n.id) ||
+                  !!selectedNodeIds?.has(n.id)
+                }
+                groupSelected={
+                  !!(
+                    (selectedWorlds &&
+                      n.world &&
+                      selectedWorlds.has(n.world)) ||
+                    (selectedGids && selectedGids.has(n.gid))
+                  )
+                }
                 connectHighlight={connHighlight === n.id}
                 searchHit={wb.searchHitSet.has(n.id)}
                 searchCurrent={
@@ -902,6 +1188,50 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
               />
             ))}
           </g>
+          {/* Household name / Age up above edges so a selected link does not
+              steal drags from tags the path crosses. */}
+          <GroupLayer
+            mode="handles"
+            groups={wb.groups}
+            nodes={wb.nodes}
+            show={wb.show.groups}
+            packVis={wb.nodeVis}
+            selectedGids={selectedGids}
+            onHouseholdDragStart={onHouseholdDragStart}
+            onAgeUp={(gid) => wb.ageUpHousehold(gid)}
+          />
+          {/* World chips last so they paint above household tags + sim cards. */}
+          <WorldLayer
+            mode="handles"
+            nodes={wb.nodes}
+            groups={wb.groups}
+            worlds={wb.worlds}
+            show={wb.show.worlds}
+            zoom={k}
+            packVis={wb.nodeVis}
+            selectedWorlds={selectedWorlds}
+            onWorldDragStart={(world, sx, sy, base, ev) => {
+              onHandlePointer(ev);
+              if (pinchRef.current || pointersRef.current.size >= 2) return;
+              if (multiSelContainsWorld(wb.multiSel, world) && wb.multiSel) {
+                beginMultiDrag(wb.multiSel, sx, sy, ev);
+                return;
+              }
+              wb.clearMultiSel();
+              const members = wb.nodes.filter((n) => n.world === world);
+              worldDragRef.current = {
+                world,
+                sx,
+                sy,
+                originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
+                originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
+                base,
+                px: ev.clientX,
+                py: ev.clientY,
+                armed: false,
+              };
+            }}
+          />
         </g>
       </svg>
       {wb.status && (
@@ -909,6 +1239,51 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           {wb.status}
         </div>
       )}
+      {linkChip && (
+        <LinkSelectionChip
+          info={linkChip}
+          tx={tx}
+          ty={ty}
+          k={k}
+          stageW={stageSize.w}
+          stageH={stageSize.h}
+          obstacles={linkChipObstacles}
+        />
+      )}
+      <div id="autosave-cue">
+        <span className="autosave-cue__label">Autosave on</span>
+        <span className="autosave-cue__sep" aria-hidden="true">
+          ·
+        </span>
+        <span
+          className={
+            wb.sourceFileName
+              ? 'autosave-cue__file'
+              : 'autosave-cue__file autosave-cue__file--muted'
+          }
+          title={wb.boardSourceLabel}
+        >
+          {wb.boardSourceLabel}
+        </span>
+        <button
+          type="button"
+          className="autosave-cue__reset"
+          title="Restore the starter fodder board and clear the browser draft"
+          onClick={() => {
+            if (
+              !confirm(
+                'Reset to the initial starter board (fodder roster)? This clears the browser draft and discards the current board. Download JSON first if you need a copy.',
+              )
+            ) {
+              return;
+            }
+            const r = svgRef.current?.getBoundingClientRect();
+            wb.resetToBuiltInBoard(r?.width ?? 800, r?.height ?? 600);
+          }}
+        >
+          Reset the board
+        </button>
+      </div>
       {wb.bloodlineId && (
         <BloodlineBanner
           node={wb.byid[wb.bloodlineId]}

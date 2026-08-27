@@ -1,6 +1,17 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MAX, ZOOM_MIN } from '../lib/constants.ts';
+import {
+  AUTOSAVE_DEBOUNCE_MS,
+  bootWhiteboardData,
+  buildPersistPayload,
+  clearDraft,
+  toCore,
+  writeDraft,
+} from '../lib/autosave.ts';
+import { prepareLoadedNodes } from '../lib/loadLayout.ts';
+import { loadJsonRisk, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
+import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import {
   bbox,
   cardOriginAtViewportCenter,
@@ -29,13 +40,14 @@ import {
   simName,
 } from '../lib/connectionLog.ts';
 import { fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
-import { parseSaveGame } from '../lib/savegame/parseSave.ts';
+import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   mergeSaveIntoBoard,
   seedNameKeysFromNodes,
   type SaveMergeResult,
 } from '../lib/savegame/mergeSave.ts';
 import type {
+  BoardMultiSel,
   ConnSrc,
   DeceasedMark,
   Edge,
@@ -83,12 +95,6 @@ const LAYER_STATUS: Record<keyof ShowToggles, { on: string; off: string }> = {
   },
 };
 
-/** Strip derived geometry — only semantic fields and drag offsets are persisted. */
-function toCore(n: SimNode): SimNode {
-  const { x, y, w, h, ...rest } = n;
-  return { ...rest, ox: rest.ox ?? 0, oy: rest.oy ?? 0, x: 0, y: 0, w: 0, h: 0 };
-}
-
 type BoardSnap = {
   nodesCore: SimNode[];
   edges: Edge[];
@@ -110,24 +116,54 @@ const LAYOUT_PIN_KEYS: (keyof SimNode)[] = [
 ];
 
 export function useWhiteboard() {
-  const data = seedData as WhiteboardData;
+  const seed = seedData as WhiteboardData;
+  const bootRef = useRef<{
+    fromDraft: boolean;
+    repacked: boolean;
+    data: WhiteboardData;
+  } | null>(null);
+  if (!bootRef.current) {
+    const raw = bootWhiteboardData(seed);
+    const migrated = migrateWhiteboardData(raw.data);
+    bootRef.current = {
+      fromDraft: raw.fromDraft,
+      repacked: raw.repacked,
+      data: {
+        ...migrated,
+        groups: migrated.groups ?? seed.groups,
+        worlds: migrated.worlds ?? seed.worlds,
+      },
+    };
+  }
+  const boot = bootRef.current.data;
+  const bootRepacked = bootRef.current.repacked;
+  const bootFromDraft = bootRef.current.fromDraft;
+  const [sourceFileName, setSourceFileName] = useState<string | null>(
+    () => boot.sourceFileName ?? null,
+  );
+  /** True when the session started from (or still represents) a browser draft without a file name. */
+  const [fromBrowserDraft, setFromBrowserDraft] = useState(bootFromDraft);
   const [nodesCore, setNodesCore] = useState<SimNode[]>(() =>
-    data.nodes.map((n) => toCore(n)),
+    boot.nodes.map((n) => toCore(n)),
   );
   const [edges, setEdges] = useState<Edge[]>(() =>
     sanitizeEdges(
-      data.edges.map((e) => ({
+      boot.edges.map((e) => ({
         ...e,
         source: e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
       })),
     ),
   );
   const [groups, setGroups] = useState<Group[]>(() =>
-    data.groups.map((g) => ({ ...g })),
+    (boot.groups ?? seed.groups).map((g) => ({ ...g })),
   );
-  const [worlds] = useState<World[]>(data.worlds);
-  const [hiddenPacks, setHiddenPacks] = useState<Set<string>>(new Set());
-  const [hiddenPlay, setHiddenPlay] = useState<Set<string>>(new Set());
+  const [worlds] = useState<World[]>(seed.worlds);
+  const [hiddenPacks, setHiddenPacks] = useState<Set<string>>(
+    () => new Set(boot.hiddenPacks || []),
+  );
+  const [hiddenPlay, setHiddenPlay] = useState<Set<string>>(
+    () => new Set(boot.hiddenPlay || []),
+  );
   const [show, setShow] = useState<ShowToggles>({
     seed: true,
     groups: true,
@@ -136,11 +172,20 @@ export function useWhiteboard() {
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEW);
   const [sel, setSel] = useState<Selection>(null);
   const [connectMode, setConnectModeState] = useState(false);
+  const [selectMode, setSelectModeState] = useState(false);
+  const [multiSel, setMultiSel] = useState<BoardMultiSel | null>(null);
   const [connSrc, setConnSrc] = useState<ConnSrc>(null);
   const [snap, setSnap] = useState(true);
-  const [hiAges, setHiAges] = useState<Set<string>>(new Set());
-  const [hiSingle, setHiSingle] = useState(false);
-  const [bloodlineId, setBloodlineId] = useState<string | null>(null);
+  const [hiAges, setHiAges] = useState<Set<string>>(
+    () => new Set(boot.hiAges || []),
+  );
+  const [hiSingle, setHiSingle] = useState(() => !!boot.hiSingle);
+  const [bloodlineId, setBloodlineId] = useState<string | null>(() => {
+    if (boot.bloodlineId && boot.nodes.some((n) => n.id === boot.bloodlineId)) {
+      return boot.bloodlineId;
+    }
+    return null;
+  });
   const [status, setStatus] = useState('');
   const [fastRoute, setFastRoute] = useState(false);
   const [editNodeId, setEditNodeId] = useState<string | null>(null);
@@ -154,11 +199,28 @@ export function useWhiteboard() {
     y: number;
   } | null>(null);
   const [logOpen, setLogOpen] = useState(false);
-  const [householdMoves, setHouseholdMoves] = useState<HouseholdMove[]>([]);
-  const [householdAgeUps, setHouseholdAgeUps] = useState<HouseholdAgeUp[]>([]);
-  const [deceasedMarks, setDeceasedMarks] = useState<DeceasedMark[]>([]);
-  const [simAgeUps, setSimAgeUps] = useState<SimAgeUp[]>([]);
-  const [saveImport, setSaveImport] = useState<SaveMergeResult | null>(null);
+  const [householdMoves, setHouseholdMoves] = useState<HouseholdMove[]>(
+    () => boot.householdMoves ?? [],
+  );
+  const [householdAgeUps, setHouseholdAgeUps] = useState<HouseholdAgeUp[]>(
+    () => boot.householdAgeUps ?? [],
+  );
+  const [deceasedMarks, setDeceasedMarks] = useState<DeceasedMark[]>(
+    () => boot.deceasedMarks ?? [],
+  );
+  const [simAgeUps, setSimAgeUps] = useState<SimAgeUp[]>(
+    () => boot.simAgeUps ?? [],
+  );
+  const [saveImport, setSaveImport] = useState<{
+    merge: SaveMergeResult;
+    parsed: ParsedSave;
+  } | null>(null);
+  const [pendingLoadJson, setPendingLoadJson] = useState<{
+    file: File;
+    svgWidth: number;
+    svgHeight: number;
+    risk: LoadJsonRisk;
+  } | null>(null);
   const [searchHits, setSearchHits] = useState<string[]>([]);
   const [searchHitIndex, setSearchHitIndex] = useState(0);
   const [infantHouseMenu, setInfantHouseMenu] = useState<{
@@ -169,7 +231,18 @@ export function useWhiteboard() {
     x: number;
     y: number;
   } | null>(null);
-  const eidcRef = useRef(100000);
+  const eidcRef = useRef(
+    nextEidc(
+      boot.edges,
+      100000,
+      [
+        ...(boot.householdMoves ?? []).map((m) => m.id),
+        ...(boot.householdAgeUps ?? []).map((a) => a.id),
+        ...(boot.deceasedMarks ?? []).map((m) => m.id),
+        ...(boot.simAgeUps ?? []).map((a) => a.id),
+      ],
+    ),
+  );
   const undoRef = useRef<BoardSnap[]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const statusFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -308,6 +381,67 @@ export function useWhiteboard() {
     }, STATUS_FLASH_MS);
   }, []);
 
+  useEffect(() => {
+    if (!bootRepacked) return;
+    flashStatus(
+      'Older save — board re-packed for the current layout. Download JSON to keep it.',
+    );
+  }, [bootRepacked, flashStatus]);
+
+  const persistPayload = useCallback(
+    () =>
+      buildPersistPayload({
+        nodesCore,
+        edges,
+        groups,
+        hiddenPacks,
+        hiddenPlay,
+        hiAges,
+        hiSingle,
+        bloodlineId,
+        householdMoves,
+        householdAgeUps,
+        deceasedMarks,
+        simAgeUps,
+        connectionLog,
+        sourceFileName,
+      }),
+    [
+      nodesCore,
+      edges,
+      groups,
+      hiddenPacks,
+      hiddenPlay,
+      hiAges,
+      hiSingle,
+      bloodlineId,
+      householdMoves,
+      householdAgeUps,
+      deceasedMarks,
+      simAgeUps,
+      connectionLog,
+      sourceFileName,
+    ],
+  );
+
+  /** Skip the immediate post-hydrate write; debounce later board edits. */
+  const skipAutosaveRef = useRef(true);
+  useEffect(() => {
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return;
+    }
+    const t = setTimeout(() => {
+      setStatus('Autosaving…');
+      const result = writeDraft(persistPayload());
+      if (result === 'ok') flashStatus('Autosaved');
+      else if (result === 'quota')
+        flashStatus('Autosave full — Download JSON to keep a copy');
+      else flashStatus('Autosave failed');
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [persistPayload, flashStatus]);
+
   const pushUndo = useCallback(() => {
     undoRef.current.push({
       nodesCore: nodesCore.map((n) => ({ ...n })),
@@ -350,6 +484,10 @@ export function useWhiteboard() {
   const setConnectMode = useCallback(
     (on: boolean) => {
       setConnectModeState(on);
+      if (on) {
+        setSelectModeState(false);
+        setMultiSel(null);
+      }
       setConnSrc(null);
       setConnectMenu(null);
       setInfantHouseMenu(null);
@@ -365,20 +503,41 @@ export function useWhiteboard() {
     [sel, byid],
   );
 
+  const setSelectMode = useCallback((on: boolean) => {
+    setSelectModeState(on);
+    if (on) {
+      setConnectModeState(false);
+      setConnSrc(null);
+      setConnectMenu(null);
+      setInfantHouseMenu(null);
+      setStatus(
+        'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims',
+      );
+    } else {
+      setStatus('');
+    }
+  }, []);
+
+  const clearMultiSel = useCallback(() => setMultiSel(null), []);
+
   const cancelConnect = useCallback(() => {
     setConnSrc(null);
     setConnectMenu(null);
     setInfantHouseMenu(null);
     setStatus(
-      connectMode ? 'Connect: click the FIRST sim' : '',
+      connectMode ? 'Connect: click the FIRST sim' : selectMode
+        ? 'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims'
+        : '',
     );
-  }, [connectMode]);
+  }, [connectMode, selectMode]);
 
   const selectNode = useCallback((id: string) => {
+    setMultiSel(null);
     setSel({ type: 'node', id });
   }, []);
 
   const selectLink = useCallback((ids: string[]) => {
+    setMultiSel(null);
     setSel({ type: 'link', ids });
   }, []);
 
@@ -660,6 +819,27 @@ export function useWhiteboard() {
         ns.map((n) => {
           const bb = base[n.id];
           if (n.world === world && bb)
+            return { ...n, ox: bb.ox + dx, oy: bb.oy + dy };
+          return n;
+        }),
+      );
+    },
+    [],
+  );
+
+  /** Rigid move for a multi-selection (worlds, households, or cards). */
+  const moveNodesByIds = useCallback(
+    (
+      ids: string[],
+      dx: number,
+      dy: number,
+      base: Record<string, { ox: number; oy: number }>,
+    ) => {
+      const set = new Set(ids);
+      setNodesCore((ns) =>
+        ns.map((n) => {
+          const bb = base[n.id];
+          if (set.has(n.id) && bb)
             return { ...n, ox: bb.ox + dx, oy: bb.oy + dy };
           return n;
         }),
@@ -1088,101 +1268,331 @@ export function useWhiteboard() {
     [nodes, nodeVis, byid, frameSim, searchHitIndex],
   );
 
+  const boardSourceLabel = sourceFileName
+    ? sourceFileName
+    : fromBrowserDraft
+      ? 'Browser draft'
+      : 'Built-in board';
+
+  const resetToBuiltInBoard = useCallback(
+    (svgWidth: number, svgHeight: number) => {
+      clearDraft();
+      const migrated = migrateWhiteboardData(seed);
+      const seedEdges = sanitizeEdges(
+        migrated.edges.map((e) => ({
+          ...e,
+          source:
+            e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
+        })),
+      );
+      setNodesCore(migrated.nodes.map((n) => toCore(n)));
+      setEdges(seedEdges);
+      setGroups((migrated.groups ?? seed.groups).map((g) => ({ ...g })));
+      setHiddenPacks(new Set());
+      setHiddenPlay(new Set());
+      setHiAges(new Set());
+      setHiSingle(false);
+      setBloodlineId(null);
+      setHouseholdMoves([]);
+      setHouseholdAgeUps([]);
+      setDeceasedMarks([]);
+      setSimAgeUps([]);
+      setSourceFileName(null);
+      setFromBrowserDraft(false);
+      undoRef.current = [];
+      setCanUndo(false);
+      setSel(null);
+      setEditNodeId(null);
+      eidcRef.current = nextEidc(seedEdges, 100000);
+      skipAutosaveRef.current = true;
+      flashStatus('Reset the board');
+      setTimeout(() => fit(svgWidth, svgHeight), 0);
+    },
+    [seed, flashStatus, fit],
+  );
+
   const saveJson = useCallback(() => {
     const blob = new Blob(
-      [
-        JSON.stringify(
-          {
-            nodes: nodesCore.map(toCore),
-            edges,
-            groups,
-            hiddenPacks: [...hiddenPacks],
-            hiddenPlay: [...hiddenPlay],
-            hiAges: [...hiAges],
-            hiSingle,
-            bloodlineId,
-            householdMoves,
-            householdAgeUps,
-            deceasedMarks,
-            simAgeUps,
-            connectionLog: connectionLog.map((entry) => entry.text),
-          },
-          null,
-          1,
-        ),
-      ],
+      [JSON.stringify(persistPayload(), null, 1)],
       { type: 'application/json' },
     );
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `sims4_family_trees_${fileStamp()}.json`;
     a.click();
-  }, [nodesCore, edges, groups, hiddenPacks, hiddenPlay, hiAges, hiSingle, bloodlineId, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, connectionLog]);
+  }, [persistPayload]);
+
+  const applyLoadedJson = useCallback(
+    (file: File, text: string, svgWidth: number, svgHeight: number) => {
+      try {
+        const parsed = JSON.parse(text) as WhiteboardData & {
+          layoutEpoch?: number;
+        };
+        const d = migrateWhiteboardData(parsed);
+        const loadedEdges = sanitizeEdges(d.edges);
+        const prepared = prepareLoadedNodes(
+          d.nodes as SimNode[],
+          parsed.layoutEpoch,
+          worlds,
+          loadedEdges,
+        );
+        setNodesCore(prepared.nodes);
+        setEdges(loadedEdges);
+        const loadedMoves = d.householdMoves ?? [];
+        const loadedAgeUps = d.householdAgeUps ?? [];
+        const loadedDeaths = d.deceasedMarks ?? [];
+        const loadedSimAgeUps = d.simAgeUps ?? [];
+        setHouseholdMoves(loadedMoves);
+        setHouseholdAgeUps(loadedAgeUps);
+        setDeceasedMarks(loadedDeaths);
+        setSimAgeUps(loadedSimAgeUps);
+        eidcRef.current = nextEidc(
+          loadedEdges,
+          eidcRef.current,
+          [
+            ...loadedMoves.map((m) => m.id),
+            ...loadedAgeUps.map((a) => a.id),
+            ...loadedDeaths.map((m) => m.id),
+            ...loadedSimAgeUps.map((a) => a.id),
+          ],
+        );
+        undoRef.current = [];
+        setCanUndo(false);
+        if (d.groups) setGroups(d.groups);
+        setHiddenPacks(new Set(d.hiddenPacks || []));
+        setHiddenPlay(new Set(d.hiddenPlay || []));
+        setHiAges(new Set(d.hiAges || []));
+        setHiSingle(!!d.hiSingle);
+        const loadedIds = new Set((d.nodes as SimNode[]).map((n) => n.id));
+        setBloodlineId(
+          d.bloodlineId && loadedIds.has(d.bloodlineId)
+            ? d.bloodlineId
+            : null,
+        );
+        setSel(null);
+        setEditNodeId(null);
+        setSourceFileName(file.name);
+        setFromBrowserDraft(false);
+        setPendingLoadJson(null);
+        if (prepared.repacked) {
+          flashStatus(
+            'Older save — board re-packed for the current layout. Download JSON to keep it.',
+          );
+        } else {
+          flashStatus(`Loaded ${file.name}`);
+        }
+        setTimeout(() => {
+          setNodesCore((core) => {
+            const laid = snap
+              ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
+              : computeLayout(core, worlds, loadedEdges);
+            return coreOffsetsAfterWorldSeparation(
+              core,
+              laid,
+              (d.groups as Group[]) ?? groups,
+              () => true,
+            );
+          });
+          fit(svgWidth, svgHeight);
+        }, 0);
+      } catch {
+        alert('Bad file');
+        setPendingLoadJson(null);
+      }
+    },
+    [fit, snap, worlds, groups, flashStatus],
+  );
 
   const loadJson = useCallback(
     (file: File, svgWidth: number, svgHeight: number) => {
+      const risk = loadJsonRisk(nodesCore, edges, {
+        canUndo,
+        sourceFileName,
+        fromBrowserDraft,
+      });
+      if (risk.needsConfirm) {
+        setPendingLoadJson({ file, svgWidth, svgHeight, risk });
+        return;
+      }
       const rd = new FileReader();
       rd.onload = () => {
-        try {
-          const d = migrateWhiteboardData(JSON.parse(rd.result as string));
-          setNodesCore((d.nodes as SimNode[]).map(toCore));
-          const loadedEdges = sanitizeEdges(d.edges);
-          setEdges(loadedEdges);
-          const loadedMoves = d.householdMoves ?? [];
-          const loadedAgeUps = d.householdAgeUps ?? [];
-          const loadedDeaths = d.deceasedMarks ?? [];
-          const loadedSimAgeUps = d.simAgeUps ?? [];
-          setHouseholdMoves(loadedMoves);
-          setHouseholdAgeUps(loadedAgeUps);
-          setDeceasedMarks(loadedDeaths);
-          setSimAgeUps(loadedSimAgeUps);
-          eidcRef.current = nextEidc(
-            loadedEdges,
-            eidcRef.current,
-            [
-              ...loadedMoves.map((m) => m.id),
-              ...loadedAgeUps.map((a) => a.id),
-              ...loadedDeaths.map((m) => m.id),
-              ...loadedSimAgeUps.map((a) => a.id),
-            ],
-          );
-          undoRef.current = [];
-          setCanUndo(false);
-          if (d.groups) setGroups(d.groups);
-          setHiddenPacks(new Set(d.hiddenPacks || []));
-          setHiddenPlay(new Set(d.hiddenPlay || []));
-          setHiAges(new Set(d.hiAges || []));
-          setHiSingle(!!d.hiSingle);
-          const loadedIds = new Set((d.nodes as SimNode[]).map((n) => n.id));
-          setBloodlineId(
-            d.bloodlineId && loadedIds.has(d.bloodlineId)
-              ? d.bloodlineId
-              : null,
-          );
-          setSel(null);
-          setEditNodeId(null);
-          // Separate after state commits so layout uses the loaded groups/edges.
-          setTimeout(() => {
-            setNodesCore((core) => {
-              const laid = snap
-                ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
-                : computeLayout(core, worlds, loadedEdges);
-              return coreOffsetsAfterWorldSeparation(
-                core,
-                laid,
-                (d.groups as Group[]) ?? groups,
-                () => true,
-              );
-            });
-            fit(svgWidth, svgHeight);
-          }, 0);
-        } catch {
-          alert('Bad file');
-        }
+        applyLoadedJson(file, String(rd.result ?? ''), svgWidth, svgHeight);
       };
       rd.readAsText(file);
     },
-    [fit, snap, worlds, groups],
+    [
+      nodesCore,
+      edges,
+      canUndo,
+      sourceFileName,
+      fromBrowserDraft,
+      applyLoadedJson,
+    ],
+  );
+
+  const cancelLoadJson = useCallback(() => setPendingLoadJson(null), []);
+
+  const confirmReplaceJson = useCallback(() => {
+    const pending = pendingLoadJson;
+    if (!pending) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      applyLoadedJson(
+        pending.file,
+        String(rd.result ?? ''),
+        pending.svgWidth,
+        pending.svgHeight,
+      );
+    };
+    rd.readAsText(pending.file);
+  }, [pendingLoadJson, applyLoadedJson]);
+
+  const confirmMergeJson = useCallback(() => {
+    const pending = pendingLoadJson;
+    if (!pending) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const parsed = JSON.parse(String(rd.result ?? '')) as WhiteboardData & {
+          layoutEpoch?: number;
+        };
+        const d = migrateWhiteboardData(parsed);
+        const incomingEdges = sanitizeEdges(d.edges);
+        const prepared = prepareLoadedNodes(
+          d.nodes as SimNode[],
+          parsed.layoutEpoch,
+          worlds,
+          incomingEdges,
+        );
+        pushUndo();
+        const merged = mergeJsonIntoBoard({
+          boardNodes: nodesCore,
+          boardEdges: edges,
+          boardGroups: groups,
+          incomingNodes: prepared.nodes,
+          incomingEdges,
+          incomingGroups: (d.groups as Group[]) ?? [],
+        });
+        setNodesCore(merged.nodes);
+        setEdges(merged.edges);
+        setGroups(merged.groups);
+        eidcRef.current = nextEidc(merged.edges, eidcRef.current);
+        if (d.householdMoves?.length) {
+          setHouseholdMoves((prev) => {
+            const seen = new Set(prev.map((m) => m.id));
+            const extra = d.householdMoves!.filter((m) => !seen.has(m.id));
+            return extra.length ? [...prev, ...extra] : prev;
+          });
+        }
+        setSourceFileName(pending.file.name);
+        setFromBrowserDraft(false);
+        setPendingLoadJson(null);
+        setSel(null);
+        const s = merged.summary;
+        flashStatus(
+          `JSON merged — ${s.nodesUpdated} updated, ${s.nodesAdded} added, ${s.relationshipsOverwritten} relationships overwritten. Download JSON to keep it.`,
+        );
+        setTimeout(() => {
+          setNodesCore((core) => {
+            const laid = snap
+              ? snapNodesToTiles(computeLayout(core, worlds, merged.edges))
+              : computeLayout(core, worlds, merged.edges);
+            return coreOffsetsAfterWorldSeparation(
+              core,
+              laid,
+              merged.groups,
+              () => true,
+            );
+          });
+          fit(pending.svgWidth, pending.svgHeight);
+        }, 0);
+      } catch {
+        alert('Bad file');
+        setPendingLoadJson(null);
+      }
+    };
+    rd.readAsText(pending.file);
+  }, [
+    pendingLoadJson,
+    nodesCore,
+    edges,
+    groups,
+    worlds,
+    snap,
+    pushUndo,
+    flashStatus,
+    fit,
+  ]);
+
+  const applySaveBoard = useCallback(
+    (
+      result: SaveMergeResult,
+      svgWidth: number,
+      svgHeight: number,
+      mode: 'merge' | 'replace',
+    ) => {
+      if (mode === 'replace') {
+        undoRef.current = [];
+        setCanUndo(false);
+        setHouseholdMoves([]);
+        setHouseholdAgeUps([]);
+        setDeceasedMarks([]);
+        setSimAgeUps([]);
+        setHiddenPlay(new Set());
+        setHiAges(new Set());
+        setHiSingle(false);
+        setBloodlineId(null);
+        setFromBrowserDraft(false);
+        setSourceFileName(null);
+      } else {
+        pushUndo();
+      }
+      setEdges(result.edges);
+      setGroups(result.groups);
+      const coreNodes =
+        mode === 'replace'
+          ? result.nodes.map(toCore)
+          : offsetsForNewGids(
+              byid,
+              result.nodes.map(toCore),
+              worlds,
+              result.edges,
+            );
+      const laid = snap
+        ? snapNodesToTiles(computeLayout(coreNodes, worlds, result.edges))
+        : computeLayout(coreNodes, worlds, result.edges);
+      setNodesCore(
+        coreOffsetsAfterWorldSeparation(
+          coreNodes,
+          laid,
+          result.groups,
+          () => true,
+        ),
+      );
+      eidcRef.current = nextEidc(result.edges, eidcRef.current);
+      const s = result.summary;
+      if (mode === 'replace') {
+        setHiddenPacks(new Set(s.hidePacks));
+      } else if (s.hidePacks.length) {
+        setHiddenPacks((prev) => {
+          const next = new Set(prev);
+          for (const p of s.hidePacks) next.add(p);
+          return next;
+        });
+      }
+      setSaveImport(null);
+      setSel(null);
+      setEditNodeId(null);
+      flashStatus(
+        mode === 'replace'
+          ? `Board replaced from save — ${result.nodes.length} cards. Download JSON to keep it.`
+          : s.hidePacks.length
+            ? `Save merged — ${s.matched} updated, ${s.added} added. Hidden ${s.hidePacks.length} games. Download JSON to keep this merge.`
+            : `Save merged — ${s.matched} updated, ${s.added} added. Download JSON to keep this merge.`,
+      );
+      setTimeout(() => fit(svgWidth, svgHeight), 0);
+    },
+    [byid, worlds, pushUndo, flashStatus, fit, snap],
   );
 
   const previewSave = useCallback((file: File) => {
@@ -1192,67 +1602,50 @@ export function useWhiteboard() {
         const buf = new Uint8Array(rd.result as ArrayBuffer);
         const parsed = parseSaveGame(buf);
         let n = eidcRef.current;
-        const merged = mergeSaveIntoBoard({
+        const merge = mergeSaveIntoBoard({
           nodes: nodesCore,
           edges,
           groups,
           worlds,
           parsed,
-          seedNameKeys: seedNameKeysFromNodes(data.nodes),
+          seedNameKeys: seedNameKeysFromNodes(seed.nodes),
           now: new Date().toISOString(),
           nextEdgeId: () => 'v' + n++,
         });
-        setSaveImport(merged);
+        setSaveImport({ merge, parsed });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not read that save';
         alert(msg);
       }
     };
     rd.readAsArrayBuffer(file);
-  }, [nodesCore, edges, groups, worlds, data.nodes]);
+  }, [nodesCore, edges, groups, worlds, seed.nodes]);
 
   const confirmSaveImport = useCallback(
     (svgWidth: number, svgHeight: number) => {
       if (!saveImport) return;
-      pushUndo();
-      setEdges(saveImport.edges);
-      setGroups(saveImport.groups);
-      const mergedCore = offsetsForNewGids(
-        byid,
-        saveImport.nodes.map(toCore),
-        worlds,
-        saveImport.edges,
-      );
-      const laid = snap
-        ? snapNodesToTiles(computeLayout(mergedCore, worlds, saveImport.edges))
-        : computeLayout(mergedCore, worlds, saveImport.edges);
-      setNodesCore(
-        coreOffsetsAfterWorldSeparation(
-          mergedCore,
-          laid,
-          saveImport.groups,
-          () => true,
-        ),
-      );
-      eidcRef.current = nextEidc(saveImport.edges, eidcRef.current);
-      const s = saveImport.summary;
-      if (s.hidePacks.length) {
-        setHiddenPacks((prev) => {
-          const next = new Set(prev);
-          for (const p of s.hidePacks) next.add(p);
-          return next;
-        });
-      }
-      setSaveImport(null);
-      setSel(null);
-      flashStatus(
-        s.hidePacks.length
-          ? `Save merged — ${s.matched} updated, ${s.added} added. Hidden ${s.hidePacks.length} games not in this save.`
-          : `Save merged — ${s.matched} updated, ${s.added} added, ${s.confirmed} links confirmed, ${s.newLinks} new links, ${s.stillPlanned} still planned.`,
-      );
-      setTimeout(() => fit(svgWidth, svgHeight), 0);
+      applySaveBoard(saveImport.merge, svgWidth, svgHeight, 'merge');
     },
-    [saveImport, byid, worlds, pushUndo, flashStatus, fit, snap],
+    [saveImport, applySaveBoard],
+  );
+
+  const confirmSaveReplace = useCallback(
+    (svgWidth: number, svgHeight: number) => {
+      if (!saveImport) return;
+      let n = eidcRef.current;
+      const replaced = mergeSaveIntoBoard({
+        nodes: [],
+        edges: [],
+        groups: [],
+        worlds,
+        parsed: saveImport.parsed,
+        seedNameKeys: seedNameKeysFromNodes(seed.nodes),
+        now: new Date().toISOString(),
+        nextEdgeId: () => 'v' + n++,
+      });
+      applySaveBoard(replaced, svgWidth, svgHeight, 'replace');
+    },
+    [saveImport, worlds, seed.nodes, applySaveBoard],
   );
 
   const cancelSaveImport = useCallback(() => setSaveImport(null), []);
@@ -1577,7 +1970,12 @@ export function useWhiteboard() {
     show,
     viewport,
     sel,
+    multiSel,
+    setMultiSel,
+    clearMultiSel,
     connectMode,
+    selectMode,
+    setSelectMode,
     connSrc,
     snap,
     hiAges,
@@ -1636,6 +2034,7 @@ export function useWhiteboard() {
     setBloodlineId,
     moveNodesByGid,
     moveNodesByWorld,
+    moveNodesByIds,
     snapDragPosition,
     snapHouseholdDrag,
     snapNodeAction,
@@ -1653,10 +2052,18 @@ export function useWhiteboard() {
     searchHits,
     searchHitIndex,
     searchHitSet,
+    sourceFileName,
+    boardSourceLabel,
+    resetToBuiltInBoard,
     saveJson,
     loadJson,
+    cancelLoadJson,
+    confirmReplaceJson,
+    confirmMergeJson,
+    pendingLoadJson,
     previewSave,
     confirmSaveImport,
+    confirmSaveReplace,
     cancelSaveImport,
     saveImport,
     exportPng,

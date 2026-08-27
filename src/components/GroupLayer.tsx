@@ -7,6 +7,9 @@ type Props = {
   nodes: SimNode[];
   show: boolean;
   packVis: (n: SimNode) => boolean;
+  /** `frames` = dashed boxes (under edges); `handles` = name/Age up on top. */
+  mode: 'frames' | 'handles';
+  selectedGids?: ReadonlySet<string>;
   onHouseholdDragStart: (
     gid: string,
     wx: number,
@@ -22,13 +25,15 @@ export function GroupLayer({
   nodes,
   show,
   packVis,
+  mode,
+  selectedGids,
   onHouseholdDragStart,
   onAgeUp,
 }: Props) {
   if (!show) return null;
 
   return (
-    <g id="lGroups">
+    <g id={mode === 'frames' ? 'lGroups' : 'lGroupHandles'}>
       {groups.map((g0) => {
         const mem = nodes.filter((n) => n.gid === g0.gid && packVis(n));
         const chrome = householdChrome(mem, g0);
@@ -49,22 +54,47 @@ export function GroupLayer({
           ageW,
         } = chrome;
         const textY = (pillY: number) => pillY + pillH / 2;
+        const selected = !!selectedGids?.has(g0.gid);
+
+        if (mode === 'frames') {
+          return (
+            <g key={g0.gid}>
+              <rect
+                x={boxL}
+                y={boxT}
+                width={boxR - boxL}
+                height={boxB - boxT}
+                rx={14}
+                fill={selected ? '#1b6cd622' : g0.color + '12'}
+                stroke={selected ? '#1b6cd6' : g0.color + '55'}
+                strokeWidth={selected ? 3 : 1.5}
+                strokeDasharray={selected ? undefined : '2 4'}
+                vectorEffect={selected ? 'non-scaling-stroke' : undefined}
+                style={{ pointerEvents: 'none' }}
+              />
+              {selected && (
+                <rect
+                  x={boxL}
+                  y={boxT}
+                  width={boxR - boxL}
+                  height={boxB - boxT}
+                  rx={14}
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth={1.25}
+                  strokeOpacity={0.9}
+                  vectorEffect="non-scaling-stroke"
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
+            </g>
+          );
+        }
+
         return (
           <g key={g0.gid}>
-            <rect
-              x={boxL}
-              y={boxT}
-              width={boxR - boxL}
-              height={boxB - boxT}
-              rx={14}
-              fill={g0.color + '12'}
-              stroke={g0.color + '55'}
-              strokeWidth={1.5}
-              strokeDasharray="2 4"
-              style={{ pointerEvents: 'none' }}
-            />
             <g
-              className="hhandle"
+              className={selected ? 'hhandle hhandle--sel' : 'hhandle'}
               style={{ cursor: 'grab' }}
               onPointerDown={(ev) => {
                 ev.stopPropagation();
@@ -90,16 +120,17 @@ export function GroupLayer({
                 width={labelW}
                 height={pillH}
                 rx={8}
-                fill={g0.color + '22'}
-                stroke={g0.color + '55'}
-                strokeWidth={1}
+                fill={selected ? '#1b6cd6' : g0.color + '22'}
+                stroke={selected ? '#ffffff' : g0.color + '55'}
+                strokeWidth={selected ? 2 : 1}
+                vectorEffect={selected ? 'non-scaling-stroke' : undefined}
               />
               <text
                 x={headerX + 10}
                 y={textY(headerY)}
                 dominantBaseline="middle"
                 fontSize={12}
-                fill={g0.color + '99'}
+                fill={selected ? '#ffffffbb' : g0.color + '99'}
               >
                 ⠿
               </text>
@@ -109,7 +140,7 @@ export function GroupLayer({
                 dominantBaseline="middle"
                 fontSize={12}
                 fontWeight={700}
-                fill={g0.color}
+                fill={selected ? '#fff' : g0.color}
               >
                 {label}
               </text>

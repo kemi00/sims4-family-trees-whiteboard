@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 import {
   TILE,
   WORLD_TAG_NORMAL_ZOOM,
+  WORLD_TAG_PILL_H,
+  WORLD_TAG_MIN_SCREEN_PX,
   WORLD_TAG_ZOOM_OUT_MAX,
 } from './constants.ts';
 import {
@@ -39,17 +41,23 @@ function card(
 }
 
 describe('worldTagZoomScale', () => {
-  it('is 1 at or above the normal-size zoom (≥ 60%)', () => {
+  it('is 1 at or above normal zoom (≥ 100%)', () => {
     assert.equal(worldTagZoomScale(WORLD_TAG_NORMAL_ZOOM), 1);
-    assert.equal(worldTagZoomScale(0.7), 1);
     assert.equal(worldTagZoomScale(1), 1);
     assert.equal(worldTagZoomScale(2), 1);
   });
 
-  it('grows as NORMAL/k when zoomed out further, capped', () => {
-    assert.equal(worldTagZoomScale(0.3), 2);
-    assert.equal(worldTagZoomScale(0.15), 4);
-    assert.equal(worldTagZoomScale(0.1), WORLD_TAG_ZOOM_OUT_MAX);
+  it('grows so the pill stays ~MIN_SCREEN_PX tall on screen, capped', () => {
+    // screenH = PILL_H * scale * k  ≈ MIN → scale ≈ MIN / (PILL_H * k)
+    assert.ok(worldTagZoomScale(0.5) > 1);
+    assert.equal(
+      worldTagZoomScale(0.1),
+      Math.min(
+        WORLD_TAG_ZOOM_OUT_MAX,
+        WORLD_TAG_MIN_SCREEN_PX / (WORLD_TAG_PILL_H * 0.1),
+      ),
+    );
+    assert.equal(worldTagZoomScale(0.04), WORLD_TAG_ZOOM_OUT_MAX);
   });
 });
 

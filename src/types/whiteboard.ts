@@ -131,6 +131,13 @@ export interface WhiteboardData {
   edges: Edge[];
   groups: Group[];
   worlds: World[];
+  /**
+   * Packing-rules generation used when ox/oy were last meaningful.
+   * Absent on older downloads — load may clear offsets and re-pack.
+   */
+  layoutEpoch?: number;
+  /** Last loaded whiteboard JSON filename, if any. */
+  sourceFileName?: string | null;
   /** Snapshot of user-made connection sentences, written on save. */
   connectionLog?: string[];
   /** Household moves the user made in the editor. Load trusts this, not the text snapshot. */
@@ -157,6 +164,16 @@ export type Selection =
   | { type: 'node'; id: string }
   | { type: 'link'; ids: string[] }
   | null;
+
+/**
+ * Marquee / multi-object selection for group drag.
+ * One kind at a time: 2+ world frames → worlds; else tags/cards;
+ * single world only via its name chip.
+ */
+export type BoardMultiSel =
+  | { kind: 'worlds'; worlds: string[] }
+  | { kind: 'households'; gids: string[] }
+  | { kind: 'nodes'; ids: string[] };
 
 export interface ShowToggles {
   seed: boolean;

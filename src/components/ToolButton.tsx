@@ -42,10 +42,10 @@ export function ToolButton({
       className={children ? 'tool' : 'tool tool--icon'}
       data-tone={tone}
       data-pressed={pressed === undefined ? undefined : String(pressed)}
+      data-tooltip={label}
       aria-pressed={pressed}
       aria-expanded={expanded}
       aria-label={children ? undefined : label}
-      title={label}
       disabled={disabled}
       onClick={onClick}
     >

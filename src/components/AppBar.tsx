@@ -363,6 +363,10 @@ export function AppBar({
         onExportPng={() => {
           if (svgRef.current) wb.exportPng(svgRef.current);
         }}
+        onResetBuiltIn={() => {
+          const { w, h } = svgSize();
+          wb.resetToBuiltInBoard(w, h);
+        }}
       />
 
       {compact && searchOpen && (

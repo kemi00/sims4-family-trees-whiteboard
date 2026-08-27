@@ -8,6 +8,7 @@ import { ConnectionLogPanel } from './components/ConnectionLogPanel.tsx';
 import { GamesPanel } from './components/GamesPanel.tsx';
 import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { WhiteboardStage } from './components/WhiteboardStage.tsx';
+import { LoadJsonDialog } from './components/LoadJsonDialog.tsx';
 import { SaveImportDialog } from './components/SaveImportDialog.tsx';
 import { useWhiteboard } from './hooks/useWhiteboard.ts';
 
@@ -29,6 +30,7 @@ export default function App() {
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
         if (wb.saveImport) wb.cancelSaveImport();
+        else if (wb.pendingLoadJson) wb.cancelLoadJson();
         else if (wb.gamesOpen) wb.setGamesOpen(false);
         else if (wb.playOpen) wb.setPlayOpen(false);
         else if (wb.agesOpen) wb.setAgesOpen(false);
@@ -43,7 +45,9 @@ export default function App() {
           wb.setStatus(
             'Cancelled that link — still in Connect. Click a sim, or Esc again to exit.',
           );
-        } else if (wb.connectMode) wb.setConnectMode(false);
+        }         else if (wb.connectMode) wb.setConnectMode(false);
+        else if (wb.multiSel) wb.clearMultiSel();
+        else if (wb.selectMode) wb.setSelectMode(false);
         else if (wb.bloodlineId) wb.setBloodlineId(null);
       }
       const typing =
@@ -212,12 +216,26 @@ export default function App() {
         )}
         {wb.saveImport && (
           <SaveImportDialog
-            summary={wb.saveImport.summary}
+            summary={wb.saveImport.merge.summary}
             onCancel={wb.cancelSaveImport}
-            onConfirm={() => {
+            onMerge={() => {
               const r = svgRef.current?.getBoundingClientRect();
               wb.confirmSaveImport(r?.width ?? 800, r?.height ?? 600);
             }}
+            onReplace={() => {
+              const r = svgRef.current?.getBoundingClientRect();
+              wb.confirmSaveReplace(r?.width ?? 800, r?.height ?? 600);
+            }}
+          />
+        )}
+        {wb.pendingLoadJson && (
+          <LoadJsonDialog
+            risk={wb.pendingLoadJson.risk}
+            pendingFileName={wb.pendingLoadJson.file.name}
+            onDownload={wb.saveJson}
+            onCancel={wb.cancelLoadJson}
+            onMerge={wb.confirmMergeJson}
+            onReplace={wb.confirmReplaceJson}
           />
         )}
       </div>

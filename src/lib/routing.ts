@@ -236,6 +236,181 @@ function childBelowAnchor(ay: number, child: SimNode): boolean {
   return child.y >= ay - STUB;
 }
 
+/** Y where the horizontal fork must meet before the mandatory top stem. */
+export function childStemJunctionY(childTop: number): number {
+  return childTop - STUB;
+}
+
+/**
+ * Y where a horizontal fork may begin below a union/parent anchor.
+ *
+ * Always at least {@link STUB} below the pill/parent exit. When parent tag
+ * bottoms are known, the fork must also clear those bottoms by {@link STUB}
+ * so the bus sits in the gap below the cards (not flush with their edges).
+ */
+export function unionStemJunctionY(exitY: number, tagsBottom?: number): number {
+  const belowExit = exitY + STUB;
+  if (tagsBottom == null) return belowExit;
+  return Math.max(belowExit, tagsBottom + STUB);
+}
+
+/**
+ * Guarantee the path ends with a vertical stem into the child's top center.
+ * Any horizontal fork must meet at or above {@link childStemJunctionY}
+ * (never along the card top or through the card body).
+ *
+ * The final stem segment is never run through {@link simplify}, so a
+ * colinear approach cannot erase the junction point.
+ */
+export function ensureChildTopStem(pts: Point[], child: SimNode): Point[] {
+  const cx = child.x + child.w / 2;
+  const top = child.y;
+  const jy = childStemJunctionY(top);
+
+  let body = pts.slice();
+  // Drop trailing points on the stem column from the junction down through
+  // the card top — we re-attach a clean stem. Keep approach points that sit
+  // strictly above the junction (smaller y).
+  while (body.length) {
+    const last = body[body.length - 1]!;
+    if (Math.abs(last[0] - cx) < 0.5 && last[1] >= jy - 0.5) {
+      body.pop();
+      continue;
+    }
+    break;
+  }
+
+  if (!body.length) {
+    return [
+      [cx, jy],
+      [cx, top],
+    ];
+  }
+
+  const last = body[body.length - 1]!;
+
+  // Approach already below the ideal junction (tight under a union stem):
+  // keep the horizontal at that height and drop to the top — do not climb
+  // back up to jy (that would invent a sideways fork above the union stem).
+  if (last[1] > jy + 0.5) {
+    const bridge: Point[] = [];
+    if (Math.abs(last[0] - cx) > 0.5) bridge.push([cx, last[1]]);
+    const prefix = simplify([...body, ...bridge]);
+    const end = prefix[prefix.length - 1]!;
+    const withCx =
+      Math.abs(end[0] - cx) < 0.5
+        ? prefix
+        : [...prefix, [cx, end[1]] as Point];
+    return [...withCx, [cx, top]];
+  }
+
+  const meetY = Math.min(last[1], jy);
+  const bridge: Point[] = [];
+  if (Math.abs(last[1] - meetY) > 0.5) bridge.push([last[0], meetY]);
+  let tip = bridge.length ? bridge[bridge.length - 1]! : last;
+  if (Math.abs(tip[0] - cx) > 0.5) {
+    bridge.push([cx, meetY]);
+    tip = bridge[bridge.length - 1]!;
+  }
+  if (Math.abs(tip[0] - cx) > 0.5 || Math.abs(tip[1] - jy) > 0.5) {
+    bridge.push([cx, jy]);
+  }
+
+  const prefix = simplify([...body, ...bridge, [cx, jy]]);
+  const end = prefix[prefix.length - 1]!;
+  const withJunction =
+    Math.abs(end[0] - cx) < 0.5 && Math.abs(end[1] - jy) < 0.5
+      ? prefix
+      : [...prefix, [cx, jy] as Point];
+  return [...withJunction, [cx, top]];
+}
+
+/** True if an orthogonal polyline crosses the open interior of the card. */
+function crossesChildInterior(pts: Point[], child: SimNode): boolean {
+  const L = child.x + 1;
+  const R = child.x + child.w - 1;
+  const T = child.y + 1;
+  const B = child.y + child.h - 1;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    if (Math.abs(a[0] - b[0]) < 0.5) {
+      const x = a[0];
+      if (x > L && x < R) {
+        const y1 = Math.min(a[1], b[1]);
+        const y2 = Math.max(a[1], b[1]);
+        if (y1 < B && y2 > T) return true;
+      }
+    } else if (Math.abs(a[1] - b[1]) < 0.5) {
+      const y = a[1];
+      if (y > T && y < B) {
+        const x1 = Math.min(a[0], b[0]);
+        const x2 = Math.max(a[0], b[0]);
+        if (x1 < R && x2 > L) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Reach the stem junction above the child without crossing the card body.
+ */
+function routeToChildStemJunction(
+  ax: number,
+  ay: number,
+  child: SimNode,
+  exIds: string[],
+  ctx: RoutingContext,
+): Point[] {
+  const cx = child.x + child.w / 2;
+  const jy = childStemJunctionY(child.y);
+  const ex = new Set([...exIds, child.id]);
+  const { rbands } = ctx;
+
+  const wingX =
+    cx >= ax
+      ? Math.max(ax, child.x + child.w) + STUB
+      : Math.min(ax, child.x) - STUB;
+
+  const candidates: Point[][] = [
+    // Climb on the parent column to junction height, then across.
+    [
+      [ax, ay],
+      [ax, jy],
+      [cx, jy],
+    ],
+    // Across at anchor height only when that height is already above the card.
+    [
+      [ax, ay],
+      [cx, ay],
+      [cx, jy],
+    ],
+    // Wing around the far side of the child, then in at junction height.
+    [
+      [ax, ay],
+      [wingX, ay],
+      [wingX, jy],
+      [cx, jy],
+    ],
+    orthPath([ax, ay], [cx, jy], [...exIds, child.id], ctx),
+  ];
+
+  for (const cand of candidates) {
+    if (crossesChildInterior(cand, child)) continue;
+    if (!ptsClear(cand, rbands, ex)) continue;
+    return simplify(cand);
+  }
+
+  // Last resort: always wing around (may overlap other obstacles).
+  return simplify([
+    [ax, ay],
+    [wingX, ay],
+    [wingX, jy],
+    [cx, jy],
+  ]);
+}
+
 /** Group children by household so buses don't span unrelated distant cards. */
 function clusterKidsByHousehold(kids: SimNode[]): SimNode[][] {
   const byGid = new Map<string, SimNode[]>();
@@ -256,11 +431,15 @@ function drawPedigreeFork(
   ctx: RoutingContext,
   blood: BloodPath[],
   parentBusKids: Set<string>,
+  tagsBottom: number,
 ): void {
   if (!belowK.length) return;
-  const laneTop = Math.min(...belowK.map((n) => n.y - STUB));
-  const bus = laneBus(ax, ay, belowK, exBase, ctx);
-  const forkY = bus ?? Math.min(ay + MINDROP, laneTop);
+  const laneTop = Math.min(...belowK.map((n) => childStemJunctionY(n.y)));
+  const stemEnd = unionStemJunctionY(ay, tagsBottom);
+  // Prefer a clear lane near the children (short top stems), but never fork
+  // above the floor that clears the parent tags.
+  const bus = laneBus(ax, ay, belowK, exBase, ctx, tagsBottom);
+  const forkY = Math.max(stemEnd, bus ?? laneTop);
 
   blood.push({
     ids: belowK.length === 1 ? pEB[belowK[0]!.id] || [] : [],
@@ -275,9 +454,17 @@ function drawPedigreeFork(
       const n = cluster[0]!;
       const cx = n.x + n.w / 2;
       parentBusKids.add(n.id);
-      const leg: Point[] = [[cx, forkY], [cx, n.y]];
-      if (Math.abs(cx - ax) > 0.5) leg.unshift([ax, forkY]);
-      blood.push({ ids: pEB[n.id] || [], pts: simplify(leg) });
+      const approach: Point[] =
+        Math.abs(cx - ax) > 0.5
+          ? [
+              [ax, forkY],
+              [cx, forkY],
+            ]
+          : [[cx, forkY]];
+      blood.push({
+        ids: pEB[n.id] || [],
+        pts: ensureChildTopStem(approach, n),
+      });
       continue;
     }
 
@@ -295,58 +482,60 @@ function drawPedigreeFork(
       parentBusKids.add(n.id);
       blood.push({
         ids: pEB[n.id] || [],
-        pts: [
-          [cx, forkY],
-          [cx, n.y],
-        ],
+        pts: ensureChildTopStem([[cx, forkY]], n),
       });
     }
   }
 }
 
-/** Pedigree T: trunk → horizontal bus → drop into the child's top center. */
+/** Pedigree T: trunk → horizontal bus at stem junction → mandatory stem. */
 function pedigreeDrop(
   ax: number,
   ay: number,
   child: SimNode,
+  tagsBottom?: number,
   forkY?: number,
 ): Point[] {
   const cx = child.x + child.w / 2;
-  const top = child.y;
-  const lane = forkY ?? Math.min(ay + MINDROP, top - STUB);
-  const bus = Math.min(lane, top - STUB);
-  return simplify([
-    [ax, ay],
-    [ax, bus],
-    [cx, bus],
-    [cx, top],
-  ]);
+  const jy = childStemJunctionY(child.y);
+  const stemEnd = unionStemJunctionY(ay, tagsBottom);
+  // Prefer the child junction when there is room below the union stem;
+  // otherwise hold the horizontal at the union stem end.
+  const preferred = forkY != null ? Math.min(forkY, jy) : jy;
+  const bus = Math.max(stemEnd, preferred);
+  return ensureChildTopStem(
+    [
+      [ax, ay],
+      [ax, bus],
+      [cx, bus],
+    ],
+    child,
+  );
 }
 
 export function childRoute(
   ax: number,
   ay: number,
   child: SimNode,
-  _exIds: string[],
-  _ctx: RoutingContext,
+  exIds: string[],
+  ctx: RoutingContext,
+  tagsBottom?: number,
 ): Point[] {
-  const cx = child.x + child.w / 2;
-  const top = child.y;
-
   if (childBelowAnchor(ay, child)) {
-    return pedigreeDrop(ax, ay, child);
+    return pedigreeDrop(ax, ay, child, tagsBottom);
   }
 
-  // Beside or above the union: drop from the pill, around, stem into the top.
-  const outY = ay + MINDROP;
-  const stub = top - STUB;
-  return simplify([
-    [ax, ay],
-    [ax, outY],
-    [cx, outY],
-    [cx, stub],
-    [cx, top],
-  ]);
+  // Beside or above the union: mandatory bottom stem (past parent tags),
+  // then route to the child stem junction, then top stem.
+  const stemEnd = unionStemJunctionY(ay, tagsBottom);
+  const approach = routeToChildStemJunction(
+    ax,
+    stemEnd,
+    child,
+    exIds,
+    ctx,
+  );
+  return ensureChildTopStem([[ax, ay], ...approach], child);
 }
 
 export function laneBus(
@@ -355,21 +544,26 @@ export function laneBus(
   kidNodes: SimNode[],
   exIds: string[],
   ctx: RoutingContext,
+  tagsBottom?: number,
 ): number | null {
   const ex = new Set([...exIds, ...kidNodes.map((n) => n.id)]);
   const cxs = kidNodes.map((n) => n.x + n.w / 2);
   const minx = Math.min(ax, ...cxs);
   const maxx = Math.max(ax, ...cxs);
   const minTop = Math.min(...kidNodes.map((n) => n.y));
-  const topLimit = minTop - STUB;
+  const topLimit = childStemJunctionY(minTop);
+  const stemEnd = unionStemJunctionY(ay, tagsBottom);
   const { rbands } = ctx;
-  for (let lane = ay + MINDROP; lane <= topLimit; lane += 8) {
+  // Search from the child stem junction upward, but never above the
+  // floor that clears parent tag bottoms.
+  for (let lane = topLimit; lane >= stemEnd; lane -= 8) {
     if (!segClear(ax, ay, ax, lane, rbands, ex)) continue;
     if (!segClear(minx, lane, maxx, lane, rbands, ex)) continue;
     let ok = true;
     for (const n of kidNodes) {
       const cx = n.x + n.w / 2;
-      if (!segClear(cx, lane, cx, n.y, rbands, ex)) {
+      // Drop only needs a clear path to the stem junction, not through the card.
+      if (!segClear(cx, lane, cx, childStemJunctionY(n.y), rbands, ex)) {
         ok = false;
         break;
       }
@@ -448,6 +642,11 @@ export function hopD(pts: Point[], verts: BloodVert[], pi: number): string {
 }
 
 /** Sibling ⊓: stem up from each top, then a bar or a routed fork. */
+/**
+ * Sibling connector: one bus above every member, then a mandatory top stem
+ * into each card. Never route between staggered cards (that climbs through
+ * the upper card and looks like a bottom exit).
+ */
 function drawSiblingFork(
   members: SimNode[],
   ids: string[],
@@ -458,53 +657,65 @@ function drawSiblingFork(
   const cxs = members.map((n) => n.x + n.w / 2);
   const minx = Math.min(...cxs);
   const maxx = Math.max(...cxs);
-  const minTop = Math.min(...members.map((n) => n.y));
-  for (let barY = minTop - STUB; barY >= minTop - MINDROP; barY -= 8) {
-    if (!segClear(minx, barY, maxx, barY, rbands, ex)) continue;
+  // Bus must sit at or above every stem junction (above the highest card).
+  const laneTop = Math.min(...members.map((n) => childStemJunctionY(n.y)));
+
+  let barY: number | null = null;
+  // Search upward from the junctions; keep looking well above if the first
+  // lanes are blocked by household frames / other edges.
+  const searchCeil = laneTop - MINDROP * 4;
+  for (let y = laneTop; y >= searchCeil; y -= 8) {
+    if (!segClear(minx, y, maxx, y, rbands, ex)) continue;
     let ok = true;
     for (const n of members) {
       const cx = n.x + n.w / 2;
-      if (!segClear(cx, barY, cx, n.y, rbands, ex)) {
+      if (!segClear(cx, y, cx, childStemJunctionY(n.y), rbands, ex)) {
         ok = false;
         break;
       }
     }
     if (!ok) continue;
-    const out: BloodPath[] = [{ ids, pts: [[minx, barY], [maxx, barY]] }];
+    barY = y;
+    break;
+  }
+
+  // Last resort: still stay above every card — wing the bus above obstacles
+  // rather than falling back to a between-card orthPath.
+  if (barY == null) {
+    barY = laneTop - STUB;
+    const wing = simplify([
+      [minx, laneTop],
+      [minx, barY],
+      [maxx, barY],
+      [maxx, laneTop],
+    ]);
+    const out: BloodPath[] = [{ ids, pts: wing }];
     for (const n of members) {
       const cx = n.x + n.w / 2;
-      out.push({ ids, pts: [[cx, barY], [cx, n.y]] });
+      out.push({
+        ids,
+        pts: ensureChildTopStem([[cx, laneTop]], n),
+      });
     }
     return out;
   }
 
-  const ordered = [...members].sort(
-    (a, b) => a.x + a.w / 2 - (b.x + b.w / 2),
-  );
   const out: BloodPath[] = [];
-  for (let i = 0; i + 1 < ordered.length; i++) {
-    const a = ordered[i]!;
-    const b = ordered[i + 1]!;
-    const ax = a.x + a.w / 2;
-    const bx = b.x + b.w / 2;
-    const aTop: Point = [ax, a.y];
-    const aStub: Point = [ax, a.y - STUB];
-    const bStub: Point = [bx, b.y - STUB];
-    const bTop: Point = [bx, b.y];
-    const mid = orthPath(aStub, bStub, [], ctx);
-    const inner = simplify(mid);
-    const pts: Point[] = [aTop, aStub];
-    for (const p of inner) {
-      const prev = pts[pts.length - 1]!;
-      if (Math.abs(prev[0] - p[0]) < 1 && Math.abs(prev[1] - p[1]) < 1) continue;
-      pts.push(p);
-    }
-    const last = pts[pts.length - 1]!;
-    if (Math.abs(last[0] - bStub[0]) > 1 || Math.abs(last[1] - bStub[1]) > 1) {
-      pts.push(bStub);
-    }
-    pts.push(bTop);
-    out.push({ ids, pts });
+  if (maxx - minx > 0.5) {
+    out.push({
+      ids,
+      pts: [
+        [minx, barY],
+        [maxx, barY],
+      ],
+    });
+  }
+  for (const n of members) {
+    const cx = n.x + n.w / 2;
+    out.push({
+      ids,
+      pts: ensureChildTopStem([[cx, barY]], n),
+    });
   }
   return out;
 }
@@ -638,22 +849,28 @@ export function computeEdgeRenderData(
     const isCouple = ps.length === 2 && uAnchor[uKey(ps[0]!, ps[1]!)];
     let ax: number;
     let ay: number;
+    let tagsBottom: number;
     let exBase: string[];
     if (isCouple) {
       const a = uAnchor[uKey(ps[0]!, ps[1]!)]!;
+      const p0 = byid[ps[0]!]!;
+      const p1 = byid[ps[1]!]!;
       ax = a.rx;
       ay = a.ry + PILL_DROP;
+      tagsBottom = Math.max(p0.y + p0.h, p1.y + p1.h);
       exBase = [ps[0]!, ps[1]!].concat(mObs[uKey(ps[0]!, ps[1]!)] || []);
     } else if (ps.length === 2 && byid[ps[0]!] && byid[ps[1]!]) {
       const p0 = byid[ps[0]!]!;
       const p1 = byid[ps[1]!]!;
       ax = (p0.x + p0.w / 2 + p1.x + p1.w / 2) / 2;
-      ay = Math.max(p0.y + p0.h, p1.y + p1.h);
+      tagsBottom = Math.max(p0.y + p0.h, p1.y + p1.h);
+      ay = tagsBottom;
       exBase = [ps[0]!, ps[1]!];
     } else if (ps.length === 1 && byid[ps[0]!]) {
       const p = byid[ps[0]!]!;
       ax = p.x + p.w / 2;
-      ay = p.y + p.h;
+      tagsBottom = p.y + p.h;
+      ay = tagsBottom;
       exBase = [ps[0]!];
     } else {
       ps.forEach((pid) => {
@@ -664,7 +881,14 @@ export function computeEdgeRenderData(
           if (!n) return;
           BLOOD.push({
             ids: pEB[c] || [],
-            pts: childRoute(p.x + p.w / 2, p.y + p.h, n, [pid, c], ctx),
+            pts: childRoute(
+              p.x + p.w / 2,
+              p.y + p.h,
+              n,
+              [pid, c],
+              ctx,
+              p.y + p.h,
+            ),
           });
         });
       });
@@ -687,19 +911,20 @@ export function computeEdgeRenderData(
         ctx,
         BLOOD,
         parentBusKids,
+        tagsBottom,
       );
     }
     crossHHBelow.forEach((n) => {
       parentBusKids.add(n.id);
       BLOOD.push({
         ids: pEB[n.id] || [],
-        pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx),
+        pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx, tagsBottom),
       });
     });
     sideK.forEach((n) => {
       BLOOD.push({
         ids: pEB[n.id] || [],
-        pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx),
+        pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx, tagsBottom),
       });
     });
   });

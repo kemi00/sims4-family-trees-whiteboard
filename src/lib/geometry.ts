@@ -12,6 +12,8 @@ import {
   TILE,
   UNION_MIN_GAP,
   WORLD_TAG_FONT,
+  WORLD_TAG_HIT_PAD_SCREEN_PX,
+  WORLD_TAG_MIN_SCREEN_PX,
   WORLD_TAG_NORMAL_ZOOM,
   WORLD_TAG_PILL_H,
   WORLD_TAG_ZOOM_OUT_MAX,
@@ -235,16 +237,15 @@ function tileCeil(v: number): number {
 }
 
 /**
- * World-name pill scale for the current board zoom. Zoomed out past
- * {@link WORLD_TAG_NORMAL_ZOOM} → larger in world space; at/above that
- * zoom → normal size.
+ * World-name pill scale for the current board zoom. Zoomed out → grow in
+ * world space so the painted chip stays ~{@link WORLD_TAG_MIN_SCREEN_PX}
+ * tall on screen. Zoomed in (≥ {@link WORLD_TAG_NORMAL_ZOOM}) → scale 1.
  */
 export function worldTagZoomScale(k: number): number {
   if (!(k > 0)) return 1;
-  return Math.min(
-    WORLD_TAG_ZOOM_OUT_MAX,
-    Math.max(1, WORLD_TAG_NORMAL_ZOOM / k),
-  );
+  if (k >= WORLD_TAG_NORMAL_ZOOM) return 1;
+  const forScreen = WORLD_TAG_MIN_SCREEN_PX / (WORLD_TAG_PILL_H * k);
+  return Math.min(WORLD_TAG_ZOOM_OUT_MAX, Math.max(1, forScreen));
 }
 
 export function worldTagMetrics(k: number): {
@@ -252,13 +253,21 @@ export function worldTagMetrics(k: number): {
   pillH: number;
   fontSize: number;
   handleSize: number;
+  /** World-space hit height = pill + screen pad (not a full-frame strip). */
+  hitH: number;
+  /** World-space pad added beyond the painted pill on each side. */
+  hitPad: number;
 } {
   const scale = worldTagZoomScale(k);
+  const pillH = WORLD_TAG_PILL_H * scale;
+  const hitPad = k > 0 ? WORLD_TAG_HIT_PAD_SCREEN_PX / k : 0;
   return {
     scale,
-    pillH: WORLD_TAG_PILL_H * scale,
+    pillH,
     fontSize: WORLD_TAG_FONT * scale,
     handleSize: 12 * scale,
+    hitH: pillH + 2 * hitPad,
+    hitPad,
   };
 }
 

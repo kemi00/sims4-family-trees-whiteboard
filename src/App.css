@@ -38,7 +38,9 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 }
 
 /* ── top bar ─────────────────────────────────────────────────────────────── */
-.appbar{flex:0 0 auto;height:calc(var(--bar-h) + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:5px;padding:0 10px 0 13px;padding-top:env(safe-area-inset-top,0px);background:var(--chrome);border-bottom:1px solid var(--line);position:relative;z-index:5;flex-wrap:nowrap}
+/* Above board chrome (#legend / viewctl at 6). Menus (.pop) live inside this
+   stacking context, so the bar must beat the legend or dropdowns are unusable. */
+.appbar{flex:0 0 auto;height:calc(var(--bar-h) + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:5px;padding:0 10px 0 13px;padding-top:env(safe-area-inset-top,0px);background:var(--chrome);border-bottom:1px solid var(--line);position:relative;z-index:20;flex-wrap:nowrap}
 .brand{display:flex;align-items:center;gap:9px;flex:0 0 auto}
 .brand .plumbob{width:14px;height:21px;flex:0 0 auto}
 .brand__name{font-size:13px;font-weight:600;letter-spacing:-.1px;color:var(--ink);white-space:nowrap}
@@ -70,6 +72,50 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 
 /* destructive: reads neutral until you reach for it */
 .tool[data-tone=danger]:hover:not(:disabled){background:var(--danger-soft);color:var(--danger)}
+
+/* Instant hover/focus tips (native title is too slow and easy to miss).
+   Size to content — never inherit the 32px icon button width (that stacks
+   one word per line). */
+@media (hover:hover) and (pointer:fine){
+ .tool[data-tooltip]::after,
+ .viewctl__zoom[data-tooltip]::after{
+  content:attr(data-tooltip);
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:40;
+  width:max-content;
+  max-width:min(280px, 70vw);
+  padding:6px 10px;
+  border-radius:8px;
+  background:var(--ink);
+  color:#fff;
+  font-size:11px;
+  font-weight:600;
+  line-height:1.35;
+  letter-spacing:.01em;
+  white-space:nowrap;
+  text-align:center;
+  box-shadow:var(--lift);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .12s ease;
+ }
+ .appbar .tool[data-tooltip]::after{
+  top:calc(100% + 8px);
+  bottom:auto;
+ }
+ .viewctl .tool[data-tooltip]::after,
+ .viewctl__zoom[data-tooltip]::after{
+  bottom:calc(100% + 8px);
+  top:auto;
+ }
+ .tool[data-tooltip]:hover::after,
+ .tool[data-tooltip]:focus-visible::after,
+ .viewctl__zoom[data-tooltip]:hover::after{
+  opacity:1;
+ }
+}
 
 /* ── segmented layer toggles ─────────────────────────────────────────────── */
 .segment{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:10px;background:var(--recess);border:1px solid #e9e3d5;flex:0 0 auto}
@@ -107,6 +153,8 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .pop__rule{display:block;height:1px;margin:4px 6px;background:var(--rule)}
 .pop__stack{display:flex;flex-direction:column;gap:1px;min-width:0;line-height:1.25}
 .pop__sub{font-size:10.5px;font-weight:600;color:var(--ink-3);word-break:break-all}
+.pop__danger{color:var(--danger)!important}
+.pop__danger svg{color:var(--danger)!important}
 
 .credits-panel{font-size:11.5px;line-height:1.45}
 .credits-panel .gph button{width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
@@ -120,9 +168,10 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .credits-panel__note{margin-top:10px;font-size:10.5px;color:var(--ink-3)}
 
 /* ── floating view controls ──────────────────────────────────────────────── */
-.viewctl{position:absolute;right:12px;bottom:12px;z-index:6;display:flex;align-items:center;gap:2px;padding:4px;background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:var(--lift)}
+/* Viewport chrome: bottom-center (not the legend’s right edge). */
+.viewctl{position:absolute;left:50%;right:auto;bottom:12px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:2px;padding:4px;background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:var(--lift)}
 .viewctl__rule{width:1px;height:20px;background:var(--rule);margin:0 3px;flex:0 0 auto}
-.viewctl__zoom{min-width:46px;text-align:center;font-size:11.5px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.viewctl__zoom{position:relative;min-width:46px;text-align:center;font-size:11.5px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;cursor:default}
 
 .minimap{position:absolute;left:12px;bottom:12px;z-index:6;width:var(--minimap-w);height:var(--minimap-h);background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:var(--lift);overflow:hidden;touch-action:none}
 .minimap__svg{width:100%;height:100%;display:block;cursor:pointer}
@@ -149,6 +198,68 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  .gpanel button:active,.menu button:active,.editor button:active,.agechips button:active{transform:none}
 }
 #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#f4f1e8;--minimap-w:220px;--minimap-h:140px}
+#stage.stage--select svg{cursor:crosshair}
+.link-sel-chip{
+  position:absolute;
+  z-index:7;
+  /* Default: sit just above the path point. */
+  transform:translate(-50%, calc(-100% - 12px));
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  max-width:min(320px, calc(100% - 24px));
+  padding:7px 12px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--chrome);
+  color:var(--ink);
+  font-size:12px;
+  font-weight:600;
+  line-height:1.25;
+  box-shadow:var(--lift);
+  /* Clicks/drags pass through to cards and household tags underneath. */
+  pointer-events:none;
+  user-select:none;
+}
+.link-sel-chip[data-side=below]{
+  /* Near the top of the stage, flip under the stroke so the chip stays visible. */
+  transform:translate(-50%, 12px);
+}
+.link-sel-chip__mark{
+  flex:0 0 auto;
+  font-size:15px;
+  line-height:1;
+  color:var(--accent-strong);
+}
+.link-sel-chip__body{
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+  min-width:0;
+}
+.link-sel-chip__label{color:var(--ink)}
+.link-sel-chip__names{
+  font-size:11px;
+  font-weight:500;
+  color:var(--ink-2);
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:4px 6px;
+  overflow:hidden;
+}
+.link-sel-chip__party{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.link-sel-chip__party--to{color:var(--ink);font-weight:600}
+.link-sel-chip__dir{
+  flex:0 0 auto;
+  color:var(--accent-strong);
+  font-weight:700;
+}
 svg{width:100%;height:100%;display:block;touch-action:none}
 #hint{position:absolute;left:12px;bottom:calc(12px + var(--minimap-h) + 8px);background:#fffdf8f5;border:1px solid var(--line);border-radius:var(--r-surface);padding:10px 26px 10px 12px;font-size:11px;max-width:300px;box-shadow:var(--lift);line-height:1.5}
 #hintClose{position:absolute;top:5px;right:6px;width:19px;height:19px;display:inline-flex;align-items:center;justify-content:center;border:none;background:#eee7d6;color:#7a6f56;border-radius:50%;cursor:pointer;padding:0}
@@ -158,16 +269,31 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 #hintIcon svg{width:18px;height:18px}
 #hintIcon:hover{background:var(--hover);color:var(--ink)}
 #status{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;box-shadow:var(--lift);display:none;max-width:min(520px, calc(100% - 24px));text-align:center;line-height:1.35;z-index:8}
+/* Session cue sits with view controls (bottom-center), not on the legend. */
+#autosave-cue{position:absolute;left:50%;right:auto;bottom:calc(12px + 40px + 8px);transform:translateX(-50%);z-index:6;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 8px;max-width:min(420px, calc(100% - 24px));padding:5px 10px;border:1px solid var(--line);border-radius:var(--r-control);background:var(--chrome);color:var(--ink-2);font-size:11px;font-weight:600;letter-spacing:.02em;box-shadow:var(--lift);user-select:none;text-align:center}
+.autosave-cue__label{color:var(--ink-2);pointer-events:none}
+.autosave-cue__sep{color:var(--ink-3);font-weight:500;pointer-events:none}
+.autosave-cue__file{max-width:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink);pointer-events:none}
+.autosave-cue__file--muted{color:var(--ink-3);font-weight:500}
+.autosave-cue__reset{padding:0;border:none;background:none;font:inherit;font-size:11px;font-weight:600;color:var(--accent-strong);cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.autosave-cue__reset:hover{color:var(--accent)}
+.autosave-cue__reset:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
 .bloodline-banner{position:absolute;left:50%;top:48px;transform:translateX(-50%);z-index:7;pointer-events:auto;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;max-width:min(520px, calc(100% - 24px));padding:8px 10px 8px 13px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;box-shadow:var(--lift)}
 .bloodline-banner p{margin:0;flex:1 1 12em;min-width:0}
 .bloodline-banner button{flex:0 0 auto;height:28px;padding:0 11px;margin-left:auto;border:1px solid transparent;border-radius:var(--r-control);background:var(--accent);color:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .bloodline-banner button:hover{background:var(--accent-strong)}
 .bloodline-banner button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
-/* Height is capped so a long legend never reaches the floating view controls. */
-#legend{position:absolute;right:12px;top:12px;background:#fffdf8f2;border:1px solid var(--line);border-radius:var(--r-surface);padding:8px 10px;font-size:10px;max-height:calc(100% - 84px);overflow:auto;overscroll-behavior:contain;box-shadow:var(--lift);width:150px}
+/* Legend column on the right: two cards (worlds scroll; links stay put). */
+#legend{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:8px;width:150px;max-height:calc(100% - 24px);padding:0;border:none;background:transparent;box-shadow:none;overflow:visible;font-size:10px}
+.legend-card{background:#fffdf8f2;border:1px solid var(--line);border-radius:var(--r-surface);padding:8px 10px;box-shadow:var(--lift);min-width:0}
+.legend-card--worlds{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.legend-card__body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain}
+.legend-card--links{flex:0 0 auto}
 #legend h3{margin:0 0 4px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#8a7f63}
 .lg{display:flex;align-items:center;gap:5px;margin:1.5px 0}
 .lg i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+.lg--notes{margin-top:6px;align-items:flex-start}
+.lg__swatch{width:12px;height:12px;border-radius:50%;background:#7c3aed;flex:0 0 auto;margin-top:1px}
 /* World rows are buttons: picking one frames that world on the canvas. */
 .lg--world{width:100%;margin:1.5px -4px;padding:1.5px 4px;border:0;border-radius:5px;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .lg--world:hover:not(:disabled){background:var(--hover)}
@@ -180,6 +306,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .node rect{cursor:grab}
 .node.sel>rect:first-of-type{stroke:#1b6cd6!important;stroke-width:4.5px!important;fill:#e9f2ff!important}
 .node.sel{filter:drop-shadow(0 0 0 #1b6cd6) drop-shadow(0 0 7px rgba(27,108,214,.9))}
+/* Soft membership highlight when a parent world/household is multi-selected. */
+.node.msel>rect:first-of-type{stroke:#1b6cd6!important;stroke-width:3px!important;fill:#e9f2ffcc!important}
+.edge.sel{filter:drop-shadow(0 0 4px rgba(27,108,214,.55))}
 .edge.sel .hit{stroke:#1b6cd6}
 .union-add{opacity:0;pointer-events:none}
 .union-pill:hover .union-add,.union-pill.union-pill--plus .union-add{opacity:1;pointer-events:auto}
@@ -234,10 +363,51 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .save-import__card h2{margin:0 0 8px;font-size:16px}
 .save-import__card p{margin:0 0 10px;font-size:13px;line-height:1.45;color:var(--ink-2)}
 .save-import__stats{margin:0 0 12px;padding:0;list-style:none;font-size:13px;line-height:1.6}
-.save-import__skip{font-size:12px;color:var(--ink-3)}
-.save-import__actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
-.save-import__actions button{min-height:36px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;font:inherit;font-size:13px;font-weight:600}
-.save-import__ok{background:var(--accent)!important;color:#fff!important;border-color:transparent!important}
+.save-import__lead{margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.save-import__details{margin:0 0 4px;font-size:12px;color:var(--ink-3)}
+.save-import__details summary{cursor:pointer;font-weight:600;color:var(--ink-2)}
+.save-import__meta{display:flex;flex-direction:column;gap:2px;margin:10px 0 0}
+.save-import__meta-label{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-2)}
+.save-import__meta-value{line-height:1.45;color:var(--ink-3)}
+.save-import__backup{margin:-2px 0 0}
+.save-import__text-btn{
+  display:inline;padding:0;border:none;background:none;color:var(--accent-strong);
+  font:inherit;font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:2px;
+  cursor:pointer;
+}
+.save-import__text-btn:hover{color:var(--ink)}
+.save-import__text-btn:active{color:var(--ink-2)}
+.save-import__text-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
+.save-import__actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:12px}
+.save-import__actions button{
+  min-height:36px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);
+  background:#fff;color:var(--ink);cursor:pointer;font:inherit;font-size:13px;font-weight:600;
+  transition:background .12s ease,border-color .12s ease,color .12s ease,box-shadow .12s ease,transform .06s ease,filter .12s ease;
+}
+.save-import__actions button:hover{
+  background:#f3efe6;border-color:#c5bca8;color:var(--ink);
+}
+.save-import__actions button:active{
+  background:#e8e1d2;border-color:#b5aa94;transform:translateY(1px);
+}
+.save-import__actions button:focus-visible{
+  outline:none;box-shadow:0 0 0 3px var(--accent-ring);
+}
+.save-import__ok{
+  background:var(--accent)!important;color:#fff!important;border-color:transparent!important;
+}
+.save-import__ok:hover{
+  filter:brightness(1.06);
+  background:var(--accent)!important;
+  border-color:transparent!important;
+  color:#fff!important;
+}
+.save-import__ok:active{
+  filter:brightness(0.92);
+  transform:translateY(1px);
+  background:var(--accent)!important;
+  color:#fff!important;
+}
 .node.agedim{opacity:.22}
 .node.agehl>rect:first-of-type{stroke:#f5a300!important;stroke-width:4.5px!important}
 .node.agehl{filter:drop-shadow(0 0 7px rgba(245,163,0,.9))}
@@ -269,7 +439,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 
 .legend-chip{position:absolute;right:12px;top:12px;z-index:6;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--chrome);color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;box-shadow:var(--lift);cursor:pointer}
 .legend-chip:hover{background:var(--hover);color:var(--ink)}
-.legend-close{float:right;margin:-2px 0 6px;border:none;background:transparent;color:var(--ink-3);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.legend-close{align-self:flex-end;margin:0 2px;border:none;background:transparent;color:var(--ink-3);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 
 @media (pointer:coarse){
  .tool{height:44px}
@@ -290,15 +460,18 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .search-overlay input{width:100%;height:36px;padding:0 10px 0 29px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:16px}
  .search-overlay .search__icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--ink-3);pointer-events:none}
  .gpanel--sheet,.menu--sheet,.editor--sheet,#legend.legend--sheet{
-  left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;max-width:none;max-height:70dvh;border-radius:16px 16px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;
+  left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;max-width:none;max-height:70dvh;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
  }
  .editor--sheet{width:auto;max-height:min(70dvh,100%)}
  .menu--sheet{z-index:70;position:fixed}
- .viewctl{right:max(12px, env(safe-area-inset-right,0px));bottom:max(12px, env(safe-area-inset-bottom,0px))}
+ .viewctl{left:50%;right:auto;bottom:max(12px, env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
+ #autosave-cue{left:50%;right:auto;bottom:calc(max(12px, env(safe-area-inset-bottom,0px)) + 40px + 8px);transform:translateX(-50%);max-width:min(420px, calc(100% - 24px))}
  #hint,#hintIcon{left:max(12px, env(safe-area-inset-left,0px));bottom:calc(max(12px, env(safe-area-inset-bottom,0px)) + var(--minimap-h) + 8px);max-width:min(300px, calc(100% - 24px))}
  .minimap{left:max(12px, env(safe-area-inset-left,0px));bottom:max(12px, env(safe-area-inset-bottom,0px))}
  .legend-chip{right:max(12px, env(safe-area-inset-right,0px));top:12px}
  #legend.legend--sheet{position:absolute;right:0;top:auto;width:auto}
+ #legend.legend--sheet .legend-card--worlds{flex:1 1 auto;max-height:min(42dvh, 320px)}
+ #legend.legend--sheet .legend-card--links{flex:0 0 auto}
  .tool[data-tone=danger]:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 }
 

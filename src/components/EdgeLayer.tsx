@@ -139,6 +139,8 @@ type Props = {
   isSelLink: (ids: string[]) => boolean;
   connectMode: boolean;
   hitStroke: number;
+  /** Visible stroke for a selected link (thicker than the default 2.3). */
+  selStroke: number;
   onLinkClick: (ids: string[], e: ReactPointerEvent) => void;
   onUnionClick: (a: string, b: string, e: ReactPointerEvent) => void;
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
@@ -154,6 +156,7 @@ export function EdgeLayer({
   isSelLink,
   connectMode,
   hitStroke,
+  selStroke,
   onLinkClick,
   onUnionClick,
   onAddInfant,
@@ -162,16 +165,13 @@ export function EdgeLayer({
     <g id="lEdges">
       {blood.map((p, pi) => {
         const isU = p.ids?.some((id) => userEdgeIds.has(id));
-        const col = isSelLink(p.ids)
-          ? '#1b6cd6'
-          : isU
-            ? UEDIT
-            : COL.blood;
+        const selected = isSelLink(p.ids);
+        const col = selected ? '#1b6cd6' : isU ? UEDIT : COL.blood;
         const d = hopD(p.pts, bloodVerts, pi);
         return (
           <g
             key={`blood-${pi}`}
-            className="link edge"
+            className={selected ? 'link edge sel' : 'link edge'}
             onPointerDown={(e) => {
               e.stopPropagation();
               if (p.ids?.length) onLinkClick(p.ids, e);
@@ -181,9 +181,10 @@ export function EdgeLayer({
               d={d}
               fill="none"
               stroke={col}
-              strokeWidth={2.3}
+              strokeWidth={selected ? selStroke : 2.3}
               strokeLinejoin="round"
               strokeLinecap="round"
+              style={selected ? { pointerEvents: 'none' } : undefined}
             />
             <path
               d={d}
@@ -204,7 +205,7 @@ export function EdgeLayer({
         return (
           <g
             key={u.edgeId}
-            className="link edge"
+            className={sq ? 'link edge sel' : 'link edge'}
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -221,7 +222,7 @@ export function EdgeLayer({
               points={u.pts}
               fill="none"
               stroke={lc}
-              strokeWidth={2.3}
+              strokeWidth={sq ? selStroke : 2.3}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
@@ -256,7 +257,7 @@ export function EdgeLayer({
         return (
           <g
             key={c.edgeId}
-            className="link edge"
+            className={sq ? 'link edge sel' : 'link edge'}
             onPointerDown={(e) => {
               e.stopPropagation();
               onLinkClick([c.edgeId], e);
@@ -266,7 +267,7 @@ export function EdgeLayer({
               points={pts}
               fill="none"
               stroke={col}
-              strokeWidth={2.3}
+              strokeWidth={sq ? selStroke : 2.3}
               strokeDasharray="7 5"
               strokeLinejoin="round"
               strokeLinecap="round"

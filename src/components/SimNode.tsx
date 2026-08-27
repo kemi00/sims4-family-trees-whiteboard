@@ -7,6 +7,8 @@ import type { SimNode } from '../types/whiteboard.ts';
 type Props = {
   node: SimNode;
   selected: boolean;
+  /** Soft highlight when this card is inside a selected world/household. */
+  groupSelected?: boolean;
   connectHighlight: boolean;
   searchHit: boolean;
   searchCurrent: boolean;
@@ -20,6 +22,7 @@ type Props = {
 export const SimNodeView = memo(function SimNodeView({
   node: n,
   selected,
+  groupSelected = false,
   connectHighlight,
   searchHit,
   searchCurrent,
@@ -55,7 +58,7 @@ export const SimNodeView = memo(function SimNodeView({
 
   return (
     <g
-      className={`node ${ageClass} ${searchClass} ${selected ? 'sel' : ''}`}
+      className={`node ${ageClass} ${searchClass} ${selected ? 'sel' : ''} ${groupSelected && !selected ? 'msel' : ''}`}
       data-id={n.id}
       transform={`translate(${n.x},${n.y})`}
       onPointerDown={(e) => onPointerDown(e, n)}
