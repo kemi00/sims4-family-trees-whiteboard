@@ -28,6 +28,7 @@ import {
   describeLinkSelection,
   type ChipObstacle,
 } from '../lib/linkLabel.ts';
+import { slug, trackAction } from '../lib/analytics.ts';
 import { isUserE, siblingsShareParents } from '../lib/utils.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
@@ -1326,6 +1327,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           const lg = legendRef.current?.getBoundingClientRect();
           const inset =
             !compact && r && lg ? Math.max(r.right - lg.left, 0) : 0;
+          const worldSlug = slug(world);
+          if (worldSlug) trackAction(`/action/world/${worldSlug}`);
           wb.zoomToWorld(world, r?.width ?? 800, r?.height ?? 600, inset);
         }}
       />

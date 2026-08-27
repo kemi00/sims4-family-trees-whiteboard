@@ -9,6 +9,7 @@ import {
   toCore,
   writeDraft,
 } from '../lib/autosave.ts';
+import { trackAction } from '../lib/analytics.ts';
 import { prepareLoadedNodes } from '../lib/loadLayout.ts';
 import { loadJsonRisk, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
@@ -469,6 +470,7 @@ export function useWhiteboard() {
     setSel(null);
     setEditNodeId(null);
     setInfantHouseMenu(null);
+    trackAction('/action/undo');
     flashStatus('Undone');
   }, [flashStatus]);
 
@@ -485,6 +487,7 @@ export function useWhiteboard() {
     (on: boolean) => {
       setConnectModeState(on);
       if (on) {
+        trackAction('/action/connect');
         setSelectModeState(false);
         setMultiSel(null);
       }
@@ -506,6 +509,7 @@ export function useWhiteboard() {
   const setSelectMode = useCallback((on: boolean) => {
     setSelectModeState(on);
     if (on) {
+      trackAction('/action/select');
       setConnectModeState(false);
       setConnSrc(null);
       setConnectMenu(null);
@@ -536,10 +540,16 @@ export function useWhiteboard() {
     setSel({ type: 'node', id });
   }, []);
 
-  const selectLink = useCallback((ids: string[]) => {
-    setMultiSel(null);
-    setSel({ type: 'link', ids });
-  }, []);
+  const selectLink = useCallback(
+    (ids: string[]) => {
+      setMultiSel(null);
+      setSel({ type: 'link', ids });
+      const idSet = new Set(ids.filter(Boolean));
+      const hit = edges.find((e) => idSet.has(e.id));
+      if (hit) trackAction(`/action/link/${hit.type}`);
+    },
+    [edges],
+  );
 
   const clearSel = useCallback(() => setSel(null), []);
 
@@ -594,6 +604,7 @@ export function useWhiteboard() {
   const deleteSelected = useCallback(() => {
     if (!sel) return;
     pushUndo();
+    trackAction('/action/delete');
     if (sel.type === 'node') {
       const nextCore = nodesCore.filter((n) => n.id !== sel.id);
       const nextEdges = edges.filter(
@@ -628,6 +639,7 @@ export function useWhiteboard() {
 
   const addSim = useCallback((svgWidth: number, svgHeight: number) => {
     pushUndo();
+    trackAction('/action/create-sim');
     const id = 'new' + eidcRef.current++;
     const world =
       dominantWorldInViewport(
@@ -1031,6 +1043,7 @@ export function useWhiteboard() {
       setEdges(nextEdges);
       setSel({ type: 'node', id });
       setInfantHouseMenu(null);
+      trackAction('/action/add-infant');
       flashStatus(
         `Linked ✓ — Infant added under ${byid[pa]?.first ?? ''} ＋ ${byid[pb]?.first ?? ''}.`,
       );
@@ -1208,6 +1221,7 @@ export function useWhiteboard() {
     (ids: string[], svgWidth: number, svgHeight: number) => {
       setSel({ type: 'link', ids });
       const e = edges.find((x) => ids.includes(x.id));
+      if (e) trackAction(`/action/link/${e.type}`);
       if (!e) return;
       const n =
         e.type === 'parent'
@@ -1262,6 +1276,8 @@ export function useWhiteboard() {
       const n = byid[hits[next]!];
       if (n) {
         frameSim(n, svgWidth, svgHeight);
+        // Only on Enter / next / prev — not every keystroke (cycle === 0).
+        if (cycle !== 0) trackAction('/action/find-sim');
         setSel({ type: 'node', id: n.id });
       }
     },
@@ -1305,6 +1321,7 @@ export function useWhiteboard() {
       setEditNodeId(null);
       eidcRef.current = nextEidc(seedEdges, 100000);
       skipAutosaveRef.current = true;
+      trackAction('/action/reset-board');
       flashStatus('Reset the board');
       setTimeout(() => fit(svgWidth, svgHeight), 0);
     },
@@ -1320,6 +1337,7 @@ export function useWhiteboard() {
     a.href = URL.createObjectURL(blob);
     a.download = `sims4_family_trees_${fileStamp()}.json`;
     a.click();
+    trackAction('/action/save-json');
   }, [persistPayload]);
 
   const applyLoadedJson = useCallback(
@@ -1374,6 +1392,7 @@ export function useWhiteboard() {
         setSourceFileName(file.name);
         setFromBrowserDraft(false);
         setPendingLoadJson(null);
+        trackAction('/action/load-json');
         if (prepared.repacked) {
           flashStatus(
             'Older save — board re-packed for the current layout. Download JSON to keep it.',
@@ -1488,6 +1507,7 @@ export function useWhiteboard() {
         setFromBrowserDraft(false);
         setPendingLoadJson(null);
         setSel(null);
+        trackAction('/action/load-json');
         const s = merged.summary;
         flashStatus(
           `JSON merged — ${s.nodesUpdated} updated, ${s.nodesAdded} added, ${s.relationshipsOverwritten} relationships overwritten. Download JSON to keep it.`,
@@ -1583,6 +1603,7 @@ export function useWhiteboard() {
       setSaveImport(null);
       setSel(null);
       setEditNodeId(null);
+      trackAction('/action/load-save');
       flashStatus(
         mode === 'replace'
           ? `Board replaced from save — ${result.nodes.length} cards. Download JSON to keep it.`
@@ -1829,6 +1850,7 @@ export function useWhiteboard() {
           })),
         ]);
       }
+      trackAction('/action/age-up');
       flashStatus(householdAgeUpLine(hh, nb, world));
     },
     [
@@ -1843,7 +1865,12 @@ export function useWhiteboard() {
 
   const toggleBloodline = useCallback(() => {
     if (sel?.type === 'node') {
-      setBloodlineId((cur) => (cur === sel.id ? null : sel.id));
+      if (bloodlineId === sel.id) {
+        setBloodlineId(null);
+      } else {
+        setBloodlineId(sel.id);
+        trackAction('/action/bloodline');
+      }
       return;
     }
     if (bloodlineId) {

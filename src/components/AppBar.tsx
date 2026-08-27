@@ -20,6 +20,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
+import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
 import { OverflowMenu } from './OverflowMenu.tsx';
 import { ToolButton } from './ToolButton.tsx';
@@ -126,7 +127,10 @@ export function AppBar({
       return;
     }
     wb.setLogOpen(false);
-    setFiltersOpen((o) => !o);
+    setFiltersOpen((o) => {
+      if (!o) trackAction('/action/filters');
+      return !o;
+    });
   };
 
   const openGames = () => {
@@ -153,7 +157,9 @@ export function AppBar({
   const openLog = () => {
     setFiltersOpen(false);
     closeFilterPanels();
-    wb.setLogOpen(!wb.logOpen);
+    const next = !wb.logOpen;
+    if (next) trackAction('/action/log');
+    wb.setLogOpen(next);
   };
   const onBloodline = () => {
     wb.toggleBloodline();
