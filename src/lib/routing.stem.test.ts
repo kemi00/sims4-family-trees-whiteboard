@@ -259,6 +259,68 @@ describe('union pedigree fork bottom stem', () => {
       `trunk must reach stem end ${stemEnd}, got ${trunk!.pts[1]![1]}`,
     );
   });
+
+  it('keeps trunk and bus clickable when there are multiple kids', () => {
+    const left = card({ id: 'Bella', x: 0, y: 0, w: 160, h: 80, gid: 'hh' });
+    const right = card({
+      id: 'Mortimer',
+      x: 200,
+      y: 0,
+      w: 160,
+      h: 80,
+      gid: 'hh',
+      gender: 'Male',
+    });
+    const tagsBottom = Math.max(left.y + left.h, right.y + right.h);
+    const alex = card({
+      id: 'Alexander',
+      x: 40,
+      y: tagsBottom + 2 * STUB + 40,
+      w: 160,
+      h: 80,
+      gid: 'hh',
+      gender: 'Male',
+    });
+    const cass = card({
+      id: 'Cassandra',
+      x: 360,
+      y: tagsBottom + 2 * STUB + 40,
+      w: 160,
+      h: 80,
+      gid: 'hh',
+    });
+    const data = computeEdgeRenderData({
+      nodes: [left, right, alex, cass],
+      edges: [
+        { id: 'm1', a: left.id, b: right.id, type: 'marriage', source: 'seed' },
+        { id: 'p1', a: left.id, b: alex.id, type: 'parent', source: 'seed' },
+        { id: 'p2', a: right.id, b: alex.id, type: 'parent', source: 'seed' },
+        { id: 'p3', a: left.id, b: cass.id, type: 'parent', source: 'seed' },
+        { id: 'p4', a: right.id, b: cass.id, type: 'parent', source: 'seed' },
+      ],
+      groups: [],
+      show,
+      packVis: () => true,
+      fastRoute: true,
+    });
+    assert.ok(data.blood.length >= 3, 'expected trunk, bus, and stems');
+    for (const path of data.blood) {
+      assert.ok(
+        path.ids.length > 0,
+        `blood segment must carry edge ids for hit-testing, pts=${JSON.stringify(path.pts)}`,
+      );
+    }
+    const trunk = data.blood.find(
+      (p) =>
+        p.pts.length === 2 &&
+        Math.abs(p.pts[0]![0] - p.pts[1]![0]) < 0.5 &&
+        p.pts[1]![1] > p.pts[0]![1] + 10,
+    );
+    assert.ok(trunk, 'expected vertical trunk');
+    for (const id of ['p1', 'p2', 'p3', 'p4']) {
+      assert.ok(trunk!.ids.includes(id), `trunk should include ${id}`);
+    }
+  });
 });
 
 describe('sibling top stems', () => {

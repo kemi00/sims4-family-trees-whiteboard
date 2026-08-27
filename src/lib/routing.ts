@@ -421,6 +421,23 @@ function clusterKidsByHousehold(kids: SimNode[]): SimNode[][] {
   return [...byGid.values()];
 }
 
+/** Parent-edge ids for one or more children (stable, deduped). */
+function edgeIdsForKids(
+  kids: SimNode[],
+  pEB: Record<string, string[]>,
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const n of kids) {
+    for (const id of pEB[n.id] || []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
 /** Pedigree fork: trunk ↓, per-household bus, drops into child tops. */
 function drawPedigreeFork(
   ax: number,
@@ -441,8 +458,10 @@ function drawPedigreeFork(
   const bus = laneBus(ax, ay, belowK, exBase, ctx, tagsBottom);
   const forkY = Math.max(stemEnd, bus ?? laneTop);
 
+  // Shared trunk must carry every child's parent-edge ids — otherwise only
+  // the short top stem is clickable / highlightable.
   blood.push({
-    ids: belowK.length === 1 ? pEB[belowK[0]!.id] || [] : [],
+    ids: edgeIdsForKids(belowK, pEB),
     pts: [
       [ax, ay],
       [ax, forkY],
@@ -475,7 +494,12 @@ function drawPedigreeFork(
     if (ax < minx - 0.5) busSeg.push([ax, forkY], [minx, forkY]);
     else if (ax > maxx + 0.5) busSeg.push([ax, forkY], [maxx, forkY]);
     if (maxx - minx > 0.5) busSeg.push([minx, forkY], [maxx, forkY]);
-    if (busSeg.length) blood.push({ ids: [], pts: simplify(busSeg) });
+    if (busSeg.length) {
+      blood.push({
+        ids: edgeIdsForKids(cluster, pEB),
+        pts: simplify(busSeg),
+      });
+    }
 
     for (const n of cluster) {
       const cx = n.x + n.w / 2;
