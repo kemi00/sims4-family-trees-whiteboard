@@ -3,7 +3,6 @@ import {
   DotsThreeVertical,
   DownloadSimple,
   EnvelopeSimple,
-  FileImage,
   Info,
   UploadSimple,
 } from '@phosphor-icons/react';
@@ -17,7 +16,6 @@ type Props = {
   onSave: () => void;
   onLoad: (file: File) => void;
   onLoadSave: (file: File) => void;
-  onExportPng: () => void;
   onResetBuiltIn: () => void;
 };
 
@@ -26,7 +24,6 @@ export function OverflowMenu({
   onSave,
   onLoad,
   onLoadSave,
-  onExportPng,
   onResetBuiltIn,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -73,7 +70,7 @@ export function OverflowMenu({
     <div className="overflow" ref={wrapRef}>
       <ToolButton
         icon={DotsThreeVertical}
-        label="Save, load, export, contact, and credits"
+        label="Save, load, contact, and credits"
         expanded={open}
         onClick={() => setOpen((o) => !o)}
       />
@@ -109,14 +106,6 @@ export function OverflowMenu({
           >
             <UploadSimple aria-hidden="true" />
             Load .save
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => run(onExportPng)}
-          >
-            <FileImage aria-hidden="true" />
-            Export PNG
           </button>
           <button
             type="button"

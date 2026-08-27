@@ -1650,80 +1650,6 @@ export function useWhiteboard() {
 
   const cancelSaveImport = useCallback(() => setSaveImport(null), []);
 
-  const exportPng = useCallback(
-    (svgEl: SVGSVGElement) => {
-      const [x0, y0, x1, y1] = bbox(nodes, nodeVis);
-      const pad = 40;
-      const W = Math.max(1, x1 - x0 + pad * 2);
-      const H = Math.max(1, y1 - y0 + pad * 2);
-      const clone = svgEl.cloneNode(true) as SVGSVGElement;
-      const sc = clone.querySelector('#scene');
-      if (!sc) return;
-      sc.setAttribute(
-        'transform',
-        `translate(${-x0 + pad},${-y0 + pad})`,
-      );
-      clone.setAttribute('width', String(W));
-      clone.setAttribute('height', String(H));
-      clone.setAttribute('viewBox', `0 0 ${W} ${H}`);
-      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      const bg = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'rect',
-      );
-      bg.setAttribute('x', '0');
-      bg.setAttribute('y', '0');
-      bg.setAttribute('width', String(W));
-      bg.setAttribute('height', String(H));
-      bg.setAttribute('fill', '#f4f1e8');
-      sc.parentNode?.insertBefore(bg, sc);
-      const xml =
-        '<?xml version="1.0" encoding="UTF-8"?>' +
-        new XMLSerializer().serializeToString(clone);
-      const svgBlob = new Blob([xml], {
-        type: 'image/svg+xml;charset=utf-8',
-      });
-      const url = URL.createObjectURL(svgBlob);
-      const img = new Image();
-      const fail = (why: string) => {
-        URL.revokeObjectURL(url);
-        alert(why);
-      };
-      img.onerror = () => fail('Could not render the PNG.');
-      img.onload = () => {
-        const cap = 8192;
-        const s = Math.min(2, cap / W, cap / H);
-        const c = document.createElement('canvas');
-        c.width = Math.max(1, Math.floor(W * s));
-        c.height = Math.max(1, Math.floor(H * s));
-        const ctx = c.getContext('2d');
-        if (!ctx) {
-          fail('Could not create a PNG canvas.');
-          return;
-        }
-        ctx.scale(s, s);
-        ctx.drawImage(img, 0, 0);
-        URL.revokeObjectURL(url);
-        c.toBlob((b) => {
-          if (!b) {
-            alert(
-              'PNG export failed — the board is too large for this browser. Hide unused games in Filters and try again.',
-            );
-            return;
-          }
-          const a = document.createElement('a');
-          const href = URL.createObjectURL(b);
-          a.href = href;
-          a.download = `sims4_family_trees_${fileStamp()}.png`;
-          a.click();
-          setTimeout(() => URL.revokeObjectURL(href), 4000);
-        }, 'image/png');
-      };
-      img.src = url;
-    },
-    [nodes, nodeVis],
-  );
-
   const togglePack = useCallback((pack: string, visible: boolean) => {
     setHiddenPacks((s) => {
       const next = new Set(s);
@@ -2066,7 +1992,6 @@ export function useWhiteboard() {
     confirmSaveReplace,
     cancelSaveImport,
     saveImport,
-    exportPng,
     togglePack,
     togglePlay,
     setHiddenPlay,

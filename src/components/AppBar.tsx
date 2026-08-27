@@ -360,9 +360,6 @@ export function AppBar({
           wb.loadJson(f, w, h);
         }}
         onLoadSave={(f) => wb.previewSave(f)}
-        onExportPng={() => {
-          if (svgRef.current) wb.exportPng(svgRef.current);
-        }}
         onResetBuiltIn={() => {
           const { w, h } = svgSize();
           wb.resetToBuiltInBoard(w, h);
