@@ -146,8 +146,8 @@ type Props = {
   onLinkClick: (ids: string[], e: ReactPointerEvent) => void;
   onUnionClick: (a: string, b: string, e: ReactPointerEvent) => void;
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
-  worldById: ReadonlyMap<string, string>;
-  gidById: ReadonlyMap<string, string>;
+  worldById?: ReadonlyMap<string, string>;
+  gidById?: ReadonlyMap<string, string>;
 };
 
 function nodeIdsFromEdges(
@@ -167,8 +167,8 @@ function nodeIdsFromEdges(
 
 function chromeDataProps(
   nodeIds: readonly string[],
-  worldById: ReadonlyMap<string, string>,
-  gidById: ReadonlyMap<string, string>,
+  worldById: ReadonlyMap<string, string> | undefined,
+  gidById: ReadonlyMap<string, string> | undefined,
 ): { 'data-world'?: string; 'data-gid'?: string } {
   const world = sharedChromeValue(nodeIds, worldById);
   const gid = sharedChromeValue(nodeIds, gidById);

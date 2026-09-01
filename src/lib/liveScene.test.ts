@@ -46,6 +46,7 @@ describe('sharedChromeValue', () => {
     assert.equal(sharedChromeValue(['a', 'c'], worlds), undefined);
     assert.equal(sharedChromeValue(['a', 'missing'], worlds), undefined);
     assert.equal(sharedChromeValue([], worlds), undefined);
+    assert.equal(sharedChromeValue(['a', 'b'], undefined), undefined);
   });
 
   it('does not treat placeholder worlds as chrome units', () => {

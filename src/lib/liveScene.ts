@@ -120,9 +120,9 @@ export function parseEdgeEndsAttr(raw: string | null): string[] {
  */
 export function sharedChromeValue(
   nodeIds: readonly string[],
-  byId: ReadonlyMap<string, string>,
+  byId: ReadonlyMap<string, string> | undefined,
 ): string | undefined {
-  if (!nodeIds.length) return undefined;
+  if (!byId || !nodeIds.length) return undefined;
   const first = byId.get(nodeIds[0]!);
   if (!first || first === '—') return undefined;
   for (let i = 1; i < nodeIds.length; i++) {
