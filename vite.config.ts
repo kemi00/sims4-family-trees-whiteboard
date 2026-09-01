@@ -6,15 +6,22 @@ export default defineConfig({
   plugins: [react()],
   server: {
     /*
-     * Vite defaults to `localhost`, which Node 17+ resolves to `::1` first, so
-     * the dev server ends up bound to IPv6 loopback only. Anything reaching it
-     * over IPv4 — a container port forward, a remote-dev tunnel — then gets
-     * ECONNREFUSED even though the server is up. `true` listens on `::`
-     * dual-stack, which answers on 127.0.0.1 and ::1 alike.
+     * Bind IPv4 explicitly. Vite defaults to `localhost`, which Node 17+
+     * resolves to `::1` first, leaving the server on IPv6 loopback only —
+     * IPv4 clients get ECONNREFUSED while the server sits there healthy.
      *
-     * Note this also puts the dev server on your LAN. Use '127.0.0.1' instead
-     * if you want IPv4 loopback and nothing else.
+     * `true` (`::`) is not enough either. A dual-stack socket accepts IPv4
+     * connections, but the kernel only lists it in /proc/net/tcp6, never in
+     * /proc/net/tcp. Port forwarding that discovers ports by scanning the
+     * IPv4 table therefore never sees the server at all and never opens a
+     * tunnel, so the browser still gets ECONNREFUSED. '0.0.0.0' lands in
+     * /proc/net/tcp where it can be found.
+     *
+     * The cost is that the literal http://[::1]:5173/ stops working; clients
+     * asking for `localhost` fall back to IPv4 and are unaffected. Note this
+     * also puts the dev server on your LAN — use '127.0.0.1' for IPv4
+     * loopback and nothing else, which keeps the port scanner happy too.
      */
-    host: true,
+    host: '0.0.0.0',
   },
 })
