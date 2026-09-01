@@ -17,6 +17,7 @@ import {
   bbox,
   cardOriginAtViewportCenter,
   coreOffsetsAfterWorldSeparation,
+  introducedWorldNames,
   dominantWorldInViewport,
   snapHouseholdDelta,
   snapPosition,
@@ -891,16 +892,6 @@ export function useWhiteboard() {
     [snap, nodes, updateNode],
   );
 
-  /** Push world frames apart by whole tiles; persists via ox/oy. */
-  const enforceWorldSeparation = useCallback(() => {
-    setNodesCore((core) => {
-      const laid = snap
-        ? snapNodesToTiles(computeLayout(core, worlds, edges))
-        : computeLayout(core, worlds, edges);
-      return coreOffsetsAfterWorldSeparation(core, laid, groups, () => true);
-    });
-  }, [snap, worlds, edges, groups]);
-
   const makeChildOfCouple = useCallback(
     (pa: string, pb: string, childId: string) => {
       if (childId === pa || childId === pb) {
@@ -1401,17 +1392,20 @@ export function useWhiteboard() {
           flashStatus(`Loaded ${file.name}`);
         }
         setTimeout(() => {
-          setNodesCore((core) => {
-            const laid = snap
-              ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
-              : computeLayout(core, worlds, loadedEdges);
-            return coreOffsetsAfterWorldSeparation(
-              core,
-              laid,
-              (d.groups as Group[]) ?? groups,
-              () => true,
-            );
-          });
+          // Fresh pack only. A loaded board may have user-overlapped worlds.
+          if (prepared.repacked) {
+            setNodesCore((core) => {
+              const laid = snap
+                ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
+                : computeLayout(core, worlds, loadedEdges);
+              return coreOffsetsAfterWorldSeparation(
+                core,
+                laid,
+                (d.groups as Group[]) ?? groups,
+                () => true,
+              );
+            });
+          }
           fit(svgWidth, svgHeight);
         }, 0);
       } catch {
@@ -1514,6 +1508,8 @@ export function useWhiteboard() {
         );
         setTimeout(() => {
           setNodesCore((core) => {
+            const movable = introducedWorldNames(nodesCore, core);
+            if (!movable.size) return core;
             const laid = snap
               ? snapNodesToTiles(computeLayout(core, worlds, merged.edges))
               : computeLayout(core, worlds, merged.edges);
@@ -1522,6 +1518,7 @@ export function useWhiteboard() {
               laid,
               merged.groups,
               () => true,
+              movable,
             );
           });
           fit(pending.svgWidth, pending.svgHeight);
@@ -1581,13 +1578,20 @@ export function useWhiteboard() {
       const laid = snap
         ? snapNodesToTiles(computeLayout(coreNodes, worlds, result.edges))
         : computeLayout(coreNodes, worlds, result.edges);
+      const movable =
+        mode === 'replace'
+          ? undefined
+          : introducedWorldNames(Object.values(byid), result.nodes);
       setNodesCore(
-        coreOffsetsAfterWorldSeparation(
-          coreNodes,
-          laid,
-          result.groups,
-          () => true,
-        ),
+        mode !== 'replace' && movable && movable.size === 0
+          ? coreNodes
+          : coreOffsetsAfterWorldSeparation(
+              coreNodes,
+              laid,
+              result.groups,
+              () => true,
+              movable,
+            ),
       );
       eidcRef.current = nextEidc(result.edges, eidcRef.current);
       const s = result.summary;
@@ -1992,7 +1996,6 @@ export function useWhiteboard() {
     snapDragPosition,
     snapHouseholdDrag,
     snapNodeAction,
-    enforceWorldSeparation,
     handleConnectClick,
     handleConnectUnion,
     confirmConnect,

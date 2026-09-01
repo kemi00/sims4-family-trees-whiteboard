@@ -1065,15 +1065,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
 
     if (multiDragRef.current) {
       const d = multiDragRef.current;
-      const kind = d.sel.kind;
       if (d.armed) {
         endDragPreview();
         wb.moveNodesByIds(d.ids, d.lastDx, d.lastDy, d.base);
       }
       multiDragRef.current = null;
-      if (kind === 'worlds' || kind === 'households') {
-        wb.enforceWorldSeparation();
-      }
       return;
     }
 
@@ -1089,7 +1085,6 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       }
       hhDragRef.current = null;
       worldDragRef.current = null;
-      wb.enforceWorldSeparation();
     }
     if (dragRef.current) {
       const d = dragRef.current;
