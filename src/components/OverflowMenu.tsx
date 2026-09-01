@@ -5,7 +5,7 @@ import {
   EnvelopeSimple,
   Info,
   UploadSimple,
-} from '@phosphor-icons/react';
+} from '../icons.ts';
 import { useEffect, useRef, useState } from 'react';
 import { CONTACT_EMAIL, CONTACT_MAILTO } from '../lib/credits.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';

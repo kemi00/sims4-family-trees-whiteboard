@@ -1,4 +1,4 @@
-import { X } from '@phosphor-icons/react';
+import { X } from '../icons.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import {
   EA_FAN_CONTENT_URL,

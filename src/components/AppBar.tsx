@@ -15,7 +15,7 @@ import {
   TreeStructure,
   UserPlus,
   UsersThree,
-} from '@phosphor-icons/react';
+} from '../icons.ts';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';

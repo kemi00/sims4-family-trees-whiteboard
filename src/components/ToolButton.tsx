@@ -1,4 +1,4 @@
-import type { Icon } from '@phosphor-icons/react';
+import type { Icon } from '../icons.ts';
 import type { ReactNode, Ref } from 'react';
 
 type Tone = 'neutral' | 'primary' | 'danger';

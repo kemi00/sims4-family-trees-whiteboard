@@ -1,4 +1,4 @@
-import { ArrowsDownUp, X } from '@phosphor-icons/react';
+import { ArrowsDownUp, X } from '../icons.ts';
 import { useMemo, useState } from 'react';
 import { CONNECTION_LOG_PANEL_W } from '../lib/constants.ts';
 import { panelPosition } from '../lib/chrome.ts';

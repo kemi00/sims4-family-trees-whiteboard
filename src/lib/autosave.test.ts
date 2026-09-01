@@ -238,5 +238,6 @@ describe('autosave', () => {
   it('counts the shipped fodder roster as unaltered', () => {
     const seed = seedRoster as WhiteboardData;
     assert.equal(boardMatchesBuiltIn(persistPayloadFromSeed(seed), seed), true);
+    assert.equal(boardMatchesBuiltIn(persistPayloadFromSeed(seed), seed), true);
   });
 });

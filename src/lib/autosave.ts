@@ -172,12 +172,23 @@ export function persistPayloadFromSeed(seed: WhiteboardData): PersistPayload {
   });
 }
 
+/** Built-in identity is stable for a given seed object; do not remigrate it. */
+const builtInIdentityBySeed = new WeakMap<WhiteboardData, string>();
+
+function builtInIdentity(seed: WhiteboardData): string {
+  const hit = builtInIdentityBySeed.get(seed);
+  if (hit) return hit;
+  const identity = boardIdentity(persistPayloadFromSeed(seed));
+  builtInIdentityBySeed.set(seed, identity);
+  return identity;
+}
+
 /** True when Reset would be a no-op: current persist matches the built-in board. */
 export function boardMatchesBuiltIn(
   payload: PersistPayload,
   seed: WhiteboardData,
 ): boolean {
-  return boardIdentity(payload) === boardIdentity(persistPayloadFromSeed(seed));
+  return boardIdentity(payload) === builtInIdentity(seed);
 }
 
 function storage(): Storage | null {
