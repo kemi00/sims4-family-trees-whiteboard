@@ -10,6 +10,8 @@ type Props = {
   packVis: (n: SimNode) => boolean;
   /** `frames` = dashed boxes (under edges); `handles` = name/Age up on top. */
   mode: 'frames' | 'handles';
+  /** False when zoomed out far enough that pill type would be sub-pixel. */
+  labels: boolean;
   selectedGids?: ReadonlySet<string>;
   buckets?: NodeBuckets;
   onHouseholdDragStart: (
@@ -28,6 +30,7 @@ export const GroupLayer = memo(function GroupLayer({
   show,
   packVis,
   mode,
+  labels,
   selectedGids,
   buckets,
   onHouseholdDragStart,
@@ -127,25 +130,29 @@ export const GroupLayer = memo(function GroupLayer({
                 strokeWidth={selected ? 2 : 1}
                 vectorEffect={selected ? 'non-scaling-stroke' : undefined}
               />
-              <text
-                x={headerX + 10}
-                y={textY(headerY)}
-                dominantBaseline="middle"
-                fontSize={12}
-                fill={selected ? '#ffffffbb' : g0.color + '99'}
-              >
-                ⠿
-              </text>
-              <text
-                x={headerX + 24}
-                y={textY(headerY)}
-                dominantBaseline="middle"
-                fontSize={12}
-                fontWeight={700}
-                fill={selected ? '#fff' : g0.color}
-              >
-                {label}
-              </text>
+              {labels && (
+                <>
+                  <text
+                    x={headerX + 10}
+                    y={textY(headerY)}
+                    dominantBaseline="middle"
+                    fontSize={12}
+                    fill={selected ? '#ffffffbb' : g0.color + '99'}
+                  >
+                    ⠿
+                  </text>
+                  <text
+                    x={headerX + 24}
+                    y={textY(headerY)}
+                    dominantBaseline="middle"
+                    fontSize={12}
+                    fontWeight={700}
+                    fill={selected ? '#fff' : g0.color}
+                  >
+                    {label}
+                  </text>
+                </>
+              )}
             </g>
             <g
               className="hh-ageup"
@@ -168,17 +175,19 @@ export const GroupLayer = memo(function GroupLayer({
                 stroke={g0.color}
                 strokeWidth={1}
               />
-              <text
-                x={ageX + ageW / 2}
-                y={textY(ageY)}
-                dominantBaseline="middle"
-                fontSize={12}
-                fontWeight={700}
-                textAnchor="middle"
-                fill="#fff"
-              >
-                {ageLabel}
-              </text>
+              {labels && (
+                <text
+                  x={ageX + ageW / 2}
+                  y={textY(ageY)}
+                  dominantBaseline="middle"
+                  fontSize={12}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill="#fff"
+                >
+                  {ageLabel}
+                </text>
+              )}
             </g>
           </g>
         );

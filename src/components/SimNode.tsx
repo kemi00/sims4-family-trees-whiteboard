@@ -9,6 +9,8 @@ type Props = {
   selected: boolean;
   /** Soft highlight when this card is inside a selected world/household. */
   groupSelected?: boolean;
+  /** False when zoomed out far enough that card type would be sub-pixel. */
+  labels: boolean;
   connectHighlight: boolean;
   searchHit: boolean;
   searchCurrent: boolean;
@@ -23,6 +25,7 @@ export const SimNodeView = memo(function SimNodeView({
   node: n,
   selected,
   groupSelected = false,
+  labels,
   connectHighlight,
   searchHit,
   searchCurrent,
@@ -83,19 +86,23 @@ export const SimNodeView = memo(function SimNodeView({
         fill={bcol}
         clipPath="url(#tagclip)"
       />
-      <text x={16} y={32} fontSize={13} fontWeight={700} fill="#1b2b3a">
-        {n.first} {n.sur}
-      </text>
-      <text x={16} y={52} fontSize={10.5} fill="#5b6472">
-        {n.age}
-        {n.gender && n.gender !== '-' ? ` · ${n.gender}` : ''}
-        {n.species ? ` · ${n.species}` : ''}
-      </text>
-      {detail ? (
-        <text x={16} y={72} fontSize={10.5} fill="#697380">
-          {detail}
-        </text>
-      ) : null}
+      {labels && (
+        <>
+          <text x={16} y={32} fontSize={13} fontWeight={700} fill="#1b2b3a">
+            {n.first} {n.sur}
+          </text>
+          <text x={16} y={52} fontSize={10.5} fill="#5b6472">
+            {n.age}
+            {n.gender && n.gender !== '-' ? ` · ${n.gender}` : ''}
+            {n.species ? ` · ${n.species}` : ''}
+          </text>
+          {detail ? (
+            <text x={16} y={72} fontSize={10.5} fill="#697380">
+              {detail}
+            </text>
+          ) : null}
+        </>
+      )}
       {hasBadge && (
         <>
           <circle
@@ -106,14 +113,16 @@ export const SimNodeView = memo(function SimNodeView({
             stroke={n.color}
             strokeWidth={1.4}
           />
-          <text
-            x={n.w - 15}
-            y={19}
-            fontSize={11}
-            textAnchor="middle"
-          >
-            {speciesBadge ?? stateBadge}
-          </text>
+          {labels && (
+            <text
+              x={n.w - 15}
+              y={19}
+              fontSize={11}
+              textAnchor="middle"
+            >
+              {speciesBadge ?? stateBadge}
+            </text>
+          )}
         </>
       )}
       {added && !hasBadge && (
@@ -126,16 +135,18 @@ export const SimNodeView = memo(function SimNodeView({
             stroke="#fff"
             strokeWidth={1.4}
           />
-          <text
-            x={n.w - 15}
-            y={19.5}
-            fontSize={13}
-            fontWeight={700}
-            textAnchor="middle"
-            fill="#fff"
-          >
-            ＋
-          </text>
+          {labels && (
+            <text
+              x={n.w - 15}
+              y={19.5}
+              fontSize={13}
+              fontWeight={700}
+              textAnchor="middle"
+              fill="#fff"
+            >
+              ＋
+            </text>
+          )}
         </>
       )}
       {fromSave && (
@@ -143,15 +154,17 @@ export const SimNodeView = memo(function SimNodeView({
           transform={`translate(${hasBadge || added ? n.w - 38 : n.w - 15}, 15)`}
         >
           <circle r={8} fill={n.color} stroke="#fff" strokeWidth={1.3} />
-          <text
-            y={4}
-            fontSize={10}
-            fontWeight={700}
-            textAnchor="middle"
-            fill="#fff"
-          >
-            S
-          </text>
+          {labels && (
+            <text
+              y={4}
+              fontSize={10}
+              fontWeight={700}
+              textAnchor="middle"
+              fill="#fff"
+            >
+              S
+            </text>
+          )}
         </g>
       )}
     </g>
