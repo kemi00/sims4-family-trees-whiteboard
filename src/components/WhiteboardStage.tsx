@@ -531,6 +531,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     for (const e of wb.edges) m.set(e.id, [e.a, e.b]);
     return m;
   }, [wb.edges]);
+  const { worldById, gidById } = useMemo(() => {
+    const worldById = new Map<string, string>();
+    const gidById = new Map<string, string>();
+    for (const n of wb.nodes) {
+      if (n.world) worldById.set(n.id, n.world);
+      if (n.gid) gidById.set(n.id, n.gid);
+    }
+    return { worldById, gidById };
+  }, [wb.nodes]);
 
   const updateTemp = useCallback(
     (clientX: number, clientY: number) => {
@@ -562,8 +571,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     const scene = sceneRef.current;
     if (!p || !scene) return;
     applyNodeTranslates(scene, p.origins, p.dx, p.dy);
-    applyChromeTranslates(scene, p.gids, p.worlds, p.dx, p.dy);
     applyEdgeTranslates(scene, Object.keys(p.origins), p.dx, p.dy);
+    // Chrome last: intra-world / intra-household ink is tagged data-world /
+    // data-gid so it rides the same live translate as frames (WebKit-safe).
+    applyChromeTranslates(scene, p.gids, p.worlds, p.dx, p.dy);
   }, []);
 
   const scheduleDragPreview = useCallback(
@@ -1381,6 +1392,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             unions={wb.edgeData.unions}
             customs={wb.edgeData.customs}
             endsById={edgeEndsById}
+            worldById={worldById}
+            gidById={gidById}
             userEdgeIds={userEdgeIds.current}
             isSelLink={wb.isSelLink}
             connectMode={wb.connectMode}

@@ -1,5 +1,6 @@
 import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import { COL, PILL_H, PILL_W, UEDIT } from '../lib/constants.ts';
+import { sharedChromeValue } from '../lib/liveScene.ts';
 import { ptsStr } from '../lib/utils.ts';
 import type { BloodPath, BloodVert, UnionRender } from '../types/whiteboard.ts';
 
@@ -145,13 +146,15 @@ type Props = {
   onLinkClick: (ids: string[], e: ReactPointerEvent) => void;
   onUnionClick: (a: string, b: string, e: ReactPointerEvent) => void;
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
+  worldById: ReadonlyMap<string, string>;
+  gidById: ReadonlyMap<string, string>;
 };
 
-function endsAttr(
+function nodeIdsFromEdges(
   edgeIds: string[] | undefined,
   endsById: ReadonlyMap<string, readonly [string, string]>,
-): string {
-  if (!edgeIds?.length) return '';
+): string[] {
+  if (!edgeIds?.length) return [];
   const s = new Set<string>();
   for (const id of edgeIds) {
     const ab = endsById.get(id);
@@ -159,7 +162,20 @@ function endsAttr(
     s.add(ab[0]);
     s.add(ab[1]);
   }
-  return JSON.stringify([...s]);
+  return [...s];
+}
+
+function chromeDataProps(
+  nodeIds: readonly string[],
+  worldById: ReadonlyMap<string, string>,
+  gidById: ReadonlyMap<string, string>,
+): { 'data-world'?: string; 'data-gid'?: string } {
+  const world = sharedChromeValue(nodeIds, worldById);
+  const gid = sharedChromeValue(nodeIds, gidById);
+  return {
+    ...(world ? { 'data-world': world } : {}),
+    ...(gid ? { 'data-gid': gid } : {}),
+  };
 }
 
 export const EdgeLayer = memo(function EdgeLayer({
@@ -177,6 +193,8 @@ export const EdgeLayer = memo(function EdgeLayer({
   onLinkClick,
   onUnionClick,
   onAddInfant,
+  worldById,
+  gidById,
 }: Props) {
   return (
     <g id="lEdges">
@@ -185,11 +203,13 @@ export const EdgeLayer = memo(function EdgeLayer({
         const selected = isSelLink(p.ids);
         const col = selected ? '#1b6cd6' : isU ? UEDIT : COL.blood;
         const d = hopD(p.pts, bloodVerts, pi);
+        const nodeIds = nodeIdsFromEdges(p.ids, endsById);
         return (
           <g
             key={`blood-${pi}`}
             className={selected ? 'link edge sel' : 'link edge'}
-            data-ends={endsAttr(p.ids, endsById)}
+            data-ends={nodeIds.length ? JSON.stringify(nodeIds) : ''}
+            {...chromeDataProps(nodeIds, worldById, gidById)}
             onPointerDown={(e) => {
               e.stopPropagation();
               if (p.ids?.length) onLinkClick(p.ids, e);
@@ -225,6 +245,7 @@ export const EdgeLayer = memo(function EdgeLayer({
             key={u.edgeId}
             className={sq ? 'link edge sel' : 'link edge'}
             data-ends={JSON.stringify([u.a, u.b])}
+            {...chromeDataProps([u.a, u.b], worldById, gidById)}
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -273,15 +294,14 @@ export const EdgeLayer = memo(function EdgeLayer({
         const sq = isSelLink([c.edgeId]);
         const col = sq ? '#1b6cd6' : UEDIT;
         const pts = ptsStr(c.pts);
+        const nodeIds =
+          c.a && c.b ? [c.a, c.b] : nodeIdsFromEdges([c.edgeId], endsById);
         return (
           <g
             key={c.edgeId}
             className={sq ? 'link edge sel' : 'link edge'}
-            data-ends={
-              c.a && c.b
-                ? JSON.stringify([c.a, c.b])
-                : endsAttr([c.edgeId], endsById)
-            }
+            data-ends={nodeIds.length ? JSON.stringify(nodeIds) : ''}
+            {...chromeDataProps(nodeIds, worldById, gidById)}
             onPointerDown={(e) => {
               e.stopPropagation();
               onLinkClick([c.edgeId], e);

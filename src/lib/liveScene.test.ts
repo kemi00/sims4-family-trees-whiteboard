@@ -4,6 +4,7 @@ import {
   edgeEndsMoveTogether,
   parseEdgeEndsAttr,
   sceneTransformAttr,
+  sharedChromeValue,
 } from './liveScene.ts';
 
 describe('sceneTransformAttr', () => {
@@ -31,5 +32,27 @@ describe('parseEdgeEndsAttr', () => {
       'Bob Pancakes',
       'Eliza Pancakes',
     ]);
+  });
+});
+
+describe('sharedChromeValue', () => {
+  it('returns the shared world or household, else undefined', () => {
+    const worlds = new Map([
+      ['a', 'Willow Creek'],
+      ['b', 'Willow Creek'],
+      ['c', 'Oasis Springs'],
+    ]);
+    assert.equal(sharedChromeValue(['a', 'b'], worlds), 'Willow Creek');
+    assert.equal(sharedChromeValue(['a', 'c'], worlds), undefined);
+    assert.equal(sharedChromeValue(['a', 'missing'], worlds), undefined);
+    assert.equal(sharedChromeValue([], worlds), undefined);
+  });
+
+  it('does not treat placeholder worlds as chrome units', () => {
+    const worlds = new Map([
+      ['a', '—'],
+      ['b', '—'],
+    ]);
+    assert.equal(sharedChromeValue(['a', 'b'], worlds), undefined);
   });
 });

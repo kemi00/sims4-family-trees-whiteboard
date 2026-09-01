@@ -114,6 +114,34 @@ export function parseEdgeEndsAttr(raw: string | null): string[] {
   }
 }
 
+/**
+ * Shared world / household for a link, or undefined if endpoints disagree.
+ * Empty / placeholder worlds are not chrome units (same as WorldLayer).
+ */
+export function sharedChromeValue(
+  nodeIds: readonly string[],
+  byId: ReadonlyMap<string, string>,
+): string | undefined {
+  if (!nodeIds.length) return undefined;
+  const first = byId.get(nodeIds[0]!);
+  if (!first || first === '—') return undefined;
+  for (let i = 1; i < nodeIds.length; i++) {
+    if (byId.get(nodeIds[i]!) !== first) return undefined;
+  }
+  return first;
+}
+
+/**
+ * Live relationship groups. Class + attribute only — never `#lEdges …`.
+ * From an SVG `<g>`, WebKit's `querySelector('#id …')` is often empty, so
+ * ink sat still until pointerup (React then rewrote `d`).
+ */
+export const LIVE_LINK_SEL = 'g.link[data-ends]';
+
+function queryLiveLinks(scene: Element): NodeListOf<Element> {
+  return scene.querySelectorAll(LIVE_LINK_SEL);
+}
+
 export function applyEdgeTranslates(
   scene: Element | null,
   movingIds: Iterable<string>,
@@ -123,18 +151,23 @@ export function applyEdgeTranslates(
   if (!scene) return;
   const moving = movingIds instanceof Set ? movingIds : new Set(movingIds);
   const t = `translate(${dx},${dy})`;
-  scene.querySelectorAll('#lEdges [data-ends]').forEach((el) => {
+  queryLiveLinks(scene).forEach((el) => {
     const ends = parseEdgeEndsAttr(el.getAttribute('data-ends'));
     if (edgeEndsMoveTogether(ends, moving)) {
       el.setAttribute('transform', t);
-    } else {
+      return;
+    }
+    // Chrome-tagged ink is owned by applyChromeTranslates. Zeroing here
+    // would undo that pass when this selector or parse misses.
+    if (el.hasAttribute('data-world') || el.hasAttribute('data-gid')) return;
+    if (el.hasAttribute('transform')) {
       el.setAttribute('transform', 'translate(0,0)');
     }
   });
 }
 
 export function restoreEdgeTranslates(scene: Element | null): void {
-  scene?.querySelectorAll('#lEdges [data-ends]').forEach((el) => {
+  scene?.querySelectorAll(LIVE_LINK_SEL).forEach((el) => {
     el.setAttribute('transform', 'translate(0,0)');
   });
 }
