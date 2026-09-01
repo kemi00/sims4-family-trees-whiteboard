@@ -8,13 +8,21 @@ export type LiveCamera = {
   beginNav: () => void;
 };
 
+export function sceneTransformAttr(vp: Viewport): string {
+  return `translate(${vp.tx},${vp.ty}) scale(${vp.k})`;
+}
+
 export function applySceneTransform(
   scene: SVGGElement | null,
   vp: Viewport,
 ): void {
   if (!scene) return;
-  scene.style.transform = `translate(${vp.tx}px, ${vp.ty}px) scale(${vp.k})`;
-  scene.style.transformOrigin = '0 0';
+  // SVG attribute, not CSS: WebKit often skips CSS transforms on <g>, which
+  // blanks the board (Safari / some Chromium embeds).
+  scene.style.removeProperty('transform');
+  scene.style.removeProperty('transform-origin');
+  scene.style.removeProperty('will-change');
+  scene.setAttribute('transform', sceneTransformAttr(vp));
   scene.setAttribute('data-vp', JSON.stringify(vp));
 }
 
@@ -40,23 +48,52 @@ export function collectNodeGroups(
 }
 
 export function applyNodeTranslates(
-  els: Map<string, SVGGElement>,
+  scene: Element | null,
   origins: Record<string, { x: number; y: number }>,
   dx: number,
   dy: number,
 ): void {
-  for (const [id, el] of els) {
-    const o = origins[id];
-    if (!o) continue;
-    el.setAttribute('transform', `translate(${o.x + dx},${o.y + dy})`);
+  if (!scene) return;
+  for (const [id, o] of Object.entries(origins)) {
+    const el = queryNodeGroup(scene, id);
+    if (el) el.setAttribute('transform', `translate(${o.x + dx},${o.y + dy})`);
   }
 }
 
 export function restoreNodeTranslates(
-  els: Map<string, SVGGElement>,
+  scene: Element | null,
   origins: Record<string, { x: number; y: number }>,
 ): void {
-  applyNodeTranslates(els, origins, 0, 0);
+  applyNodeTranslates(scene, origins, 0, 0);
+}
+
+export function applyChromeTranslates(
+  scene: Element | null,
+  gids: Iterable<string>,
+  worlds: Iterable<string>,
+  dx: number,
+  dy: number,
+): void {
+  if (!scene) return;
+  const t = `translate(${dx},${dy})`;
+  for (const gid of gids) {
+    scene
+      .querySelectorAll(`[data-gid="${CSS.escape(gid)}"]`)
+      .forEach((el) => el.setAttribute('transform', t));
+  }
+  for (const world of worlds) {
+    scene
+      .querySelectorAll(`[data-world="${CSS.escape(world)}"]`)
+      .forEach((el) => el.setAttribute('transform', t));
+  }
+}
+
+export function restoreChromeTranslates(
+  scene: Element | null,
+  gids: Iterable<string>,
+  worlds: Iterable<string>,
+): void {
+  applyChromeTranslates(scene, gids, worlds, 0, 0);
 }
 
 export type DragChrome = {

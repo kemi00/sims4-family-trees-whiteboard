@@ -199,28 +199,16 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 }
 #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#f4f1e8;--minimap-w:220px;--minimap-h:140px}
 #stage.stage--select svg{cursor:crosshair}
-#scene{transform-origin:0 0}
-/* Pan/zoom/drag: hide heavy SVG so the live transform stays on the compositor. */
-#stage.stage--navigating #scene,
-#stage.stage--dragging #scene{will-change:transform}
+/* Hide only edge ink and the tile pattern while the camera or a card is moving.
+   Cards, names, and household/world chrome stay visible so the user can see
+   the live drag. visibility (not display:none) so WebKit still paints the SVG.
+   Do not CSS-transform #scene (WebKit blanks SVG <g> layers). */
 #stage.stage--navigating #lEdges,
 #stage.stage--dragging #lEdges,
 #stage.stage--navigating #lTemp,
 #stage.stage--dragging #lTemp,
-#stage.stage--navigating #lGroups,
-#stage.stage--dragging #lGroups,
-#stage.stage--navigating #lGroupHandles,
-#stage.stage--dragging #lGroupHandles,
-#stage.stage--navigating #lWorlds,
-#stage.stage--dragging #lWorlds,
-#stage.stage--navigating #lWorldHandles,
-#stage.stage--dragging #lWorldHandles,
 #stage.stage--navigating .stage-tilegrid,
-#stage.stage--dragging .stage-tilegrid{display:none}
-#stage.stage--navigating .node text,
-#stage.stage--dragging .node text,
-#stage.stage--navigating .node circle,
-#stage.stage--dragging .node circle{display:none}
+#stage.stage--dragging .stage-tilegrid{visibility:hidden}
 #stage.stage--navigating .node,
 #stage.stage--dragging .node,
 #stage.stage--navigating .edge,

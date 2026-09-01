@@ -21,11 +21,12 @@ import {
   ZOOM_MIN,
 } from '../lib/constants.ts';
 import {
+  applyChromeTranslates,
   applyNodeTranslates,
   applySceneTransform,
   clearDragChrome,
-  collectNodeGroups,
   paintDragChrome,
+  restoreChromeTranslates,
   restoreNodeTranslates,
   type LiveCamera,
 } from '../lib/liveScene.ts';
@@ -197,7 +198,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   >(() => false);
   const dragPreviewRef = useRef<{
     origins: Record<string, { x: number; y: number }>;
-    els: Map<string, SVGGElement>;
+    gids: string[];
+    worlds: string[];
     dx: number;
     dy: number;
   } | null>(null);
@@ -280,13 +282,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     applyVp(wb.viewport);
   }, [wb.viewport, applyVp]);
 
+  /* Only select-mode is React-owned. Navigating/dragging stay on classList in
+     gesture handlers so a mid-gesture commit cannot flash-hide the SVG. */
   useLayoutEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-    el.classList.toggle('stage--select', wb.selectMode);
-    el.classList.toggle('stage--navigating', navDepthRef.current > 0);
-    el.classList.toggle('stage--dragging', !!dragPreviewRef.current);
-  });
+    stageRef.current?.classList.toggle('stage--select', wb.selectMode);
+  }, [wb.selectMode, stageRef]);
 
   const scheduleWheelViewport = useCallback(
     (vp: { tx: number; ty: number; k: number }) => {
@@ -327,7 +327,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     const el = stageRef.current;
     if (!el) return;
     const sync = () => {
-      setStageSize({ w: el.clientWidth, h: el.clientHeight });
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      setStageSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
     };
     sync();
     const ro = new ResizeObserver(sync);
@@ -549,8 +551,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const flushDragPreview = useCallback(() => {
     dragFrameRef.current = 0;
     const p = dragPreviewRef.current;
-    if (!p) return;
-    applyNodeTranslates(p.els, p.origins, p.dx, p.dy);
+    const scene = sceneRef.current;
+    if (!p || !scene) return;
+    applyNodeTranslates(scene, p.origins, p.dx, p.dy);
+    applyChromeTranslates(scene, p.gids, p.worlds, p.dx, p.dy);
   }, []);
 
   const scheduleDragPreview = useCallback(
@@ -575,7 +579,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     [flushDragPreview],
   );
 
-  const beginDragPreview = useCallback((ids: string[]) => {
+  const beginDragPreview = useCallback((
+    ids: string[],
+    chrome?: { gids?: string[]; worlds?: string[] },
+  ) => {
     const wbNow = wbRef.current;
     const origins: Record<string, { x: number; y: number }> = {};
     for (const id of ids) {
@@ -584,12 +591,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     }
     dragPreviewRef.current = {
       origins,
-      els: collectNodeGroups(sceneRef.current, ids),
+      gids: chrome?.gids ?? [],
+      worlds: chrome?.worlds ?? [],
       dx: 0,
       dy: 0,
     };
     setDragging(true);
-    wbNow.setSkipRoute(true);
   }, [setDragging]);
 
   const endDragPreview = useCallback(() => {
@@ -598,11 +605,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       dragFrameRef.current = 0;
     }
     const p = dragPreviewRef.current;
-    if (p) restoreNodeTranslates(p.els, p.origins);
+    const scene = sceneRef.current;
+    if (p && scene) {
+      restoreNodeTranslates(scene, p.origins);
+      restoreChromeTranslates(scene, p.gids, p.worlds);
+    }
     dragPreviewRef.current = null;
     clearDragChrome(guidesHostRef.current);
     setDragging(false);
-    wbRef.current.setSkipRoute(false);
   }, [setDragging]);
 
   const clearLongPress = () => {
@@ -817,7 +827,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (!d.armed) {
         if (!pastSlop(d.px, d.py, ev.clientX, ev.clientY)) return;
         d.armed = true;
-        beginDragPreview(d.ids);
+        beginDragPreview(
+          d.ids,
+          d.sel.kind === 'households'
+            ? { gids: d.sel.gids }
+            : d.sel.kind === 'worlds'
+              ? { worlds: d.sel.worlds }
+              : undefined,
+        );
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
@@ -840,7 +857,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (!d.armed) {
         if (!pastSlop(d.px, d.py, ev.clientX, ev.clientY)) return;
         d.armed = true;
-        beginDragPreview(d.ids);
+        beginDragPreview(d.ids, { worlds: [d.world] });
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
@@ -862,7 +879,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (!d.armed) {
         if (!pastSlop(d.px, d.py, ev.clientX, ev.clientY)) return;
         d.armed = true;
-        beginDragPreview(d.ids);
+        beginDragPreview(d.ids, { gids: [d.gid] });
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
