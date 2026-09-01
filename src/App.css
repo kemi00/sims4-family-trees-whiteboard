@@ -201,13 +201,11 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 }
 #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#f4f1e8;--minimap-w:220px;--minimap-h:140px}
 #stage.stage--select svg{cursor:crosshair}
-/* Hide only edge ink and the tile pattern while the camera or a card is moving.
-   Cards, names, and household/world chrome stay visible so the user can see
-   the live drag. visibility (not display:none) so WebKit still paints the SVG.
-   Do not CSS-transform #scene (WebKit blanks SVG <g> layers). */
-#stage.stage--navigating #lEdges,
+/* Pan/zoom: keep link strokes on #scene so you can follow them while
+   the camera moves. Hide only the tile pattern (paint noise).
+   Object drag: hide edges until drop — live card translates do not
+   re-route ink. Do not CSS-transform #scene (WebKit blanks SVG <g>). */
 #stage.stage--dragging #lEdges,
-#stage.stage--navigating #lTemp,
 #stage.stage--dragging #lTemp,
 #stage.stage--navigating .stage-tilegrid,
 #stage.stage--dragging .stage-tilegrid{visibility:hidden}
