@@ -42,16 +42,21 @@ function useElementSize(ref: RefObject<Element | null>): {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const read = () => {
-      const r = el.getBoundingClientRect();
+    /*
+     * Read from the observer entry rather than getBoundingClientRect(). The
+     * board is a ~8k element SVG, so measuring it from inside an effect forces
+     * a synchronous full-document layout before the browser has painted once.
+     * ResizeObserver delivers the same box after the browser's own layout step.
+     */
+    const ro = new ResizeObserver(([entry]) => {
+      const r = entry?.contentRect;
+      if (!r) return;
       setSize((prev) =>
         prev.w === r.width && prev.h === r.height
           ? prev
           : { w: r.width, h: r.height },
       );
-    };
-    read();
-    const ro = new ResizeObserver(read);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref]);
@@ -77,6 +82,9 @@ export function Minimap({ wb, svgRef, camera }: Props) {
   );
   const wheelIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /** Before the first measure every blob would land on a bogus 1×1 fit. */
+  const measured = mapSize.w > 0 && mapSize.h > 0;
+
   const board = useMemo(() => {
     const [l, t, r, b] = bbox(wb.nodes, wb.nodeVis);
     return { l, t, r, b };
@@ -97,6 +105,7 @@ export function Minimap({ wb, svgRef, camera }: Props) {
       b: number;
       color: string;
     }[] = [];
+    if (!measured) return out;
     for (const name of wb.liveWorlds) {
       if (!name || name === '—') continue;
       const frame = worldFrame(
@@ -110,7 +119,17 @@ export function Minimap({ wb, svgRef, camera }: Props) {
       out.push({ name, ...frame, color: worldColor(name, wb.worlds) });
     }
     return out;
-  }, [wb.liveWorlds, wb.nodes, wb.groups, wb.nodeVis, wb.nodeBuckets, wb.worlds]);
+  }, [
+    measured,
+    wb.liveWorlds,
+    wb.nodes,
+    wb.groups,
+    wb.nodeVis,
+    wb.nodeBuckets,
+    wb.worlds,
+  ]);
+
+  const blobs = measured ? wb.visibleNodes : [];
 
   const view = useMemo(() => {
     if (!stageSize.w || !stageSize.h) return null;
@@ -244,7 +263,7 @@ export function Minimap({ wb, svgRef, camera }: Props) {
             />
           );
         })}
-        {wb.visibleNodes.map((n) => {
+        {blobs.map((n) => {
           const p = worldToMinimap(n.x, n.y, fit);
           const current = n.id === selectedId || n.id === searchId;
           return (

@@ -503,26 +503,20 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const fitRef = useRef(wb.fit);
   fitRef.current = wb.fit;
   useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-    const measure = () => {
-      const r = svgRef.current?.getBoundingClientRect();
-      return r?.width && r.height ? r : null;
-    };
-    const first = measure();
-    if (first) {
-      fitRef.current(first.width, first.height);
-      return;
-    }
-    const ro = new ResizeObserver(() => {
-      const r = measure();
-      if (!r) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    // Measuring here with getBoundingClientRect() would force a synchronous
+    // full-document layout of the whole board before the first paint. The
+    // observer reports the same box off the browser's own layout pass.
+    const ro = new ResizeObserver(([entry]) => {
+      const r = entry?.contentRect;
+      if (!r?.width || !r.height) return;
       ro.disconnect();
       fitRef.current(r.width, r.height);
     });
-    ro.observe(el);
+    ro.observe(svg);
     return () => ro.disconnect();
-  }, [stageRef, svgRef]);
+  }, [svgRef]);
 
   const userEdgeIds = useRef(new Set<string>());
   userEdgeIds.current = new Set(wb.edges.filter(isUserE).map((e) => e.id));
