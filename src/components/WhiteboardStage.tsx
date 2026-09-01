@@ -280,6 +280,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     applyVp(wb.viewport);
   }, [wb.viewport, applyVp]);
 
+  useLayoutEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    el.classList.toggle('stage--select', wb.selectMode);
+    el.classList.toggle('stage--navigating', navDepthRef.current > 0);
+    el.classList.toggle('stage--dragging', !!dragPreviewRef.current);
+  });
+
   const scheduleWheelViewport = useCallback(
     (vp: { tx: number; ty: number; k: number }) => {
       applyVp(vp);
@@ -1268,11 +1276,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   };
 
   return (
-    <div
-      id="stage"
-      ref={stageRef}
-      className={wb.selectMode ? 'stage--select' : undefined}
-    >
+    <div id="stage" ref={stageRef}>
       <svg
         id="svg"
         ref={svgRef}
