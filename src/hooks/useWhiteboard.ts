@@ -3,6 +3,7 @@ import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT } from '../lib/constants.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
+  boardMatchesBuiltIn,
   bootWhiteboardData,
   buildPersistPayload,
   clearDraft,
@@ -433,6 +434,11 @@ export function useWhiteboard() {
     ],
   );
 
+  const canResetBoard = useMemo(
+    () => !boardMatchesBuiltIn(persistPayload(), seed),
+    [persistPayload, seed],
+  );
+
   /** Skip the immediate post-hydrate write; debounce later board edits. */
   const skipAutosaveRef = useRef(true);
   useEffect(() => {
@@ -441,15 +447,23 @@ export function useWhiteboard() {
       return;
     }
     const t = setTimeout(() => {
+      const payload = persistPayload();
+      if (boardMatchesBuiltIn(payload, seed)) {
+        clearDraft();
+        setFromBrowserDraft(false);
+        return;
+      }
       setStatus('Autosaving…');
-      const result = writeDraft(persistPayload());
-      if (result === 'ok') flashStatus('Autosaved');
-      else if (result === 'quota')
+      const result = writeDraft(payload);
+      if (result === 'ok') {
+        if (!payload.sourceFileName) setFromBrowserDraft(true);
+        flashStatus('Autosaved');
+      } else if (result === 'quota')
         flashStatus('Autosave full — Download JSON to keep a copy');
       else flashStatus('Autosave failed');
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [persistPayload, flashStatus]);
+  }, [persistPayload, flashStatus, seed]);
 
   const pushUndo = useCallback(() => {
     undoRef.current.push({
@@ -2011,6 +2025,7 @@ export function useWhiteboard() {
     searchHitSet,
     sourceFileName,
     boardSourceLabel,
+    canResetBoard,
     resetToBuiltInBoard,
     saveJson,
     loadJson,

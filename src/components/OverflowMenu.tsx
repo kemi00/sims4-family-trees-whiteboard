@@ -17,6 +17,7 @@ type Props = {
   onLoad: (file: File) => void;
   onLoadSave: (file: File) => void;
   onResetBuiltIn: () => void;
+  canResetBoard?: boolean;
 };
 
 /** File actions, kept out of the bar because they are used rarely. */
@@ -25,6 +26,7 @@ export function OverflowMenu({
   onLoad,
   onLoadSave,
   onResetBuiltIn,
+  canResetBoard = true,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
@@ -111,8 +113,15 @@ export function OverflowMenu({
             type="button"
             role="menuitem"
             className="pop__danger"
+            disabled={!canResetBoard}
+            title={
+              canResetBoard
+                ? undefined
+                : 'Already the starter fodder board'
+            }
             onClick={() =>
               run(() => {
+                if (!canResetBoard) return;
                 if (
                   confirm(
                     'Reset to the initial starter board (fodder roster)? This clears the browser draft and discards the current board. Download JSON first if you need a copy.',

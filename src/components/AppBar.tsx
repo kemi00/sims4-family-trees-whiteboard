@@ -366,6 +366,7 @@ export function AppBar({
           wb.loadJson(f, w, h);
         }}
         onLoadSave={(f) => wb.previewSave(f)}
+        canResetBoard={wb.canResetBoard}
         onResetBuiltIn={() => {
           const { w, h } = svgSize();
           wb.resetToBuiltInBoard(w, h);

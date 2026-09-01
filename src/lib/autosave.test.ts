@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   AUTOSAVE_KEY,
+  boardMatchesBuiltIn,
+  persistPayloadFromSeed,
   bootWhiteboardData,
   buildPersistPayload,
   clearDraft,
@@ -10,6 +12,7 @@ import {
   writeDraft,
 } from './autosave.ts';
 import type { Edge, Group, SimNode, WhiteboardData, World } from '../types/whiteboard.ts';
+import seedRoster from '../data/whiteboard.json' with { type: 'json' };
 
 function memoryStore(initial: Record<string, string> = {}): Storage {
   const map = new Map<string, string>(Object.entries(initial));
@@ -191,5 +194,49 @@ describe('autosave', () => {
     assert.equal(booted.data.nodes[0]!.id, 'Draft');
     assert.equal(booted.data.hiSingle, true);
     assert.equal(booted.data.worlds[0]!.name, 'Willow Creek');
+  });
+
+  it('treats the unaltered seed as the built-in board', () => {
+    const seed: WhiteboardData = {
+      nodes: [node('Seed')],
+      edges: [{ id: 'e1', a: 'Seed', b: 'Seed', type: 'marriage' }],
+      groups,
+      worlds,
+    };
+    const payload = persistPayloadFromSeed(seed);
+    assert.equal(boardMatchesBuiltIn(payload, seed), true);
+    assert.equal(
+      boardMatchesBuiltIn(
+        {
+          ...payload,
+          nodes: payload.nodes.map((n) => ({ ...n, ox: 80 })),
+        },
+        seed,
+      ),
+      false,
+    );
+    assert.equal(
+      boardMatchesBuiltIn({ ...payload, sourceFileName: 'mine.json' }, seed),
+      false,
+    );
+  });
+
+  it('ignores an autosave that is still the built-in board', () => {
+    const seed: WhiteboardData = {
+      nodes: [node('Seed')],
+      edges: [],
+      groups,
+      worlds,
+    };
+    const store = memoryStore();
+    writeDraft(persistPayloadFromSeed(seed), store);
+    const booted = bootWhiteboardData(seed, store);
+    assert.equal(booted.fromDraft, false);
+    assert.equal(booted.data.nodes[0]!.id, 'Seed');
+  });
+
+  it('counts the shipped fodder roster as unaltered', () => {
+    const seed = seedRoster as WhiteboardData;
+    assert.equal(boardMatchesBuiltIn(persistPayloadFromSeed(seed), seed), true);
   });
 });

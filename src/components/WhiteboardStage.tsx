@@ -1539,8 +1539,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         <button
           type="button"
           className="autosave-cue__reset"
-          title="Restore the starter fodder board and clear the browser draft"
+          disabled={!wb.canResetBoard}
+          title={
+            wb.canResetBoard
+              ? 'Restore the starter fodder board and clear the browser draft'
+              : 'Already the starter fodder board'
+          }
           onClick={() => {
+            if (!wb.canResetBoard) return;
             if (
               !confirm(
                 'Reset to the initial starter board (fodder roster)? This clears the browser draft and discards the current board. Download JSON first if you need a copy.',

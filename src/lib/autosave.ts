@@ -10,6 +10,7 @@ import type {
 } from '../types/whiteboard.ts';
 import { LAYOUT_EPOCH } from './constants.ts';
 import { prepareLoadedNodes } from './loadLayout.ts';
+import { migrateWhiteboardData } from './utils.ts';
 
 /** localStorage key for the browser draft board. */
 export const AUTOSAVE_KEY = 'sims4-family-trees:draft:v1';
@@ -82,6 +83,103 @@ export function buildPersistPayload(input: {
   };
 }
 
+function nodeIdentity(n: SimNode) {
+  return {
+    id: n.id,
+    gid: n.gid,
+    first: n.first,
+    sur: n.sur,
+    age: n.age,
+    state: n.state,
+    gender: n.gender,
+    hh: n.hh,
+    world: n.world,
+    nb: n.nb,
+    color: n.color,
+    townie: !!n.townie,
+    oworld: n.oworld,
+    onb: n.onb,
+    ohh: n.ohh,
+    oplay: n.oplay,
+    pack: n.pack,
+    ox: n.ox ?? 0,
+    oy: n.oy ?? 0,
+    species: n.species ?? null,
+    breed: n.breed ?? null,
+    added: !!n.added,
+    saveSimId: n.saveSimId ?? null,
+    fromSave: !!n.fromSave,
+  };
+}
+
+function edgeIdentity(e: Edge) {
+  return {
+    id: e.id,
+    a: e.a,
+    b: e.b,
+    type: e.type,
+    source: e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
+    createdAt: e.createdAt ?? null,
+    bundleId: e.bundleId ?? null,
+  };
+}
+
+/** Stable snapshot of the fields Reset the board would restore. */
+export function boardIdentity(payload: PersistPayload): string {
+  return JSON.stringify({
+    sourceFileName: payload.sourceFileName,
+    nodes: (payload.nodes ?? []).map(nodeIdentity).sort((a, b) => a.id.localeCompare(b.id)),
+    edges: (payload.edges ?? []).map(edgeIdentity).sort((a, b) => a.id.localeCompare(b.id)),
+    groups: (payload.groups ?? [])
+      .map((g) => ({
+        gid: g.gid,
+        hh: g.hh,
+        world: g.world,
+        nb: g.nb,
+        color: g.color,
+      }))
+      .sort((a, b) => a.gid.localeCompare(b.gid)),
+    hiddenPacks: [...(payload.hiddenPacks ?? [])].sort(),
+    hiddenPlay: [...(payload.hiddenPlay ?? [])].sort(),
+    hiAges: [...(payload.hiAges ?? [])].sort(),
+    hiSingle: !!payload.hiSingle,
+    bloodlineId: payload.bloodlineId ?? null,
+    householdMoves: payload.householdMoves ?? [],
+    householdAgeUps: payload.householdAgeUps ?? [],
+    deceasedMarks: payload.deceasedMarks ?? [],
+    simAgeUps: payload.simAgeUps ?? [],
+  });
+}
+
+/** Persist shape of the shipped fodder board (after the same migrate/toCore path as boot). */
+export function persistPayloadFromSeed(seed: WhiteboardData): PersistPayload {
+  const migrated = migrateWhiteboardData(seed);
+  return buildPersistPayload({
+    nodesCore: migrated.nodes.map(toCore),
+    edges: migrated.edges,
+    groups: (migrated.groups ?? []).map((g) => ({ ...g })),
+    hiddenPacks: migrated.hiddenPacks ?? [],
+    hiddenPlay: migrated.hiddenPlay ?? [],
+    hiAges: migrated.hiAges ?? [],
+    hiSingle: !!migrated.hiSingle,
+    bloodlineId: migrated.bloodlineId ?? null,
+    householdMoves: migrated.householdMoves ?? [],
+    householdAgeUps: migrated.householdAgeUps ?? [],
+    deceasedMarks: migrated.deceasedMarks ?? [],
+    simAgeUps: migrated.simAgeUps ?? [],
+    connectionLog: [],
+    sourceFileName: null,
+  });
+}
+
+/** True when Reset would be a no-op: current persist matches the built-in board. */
+export function boardMatchesBuiltIn(
+  payload: PersistPayload,
+  seed: WhiteboardData,
+): boolean {
+  return boardIdentity(payload) === boardIdentity(persistPayloadFromSeed(seed));
+}
+
 function storage(): Storage | null {
   try {
     if (typeof localStorage === 'undefined') return null;
@@ -150,6 +248,10 @@ export function bootWhiteboardData(
 ): { fromDraft: boolean; data: WhiteboardData; repacked: boolean } {
   const draft = readDraft(store);
   if (!draft) {
+    return { fromDraft: false, data: seed, repacked: false };
+  }
+  // An autosave of the unaltered fodder board is not a user draft.
+  if (boardMatchesBuiltIn(draft, seed)) {
     return { fromDraft: false, data: seed, repacked: false };
   }
   const prepared = prepareLoadedNodes(draft.nodes, draft.layoutEpoch, seed.worlds, draft.edges);
