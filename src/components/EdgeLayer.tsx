@@ -1,4 +1,4 @@
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import { COL, PILL_H, PILL_W, UEDIT } from '../lib/constants.ts';
 import { ptsStr } from '../lib/utils.ts';
 import type { BloodPath, BloodVert, UnionRender } from '../types/whiteboard.ts';
@@ -146,7 +146,7 @@ type Props = {
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
 };
 
-export function EdgeLayer({
+export const EdgeLayer = memo(function EdgeLayer({
   blood,
   bloodVerts,
   hopD,
@@ -283,4 +283,4 @@ export function EdgeLayer({
       })}
     </g>
   );
-}
+});

@@ -744,6 +744,13 @@ function drawSiblingFork(
   return out;
 }
 
+export const EMPTY_EDGE_DATA: EdgeRenderData = {
+  blood: [],
+  unions: [],
+  customs: [],
+  rects: [],
+};
+
 export interface ComputeEdgeRenderInput {
   nodes: SimNode[];
   edges: Edge[];
@@ -751,6 +758,8 @@ export interface ComputeEdgeRenderInput {
   show: ShowToggles;
   packVis: (n: SimNode) => boolean;
   fastRoute: boolean;
+  /** Skip the whole routing pass (edges are hidden during pan/zoom/drag). */
+  skipRoute?: boolean;
 }
 
 function parentSetKey(parentsOf: Record<string, string[]>, id: string): string {
@@ -784,6 +793,7 @@ function crossHouseholdChild(
 export function computeEdgeRenderData(
   input: ComputeEdgeRenderInput,
 ): EdgeRenderData {
+  if (input.skipRoute) return EMPTY_EDGE_DATA;
   const { nodes, edges, groups, show, packVis, fastRoute } = input;
   const byid: Record<string, SimNode> = {};
   nodes.forEach((n) => {

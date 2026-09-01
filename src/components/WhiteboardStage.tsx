@@ -1,11 +1,13 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { border, unionAtPoint, unionGeom, type SnapSticky } from '../lib/geometry.ts';
+import { border, unionAtPoint, unionGeom, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
 import { householdChrome, tileSnapOrigin } from '../lib/tiles.ts';
 import {
   CARD_H,
@@ -15,7 +17,18 @@ import {
   EDGE_SEL_SCREEN_PX,
   LONG_PRESS_MS,
   TILE,
+  ZOOM_MAX,
+  ZOOM_MIN,
 } from '../lib/constants.ts';
+import {
+  applyNodeTranslates,
+  applySceneTransform,
+  clearDragChrome,
+  collectNodeGroups,
+  paintDragChrome,
+  restoreNodeTranslates,
+  type LiveCamera,
+} from '../lib/liveScene.ts';
 import {
   idsForMultiSel,
   multiSelContainsGid,
@@ -59,15 +72,6 @@ const STAGE_WHEEL_SCROLL_SEL =
 
 export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const compact = useCompactChrome();
-  const [guides, setGuides] = useState<{ gx: number[]; gy: number[] } | null>(
-    null,
-  );
-  const [placement, setPlacement] = useState<{
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  } | null>(null);
   const [tempLine, setTempLine] = useState<{
     x1: number;
     y1: number;
@@ -87,8 +91,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const panRef = useRef<{
     x: number;
     y: number;
+    lastX: number;
+    lastY: number;
     tx: number;
     ty: number;
+    k: number;
     armed: boolean;
   } | null>(null);
   const dragRef = useRef<{
@@ -98,6 +105,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     sticky: SnapSticky;
     sx: number;
     sy: number;
+    originX: number;
+    originY: number;
+    lastX: number;
+    lastY: number;
+    base: Record<string, { ox: number; oy: number }>;
     armed: boolean;
   } | null>(null);
   const legendRef = useRef<HTMLDivElement>(null);
@@ -109,6 +121,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     sy: number;
     originX: number;
     originY: number;
+    lastDx: number;
+    lastDy: number;
+    ids: string[];
     base: Record<string, { ox: number; oy: number }>;
     px: number;
     py: number;
@@ -120,6 +135,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     sy: number;
     originX: number;
     originY: number;
+    lastDx: number;
+    lastDy: number;
+    ids: string[];
     base: Record<string, { ox: number; oy: number }>;
     px: number;
     py: number;
@@ -141,6 +159,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     sy: number;
     originX: number;
     originY: number;
+    lastDx: number;
+    lastDy: number;
     base: Record<string, { ox: number; oy: number }>;
     px: number;
     py: number;
@@ -158,8 +178,142 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wbRef = useRef(wb);
   wbRef.current = wb;
+  const sceneRef = useRef<SVGGElement>(null);
+  const guidesHostRef = useRef<SVGGElement>(null);
+  const viewportLiveRef = useRef(wb.viewport);
+  const viewportGestureRef = useRef(false);
+  const navDepthRef = useRef(0);
+  const panFrameRef = useRef(0);
+  const pinchFrameRef = useRef(0);
+  const wheelIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragFrameRef = useRef(0);
+  const beginMultiDragRef = useRef<
+    (
+      sel: BoardMultiSel,
+      wx: number,
+      wy: number,
+      ev: ReactPointerEvent,
+    ) => boolean
+  >(() => false);
+  const dragPreviewRef = useRef<{
+    origins: Record<string, { x: number; y: number }>;
+    els: Map<string, SVGGElement>;
+    dx: number;
+    dy: number;
+  } | null>(null);
 
   const { tx, ty, k } = wb.viewport;
+
+  const applyVp = useCallback((vp: { tx: number; ty: number; k: number }) => {
+    applySceneTransform(sceneRef.current, vp);
+    viewportLiveRef.current = vp;
+  }, []);
+
+  const setNavigating = useCallback((active: boolean) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    if (active) {
+      navDepthRef.current += 1;
+      if (navDepthRef.current === 1) stage.classList.add('stage--navigating');
+    } else {
+      navDepthRef.current = Math.max(0, navDepthRef.current - 1);
+      if (navDepthRef.current === 0) {
+        stage.classList.remove('stage--navigating');
+      }
+    }
+  }, [stageRef]);
+
+  const endNavigation = useCallback(() => {
+    navDepthRef.current = 0;
+    stageRef.current?.classList.remove('stage--navigating');
+  }, [stageRef]);
+
+  const setDragging = useCallback(
+    (active: boolean) => {
+      stageRef.current?.classList.toggle('stage--dragging', active);
+    },
+    [stageRef],
+  );
+
+  const readLiveViewport = useCallback(() => viewportLiveRef.current, []);
+
+  const commitLiveViewport = useCallback(() => {
+    wbRef.current.setViewport(viewportLiveRef.current);
+    if (panRef.current?.armed || pinchRef.current) return;
+    viewportGestureRef.current = false;
+    endNavigation();
+  }, [endNavigation]);
+
+  const liveCamera = useMemo<LiveCamera>(
+    () => ({
+      read: readLiveViewport,
+      apply: (vp) => {
+        applyVp(vp);
+      },
+      commit: commitLiveViewport,
+      beginNav: () => {
+        viewportGestureRef.current = true;
+        setNavigating(true);
+      },
+    }),
+    [applyVp, commitLiveViewport, readLiveViewport, setNavigating],
+  );
+
+  const flushPanTransform = useCallback(() => {
+    panFrameRef.current = 0;
+    const p = panRef.current;
+    if (!p?.armed) return;
+    applyVp({
+      k: p.k,
+      tx: p.tx + (p.lastX - p.x),
+      ty: p.ty + (p.lastY - p.y),
+    });
+  }, [applyVp]);
+
+  const schedulePanTransform = useCallback(() => {
+    if (panFrameRef.current) return;
+    panFrameRef.current = requestAnimationFrame(flushPanTransform);
+  }, [flushPanTransform]);
+
+  useLayoutEffect(() => {
+    if (viewportGestureRef.current) return;
+    applyVp(wb.viewport);
+  }, [wb.viewport, applyVp]);
+
+  const scheduleWheelViewport = useCallback(
+    (vp: { tx: number; ty: number; k: number }) => {
+      applyVp(vp);
+      viewportGestureRef.current = true;
+      setNavigating(true);
+      if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current);
+      wheelIdleTimerRef.current = setTimeout(() => {
+        wheelIdleTimerRef.current = null;
+        commitLiveViewport();
+      }, 150);
+    },
+    [applyVp, setNavigating, commitLiveViewport],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current);
+      if (panFrameRef.current) cancelAnimationFrame(panFrameRef.current);
+      if (pinchFrameRef.current) cancelAnimationFrame(pinchFrameRef.current);
+      if (dragFrameRef.current) cancelAnimationFrame(dragFrameRef.current);
+    };
+  }, []);
+
+  const toWorld = useCallback(
+    (sx: number, sy: number) => {
+      const { tx: ltx, ty: lty, k: lk } = viewportLiveRef.current;
+      const r = svgRef.current!.getBoundingClientRect();
+      return [(sx - r.left - ltx) / lk, (sy - r.top - lty) / lk] as [
+        number,
+        number,
+      ];
+    },
+    [svgRef],
+  );
 
   useEffect(() => {
     const el = stageRef.current;
@@ -173,14 +327,6 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     return () => ro.disconnect();
   }, [stageRef]);
 
-  const toWorld = useCallback(
-    (sx: number, sy: number) => {
-      const r = svgRef.current!.getBoundingClientRect();
-      return [(sx - r.left - tx) / k, (sy - r.top - ty) / k] as [number, number];
-    },
-    [tx, ty, k, svgRef],
-  );
-
   const positionEditor = useCallback(() => {
     if (!wb.editNodeId || !wb.byid[wb.editNodeId]) return;
     const n = wb.byid[wb.editNodeId]!;
@@ -192,9 +338,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    const nx = r.left + tx + n.x * k;
-    const ny = r.top + ty + n.y * k;
-    const nw = n.w * k;
+    const { tx: ltx, ty: lty, k: lk } = viewportLiveRef.current;
+    const nx = r.left + ltx + n.x * lk;
+    const ny = r.top + lty + n.y * lk;
+    const nw = n.w * lk;
 
     let left = nx + nw + gap;
     if (left + ew > vw - pad) left = nx - ew - gap;
@@ -206,7 +353,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     if (top < pad) top = pad;
 
     setEditorPos({ left, top });
-  }, [wb.editNodeId, wb.byid, tx, ty, k, svgRef]);
+  }, [wb.editNodeId, wb.byid, svgRef]);
 
   useEffect(() => {
     positionEditor();
@@ -265,11 +412,18 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       const step = ev.ctrlKey ? 0.01 : 0.0032;
       dy = Math.max(-80, Math.min(80, dy));
       const r = svgRef.current!.getBoundingClientRect();
-      wbRef.current.zoomAt(Math.exp(-dy * step), ev.clientX, ev.clientY, r);
+      const next = zoomViewportAt(
+        viewportLiveRef.current,
+        Math.exp(-dy * step),
+        ev.clientX,
+        ev.clientY,
+        r,
+      );
+      scheduleWheelViewport(next);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [stageRef, svgRef]);
+  }, [stageRef, svgRef, scheduleWheelViewport]);
 
   useEffect(() => {
     const el = stageRef.current;
@@ -306,12 +460,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (gscale > 0) {
         const r = svgRef.current?.getBoundingClientRect();
         if (r) {
-          wbRef.current.zoomAt(
+          const next = zoomViewportAt(
+            viewportLiveRef.current,
             Math.pow(s / gscale, 3.2),
             gev.clientX,
             gev.clientY,
             r,
           );
+          scheduleWheelViewport(next);
         }
       }
       gscale = s;
@@ -325,7 +481,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       el.removeEventListener('gesturechange', onChange);
       el.removeEventListener('gestureend', onEnd);
     };
-  }, [stageRef, svgRef]);
+  }, [stageRef, svgRef, scheduleWheelViewport]);
 
   // Fit exactly once, as soon as the stage has been laid out. This must not
   // depend on wb.fit: that identity changes on every node edit, and observing
@@ -382,6 +538,65 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     [toWorld, wb],
   );
 
+  const flushDragPreview = useCallback(() => {
+    dragFrameRef.current = 0;
+    const p = dragPreviewRef.current;
+    if (!p) return;
+    applyNodeTranslates(p.els, p.origins, p.dx, p.dy);
+  }, []);
+
+  const scheduleDragPreview = useCallback(
+    (
+      dx: number,
+      dy: number,
+      chrome?: {
+        guides: { gx: number[]; gy: number[] } | null;
+        placement: { x: number; y: number; w: number; h: number } | null;
+        snap: boolean;
+      },
+    ) => {
+      const p = dragPreviewRef.current;
+      if (p) {
+        p.dx = dx;
+        p.dy = dy;
+      }
+      if (chrome) paintDragChrome(guidesHostRef.current, chrome);
+      if (dragFrameRef.current) return;
+      dragFrameRef.current = requestAnimationFrame(flushDragPreview);
+    },
+    [flushDragPreview],
+  );
+
+  const beginDragPreview = useCallback((ids: string[]) => {
+    const wbNow = wbRef.current;
+    const origins: Record<string, { x: number; y: number }> = {};
+    for (const id of ids) {
+      const n = wbNow.byid[id];
+      if (n) origins[id] = { x: n.x, y: n.y };
+    }
+    dragPreviewRef.current = {
+      origins,
+      els: collectNodeGroups(sceneRef.current, ids),
+      dx: 0,
+      dy: 0,
+    };
+    setDragging(true);
+    wbNow.setSkipRoute(true);
+  }, [setDragging]);
+
+  const endDragPreview = useCallback(() => {
+    if (dragFrameRef.current) {
+      cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = 0;
+    }
+    const p = dragPreviewRef.current;
+    if (p) restoreNodeTranslates(p.els, p.origins);
+    dragPreviewRef.current = null;
+    clearDragChrome(guidesHostRef.current);
+    setDragging(false);
+    wbRef.current.setSkipRoute(false);
+  }, [setDragging]);
+
   const clearLongPress = () => {
     if (longPressRef.current != null) {
       clearTimeout(longPressRef.current);
@@ -414,8 +629,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     multiDragRef.current = null;
     panRef.current = null;
     movedRef.current = false;
-    setGuides(null);
-    setPlacement(null);
+    endDragPreview();
     setMarqueeBox(null);
   };
 
@@ -439,8 +653,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       dist,
       worldX,
       worldY,
-      k: wbRef.current.viewport.k,
+      k: viewportLiveRef.current.k,
     };
+    viewportGestureRef.current = true;
+    setNavigating(true);
   };
 
   const updatePinch = () => {
@@ -455,12 +671,20 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     if (dist < 1) return;
     const midX = (a.x + b.x) / 2;
     const midY = (a.y + b.y) / 2;
-    const nk = Math.min(4, Math.max(0.06, pinch.k * (dist / pinch.dist)));
+    const nk = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pinch.k * (dist / pinch.dist)));
     const r = svg.getBoundingClientRect();
-    wbRef.current.setViewport({
+    applyVp({
       k: nk,
       tx: midX - r.left - pinch.worldX * nk,
       ty: midY - r.top - pinch.worldY * nk,
+    });
+  };
+
+  const schedulePinchTransform = () => {
+    if (pinchFrameRef.current) return;
+    pinchFrameRef.current = requestAnimationFrame(() => {
+      pinchFrameRef.current = 0;
+      updatePinch();
     });
   };
 
@@ -490,6 +714,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       sy: wy,
       originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
       originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
+      lastDx: 0,
+      lastDy: 0,
       base,
       px: ev.clientX,
       py: ev.clientY,
@@ -497,6 +723,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     };
     return true;
   };
+  beginMultiDragRef.current = beginMultiDrag;
 
   const onSvgPointerDown = (ev: ReactPointerEvent) => {
     if (ev.button !== 0) return;
@@ -541,11 +768,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     }
 
     // Pan — keep link/node selection until an empty click (unarmed pan up).
+    const vp = viewportLiveRef.current;
     panRef.current = {
       x: ev.clientX,
       y: ev.clientY,
-      tx,
-      ty,
+      lastX: ev.clientX,
+      lastY: ev.clientY,
+      tx: vp.tx,
+      ty: vp.ty,
+      k: vp.k,
       armed: false,
     };
   };
@@ -555,7 +786,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       pointersRef.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     }
     if (pinchRef.current && pointersRef.current.size >= 2) {
-      updatePinch();
+      schedulePinchTransform();
       return;
     }
     if (leftoverRef.current != null) return;
@@ -578,18 +809,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (!d.armed) {
         if (!pastSlop(d.px, d.py, ev.clientX, ev.clientY)) return;
         d.armed = true;
+        beginDragPreview(d.ids);
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
       const dy = wy - d.sy;
       const snapped = wb.snapHouseholdDrag(d.originX, d.originY, dx, dy);
-      wb.moveNodesByIds(
-        d.ids,
-        snapped?.dx ?? dx,
-        snapped?.dy ?? dy,
-        d.base,
-      );
-      setGuides(snapped?.guides ?? null);
+      const ndx = snapped?.dx ?? dx;
+      const ndy = snapped?.dy ?? dy;
+      d.lastDx = ndx;
+      d.lastDy = ndy;
+      scheduleDragPreview(ndx, ndy, {
+        guides: snapped?.guides ?? null,
+        placement: null,
+        snap: wb.snap,
+      });
       return;
     }
 
@@ -598,18 +832,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (!d.armed) {
         if (!pastSlop(d.px, d.py, ev.clientX, ev.clientY)) return;
         d.armed = true;
+        beginDragPreview(d.ids);
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
       const dy = wy - d.sy;
       const snapped = wb.snapHouseholdDrag(d.originX, d.originY, dx, dy);
-      wb.moveNodesByWorld(
-        d.world,
-        snapped?.dx ?? dx,
-        snapped?.dy ?? dy,
-        d.base,
-      );
-      setGuides(snapped?.guides ?? null);
+      const ndx = snapped?.dx ?? dx;
+      const ndy = snapped?.dy ?? dy;
+      d.lastDx = ndx;
+      d.lastDy = ndy;
+      scheduleDragPreview(ndx, ndy, {
+        guides: snapped?.guides ?? null,
+        placement: null,
+        snap: wb.snap,
+      });
       return;
     }
     if (hhDragRef.current) {
@@ -617,18 +854,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (!d.armed) {
         if (!pastSlop(d.px, d.py, ev.clientX, ev.clientY)) return;
         d.armed = true;
+        beginDragPreview(d.ids);
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
       const dy = wy - d.sy;
       const snapped = wb.snapHouseholdDrag(d.originX, d.originY, dx, dy);
-      wb.moveNodesByGid(
-        d.gid,
-        snapped?.dx ?? dx,
-        snapped?.dy ?? dy,
-        d.base,
-      );
-      setGuides(snapped?.guides ?? null);
+      const ndx = snapped?.dx ?? dx;
+      const ndy = snapped?.dy ?? dy;
+      d.lastDx = ndx;
+      d.lastDy = ndy;
+      scheduleDragPreview(ndx, ndy, {
+        guides: snapped?.guides ?? null,
+        placement: null,
+        snap: wb.snap,
+      });
       return;
     }
     if (dragRef.current) {
@@ -637,22 +877,38 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         if (!pastSlop(d.sx, d.sy, ev.clientX, ev.clientY)) return;
         d.armed = true;
         clearLongPress();
+        beginDragPreview([d.n.id]);
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
-      wb.setFastRoute(true);
       const rawX = wx - d.dx;
       const rawY = wy - d.dy;
       if (wb.snap) {
-        wb.updateNode(d.n.id, { x: rawX, y: rawY });
         const t = tileSnapOrigin(rawX, rawY);
-        setPlacement({ x: t.x, y: t.y, w: d.n.w || CARD_MIN_W, h: d.n.h || CARD_H });
-        setGuides({ gx: [t.x, t.x + (d.n.w || CARD_MIN_W)], gy: [t.y, t.y + (d.n.h || CARD_H)] });
+        d.lastX = t.x;
+        d.lastY = t.y;
+        scheduleDragPreview(t.x - d.originX, t.y - d.originY, {
+          guides: {
+            gx: [t.x, t.x + (d.n.w || CARD_MIN_W)],
+            gy: [t.y, t.y + (d.n.h || CARD_H)],
+          },
+          placement: {
+            x: t.x,
+            y: t.y,
+            w: d.n.w || CARD_MIN_W,
+            h: d.n.h || CARD_H,
+          },
+          snap: true,
+        });
       } else {
         const snapped = wb.snapDragPosition(d.n, rawX, rawY, d.sticky);
         d.sticky = snapped.sticky;
-        wb.updateNode(d.n.id, { x: snapped.x, y: snapped.y });
-        setGuides(null);
-        setPlacement(null);
+        d.lastX = snapped.x;
+        d.lastY = snapped.y;
+        scheduleDragPreview(snapped.x - d.originX, snapped.y - d.originY, {
+          guides: null,
+          placement: null,
+          snap: false,
+        });
       }
       movedRef.current = true;
       return;
@@ -662,20 +918,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (!p.armed) {
         if (!pastSlop(p.x, p.y, ev.clientX, ev.clientY)) return;
         p.armed = true;
+        viewportGestureRef.current = true;
+        setNavigating(true);
       }
-      wb.setViewport({
-        k,
-        tx: p.tx + (ev.clientX - p.x),
-        ty: p.ty + (ev.clientY - p.y),
-      });
+      p.lastX = ev.clientX;
+      p.lastY = ev.clientY;
+      schedulePanTransform();
     }
     if (wb.connSrc) updateTemp(ev.clientX, ev.clientY);
   };
 
   const finishNodePointer = (wasMoved: boolean, n: SimNode) => {
-    wb.setFastRoute(false);
-    setGuides(null);
-    setPlacement(null);
     if (wasMoved) {
       const cur = wb.byid[n.id];
       if (cur) wb.snapNodeAction(cur);
@@ -721,6 +974,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         pointersRef.current.size === 1
           ? ([...pointersRef.current.keys()][0] ?? null)
           : null;
+      if (pinchFrameRef.current) {
+        cancelAnimationFrame(pinchFrameRef.current);
+        pinchFrameRef.current = 0;
+        updatePinch();
+      }
+      commitLiveViewport();
       cancelObjectDrags();
       return;
     }
@@ -740,7 +999,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           nodes: wb.nodes,
           groups: wb.groups,
           worlds: wb.worlds,
-          zoom: k,
+          zoom: viewportLiveRef.current.k,
           packVis: wb.nodeVis,
           showWorlds: wb.show.worlds,
           showGroups: wb.show.groups,
@@ -779,10 +1038,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     }
 
     if (multiDragRef.current) {
-      const kind = multiDragRef.current.sel.kind;
+      const d = multiDragRef.current;
+      const kind = d.sel.kind;
+      if (d.armed) {
+        endDragPreview();
+        wb.moveNodesByIds(d.ids, d.lastDx, d.lastDy, d.base);
+      }
       multiDragRef.current = null;
-      setGuides(null);
-      setPlacement(null);
       if (kind === 'worlds' || kind === 'households') {
         wb.enforceWorldSeparation();
       }
@@ -790,15 +1052,32 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     }
 
     if (hhDragRef.current || worldDragRef.current) {
-      setGuides(null);
-      setPlacement(null);
+      const hh = hhDragRef.current;
+      const world = worldDragRef.current;
+      if (hh?.armed) {
+        endDragPreview();
+        wb.moveNodesByGid(hh.gid, hh.lastDx, hh.lastDy, hh.base);
+      } else if (world?.armed) {
+        endDragPreview();
+        wb.moveNodesByWorld(world.world, world.lastDx, world.lastDy, world.base);
+      }
       hhDragRef.current = null;
       worldDragRef.current = null;
       wb.enforceWorldSeparation();
     }
     if (dragRef.current) {
-      const n = dragRef.current.n;
+      const d = dragRef.current;
+      const n = d.n;
       const wasMoved = movedRef.current;
+      if (wasMoved) {
+        endDragPreview();
+        wb.moveNodesByIds(
+          [n.id],
+          d.lastX - d.originX,
+          d.lastY - d.originY,
+          d.base,
+        );
+      }
       dragRef.current = null;
       finishNodePointer(wasMoved, n);
       return;
@@ -806,8 +1085,18 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     if (panRef.current) {
       const p = panRef.current;
       panRef.current = null;
-      // Empty click (no pan slop) = click outside → deselect.
-      if (!p.armed) {
+      if (p.armed) {
+        if (panFrameRef.current) {
+          cancelAnimationFrame(panFrameRef.current);
+          panFrameRef.current = 0;
+        }
+        applyVp({
+          k: p.k,
+          tx: p.tx + (p.lastX - p.x),
+          ty: p.ty + (p.lastY - p.y),
+        });
+        commitLiveViewport();
+      } else {
         wb.clearSel();
         wb.clearMultiSel();
       }
@@ -818,54 +1107,70 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     }
   };
 
-  const onNodePointerDown = (ev: ReactPointerEvent, n: SimNode) => {
-    ev.stopPropagation();
-    rememberPointer(ev);
-    captureSvg(ev.pointerId);
+  const onNodePointerDown = useCallback(
+    (ev: ReactPointerEvent, n: SimNode) => {
+      ev.stopPropagation();
+      rememberPointer(ev);
+      captureSvg(ev.pointerId);
+      const wbNow = wbRef.current;
 
-    if (pointersRef.current.size >= 2) {
-      beginPinch();
-      return;
-    }
-    if (wb.connectMode) {
-      const [wx, wy] = toWorld(ev.clientX, ev.clientY);
-      const union = unionAtPoint(wx, wy, wb.edgeData.unions);
-      if (union) {
-        wb.handleConnectUnion(union.a, union.b);
+      if (pointersRef.current.size >= 2) {
+        beginPinch();
         return;
       }
-      const sr = stageRef.current!.getBoundingClientRect();
-      wb.handleConnectClick(n, ev.clientX, ev.clientY, sr);
-      return;
-    }
-    const [wx, wy] = toWorld(ev.clientX, ev.clientY);
-    if (multiSelContainsNode(wb.multiSel, n.id) && wb.multiSel) {
-      beginMultiDrag(wb.multiSel, wx, wy, ev);
-      return;
-    }
-    wb.clearMultiSel();
-    dragRef.current = {
-      n,
-      dx: wx - n.x,
-      dy: wy - n.y,
-      sticky: { x: null, y: null },
-      sx: ev.clientX,
-      sy: ev.clientY,
-      armed: false,
-    };
-    movedRef.current = false;
-    clearLongPress();
-    if (ev.pointerType !== 'mouse') {
-      longPressRef.current = setTimeout(() => {
-        longPressRef.current = null;
-        if (!dragRef.current || dragRef.current.armed) return;
-        const node = dragRef.current.n;
-        dragRef.current = null;
-        wbRef.current.setEditNodeId(node.id);
-        positionEditor();
-      }, LONG_PRESS_MS);
-    }
-  };
+      if (wbNow.connectMode) {
+        const [wx, wy] = toWorld(ev.clientX, ev.clientY);
+        const union = unionAtPoint(wx, wy, wbNow.edgeData.unions);
+        if (union) {
+          wbNow.handleConnectUnion(union.a, union.b);
+          return;
+        }
+        const sr = stageRef.current!.getBoundingClientRect();
+        wbNow.handleConnectClick(n, ev.clientX, ev.clientY, sr);
+        return;
+      }
+      const [wx, wy] = toWorld(ev.clientX, ev.clientY);
+      if (multiSelContainsNode(wbNow.multiSel, n.id) && wbNow.multiSel) {
+        beginMultiDragRef.current(wbNow.multiSel, wx, wy, ev);
+        return;
+      }
+      wbNow.clearMultiSel();
+      dragRef.current = {
+        n,
+        dx: wx - n.x,
+        dy: wy - n.y,
+        sticky: { x: null, y: null },
+        sx: ev.clientX,
+        sy: ev.clientY,
+        originX: n.x,
+        originY: n.y,
+        lastX: n.x,
+        lastY: n.y,
+        base: { [n.id]: { ox: n.ox ?? 0, oy: n.oy ?? 0 } },
+        armed: false,
+      };
+      movedRef.current = false;
+      clearLongPress();
+      if (ev.pointerType !== 'mouse') {
+        longPressRef.current = setTimeout(() => {
+          longPressRef.current = null;
+          if (!dragRef.current || dragRef.current.armed) return;
+          const node = dragRef.current.n;
+          dragRef.current = null;
+          wbRef.current.setEditNodeId(node.id);
+          positionEditor();
+        }, LONG_PRESS_MS);
+      }
+    },
+    [toWorld, positionEditor, stageRef],
+  );
+
+  const onAgeUp = useCallback(
+    (gid: string) => {
+      wbRef.current.ageUpHousehold(gid);
+    },
+    [],
+  );
 
   const onHandlePointer = (ev: ReactPointerEvent) => {
     rememberPointer(ev);
@@ -945,12 +1250,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     }
     wb.clearMultiSel();
     const members = wb.nodes.filter((n) => n.gid === gid);
+    const ids = members.map((n) => n.id);
     hhDragRef.current = {
       gid,
       sx,
       sy,
       originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
       originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
+      lastDx: 0,
+      lastDy: 0,
+      ids,
       base,
       px: ev.clientX,
       py: ev.clientY,
@@ -992,13 +1301,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             />
           </pattern>
         </defs>
-        <g
-          id="scene"
-          data-vp={JSON.stringify(wb.viewport)}
-          transform={`translate(${tx},${ty}) scale(${k})`}
-        >
+        <g id="scene" ref={sceneRef}>
           {wb.snap && (
             <rect
+              className="stage-tilegrid"
               x={-20000}
               y={-20000}
               width={40000}
@@ -1016,6 +1322,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             zoom={k}
             packVis={wb.nodeVis}
             selectedWorlds={selectedWorlds}
+            buckets={wb.nodeBuckets}
           />
           <GroupLayer
             mode="frames"
@@ -1024,8 +1331,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             show={wb.show.groups}
             packVis={wb.nodeVis}
             selectedGids={selectedGids}
+            buckets={wb.nodeBuckets}
             onHouseholdDragStart={onHouseholdDragStart}
-            onAgeUp={(gid) => wb.ageUpHousehold(gid)}
+            onAgeUp={onAgeUp}
           />
           <EdgeLayer
             blood={wb.edgeData.blood}
@@ -1082,67 +1390,6 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
                 pointerEvents="none"
               />
             )}
-            {guides && wb.snap && (
-              <>
-                {guides.gx.map((x, i) => (
-                  <line
-                    key={`gx-${i}`}
-                    x1={x}
-                    y1={-1e6}
-                    x2={x}
-                    y2={1e6}
-                    stroke="#1b6cd6"
-                    strokeWidth={1}
-                    strokeDasharray="4 4"
-                    opacity={0.5}
-                  />
-                ))}
-                {guides.gy.map((y, i) => (
-                  <line
-                    key={`gy-${i}`}
-                    x1={-1e6}
-                    y1={y}
-                    x2={1e6}
-                    y2={y}
-                    stroke="#1b6cd6"
-                    strokeWidth={1}
-                    strokeDasharray="4 4"
-                    opacity={0.5}
-                  />
-                ))}
-              </>
-            )}
-            {placement && wb.snap && (
-              <g pointerEvents="none">
-                <rect
-                  x={placement.x}
-                  y={placement.y}
-                  width={TILE}
-                  height={TILE}
-                  fill="#1b6cd61a"
-                  stroke="none"
-                />
-                <rect
-                  x={placement.x + TILE}
-                  y={placement.y}
-                  width={TILE}
-                  height={TILE}
-                  fill="#1b6cd61a"
-                  stroke="none"
-                />
-                <rect
-                  x={placement.x}
-                  y={placement.y}
-                  width={placement.w}
-                  height={placement.h}
-                  rx={11}
-                  fill="none"
-                  stroke="#1b6cd6"
-                  strokeWidth={2.4}
-                  strokeDasharray="7 5"
-                />
-              </g>
-            )}
             {marqueeBox && (
               <rect
                 className="marquee"
@@ -1159,6 +1406,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
               />
             )}
           </g>
+          <g id="lGuides" ref={guidesHostRef} pointerEvents="none" />
           <g id="lNodes">
             {sortedNodes.map((n) => (
               <SimNodeView
@@ -1198,8 +1446,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             show={wb.show.groups}
             packVis={wb.nodeVis}
             selectedGids={selectedGids}
+            buckets={wb.nodeBuckets}
             onHouseholdDragStart={onHouseholdDragStart}
-            onAgeUp={(gid) => wb.ageUpHousehold(gid)}
+            onAgeUp={onAgeUp}
           />
           {/* World chips last so they paint above household tags + sim cards. */}
           <WorldLayer
@@ -1211,6 +1460,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             zoom={k}
             packVis={wb.nodeVis}
             selectedWorlds={selectedWorlds}
+            buckets={wb.nodeBuckets}
             onWorldDragStart={(world, sx, sy, base, ev) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
@@ -1226,6 +1476,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
                 sy,
                 originX: members.length ? Math.min(...members.map((n) => n.x)) : 0,
                 originY: members.length ? Math.min(...members.map((n) => n.y)) : 0,
+                lastDx: 0,
+                lastDy: 0,
+                ids: members.map((n) => n.id),
                 base,
                 px: ev.clientX,
                 py: ev.clientY,
@@ -1333,7 +1586,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         }}
       />
       <Hint />
-      <Minimap wb={wb} svgRef={svgRef} />
+      <Minimap wb={wb} svgRef={svgRef} camera={liveCamera} />
       <ViewControls wb={wb} svgRef={svgRef} />
       {editNode && (
         <SimEditor

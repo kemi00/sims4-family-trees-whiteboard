@@ -17,7 +17,14 @@ import {
   WORLD_TAG_NORMAL_ZOOM,
   WORLD_TAG_PILL_H,
   WORLD_TAG_ZOOM_OUT_MAX,
+  ZOOM_MAX,
+  ZOOM_MIN,
 } from './constants.ts';
+import {
+  nodesForGid,
+  nodesForWorld,
+  type NodeBuckets,
+} from './nodeIndex.ts';
 import { LAYOUT } from './layout.ts';
 import type {
   BuildRectsResult,
@@ -180,8 +187,9 @@ export function hhBoxDraw(
   nodes: SimNode[],
   groups: Group[],
   packVis: (n: SimNode) => boolean,
+  buckets?: NodeBuckets,
 ): HhBoxDraw | null {
-  const mem = nodes.filter((n) => n.gid === gid && packVis(n));
+  const mem = nodesForGid(gid, nodes, buckets).filter(packVis);
   const chrome = householdChrome(
     mem,
     groups.find((g) => g.gid === gid),
@@ -201,10 +209,11 @@ export function worldFrame(
   nodes: SimNode[],
   groups: Group[],
   packVis: (n: SimNode) => boolean,
+  buckets?: NodeBuckets,
 ): HhBoxDraw | null {
   const gids = new Set<string>();
-  for (const n of nodes) {
-    if (n.world !== world || !packVis(n)) continue;
+  for (const n of nodesForWorld(world, nodes, buckets)) {
+    if (!packVis(n)) continue;
     gids.add(n.gid);
   }
   let x0 = 1e9;
@@ -213,7 +222,7 @@ export function worldFrame(
   let y1 = -1e9;
   let any = false;
   for (const gid of gids) {
-    const bx = hhBoxDraw(gid, nodes, groups, packVis);
+    const bx = hhBoxDraw(gid, nodes, groups, packVis, buckets);
     if (!bx) continue;
     any = true;
     x0 = Math.min(x0, bx.l);
@@ -390,6 +399,27 @@ export function viewportWorldRect(
     t: -ty / k,
     r: (svgWidth - tx) / k,
     b: (svgHeight - ty) / k,
+  };
+}
+
+/** Zoom toward a screen point, keeping that world point under the cursor. */
+export function zoomViewportAt(
+  v: Viewport,
+  f: number,
+  cx: number,
+  cy: number,
+  svgRect: DOMRect,
+  zoomMin = ZOOM_MIN,
+  zoomMax = ZOOM_MAX,
+): Viewport {
+  const nk = Math.min(zoomMax, Math.max(zoomMin, v.k * f));
+  if (nk === v.k) return v;
+  const mx = cx - svgRect.left;
+  const my = cy - svgRect.top;
+  return {
+    k: nk,
+    tx: mx - (mx - v.tx) * (nk / v.k),
+    ty: my - (my - v.ty) * (nk / v.k),
   };
 }
 

@@ -25,11 +25,13 @@ import {
   zoomTowardWorld,
 } from '../lib/minimap.ts';
 import { worldColor } from '../lib/utils.ts';
+import type { LiveCamera } from '../lib/liveScene.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 
 type Props = {
   wb: WhiteboardApi;
   svgRef: RefObject<SVGSVGElement | null>;
+  camera: LiveCamera;
 };
 
 function useElementSize(ref: RefObject<Element | null>): {
@@ -60,13 +62,20 @@ function useElementSize(ref: RefObject<Element | null>): {
  * Overview of the whole board with the current view drawn on top.
  * Click or drag to pan; wheel zooms toward that world point.
  */
-export function Minimap({ wb, svgRef }: Props) {
+export function Minimap({ wb, svgRef, camera }: Props) {
   const mapRef = useRef<SVGSVGElement>(null);
   const wbRef = useRef(wb);
   wbRef.current = wb;
+  const cameraRef = useRef(camera);
+  cameraRef.current = camera;
   const mapSize = useElementSize(mapRef);
   const stageSize = useElementSize(svgRef);
   const fitRef = useRef(minimapFit({ l: 0, t: 0, r: 1, b: 1 }, 1, 1, 0));
+  const panRafRef = useRef(0);
+  const panPendingRef = useRef<{ clientX: number; clientY: number } | null>(
+    null,
+  );
+  const wheelIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const board = useMemo(() => {
     const [l, t, r, b] = bbox(wb.nodes, wb.nodeVis);
@@ -90,12 +99,18 @@ export function Minimap({ wb, svgRef }: Props) {
     }[] = [];
     for (const name of wb.liveWorlds) {
       if (!name || name === '—') continue;
-      const frame = worldFrame(name, wb.nodes, wb.groups, wb.nodeVis);
+      const frame = worldFrame(
+        name,
+        wb.nodes,
+        wb.groups,
+        wb.nodeVis,
+        wb.nodeBuckets,
+      );
       if (!frame) continue;
       out.push({ name, ...frame, color: worldColor(name, wb.worlds) });
     }
     return out;
-  }, [wb.liveWorlds, wb.nodes, wb.groups, wb.nodeVis, wb.worlds]);
+  }, [wb.liveWorlds, wb.nodes, wb.groups, wb.nodeVis, wb.nodeBuckets, wb.worlds]);
 
   const view = useMemo(() => {
     if (!stageSize.w || !stageSize.h) return null;
@@ -116,17 +131,32 @@ export function Minimap({ wb, svgRef }: Props) {
         ev.clientY - r.top,
         fitRef.current,
       );
-      wb.setViewport(
+      const live = cameraRef.current.read();
+      cameraRef.current.apply(
         viewportCenteredOn(
           local.x,
           local.y,
-          wb.viewport.k,
+          live.k,
           stageSize.w,
           stageSize.h,
         ),
       );
     },
-    [stageSize.h, stageSize.w, wb],
+    [stageSize.h, stageSize.w],
+  );
+
+  const schedulePanFromEvent = useCallback(
+    (ev: { clientX: number; clientY: number }) => {
+      panPendingRef.current = { clientX: ev.clientX, clientY: ev.clientY };
+      if (panRafRef.current) return;
+      panRafRef.current = requestAnimationFrame(() => {
+        panRafRef.current = 0;
+        const pending = panPendingRef.current;
+        panPendingRef.current = null;
+        if (pending) panFromEvent(pending);
+      });
+    },
+    [panFromEvent],
   );
 
   useEffect(() => {
@@ -135,7 +165,6 @@ export function Minimap({ wb, svgRef }: Props) {
     const onWheelNative = (ev: WheelEvent) => {
       ev.preventDefault();
       ev.stopPropagation();
-      const api = wbRef.current;
       const r = el.getBoundingClientRect();
       const local = minimapToWorld(
         ev.clientX - r.left,
@@ -147,9 +176,16 @@ export function Minimap({ wb, svgRef }: Props) {
       else if (ev.deltaMode === 2) dy *= 400;
       const step = ev.ctrlKey ? 0.01 : 0.0032;
       dy = Math.max(-80, Math.min(80, dy));
-      api.setViewport(
-        zoomTowardWorld(api.viewport, local.x, local.y, Math.exp(-dy * step)),
+      const live = cameraRef.current.read();
+      cameraRef.current.beginNav();
+      cameraRef.current.apply(
+        zoomTowardWorld(live, local.x, local.y, Math.exp(-dy * step)),
       );
+      if (wheelIdleRef.current) clearTimeout(wheelIdleRef.current);
+      wheelIdleRef.current = setTimeout(() => {
+        wheelIdleRef.current = null;
+        cameraRef.current.commit();
+      }, 150);
     };
     el.addEventListener('wheel', onWheelNative, { passive: false });
     return () => el.removeEventListener('wheel', onWheelNative);
@@ -159,12 +195,25 @@ export function Minimap({ wb, svgRef }: Props) {
     ev.stopPropagation();
     ev.preventDefault();
     ev.currentTarget.setPointerCapture(ev.pointerId);
+    camera.beginNav();
     panFromEvent(ev);
   };
 
   const onPointerMove = (ev: ReactPointerEvent<SVGSVGElement>) => {
     if (!ev.currentTarget.hasPointerCapture(ev.pointerId)) return;
-    panFromEvent(ev);
+    schedulePanFromEvent(ev);
+  };
+
+  const onPointerUp = (ev: ReactPointerEvent<SVGSVGElement>) => {
+    if (!ev.currentTarget.hasPointerCapture(ev.pointerId)) return;
+    if (panRafRef.current) {
+      cancelAnimationFrame(panRafRef.current);
+      panRafRef.current = 0;
+    }
+    const pending = panPendingRef.current;
+    panPendingRef.current = null;
+    if (pending) panFromEvent(pending);
+    camera.commit();
   };
 
   return (
@@ -176,6 +225,8 @@ export function Minimap({ wb, svgRef }: Props) {
         aria-label="Board map. Click or drag to move the view."
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
         {worlds.map((w) => {
           const p = worldToMinimap(w.l, w.t, fit);

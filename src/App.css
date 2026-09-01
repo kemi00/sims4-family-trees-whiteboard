@@ -199,6 +199,32 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 }
 #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#f4f1e8;--minimap-w:220px;--minimap-h:140px}
 #stage.stage--select svg{cursor:crosshair}
+#scene{transform-origin:0 0}
+/* Pan/zoom/drag: hide heavy SVG so the live transform stays on the compositor. */
+#stage.stage--navigating #scene,
+#stage.stage--dragging #scene{will-change:transform}
+#stage.stage--navigating #lEdges,
+#stage.stage--dragging #lEdges,
+#stage.stage--navigating #lTemp,
+#stage.stage--dragging #lTemp,
+#stage.stage--navigating #lGroups,
+#stage.stage--dragging #lGroups,
+#stage.stage--navigating #lGroupHandles,
+#stage.stage--dragging #lGroupHandles,
+#stage.stage--navigating #lWorlds,
+#stage.stage--dragging #lWorlds,
+#stage.stage--navigating #lWorldHandles,
+#stage.stage--dragging #lWorldHandles,
+#stage.stage--navigating .stage-tilegrid,
+#stage.stage--dragging .stage-tilegrid{display:none}
+#stage.stage--navigating .node text,
+#stage.stage--dragging .node text,
+#stage.stage--navigating .node circle,
+#stage.stage--dragging .node circle{display:none}
+#stage.stage--navigating .node,
+#stage.stage--dragging .node,
+#stage.stage--navigating .edge,
+#stage.stage--dragging .edge{pointer-events:none}
 .link-sel-chip{
   position:absolute;
   z-index:7;

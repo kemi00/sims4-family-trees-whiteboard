@@ -1,5 +1,6 @@
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Group, SimNode } from '../types/whiteboard.ts';
+import { nodesForGid, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { householdChrome } from '../lib/tiles.ts';
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
   /** `frames` = dashed boxes (under edges); `handles` = name/Age up on top. */
   mode: 'frames' | 'handles';
   selectedGids?: ReadonlySet<string>;
+  buckets?: NodeBuckets;
   onHouseholdDragStart: (
     gid: string,
     wx: number,
@@ -20,13 +22,14 @@ type Props = {
   onAgeUp: (gid: string) => void;
 };
 
-export function GroupLayer({
+export const GroupLayer = memo(function GroupLayer({
   groups,
   nodes,
   show,
   packVis,
   mode,
   selectedGids,
+  buckets,
   onHouseholdDragStart,
   onAgeUp,
 }: Props) {
@@ -35,7 +38,7 @@ export function GroupLayer({
   return (
     <g id={mode === 'frames' ? 'lGroups' : 'lGroupHandles'}>
       {groups.map((g0) => {
-        const mem = nodes.filter((n) => n.gid === g0.gid && packVis(n));
+        const mem = nodesForGid(g0.gid, nodes, buckets).filter(packVis);
         const chrome = householdChrome(mem, g0);
         if (!chrome) return null;
         const {
@@ -58,7 +61,7 @@ export function GroupLayer({
 
         if (mode === 'frames') {
           return (
-            <g key={g0.gid}>
+            <g key={g0.gid} data-gid={g0.gid}>
               <rect
                 x={boxL}
                 y={boxT}
@@ -92,17 +95,16 @@ export function GroupLayer({
         }
 
         return (
-          <g key={g0.gid}>
+          <g key={g0.gid} data-gid={g0.gid}>
             <g
               className={selected ? 'hhandle hhandle--sel' : 'hhandle'}
               style={{ cursor: 'grab' }}
               onPointerDown={(ev) => {
                 ev.stopPropagation();
                 const base: Record<string, { ox: number; oy: number }> = {};
-                nodes.forEach((n) => {
-                  if (n.gid === g0.gid)
-                    base[n.id] = { ox: n.ox ?? 0, oy: n.oy ?? 0 };
-                });
+                for (const n of nodesForGid(g0.gid, nodes, buckets)) {
+                  base[n.id] = { ox: n.ox ?? 0, oy: n.oy ?? 0 };
+                }
                 const svg = (ev.target as Element).closest('svg');
                 const r = svg!.getBoundingClientRect();
                 const scene = svg!.querySelector('#scene')!;
@@ -183,4 +185,4 @@ export function GroupLayer({
       })}
     </g>
   );
-}
+});

@@ -4,6 +4,7 @@ import {
   childRoute,
   childStemJunctionY,
   computeEdgeRenderData,
+  EMPTY_EDGE_DATA,
   ensureChildTopStem,
   unionStemJunctionY,
   type RoutingContext,
@@ -462,5 +463,20 @@ describe('sibling top stems', () => {
         }
       }
     }
+  });
+});
+
+describe('skipRoute', () => {
+  it('returns empty edge data without routing', () => {
+    const data = computeEdgeRenderData({
+      nodes: [card({ id: 'A', x: 0, y: 0 })],
+      edges: [{ id: 'e1', a: 'A', b: 'A', type: 'custom', source: 'planned' }],
+      groups: [],
+      show: { seed: true, groups: true, worlds: true },
+      packVis: () => true,
+      fastRoute: false,
+      skipRoute: true,
+    });
+    assert.deepEqual(data, EMPTY_EDGE_DATA);
   });
 });

@@ -11,6 +11,7 @@ import {
   separateOverlappingWorldFrames,
   worldFrame,
   worldTagZoomScale,
+  zoomViewportAt,
 } from './geometry.ts';
 import type { Group, SimNode } from '../types/whiteboard.ts';
 
@@ -97,5 +98,22 @@ describe('separateOverlappingWorldFrames', () => {
     assert.equal(moved.y % TILE, 0);
     // At least one tile of gap between frames.
     assert.ok(afterB.t >= afterA.b + TILE);
+  });
+});
+
+describe('zoomViewportAt', () => {
+  it('keeps the cursor world point stable', () => {
+    const svg = { left: 10, top: 20, width: 800, height: 600 } as DOMRect;
+    const v = { tx: 40, ty: 50, k: 1 };
+    const cx = 210;
+    const cy = 120;
+    const next = zoomViewportAt(v, 2, cx, cy, svg);
+    assert.equal(next.k, 2);
+    const mx = cx - svg.left;
+    const my = cy - svg.top;
+    const worldX = (mx - v.tx) / v.k;
+    const worldY = (my - v.ty) / v.k;
+    assert.equal((mx - next.tx) / next.k, worldX);
+    assert.equal((my - next.ty) / next.k, worldY);
   });
 });
