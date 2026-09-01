@@ -28,6 +28,7 @@ import {
   paintDragChrome,
   restoreChromeTranslates,
   restoreNodeTranslates,
+  sceneTransformAttr,
   type LiveCamera,
 } from '../lib/liveScene.ts';
 import {
@@ -1322,7 +1323,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             />
           </pattern>
         </defs>
-        <g id="scene" ref={sceneRef}>
+        <g id="scene" ref={sceneRef} transform={sceneTransformAttr({ tx, ty, k })}>
           {wb.snap && (
             <rect
               className="stage-tilegrid"
