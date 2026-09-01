@@ -22,11 +22,13 @@ import {
 } from '../lib/constants.ts';
 import {
   applyChromeTranslates,
+  applyEdgeTranslates,
   applyNodeTranslates,
   applySceneTransform,
   clearDragChrome,
   paintDragChrome,
   restoreChromeTranslates,
+  restoreEdgeTranslates,
   restoreNodeTranslates,
   sceneTransformAttr,
   type LiveCamera,
@@ -524,6 +526,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
 
   const userEdgeIds = useRef(new Set<string>());
   userEdgeIds.current = new Set(wb.edges.filter(isUserE).map((e) => e.id));
+  const edgeEndsById = useMemo(() => {
+    const m = new Map<string, readonly [string, string]>();
+    for (const e of wb.edges) m.set(e.id, [e.a, e.b]);
+    return m;
+  }, [wb.edges]);
 
   const updateTemp = useCallback(
     (clientX: number, clientY: number) => {
@@ -556,6 +563,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     if (!p || !scene) return;
     applyNodeTranslates(scene, p.origins, p.dx, p.dy);
     applyChromeTranslates(scene, p.gids, p.worlds, p.dx, p.dy);
+    applyEdgeTranslates(scene, Object.keys(p.origins), p.dx, p.dy);
   }, []);
 
   const scheduleDragPreview = useCallback(
@@ -579,6 +587,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     },
     [flushDragPreview],
   );
+
+  const gidsForIds = useCallback((ids: string[]) => {
+    const gids = new Set<string>();
+    const byid = wbRef.current.byid;
+    for (const id of ids) {
+      const gid = byid[id]?.gid;
+      if (gid) gids.add(gid);
+    }
+    return [...gids];
+  }, []);
 
   const beginDragPreview = useCallback((
     ids: string[],
@@ -610,6 +628,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     if (p && scene) {
       restoreNodeTranslates(scene, p.origins);
       restoreChromeTranslates(scene, p.gids, p.worlds);
+      restoreEdgeTranslates(scene);
     }
     dragPreviewRef.current = null;
     clearDragChrome(guidesHostRef.current);
@@ -833,7 +852,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           d.sel.kind === 'households'
             ? { gids: d.sel.gids }
             : d.sel.kind === 'worlds'
-              ? { worlds: d.sel.worlds }
+              ? { worlds: d.sel.worlds, gids: gidsForIds(d.ids) }
               : undefined,
         );
       }
@@ -858,7 +877,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       if (!d.armed) {
         if (!pastSlop(d.px, d.py, ev.clientX, ev.clientY)) return;
         d.armed = true;
-        beginDragPreview(d.ids, { worlds: [d.world] });
+        beginDragPreview(d.ids, {
+          worlds: [d.world],
+          gids: gidsForIds(d.ids),
+        });
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const dx = wx - d.sx;
@@ -1358,6 +1380,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             hopD={wb.hopD}
             unions={wb.edgeData.unions}
             customs={wb.edgeData.customs}
+            endsById={edgeEndsById}
             userEdgeIds={userEdgeIds.current}
             isSelLink={wb.isSelLink}
             connectMode={wb.connectMode}

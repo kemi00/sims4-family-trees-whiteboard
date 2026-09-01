@@ -134,7 +134,8 @@ type Props = {
   bloodVerts: BloodVert[];
   hopD: (pts: [number, number][], verts: BloodVert[], pi: number) => string;
   unions: UnionRender[];
-  customs: { edgeId: string; pts: [number, number][]; isUser: boolean }[];
+  customs: { edgeId: string; pts: [number, number][]; isUser: boolean; a?: string; b?: string }[];
+  endsById: ReadonlyMap<string, readonly [string, string]>;
   userEdgeIds: Set<string>;
   isSelLink: (ids: string[]) => boolean;
   connectMode: boolean;
@@ -146,12 +147,28 @@ type Props = {
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
 };
 
+function endsAttr(
+  edgeIds: string[] | undefined,
+  endsById: ReadonlyMap<string, readonly [string, string]>,
+): string {
+  if (!edgeIds?.length) return '';
+  const s = new Set<string>();
+  for (const id of edgeIds) {
+    const ab = endsById.get(id);
+    if (!ab) continue;
+    s.add(ab[0]);
+    s.add(ab[1]);
+  }
+  return JSON.stringify([...s]);
+}
+
 export const EdgeLayer = memo(function EdgeLayer({
   blood,
   bloodVerts,
   hopD,
   unions,
   customs,
+  endsById,
   userEdgeIds,
   isSelLink,
   connectMode,
@@ -172,6 +189,7 @@ export const EdgeLayer = memo(function EdgeLayer({
           <g
             key={`blood-${pi}`}
             className={selected ? 'link edge sel' : 'link edge'}
+            data-ends={endsAttr(p.ids, endsById)}
             onPointerDown={(e) => {
               e.stopPropagation();
               if (p.ids?.length) onLinkClick(p.ids, e);
@@ -206,6 +224,7 @@ export const EdgeLayer = memo(function EdgeLayer({
           <g
             key={u.edgeId}
             className={sq ? 'link edge sel' : 'link edge'}
+            data-ends={JSON.stringify([u.a, u.b])}
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -258,6 +277,11 @@ export const EdgeLayer = memo(function EdgeLayer({
           <g
             key={c.edgeId}
             className={sq ? 'link edge sel' : 'link edge'}
+            data-ends={
+              c.a && c.b
+                ? JSON.stringify([c.a, c.b])
+                : endsAttr([c.edgeId], endsById)
+            }
             onPointerDown={(e) => {
               e.stopPropagation();
               onLinkClick([c.edgeId], e);

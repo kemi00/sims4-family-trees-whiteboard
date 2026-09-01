@@ -96,6 +96,49 @@ export function restoreChromeTranslates(
   applyChromeTranslates(scene, gids, worlds, 0, 0);
 }
 
+/** True when every endpoint is in the live-drag set (intra-unit ink). */
+export function edgeEndsMoveTogether(
+  ends: readonly string[],
+  moving: ReadonlySet<string>,
+): boolean {
+  return ends.length > 0 && ends.every((id) => moving.has(id));
+}
+
+export function parseEdgeEndsAttr(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function applyEdgeTranslates(
+  scene: Element | null,
+  movingIds: Iterable<string>,
+  dx: number,
+  dy: number,
+): void {
+  if (!scene) return;
+  const moving = movingIds instanceof Set ? movingIds : new Set(movingIds);
+  const t = `translate(${dx},${dy})`;
+  scene.querySelectorAll('#lEdges [data-ends]').forEach((el) => {
+    const ends = parseEdgeEndsAttr(el.getAttribute('data-ends'));
+    if (edgeEndsMoveTogether(ends, moving)) {
+      el.setAttribute('transform', t);
+    } else {
+      el.setAttribute('transform', 'translate(0,0)');
+    }
+  });
+}
+
+export function restoreEdgeTranslates(scene: Element | null): void {
+  scene?.querySelectorAll('#lEdges [data-ends]').forEach((el) => {
+    el.setAttribute('transform', 'translate(0,0)');
+  });
+}
+
 export type DragChrome = {
   guides: Guides | null;
   placement: { x: number; y: number; w: number; h: number } | null;
