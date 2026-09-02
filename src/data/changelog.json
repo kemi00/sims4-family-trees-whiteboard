@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "8b1623c",
+   "date": "2026-09-02",
+   "text": "When you merge a JSON file, you can now keep the card positions on this board or use the ones in the file."
+  },
+  {
    "sha": "dc41284",
    "date": "2026-09-02",
    "text": "Hide the changelog's own housekeeping entries.",
