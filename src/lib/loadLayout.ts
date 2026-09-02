@@ -2,33 +2,22 @@ import { LAYOUT_EPOCH } from './constants.ts';
 import type { Edge, SimNode, World } from '../types/whiteboard.ts';
 
 /**
- * Absolute ox/oy beyond this, on boards with no matching {@link LAYOUT_EPOCH},
- * means offsets are almost certainly from an older packing engine.
- * Never applied when layoutEpoch matches — large dynasties routinely drag
- * sims/worlds farther than this and must keep those placements on reload.
+ * True when saved drag offsets should be cleared and the board re-packed.
+ *
+ * `ox`/`oy` are offsets from a packed base position, so they only mean
+ * anything against the packing rules that produced them. Only a file stamped
+ * with this exact {@link LAYOUT_EPOCH} can be trusted to restore placements.
+ *
+ * Files with no stamp at all predate the epoch (downloaded before 2026-08-27)
+ * and are re-packed too. They used to be let through whenever their offsets
+ * looked like ordinary nudges, which was wrong in the quiet way: tile packing
+ * had already moved every base position under them, so the board loaded with
+ * no warning and every hand-placed card in the wrong spot.
  */
-export const LAYOUT_OFFSET_REPACK_ABS = 3500;
-
-function maxOffsetAbs(nodes: SimNode[]): number {
-  let maxAbs = 0;
-  for (const n of nodes) {
-    maxAbs = Math.max(maxAbs, Math.abs(n.ox ?? 0), Math.abs(n.oy ?? 0));
-  }
-  return maxAbs;
-}
-
-/** True when saved drag offsets should be cleared and the board re-packed. */
 export function shouldRepackOffsets(
-  nodes: SimNode[],
   layoutEpoch: number | null | undefined,
 ): boolean {
-  // Same packing generation as this build — keep the user's saved layout.
-  if (layoutEpoch === LAYOUT_EPOCH) return false;
-  // Explicit older epoch → packing rules changed; re-pack.
-  if (layoutEpoch != null && layoutEpoch !== LAYOUT_EPOCH) return true;
-  // Missing epoch (legacy download): only wipe when offsets look like
-  // absolute coords from a pre-offset engine, not modest nudges.
-  return maxOffsetAbs(nodes) > LAYOUT_OFFSET_REPACK_ABS;
+  return layoutEpoch !== LAYOUT_EPOCH;
 }
 
 function asCore(n: SimNode, ox: number, oy: number): SimNode {
@@ -43,8 +32,8 @@ export function nodesWithClearedOffsets(nodes: SimNode[]): SimNode[] {
 
 /**
  * Prepare loaded nodes for the current layout engine.
- * Matching {@link LAYOUT_EPOCH} always preserves ox/oy. Older or epoch-less
- * boards with extreme skew get a fresh auto-pack.
+ * Matching {@link LAYOUT_EPOCH} preserves ox/oy. Anything else, including a
+ * file with no stamp, gets a fresh auto-pack.
  */
 export function prepareLoadedNodes(
   nodes: SimNode[],
@@ -52,7 +41,7 @@ export function prepareLoadedNodes(
   _worlds: World[] = [],
   _edges: Edge[] = [],
 ): { nodes: SimNode[]; repacked: boolean } {
-  if (!shouldRepackOffsets(nodes, layoutEpoch)) {
+  if (!shouldRepackOffsets(layoutEpoch)) {
     return {
       nodes: nodes.map((n) => asCore(n, n.ox ?? 0, n.oy ?? 0)),
       repacked: false,
