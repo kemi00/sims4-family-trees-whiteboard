@@ -1,8 +1,11 @@
+import { Warning } from '@phosphor-icons/react/Warning';
 import type { LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 
 type Props = {
   risk: LoadJsonRisk;
   pendingFileName: string;
+  /** File predates the current layout, so its card placements cannot be kept. */
+  willRepack: boolean;
   onDownload: () => void;
   onCancel: () => void;
   onMerge: () => void;
@@ -16,6 +19,7 @@ type Props = {
 export function LoadJsonDialog({
   risk,
   pendingFileName,
+  willRepack,
   onDownload,
   onCancel,
   onMerge,
@@ -37,6 +41,17 @@ export function LoadJsonDialog({
           disagrees, <b>the JSON wins</b>. Replace discards the current board
           and loads the file only.
         </p>
+        {willRepack && (
+          <p className="save-import__warn">
+            <Warning aria-hidden="true" />
+            <span>
+              <b>{pendingFileName}</b> was saved by an older version of the
+              board, before card positions could be restored reliably. Every
+              sim, household and link in it loads normally, but wherever you
+              dragged things will be tidied back into the automatic layout.
+            </span>
+          </p>
+        )}
         <p className="save-import__lead">If you merge</p>
         <ul className="save-import__stats">
           <li>

@@ -261,6 +261,7 @@ export default function App() {
           <LoadJsonDialog
             risk={wb.pendingLoadJson.risk}
             pendingFileName={wb.pendingLoadJson.file.name}
+            willRepack={wb.pendingLoadJson.willRepack}
             onDownload={wb.saveJson}
             onCancel={wb.cancelLoadJson}
             onMerge={wb.confirmMergeJson}

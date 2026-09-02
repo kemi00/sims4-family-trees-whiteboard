@@ -396,6 +396,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .save-import__meta{display:flex;flex-direction:column;gap:2px;margin:10px 0 0}
 .save-import__meta-label{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-2)}
 .save-import__meta-value{line-height:1.45;color:var(--ink-3)}
+.save-import__warn{display:flex;gap:7px;align-items:flex-start;margin:0 0 12px;padding:9px 11px;border-radius:8px;border:1px solid #e8c99a;background:#fdf4e3;color:#7a5312;font-size:12px;line-height:1.45}
+.save-import__warn svg{width:16px;height:16px;flex:0 0 auto;margin-top:1px;color:#b8791a}
 .save-import__backup{margin:-2px 0 0}
 .save-import__text-btn{
   display:inline;padding:0;border:none;background:none;color:var(--accent-strong);
