@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "9de3854",
+   "date": "2026-09-02",
+   "text": "Add a Developer updates panel listing every change by day."
+  },
+  {
    "sha": "e8a2e27",
    "date": "2026-09-01",
    "text": "Worlds now stay where you drop them, including on top of each other."
