@@ -1,0 +1,169 @@
+{
+ "entries": [
+  {
+   "sha": "e8a2e27",
+   "date": "2026-09-01",
+   "text": "Worlds now stay where you drop them, including on top of each other."
+  },
+  {
+   "sha": "d7ecb82",
+   "date": "2026-09-01",
+   "text": "Load the board faster by hiding card text that is too small to read when zoomed out."
+  },
+  {
+   "sha": "eda6ed1",
+   "date": "2026-09-01",
+   "text": "Speed up the first paint of the board on load."
+  },
+  {
+   "sha": "7009fa9",
+   "date": "2026-08-27",
+   "text": "Track high-signal board actions as Hobby Web Analytics pageviews."
+  },
+  {
+   "sha": "a9c0168",
+   "date": "2026-08-27",
+   "text": "Make shared parent trunk and bus segments clickable for multi-child links."
+  },
+  {
+   "sha": "4db40ab",
+   "date": "2026-08-27",
+   "text": "Remove Export PNG from the overflow menu."
+  },
+  {
+   "sha": "fa3700c",
+   "date": "2026-08-27",
+   "text": "Keep link chips on real ink, harden pedigree stems, and improve JSON load/autosave."
+  },
+  {
+   "sha": "05a2ed8",
+   "date": "2026-08-26",
+   "text": "Add save import, minimap, and tile packing, and keep world frames from overlapping."
+  },
+  {
+   "sha": "821c41f",
+   "date": "2026-08-20",
+   "text": "Persist age, single, and bloodline filters in saved JSON so load restores the same Filters view."
+  },
+  {
+   "sha": "9e98554",
+   "date": "2026-08-20",
+   "text": "Add gender to the sim editor and randomize it for new sims."
+  },
+  {
+   "sha": "a80e732",
+   "date": "2026-08-20",
+   "text": "Regroup the app bar into do / see / find so filters share one control."
+  },
+  {
+   "sha": "12182c5",
+   "date": "2026-08-20",
+   "text": "Add household age-up, undo, and bloodline dim, and log those events with deaths and editor life-stage changes."
+  },
+  {
+   "sha": "d197f6f",
+   "date": "2026-08-20",
+   "text": "Add infant-from-couple, keep popups on-screen, and make the connection log easier to scan."
+  },
+  {
+   "sha": "a8dd285",
+   "date": "2026-08-19",
+   "text": "Add a connection log and keep tags still when linking or moving households."
+  },
+  {
+   "sha": "3c68295",
+   "date": "2026-08-18",
+   "text": "Add a contact email to the overflow menu."
+  },
+  {
+   "sha": "71b00aa",
+   "date": "2026-08-18",
+   "text": "Fix Other-world family links against The Sims Wiki."
+  },
+  {
+   "sha": "4442dc9",
+   "date": "2026-08-18",
+   "text": "Add phone chrome, gestures, and viewport-aware new-sim placement."
+  },
+  {
+   "sha": "e3d5894",
+   "date": "2026-08-18",
+   "text": "Install Vercel Web Analytics."
+  },
+  {
+   "sha": "02ba139",
+   "date": "2026-08-18",
+   "text": "Update repo and production URLs after GitHub rename."
+  },
+  {
+   "sha": "de1ed55",
+   "date": "2026-08-18",
+   "text": "Add MIT license, credits UI, and Family Trees branding."
+  },
+  {
+   "sha": "21d4f00",
+   "date": "2026-08-18",
+   "text": "Keep cross-household connection lines clear of unrelated tags."
+  },
+  {
+   "sha": "c6bc3a5",
+   "date": "2026-08-18",
+   "text": "Fix Other world layout: 7-column grid with tight linked clusters."
+  },
+  {
+   "sha": "f06faeb",
+   "date": "2026-08-17",
+   "text": "Add dynamic household layout and fix pedigree placement and routing."
+  },
+  {
+   "sha": "07cecf5",
+   "date": "2026-08-17",
+   "text": "Stop child connectors doubling back when the child sits close below a union."
+  },
+  {
+   "sha": "c62b05a",
+   "date": "2026-08-17",
+   "text": "Collapse the header and toolbar into a single app bar."
+  },
+  {
+   "sha": "b55a492",
+   "date": "2026-08-17",
+   "text": "Keep union connector detours local instead of spanning both tags."
+  },
+  {
+   "sha": "68b7761",
+   "date": "2026-08-17",
+   "text": "Stop the board refitting mid-drag."
+  },
+  {
+   "sha": "5438dd6",
+   "date": "2026-08-17",
+   "text": "Force union connectors to enter tags and pills from the sides."
+  },
+  {
+   "sha": "2f36015",
+   "date": "2026-08-17",
+   "text": "Restore relationship pill rendering and clear the stale connect rubber band."
+  },
+  {
+   "sha": "35f4b69",
+   "date": "2026-08-17",
+   "text": "Fix the board not fitting the window on load, and tidy where the legend and hint sit."
+  },
+  {
+   "sha": "4f1a5bd",
+   "date": "2026-08-17",
+   "text": "Fix the board not filling the whole window."
+  },
+  {
+   "sha": "cb94f41",
+   "date": "2026-08-17",
+   "text": "Fix Vercel build: pin Node 22 and configure pnpm install via corepack."
+  },
+  {
+   "sha": "a4c6812",
+   "date": "2026-08-17",
+   "text": "First version of the Family Trees Whiteboard."
+  }
+ ]
+}

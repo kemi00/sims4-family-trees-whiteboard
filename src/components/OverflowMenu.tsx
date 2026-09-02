@@ -4,6 +4,7 @@ import {
   DownloadSimple,
   EnvelopeSimple,
   Info,
+  Megaphone,
   UploadSimple,
 } from '../icons.ts';
 import { useEffect, useRef, useState } from 'react';
@@ -18,6 +19,9 @@ type Props = {
   onLoadSave: (file: File) => void;
   onResetBuiltIn: () => void;
   canResetBoard?: boolean;
+  onDevUpdates: () => void;
+  /** Marks the entry with a dot until the visitor has read the newest change. */
+  devUpdatesUnseen: boolean;
 };
 
 /** File actions, kept out of the bar because they are used rarely. */
@@ -27,6 +31,8 @@ export function OverflowMenu({
   onLoadSave,
   onResetBuiltIn,
   canResetBoard = true,
+  onDevUpdates,
+  devUpdatesUnseen,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
@@ -147,6 +153,20 @@ export function OverflowMenu({
               <span className="pop__sub">{CONTACT_EMAIL}</span>
             </span>
           </a>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => run(onDevUpdates)}
+          >
+            <Megaphone aria-hidden="true" />
+            Developer updates
+            {devUpdatesUnseen && (
+              <span
+                className="pop__dot"
+                aria-label="New since you last looked"
+              />
+            )}
+          </button>
           <button
             type="button"
             role="menuitem"
