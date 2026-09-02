@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { SaveMergeSummary } from '../lib/savegame/mergeSave.ts';
 
 type Props = {
@@ -14,8 +15,9 @@ function listPreview(items: string[], max = 6): string {
 }
 
 /**
- * Save import chooser — same decision layout/CTAs as {@link LoadJsonDialog}.
- * Merge keeps the board; Replace builds from the save alone.
+ * Save import chooser — same shape as {@link LoadJsonDialog}. Pick how the
+ * save meets the board, then Proceed; only Cancel and Proceed act, so
+ * choosing an option cannot commit you to it by accident.
  */
 export function SaveImportDialog({
   summary,
@@ -23,6 +25,7 @@ export function SaveImportDialog({
   onReplace,
   onCancel,
 }: Props) {
+  const [mode, setMode] = useState<'merge' | 'replace'>('merge');
   const hasDetails =
     summary.skipped.length > 0 ||
     summary.saveWorlds.length > 0 ||
@@ -38,27 +41,54 @@ export function SaveImportDialog({
     >
       <div className="save-import__card" onClick={(e) => e.stopPropagation()}>
         <h2 id="save-import-title">Load save game</h2>
-        <p>
-          Choose how this save meets the board. Merge updates matching sims and
-          keeps planned violet links. Replace discards the current board and
-          builds from the save only.
-        </p>
-        <p className="save-import__lead">If you merge</p>
-        <ul className="save-import__stats">
-          <li>
-            <b>{summary.matched}</b> cards updated
-          </li>
-          <li>
-            <b>{summary.added}</b> new cards
-          </li>
-          <li>
-            <b>{summary.newLinks}</b> new save links ·{' '}
-            <b>{summary.confirmed}</b> planned→save
-          </li>
-          <li>
-            <b>{summary.stillPlanned}</b> stay planned (violet)
-          </li>
-        </ul>
+        <p>Choose how this save meets the board.</p>
+        <fieldset className="save-import__choices">
+          <legend className="save-import__lead">What to do</legend>
+          <label className="save-import__choice">
+            <input
+              type="radio"
+              name="save-import-mode"
+              checked={mode === 'merge'}
+              onChange={() => setMode('merge')}
+            />
+            <span className="save-import__choice-body">
+              <b>Merge into this board</b>
+              <span className="save-import__choice-note">
+                Updates matching sims and keeps planned violet links.
+              </span>
+              <ul className="save-import__stats">
+                <li>
+                  <b>{summary.matched}</b> cards updated
+                </li>
+                <li>
+                  <b>{summary.added}</b> new cards
+                </li>
+                <li>
+                  <b>{summary.newLinks}</b> new save links ·{' '}
+                  <b>{summary.confirmed}</b> planned→save
+                </li>
+                <li>
+                  <b>{summary.stillPlanned}</b> stay planned (violet)
+                </li>
+              </ul>
+            </span>
+          </label>
+          <label className="save-import__choice">
+            <input
+              type="radio"
+              name="save-import-mode"
+              checked={mode === 'replace'}
+              onChange={() => setMode('replace')}
+            />
+            <span className="save-import__choice-body">
+              <b>Replace this board</b>
+              <span className="save-import__choice-note">
+                Discards the current board and builds a new one from the save
+                alone.
+              </span>
+            </span>
+          </label>
+        </fieldset>
         {hasDetails && (
           <details className="save-import__details">
             <summary>Worlds, packs, and skipped names</summary>
@@ -95,11 +125,12 @@ export function SaveImportDialog({
           <button type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button type="button" onClick={onReplace}>
-            Replace board
-          </button>
-          <button type="button" className="save-import__ok" onClick={onMerge}>
-            Merge
+          <button
+            type="button"
+            className="save-import__ok"
+            onClick={mode === 'merge' ? onMerge : onReplace}
+          >
+            Proceed
           </button>
         </div>
       </div>
