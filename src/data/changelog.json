@@ -1,6 +1,16 @@
 {
  "entries": [
   {
+   "sha": "5773673",
+   "date": "2026-09-02",
+   "text": "Rewrite this list in plain language, and drop the entries that only mean something to a programmer."
+  },
+  {
+   "sha": "6296e0a",
+   "date": "2026-09-02",
+   "text": "Stop the hover labels on the top bar running off the edge of the window."
+  },
+  {
    "sha": "e285771",
    "date": "2026-09-02",
    "text": "Log the Developer updates panel in its own changelog.",
