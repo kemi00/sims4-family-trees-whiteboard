@@ -1698,7 +1698,25 @@ export function useWhiteboard() {
         now: new Date().toISOString(),
         nextEdgeId: () => 'v' + n++,
       });
-      applySaveBoard(replaced, svgWidth, svgHeight, 'replace');
+      /*
+       * Replace builds from an empty board, and hidePacks is worked out by
+       * mapping packs to the worlds their cards sit in — with no cards there
+       * is no mapping, so it always came back empty and Filters ended up
+       * claiming nothing was hidden. Keep the preview's list, which was
+       * measured against the real board and is what the dialog promised.
+       */
+      applySaveBoard(
+        {
+          ...replaced,
+          summary: {
+            ...replaced.summary,
+            hidePacks: saveImport.merge.summary.hidePacks,
+          },
+        },
+        svgWidth,
+        svgHeight,
+        'replace',
+      );
     },
     [saveImport, worlds, seed.nodes, applySaveBoard],
   );
