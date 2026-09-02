@@ -105,6 +105,20 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   top:calc(100% + 8px);
   bottom:auto;
  }
+ /* Everything past the spacer sits against the right edge, where a centred
+    tip has nowhere to go. Anchor those to the button's right edge instead so
+    they grow inwards. The first tool has the same problem on the left once
+    the brand name drops at narrower widths. */
+ .appbar__spacer ~ * .tool[data-tooltip]::after{
+  left:auto;
+  right:0;
+  transform:none;
+ }
+ .appbar > .tool:first-of-type[data-tooltip]::after{
+  left:0;
+  right:auto;
+  transform:none;
+ }
  .viewctl .tool[data-tooltip]::after,
  .viewctl__zoom[data-tooltip]::after{
   bottom:calc(100% + 8px);
