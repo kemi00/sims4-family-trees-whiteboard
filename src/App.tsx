@@ -1,10 +1,19 @@
 import { Analytics } from '@vercel/analytics/react';
 import { IconContext } from './icons.ts';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.css';
+import changelog from './data/changelog.json';
+import {
+  hasUnseen,
+  markSeen,
+  readSeen,
+  visibleEntries,
+  type ChangelogEntry,
+} from './lib/changelog.ts';
 import { AgesPanel } from './components/AgesPanel.tsx';
 import { AppBar } from './components/AppBar.tsx';
 import { ConnectionLogPanel } from './components/ConnectionLogPanel.tsx';
+import { DevUpdatesDialog } from './components/DevUpdatesDialog.tsx';
 import { GamesPanel } from './components/GamesPanel.tsx';
 import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { WhiteboardStage } from './components/WhiteboardStage.tsx';
@@ -15,8 +24,22 @@ import { useWhiteboard } from './hooks/useWhiteboard.ts';
 /** One icon size and weight for the whole app, set once. */
 const ICONS = { size: 17, weight: 'regular' } as const;
 
+const CHANGELOG = visibleEntries(changelog.entries as ChangelogEntry[]);
+
 export default function App() {
   const wb = useWhiteboard();
+  /** Opens itself on load only for a visitor who has not read the newest entry. */
+  const [devUpdatesOpen, setDevUpdatesOpen] = useState(() =>
+    hasUnseen(CHANGELOG, readSeen()),
+  );
+  const [devUpdatesUnseen, setDevUpdatesUnseen] = useState(devUpdatesOpen);
+
+  /** Every dismissal marks the log read, or it would reopen on the next load. */
+  const closeDevUpdates = useCallback(() => {
+    markSeen(CHANGELOG);
+    setDevUpdatesUnseen(false);
+    setDevUpdatesOpen(false);
+  }, []);
   const svgRef = useRef<SVGSVGElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const filtersBtnRef = useRef<HTMLButtonElement>(null);
@@ -29,7 +52,8 @@ export default function App() {
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
-        if (wb.saveImport) wb.cancelSaveImport();
+        if (devUpdatesOpen) closeDevUpdates();
+        else if (wb.saveImport) wb.cancelSaveImport();
         else if (wb.pendingLoadJson) wb.cancelLoadJson();
         else if (wb.gamesOpen) wb.setGamesOpen(false);
         else if (wb.playOpen) wb.setPlayOpen(false);
@@ -74,7 +98,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [wb]);
+  }, [wb, devUpdatesOpen, closeDevUpdates]);
 
   useEffect(() => {
     const onPointer = (ev: PointerEvent) => {
@@ -124,6 +148,8 @@ export default function App() {
           svgRef={svgRef}
           filtersBtnRef={filtersBtnRef}
           logBtnRef={logBtnRef}
+          onDevUpdates={() => setDevUpdatesOpen(true)}
+          devUpdatesUnseen={devUpdatesUnseen}
         />
         <WhiteboardStage wb={wb} svgRef={svgRef} stageRef={stageRef} />
         {wb.gamesOpen && (
@@ -228,10 +254,14 @@ export default function App() {
             }}
           />
         )}
+        {devUpdatesOpen && (
+          <DevUpdatesDialog entries={CHANGELOG} onClose={closeDevUpdates} />
+        )}
         {wb.pendingLoadJson && (
           <LoadJsonDialog
             risk={wb.pendingLoadJson.risk}
             pendingFileName={wb.pendingLoadJson.file.name}
+            willRepack={wb.pendingLoadJson.willRepack}
             onDownload={wb.saveJson}
             onCancel={wb.cancelLoadJson}
             onMerge={wb.confirmMergeJson}

@@ -15,6 +15,7 @@ import {
   DRAG_SLOP_PX,
   EDGE_HIT_SCREEN_PX,
   EDGE_SEL_SCREEN_PX,
+  LABEL_MIN_K,
   LONG_PRESS_MS,
   TILE,
   ZOOM_MAX,
@@ -89,6 +90,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     b: number;
   } | null>(null);
   const [stageSize, setStageSize] = useState({ w: 800, h: 600 });
+  const [viewFitted, setViewFitted] = useState(false);
   const [editorPos, setEditorPos] = useState({ left: 0, top: 0 });
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -208,6 +210,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   } | null>(null);
 
   const { tx, ty, k } = wb.viewport;
+  /**
+   * Board type is sub-pixel below this zoom, so it is not drawn at all.
+   * `viewFitted` keeps the very first render label-free: it runs at the
+   * placeholder `INITIAL_VIEW` zoom, before the stage has been measured and
+   * fitted, so any type it drew would be laid out and thrown away one frame
+   * later — and shaping a few thousand `<text>` nodes is the single most
+   * expensive thing on the board.
+   */
+  const labels = viewFitted && k >= LABEL_MIN_K;
 
   const applyVp = useCallback((vp: { tx: number; ty: number; k: number }) => {
     applySceneTransform(sceneRef.current, vp);
@@ -503,26 +514,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const fitRef = useRef(wb.fit);
   fitRef.current = wb.fit;
   useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-    const measure = () => {
-      const r = svgRef.current?.getBoundingClientRect();
-      return r?.width && r.height ? r : null;
-    };
-    const first = measure();
-    if (first) {
-      fitRef.current(first.width, first.height);
-      return;
-    }
-    const ro = new ResizeObserver(() => {
-      const r = measure();
-      if (!r) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    // Measuring here with getBoundingClientRect() would force a synchronous
+    // full-document layout of the whole board before the first paint. The
+    // observer reports the same box off the browser's own layout pass.
+    const ro = new ResizeObserver(([entry]) => {
+      const r = entry?.contentRect;
+      if (!r?.width || !r.height) return;
       ro.disconnect();
       fitRef.current(r.width, r.height);
+      setViewFitted(true);
     });
-    ro.observe(el);
+    ro.observe(svg);
     return () => ro.disconnect();
-  }, [stageRef, svgRef]);
+  }, [svgRef]);
 
   const userEdgeIds = useRef(new Set<string>());
   userEdgeIds.current = new Set(wb.edges.filter(isUserE).map((e) => e.id));
@@ -1379,6 +1385,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             groups={wb.groups}
             nodes={wb.nodes}
             show={wb.show.groups}
+            labels={labels}
             packVis={wb.nodeVis}
             selectedGids={selectedGids}
             buckets={wb.nodeBuckets}
@@ -1477,6 +1484,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
                     (selectedGids && selectedGids.has(n.gid))
                   )
                 }
+                labels={labels}
                 connectHighlight={connHighlight === n.id}
                 searchHit={wb.searchHitSet.has(n.id)}
                 searchCurrent={
@@ -1497,6 +1505,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             groups={wb.groups}
             nodes={wb.nodes}
             show={wb.show.groups}
+            labels={labels}
             packVis={wb.nodeVis}
             selectedGids={selectedGids}
             buckets={wb.nodeBuckets}

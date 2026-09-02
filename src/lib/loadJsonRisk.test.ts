@@ -55,6 +55,29 @@ describe('loadJsonRisk', () => {
     assert.equal(risk.sourceLabel, 'board.json');
   });
 
+  /* A board that came from Load JSON carries none of the other signals --
+     no undo, no editor adds, no planned links -- so loading a second file
+     used to replace the first without asking. */
+  it('requires confirm when the board already came from a file', () => {
+    const risk = loadJsonRisk([node({ id: 'a' })], [], {
+      canUndo: false,
+      sourceFileName: 'sims4_family_trees_2026-08-20.json',
+      fromBrowserDraft: false,
+    });
+    assert.equal(risk.needsConfirm, true);
+    assert.equal(risk.sourceLabel, 'sims4_family_trees_2026-08-20.json');
+  });
+
+  it('requires confirm when the board was restored from a browser draft', () => {
+    const risk = loadJsonRisk([node({ id: 'a' })], [], {
+      canUndo: false,
+      sourceFileName: null,
+      fromBrowserDraft: true,
+    });
+    assert.equal(risk.needsConfirm, true);
+    assert.equal(risk.sourceLabel, 'Browser draft');
+  });
+
   it('requires confirm when there are planned links or undo', () => {
     const planned: Edge[] = [
       { id: 'u1', a: 'a', b: 'b', type: 'parent', source: 'planned' },

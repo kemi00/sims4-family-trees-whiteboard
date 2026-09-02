@@ -42,6 +42,8 @@ type Props = {
   svgRef: RefObject<SVGSVGElement | null>;
   filtersBtnRef: RefObject<HTMLButtonElement | null>;
   logBtnRef: RefObject<HTMLButtonElement | null>;
+  onDevUpdates: () => void;
+  devUpdatesUnseen: boolean;
 };
 
 export function AppBar({
@@ -49,6 +51,8 @@ export function AppBar({
   svgRef,
   filtersBtnRef,
   logBtnRef,
+  onDevUpdates,
+  devUpdatesUnseen,
 }: Props) {
   const compact = useCompactChrome();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -371,6 +375,8 @@ export function AppBar({
           const { w, h } = svgSize();
           wb.resetToBuiltInBoard(w, h);
         }}
+        onDevUpdates={onDevUpdates}
+        devUpdatesUnseen={devUpdatesUnseen}
       />
 
       {compact && searchOpen && (

@@ -11,7 +11,7 @@ import {
   writeDraft,
 } from '../lib/autosave.ts';
 import { trackAction } from '../lib/analytics.ts';
-import { prepareLoadedNodes } from '../lib/loadLayout.ts';
+import { prepareLoadedNodes, shouldRepackOffsets } from '../lib/loadLayout.ts';
 import { loadJsonRisk, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import {
@@ -223,9 +223,13 @@ export function useWhiteboard() {
   } | null>(null);
   const [pendingLoadJson, setPendingLoadJson] = useState<{
     file: File;
+    /** Read once up front, so confirming does not re-read the file. */
+    text: string;
     svgWidth: number;
     svgHeight: number;
     risk: LoadJsonRisk;
+    /** File is too old to restore card placements; the board gets re-packed. */
+    willRepack: boolean;
   } | null>(null);
   const [searchHits, setSearchHits] = useState<string[]>([]);
   const [searchHitIndex, setSearchHitIndex] = useState(0);
@@ -1430,20 +1434,40 @@ export function useWhiteboard() {
     [fit, snap, worlds, groups, flashStatus],
   );
 
+  /**
+   * Read the file up front so the dialog can say whether it is too old to
+   * restore placements. Knowing that after the board had already changed
+   * would be no use — the point is to decide before anything happens.
+   */
   const loadJson = useCallback(
     (file: File, svgWidth: number, svgHeight: number) => {
-      const risk = loadJsonRisk(nodesCore, edges, {
-        canUndo,
-        sourceFileName,
-        fromBrowserDraft,
-      });
-      if (risk.needsConfirm) {
-        setPendingLoadJson({ file, svgWidth, svgHeight, risk });
-        return;
-      }
       const rd = new FileReader();
       rd.onload = () => {
-        applyLoadedJson(file, String(rd.result ?? ''), svgWidth, svgHeight);
+        const text = String(rd.result ?? '');
+        let willRepack = false;
+        try {
+          const { layoutEpoch } = JSON.parse(text) as { layoutEpoch?: number };
+          willRepack = shouldRepackOffsets(layoutEpoch);
+        } catch {
+          // Unparseable — applyLoadedJson reports it.
+        }
+        const risk = loadJsonRisk(nodesCore, edges, {
+          canUndo,
+          sourceFileName,
+          fromBrowserDraft,
+        });
+        if (risk.needsConfirm || willRepack) {
+          setPendingLoadJson({
+            file,
+            text,
+            svgWidth,
+            svgHeight,
+            risk,
+            willRepack,
+          });
+          return;
+        }
+        applyLoadedJson(file, text, svgWidth, svgHeight);
       };
       rd.readAsText(file);
     },
@@ -1462,25 +1486,19 @@ export function useWhiteboard() {
   const confirmReplaceJson = useCallback(() => {
     const pending = pendingLoadJson;
     if (!pending) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      applyLoadedJson(
-        pending.file,
-        String(rd.result ?? ''),
-        pending.svgWidth,
-        pending.svgHeight,
-      );
-    };
-    rd.readAsText(pending.file);
+    applyLoadedJson(
+      pending.file,
+      pending.text,
+      pending.svgWidth,
+      pending.svgHeight,
+    );
   }, [pendingLoadJson, applyLoadedJson]);
 
   const confirmMergeJson = useCallback(() => {
     const pending = pendingLoadJson;
     if (!pending) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      try {
-        const parsed = JSON.parse(String(rd.result ?? '')) as WhiteboardData & {
+    try {
+        const parsed = JSON.parse(pending.text) as WhiteboardData & {
           layoutEpoch?: number;
         };
         const d = migrateWhiteboardData(parsed);
@@ -1537,12 +1555,10 @@ export function useWhiteboard() {
           });
           fit(pending.svgWidth, pending.svgHeight);
         }, 0);
-      } catch {
-        alert('Bad file');
-        setPendingLoadJson(null);
-      }
-    };
-    rd.readAsText(pending.file);
+    } catch {
+      alert('Bad file');
+      setPendingLoadJson(null);
+    }
   }, [
     pendingLoadJson,
     nodesCore,
@@ -1682,7 +1698,25 @@ export function useWhiteboard() {
         now: new Date().toISOString(),
         nextEdgeId: () => 'v' + n++,
       });
-      applySaveBoard(replaced, svgWidth, svgHeight, 'replace');
+      /*
+       * Replace builds from an empty board, and hidePacks is worked out by
+       * mapping packs to the worlds their cards sit in — with no cards there
+       * is no mapping, so it always came back empty and Filters ended up
+       * claiming nothing was hidden. Keep the preview's list, which was
+       * measured against the real board and is what the dialog promised.
+       */
+      applySaveBoard(
+        {
+          ...replaced,
+          summary: {
+            ...replaced.summary,
+            hidePacks: saveImport.merge.summary.hidePacks,
+          },
+        },
+        svgWidth,
+        svgHeight,
+        'replace',
+      );
     },
     [saveImport, worlds, seed.nodes, applySaveBoard],
   );
