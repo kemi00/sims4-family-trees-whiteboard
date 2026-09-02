@@ -1,9 +1,15 @@
 {
  "entries": [
   {
+   "sha": "e285771",
+   "date": "2026-09-02",
+   "text": "Log the Developer updates panel in its own changelog.",
+   "hidden": true
+  },
+  {
    "sha": "9de3854",
    "date": "2026-09-02",
-   "text": "Add a Developer updates panel listing every change by day."
+   "text": "Add this Developer updates list to the ⋮ menu, so you can see what has changed."
   },
   {
    "sha": "e8a2e27",
@@ -13,147 +19,149 @@
   {
    "sha": "d7ecb82",
    "date": "2026-09-01",
-   "text": "Load the board faster by hiding card text that is too small to read when zoomed out."
+   "text": "Open the board faster by not drawing card names while you are zoomed too far out to read them."
   },
   {
    "sha": "eda6ed1",
    "date": "2026-09-01",
-   "text": "Speed up the first paint of the board on load."
+   "text": "Make the board appear sooner when you open the site."
   },
   {
    "sha": "7009fa9",
    "date": "2026-08-27",
-   "text": "Track high-signal board actions as Hobby Web Analytics pageviews."
+   "text": "Start counting which features get used, so the busiest ones get the most attention."
   },
   {
    "sha": "a9c0168",
    "date": "2026-08-27",
-   "text": "Make shared parent trunk and bus segments clickable for multi-child links."
+   "text": "You can now click the shared line above a group of brothers and sisters, not only the branch down to each one."
   },
   {
    "sha": "4db40ab",
    "date": "2026-08-27",
-   "text": "Remove Export PNG from the overflow menu."
+   "text": "Remove the Export PNG option from the ⋮ menu."
   },
   {
    "sha": "fa3700c",
    "date": "2026-08-27",
-   "text": "Keep link chips on real ink, harden pedigree stems, and improve JSON load/autosave."
+   "text": "Keep relationship labels sitting on the line they describe, straighten family branches, and make saving and loading more reliable."
   },
   {
    "sha": "05a2ed8",
    "date": "2026-08-26",
-   "text": "Add save import, minimap, and tile packing, and keep world frames from overlapping."
+   "text": "Add importing a Sims 4 save file, add the little map in the corner, and stop worlds landing on top of each other."
   },
   {
    "sha": "821c41f",
    "date": "2026-08-20",
-   "text": "Persist age, single, and bloodline filters in saved JSON so load restores the same Filters view."
+   "text": "Your Filters choices are now saved with the board, so loading it back shows the same view."
   },
   {
    "sha": "9e98554",
    "date": "2026-08-20",
-   "text": "Add gender to the sim editor and randomize it for new sims."
+   "text": "Add gender to the sim editor, and pick one at random for new sims."
   },
   {
    "sha": "a80e732",
    "date": "2026-08-20",
-   "text": "Regroup the app bar into do / see / find so filters share one control."
+   "text": "Reorganise the top bar so related buttons sit together and every filter shares one menu."
   },
   {
    "sha": "12182c5",
    "date": "2026-08-20",
-   "text": "Add household age-up, undo, and bloodline dim, and log those events with deaths and editor life-stage changes."
+   "text": "Add Age up for a whole household, add Undo, add Bloodline to dim everyone outside one family, and record all of it in the Log."
   },
   {
    "sha": "d197f6f",
    "date": "2026-08-20",
-   "text": "Add infant-from-couple, keep popups on-screen, and make the connection log easier to scan."
+   "text": "Add an infant straight from a couple, stop menus opening off the edge of the screen, and make the Log easier to read."
   },
   {
    "sha": "a8dd285",
    "date": "2026-08-19",
-   "text": "Add a connection log and keep tags still when linking or moving households."
+   "text": "Add the Log of every link you make, and stop cards jumping about when you link sims or move a household."
   },
   {
    "sha": "3c68295",
    "date": "2026-08-18",
-   "text": "Add a contact email to the overflow menu."
+   "text": "Add a contact email to the ⋮ menu."
   },
   {
    "sha": "71b00aa",
    "date": "2026-08-18",
-   "text": "Fix Other-world family links against The Sims Wiki."
+   "text": "Correct the family links in the Other world against The Sims Wiki."
   },
   {
    "sha": "4442dc9",
    "date": "2026-08-18",
-   "text": "Add phone chrome, gestures, and viewport-aware new-sim placement."
+   "text": "Make the board work properly on phones, with pinch to zoom and drag to pan, and drop new sims where you are looking."
   },
   {
    "sha": "e3d5894",
    "date": "2026-08-18",
-   "text": "Install Vercel Web Analytics."
+   "text": "Install Vercel Web Analytics.",
+   "hidden": true
   },
   {
    "sha": "02ba139",
    "date": "2026-08-18",
-   "text": "Update repo and production URLs after GitHub rename."
+   "text": "Update repo and production URLs after GitHub rename.",
+   "hidden": true
   },
   {
    "sha": "de1ed55",
    "date": "2026-08-18",
-   "text": "Add MIT license, credits UI, and Family Trees branding."
+   "text": "Add the Credits panel, the project licence, and the Family Trees name."
   },
   {
    "sha": "21d4f00",
    "date": "2026-08-18",
-   "text": "Keep cross-household connection lines clear of unrelated tags."
+   "text": "Stop relationship lines running across cards they have nothing to do with."
   },
   {
    "sha": "c6bc3a5",
    "date": "2026-08-18",
-   "text": "Fix Other world layout: 7-column grid with tight linked clusters."
+   "text": "Lay the Other world out in neat columns and keep related households side by side."
   },
   {
    "sha": "f06faeb",
    "date": "2026-08-17",
-   "text": "Add dynamic household layout and fix pedigree placement and routing."
+   "text": "Arrange each household automatically, so parents sit above their children."
   },
   {
    "sha": "07cecf5",
    "date": "2026-08-17",
-   "text": "Stop child connectors doubling back when the child sits close below a union."
+   "text": "Stop the line to a child doubling back on itself when they sit just below their parents."
   },
   {
    "sha": "c62b05a",
    "date": "2026-08-17",
-   "text": "Collapse the header and toolbar into a single app bar."
+   "text": "Collapse the header and toolbar into a single bar across the top."
   },
   {
    "sha": "b55a492",
    "date": "2026-08-17",
-   "text": "Keep union connector detours local instead of spanning both tags."
+   "text": "Stop relationship lines taking long detours around cards."
   },
   {
    "sha": "68b7761",
    "date": "2026-08-17",
-   "text": "Stop the board refitting mid-drag."
+   "text": "Stop the board re-centring itself while you are dragging."
   },
   {
    "sha": "5438dd6",
    "date": "2026-08-17",
-   "text": "Force union connectors to enter tags and pills from the sides."
+   "text": "Make relationship lines meet cards from the side, so they are easier to follow."
   },
   {
    "sha": "2f36015",
    "date": "2026-08-17",
-   "text": "Restore relationship pill rendering and clear the stale connect rubber band."
+   "text": "Bring back the missing relationship symbols, and clear the line that stuck to the cursor after linking."
   },
   {
    "sha": "35f4b69",
    "date": "2026-08-17",
-   "text": "Fix the board not fitting the window on load, and tidy where the legend and hint sit."
+   "text": "Fix the board not fitting the window when it opens, and tidy where the legend and the how-to note sit."
   },
   {
    "sha": "4f1a5bd",
@@ -163,7 +171,8 @@
   {
    "sha": "cb94f41",
    "date": "2026-08-17",
-   "text": "Fix Vercel build: pin Node 22 and configure pnpm install via corepack."
+   "text": "Fix Vercel build: pin Node 22 and configure pnpm install via corepack.",
+   "hidden": true
   },
   {
    "sha": "a4c6812",

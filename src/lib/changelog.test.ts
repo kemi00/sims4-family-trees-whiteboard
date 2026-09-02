@@ -7,6 +7,7 @@ import {
   hasUnseen,
   markSeen,
   readSeen,
+  visibleEntries,
   type ChangelogEntry,
 } from './changelog.ts';
 
@@ -78,6 +79,39 @@ describe('groupByDay', () => {
 
   it('returns nothing for an empty log', () => {
     assert.deepEqual(groupByDay([]), []);
+  });
+});
+
+describe('visibleEntries', () => {
+  it('drops the entries marked hidden', () => {
+    const kept = visibleEntries([
+      { ...entry('a', '2026-09-01'), hidden: true },
+      entry('b', '2026-09-01'),
+      { ...entry('c', '2026-08-17'), hidden: true },
+    ]);
+    assert.deepEqual(
+      kept.map((e) => e.sha),
+      ['b'],
+    );
+  });
+
+  it('keeps everything when nothing is hidden', () => {
+    const all = [entry('a', '2026-09-01'), entry('b', '2026-08-17')];
+    assert.deepEqual(visibleEntries(all), all);
+  });
+
+  /* Filtering first is what stops a hidden entry becoming the unread marker
+     and opening the panel over changes nobody can see. */
+  it('leaves a hidden newest entry out of the unread check', () => {
+    const raw = [
+      { ...entry('hidden-newest', '2026-09-02'), hidden: true },
+      entry('shown', '2026-09-01'),
+    ];
+    const shown = visibleEntries(raw);
+    assert.equal(hasUnseen(shown, 'shown'), false);
+    const store = memoryStore();
+    markSeen(shown, store);
+    assert.equal(readSeen(store), 'shown');
   });
 });
 

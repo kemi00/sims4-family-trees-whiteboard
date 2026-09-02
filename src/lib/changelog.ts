@@ -5,6 +5,12 @@ export type ChangelogEntry = {
   /** ISO `YYYY-MM-DD`. */
   date: string;
   text: string;
+  /**
+   * Kept in the file but never shown — for commits with nothing in them for a
+   * player. Deleting the entry instead would not stick: the generator matches
+   * on SHA, so a missing one looks like a new commit and comes back.
+   */
+  hidden?: boolean;
 };
 
 export type ChangelogDay = { date: string; entries: ChangelogEntry[] };
@@ -37,6 +43,16 @@ export function formatDay(date: string): string {
   const month = MONTHS[Number(m) - 1];
   if (!y || !month || !d) return date;
   return `${Number(d)} ${month} ${y}`;
+}
+
+/**
+ * Drop the entries marked hidden. Apply this once, before anything else reads
+ * the log, so the unread marker and the panel agree on which entry is newest —
+ * otherwise a hidden entry could become the marker and open the panel over
+ * changes nobody can see.
+ */
+export function visibleEntries(entries: ChangelogEntry[]): ChangelogEntry[] {
+  return entries.filter((e) => !e.hidden);
 }
 
 /** Newest day first, keeping each day's entries in the order they arrived. */

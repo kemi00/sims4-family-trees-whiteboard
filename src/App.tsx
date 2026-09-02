@@ -3,7 +3,13 @@ import { IconContext } from './icons.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.css';
 import changelog from './data/changelog.json';
-import { hasUnseen, markSeen, readSeen, type ChangelogEntry } from './lib/changelog.ts';
+import {
+  hasUnseen,
+  markSeen,
+  readSeen,
+  visibleEntries,
+  type ChangelogEntry,
+} from './lib/changelog.ts';
 import { AgesPanel } from './components/AgesPanel.tsx';
 import { AppBar } from './components/AppBar.tsx';
 import { ConnectionLogPanel } from './components/ConnectionLogPanel.tsx';
@@ -18,7 +24,7 @@ import { useWhiteboard } from './hooks/useWhiteboard.ts';
 /** One icon size and weight for the whole app, set once. */
 const ICONS = { size: 17, weight: 'regular' } as const;
 
-const CHANGELOG = changelog.entries as ChangelogEntry[];
+const CHANGELOG = visibleEntries(changelog.entries as ChangelogEntry[]);
 
 export default function App() {
   const wb = useWhiteboard();

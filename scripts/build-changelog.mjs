@@ -90,17 +90,21 @@ for (const c of commits) {
 entries.sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1));
 
 const orphans = existing.filter((e) => !commits.some((c) => c.sha === e.sha));
-const days = new Set(entries.map((e) => e.date));
+const hidden = entries.filter((e) => e.hidden);
+const shown = entries.filter((e) => !e.hidden);
+const days = new Set(shown.map((e) => e.date));
 
 console.log(
   [
     `commits scanned    : ${commits.length}`,
-    `entries in file    : ${entries.length} across ${days.size} day(s)`,
+    `shown in the panel : ${shown.length} across ${days.size} day(s)`,
+    `hidden in the file : ${hidden.length}`,
     `new this run       : ${added.length}`,
     `skipped (internal) : ${skipped.length}`,
     `kept from file     : ${entries.length - added.length}`,
   ].join('\n'),
 );
+if (hidden.length) console.log('  hidden:', hidden.map((e) => e.sha).join(', '));
 if (added.length) console.log('  added:', added.join(' ; '));
 if (skipped.length) console.log('  skipped:', skipped.join(' ; '));
 if (orphans.length)
