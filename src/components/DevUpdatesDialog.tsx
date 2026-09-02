@@ -1,3 +1,4 @@
+import { Warning } from '@phosphor-icons/react/Warning';
 import { X } from '@phosphor-icons/react/X';
 import { useEffect, useMemo, useRef } from 'react';
 import { formatDay, groupByDay, type ChangelogEntry } from '../lib/changelog.ts';
@@ -63,6 +64,12 @@ export function DevUpdatesDialog({ entries, onClose }: Props) {
                     >
                       {e.sha}
                     </a>
+                    {e.compat && (
+                      <p className="devlog__compat">
+                        <Warning aria-hidden="true" />
+                        <span>{e.compat}</span>
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

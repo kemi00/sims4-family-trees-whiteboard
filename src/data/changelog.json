@@ -1,6 +1,12 @@
 {
  "entries": [
   {
+   "sha": "dc41284",
+   "date": "2026-09-02",
+   "text": "Hide the changelog's own housekeeping entries.",
+   "hidden": true
+  },
+  {
    "sha": "5e9e744",
    "date": "2026-09-02",
    "text": "Log the tooltip fix and the plain-language rewrite.",
@@ -61,12 +67,14 @@
   {
    "sha": "fa3700c",
    "date": "2026-08-27",
-   "text": "Keep relationship labels sitting on the line they describe, straighten family branches, and make saving and loading more reliable."
+   "text": "Keep relationship labels sitting on the line they describe, straighten family branches, and make saving and loading more reliable.",
+   "compat": "Saved files now record which version of the board made them. From here on, loading a file the board cannot lay out correctly tells you so and tidies it up, instead of quietly putting cards in the wrong places. Files saved before today have no such marker, so they always get re-arranged."
   },
   {
    "sha": "05a2ed8",
    "date": "2026-08-26",
-   "text": "Add importing a Sims 4 save file, add the little map in the corner, and stop worlds landing on top of each other."
+   "text": "Add importing a Sims 4 save file, add the little map in the corner, and stop worlds landing on top of each other.",
+   "compat": "Older .json files stop working properly here. This update moved every card onto a tile grid, so a board saved before today no longer lines up and will be re-arranged when you load it. Your sims, households and links all survive — only where you dragged things is lost."
   },
   {
    "sha": "821c41f",

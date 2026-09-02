@@ -11,6 +11,11 @@ export type ChangelogEntry = {
    * on SHA, so a missing one looks like a new commit and comes back.
    */
   hidden?: boolean;
+  /**
+   * Called out beside the entry when an update changed what a saved `.json`
+   * means, so someone with an older file knows before they load it.
+   */
+  compat?: string;
 };
 
 export type ChangelogDay = { date: string; entries: ChangelogEntry[] };
