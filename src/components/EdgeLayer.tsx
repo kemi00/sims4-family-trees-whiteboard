@@ -1,5 +1,6 @@
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import { COL, PILL_H, PILL_W, UEDIT } from '../lib/constants.ts';
+import { sharedChromeValue } from '../lib/liveScene.ts';
 import { ptsStr } from '../lib/utils.ts';
 import type { BloodPath, BloodVert, UnionRender } from '../types/whiteboard.ts';
 
@@ -134,7 +135,8 @@ type Props = {
   bloodVerts: BloodVert[];
   hopD: (pts: [number, number][], verts: BloodVert[], pi: number) => string;
   unions: UnionRender[];
-  customs: { edgeId: string; pts: [number, number][]; isUser: boolean }[];
+  customs: { edgeId: string; pts: [number, number][]; isUser: boolean; a?: string; b?: string }[];
+  endsById: ReadonlyMap<string, readonly [string, string]>;
   userEdgeIds: Set<string>;
   isSelLink: (ids: string[]) => boolean;
   connectMode: boolean;
@@ -144,14 +146,45 @@ type Props = {
   onLinkClick: (ids: string[], e: ReactPointerEvent) => void;
   onUnionClick: (a: string, b: string, e: ReactPointerEvent) => void;
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
+  worldById?: ReadonlyMap<string, string>;
+  gidById?: ReadonlyMap<string, string>;
 };
 
-export function EdgeLayer({
+function nodeIdsFromEdges(
+  edgeIds: string[] | undefined,
+  endsById: ReadonlyMap<string, readonly [string, string]>,
+): string[] {
+  if (!edgeIds?.length) return [];
+  const s = new Set<string>();
+  for (const id of edgeIds) {
+    const ab = endsById.get(id);
+    if (!ab) continue;
+    s.add(ab[0]);
+    s.add(ab[1]);
+  }
+  return [...s];
+}
+
+function chromeDataProps(
+  nodeIds: readonly string[],
+  worldById: ReadonlyMap<string, string> | undefined,
+  gidById: ReadonlyMap<string, string> | undefined,
+): { 'data-world'?: string; 'data-gid'?: string } {
+  const world = sharedChromeValue(nodeIds, worldById);
+  const gid = sharedChromeValue(nodeIds, gidById);
+  return {
+    ...(world ? { 'data-world': world } : {}),
+    ...(gid ? { 'data-gid': gid } : {}),
+  };
+}
+
+export const EdgeLayer = memo(function EdgeLayer({
   blood,
   bloodVerts,
   hopD,
   unions,
   customs,
+  endsById,
   userEdgeIds,
   isSelLink,
   connectMode,
@@ -160,6 +193,8 @@ export function EdgeLayer({
   onLinkClick,
   onUnionClick,
   onAddInfant,
+  worldById,
+  gidById,
 }: Props) {
   return (
     <g id="lEdges">
@@ -168,10 +203,13 @@ export function EdgeLayer({
         const selected = isSelLink(p.ids);
         const col = selected ? '#1b6cd6' : isU ? UEDIT : COL.blood;
         const d = hopD(p.pts, bloodVerts, pi);
+        const nodeIds = nodeIdsFromEdges(p.ids, endsById);
         return (
           <g
             key={`blood-${pi}`}
             className={selected ? 'link edge sel' : 'link edge'}
+            data-ends={nodeIds.length ? JSON.stringify(nodeIds) : ''}
+            {...chromeDataProps(nodeIds, worldById, gidById)}
             onPointerDown={(e) => {
               e.stopPropagation();
               if (p.ids?.length) onLinkClick(p.ids, e);
@@ -206,6 +244,8 @@ export function EdgeLayer({
           <g
             key={u.edgeId}
             className={sq ? 'link edge sel' : 'link edge'}
+            data-ends={JSON.stringify([u.a, u.b])}
+            {...chromeDataProps([u.a, u.b], worldById, gidById)}
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -254,10 +294,14 @@ export function EdgeLayer({
         const sq = isSelLink([c.edgeId]);
         const col = sq ? '#1b6cd6' : UEDIT;
         const pts = ptsStr(c.pts);
+        const nodeIds =
+          c.a && c.b ? [c.a, c.b] : nodeIdsFromEdges([c.edgeId], endsById);
         return (
           <g
             key={c.edgeId}
             className={sq ? 'link edge sel' : 'link edge'}
+            data-ends={nodeIds.length ? JSON.stringify(nodeIds) : ''}
+            {...chromeDataProps(nodeIds, worldById, gidById)}
             onPointerDown={(e) => {
               e.stopPropagation();
               onLinkClick([c.edgeId], e);
@@ -283,4 +327,4 @@ export function EdgeLayer({
       })}
     </g>
   );
-}
+});

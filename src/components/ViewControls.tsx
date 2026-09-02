@@ -5,7 +5,7 @@ import {
   Minus,
   Plus,
   Selection,
-} from '@phosphor-icons/react';
+} from '../icons.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { ToolButton } from './ToolButton.tsx';
 

@@ -9,8 +9,10 @@ import {
 } from './constants.ts';
 import {
   separateOverlappingWorldFrames,
+  introducedWorldNames,
   worldFrame,
   worldTagZoomScale,
+  zoomViewportAt,
 } from './geometry.ts';
 import type { Group, SimNode } from '../types/whiteboard.ts';
 
@@ -97,5 +99,85 @@ describe('separateOverlappingWorldFrames', () => {
     assert.equal(moved.y % TILE, 0);
     // At least one tile of gap between frames.
     assert.ok(afterB.t >= afterA.b + TILE);
+  });
+
+  it('leaves user-stacked worlds alone when neither is movable', () => {
+    const groups: Group[] = [
+      { gid: 'a', name: 'A' },
+      { gid: 'b', name: 'B' },
+    ];
+    const nodes = [
+      card('n1', 'World A', 'a', 0, 0),
+      card('n2', 'World B', 'b', 0, TILE * 2),
+    ];
+    const next = separateOverlappingWorldFrames(
+      nodes,
+      groups,
+      () => true,
+      TILE,
+      new Set(),
+    );
+    assert.equal(next[0]!.x, nodes[0]!.x);
+    assert.equal(next[0]!.y, nodes[0]!.y);
+    assert.equal(next[1]!.x, nodes[1]!.x);
+    assert.equal(next[1]!.y, nodes[1]!.y);
+  });
+
+  it('moves only a platform-placed world off a user-stacked one', () => {
+    const groups: Group[] = [
+      { gid: 'a', name: 'A' },
+      { gid: 'b', name: 'B' },
+    ];
+    const nodes = [
+      card('n1', 'World A', 'a', 0, 0),
+      card('n2', 'World B', 'b', 0, TILE * 2),
+    ];
+    const next = separateOverlappingWorldFrames(
+      nodes,
+      groups,
+      () => true,
+      TILE,
+      new Set(['World B']),
+    );
+    assert.equal(next[0]!.x, nodes[0]!.x);
+    assert.equal(next[0]!.y, nodes[0]!.y);
+    assert.ok(next[1]!.y > nodes[1]!.y);
+    const afterA = worldFrame('World A', next, groups, () => true)!;
+    const afterB = worldFrame('World B', next, groups, () => true)!;
+    const overlap =
+      afterA.l < afterB.r &&
+      afterA.r > afterB.l &&
+      afterA.t < afterB.b &&
+      afterA.b > afterB.t;
+    assert.equal(overlap, false);
+  });
+});
+
+describe('introducedWorldNames', () => {
+  it('returns only worlds that did not exist on the previous board', () => {
+    const prev = [card('n1', 'World A', 'a', 0, 0)];
+    const next = [
+      card('n1', 'World A', 'a', 0, 0),
+      card('n2', 'World B', 'b', 100, 0),
+    ];
+    assert.deepEqual([...introducedWorldNames(prev, next)], ['World B']);
+    assert.deepEqual([...introducedWorldNames(next, next)], []);
+  });
+});
+
+describe('zoomViewportAt', () => {
+  it('keeps the cursor world point stable', () => {
+    const svg = { left: 10, top: 20, width: 800, height: 600 } as DOMRect;
+    const v = { tx: 40, ty: 50, k: 1 };
+    const cx = 210;
+    const cy = 120;
+    const next = zoomViewportAt(v, 2, cx, cy, svg);
+    assert.equal(next.k, 2);
+    const mx = cx - svg.left;
+    const my = cy - svg.top;
+    const worldX = (mx - v.tx) / v.k;
+    const worldY = (my - v.ty) / v.k;
+    assert.equal((mx - next.tx) / next.k, worldX);
+    assert.equal((my - next.ty) / next.k, worldY);
   });
 });

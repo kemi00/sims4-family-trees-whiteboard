@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CARD_H, CARD_MIN_W, HH_TAG_BAND, HH_TAG_INSET, HH_TAG_PILL_H, HH_TAG_STACK_GAP, TILE } from './constants.ts';
-import { computeLayout, LAYOUT, OTHER_WORLD, rowPitch, spawnChildOrigin } from './layout.ts';
+import { computeLayout, layoutBases, packingSignature, LAYOUT, OTHER_WORLD, rowPitch, spawnChildOrigin } from './layout.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
@@ -251,5 +251,33 @@ describe('tile-native household packing', () => {
     const p = spawnChildOrigin(500, 250, CARD_MIN_W, [sibling], [sibling]);
     assert.equal(p.y, sibling.y);
     assert.equal(p.x, sibling.x + CARD_MIN_W + TILE);
+  });
+});
+
+describe('layoutBases cache', () => {
+  it('reuses packed bases when only ox/oy change', () => {
+    const nodes = [
+      sim({ id: 'Bella Goth', first: 'Bella', hh: 'Goth', gid: 'Willow Creek||Goth' }),
+      sim({
+        id: 'Mortimer Goth',
+        first: 'Mortimer',
+        hh: 'Goth',
+        gid: 'Willow Creek||Goth',
+        gender: 'Male',
+      }),
+    ];
+    const edges: Edge[] = [edge('Bella Goth', 'Mortimer Goth', 'marriage')];
+    const first = layoutBases(nodes, worlds, edges);
+    const shifted = nodes.map((n) =>
+      n.id === 'Bella Goth' ? { ...n, ox: 96, oy: 48 } : n,
+    );
+    assert.equal(packingSignature(nodes, worlds, edges), packingSignature(shifted, worlds, edges));
+    const second = layoutBases(shifted, worlds, edges);
+    assert.equal(second, first);
+    const laid = computeLayout(shifted, worlds, edges);
+    const bella = laid.find((n) => n.id === 'Bella Goth')!;
+    const base = first.get('Bella Goth')!;
+    assert.equal(bella.x, base.x + 96);
+    assert.equal(bella.y, base.y + 48);
   });
 });

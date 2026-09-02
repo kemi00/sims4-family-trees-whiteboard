@@ -1,4 +1,4 @@
-import { Info, X } from '@phosphor-icons/react';
+import { Info, X } from '../icons.ts';
 import { useEffect, useRef, useState } from 'react';
 
 export function Hint() {

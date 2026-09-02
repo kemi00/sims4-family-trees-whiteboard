@@ -1,5 +1,5 @@
 import { Analytics } from '@vercel/analytics/react';
-import { IconContext } from '@phosphor-icons/react';
+import { IconContext } from './icons.ts';
 import { useEffect, useRef } from 'react';
 import './App.css';
 import { AgesPanel } from './components/AgesPanel.tsx';

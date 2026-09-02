@@ -1,5 +1,6 @@
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import { worldFrame, worldTagMetrics } from '../lib/geometry.ts';
+import { nodesForWorld, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { worldColor } from '../lib/utils.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 
@@ -15,6 +16,7 @@ type Props = {
   mode: 'frames' | 'handles';
   /** World names currently in a multi-selection. */
   selectedWorlds?: ReadonlySet<string>;
+  buckets?: NodeBuckets;
   onWorldDragStart?: (
     world: string,
     wx: number,
@@ -39,7 +41,17 @@ type ChipHit = {
 function worldNamesFrom(
   nodes: SimNode[],
   packVis: (n: SimNode) => boolean,
+  buckets?: NodeBuckets,
 ): string[] {
+  if (buckets) {
+    const worldNames: string[] = [];
+    for (const [w, list] of buckets.byWorld) {
+      if (!w || w === '—') continue;
+      if (!list.some(packVis)) continue;
+      worldNames.push(w);
+    }
+    return worldNames;
+  }
   const worldNames: string[] = [];
   const seen = new Set<string>();
   for (const n of nodes) {
@@ -100,7 +112,7 @@ function pointerToWorld(ev: ReactPointerEvent): { wx: number; wy: number } | nul
   };
 }
 
-export function WorldLayer({
+export const WorldLayer = memo(function WorldLayer({
   nodes,
   groups,
   worlds,
@@ -109,23 +121,28 @@ export function WorldLayer({
   packVis,
   mode,
   selectedWorlds,
+  buckets,
   onWorldDragStart,
 }: Props) {
   if (!show) return null;
 
-  const worldNames = worldNamesFrom(nodes, packVis);
+  const worldNames = worldNamesFrom(nodes, packVis, buckets);
   const tag = worldTagMetrics(zoom);
 
   if (mode === 'frames') {
     return (
       <g id="lWorlds">
         {worldNames.map((w) => {
-          const frame = worldFrame(w, nodes, groups, packVis);
+          const frame = worldFrame(w, nodes, groups, packVis, buckets);
           if (!frame) return null;
           const col = worldColor(w, worlds);
           const selected = !!selectedWorlds?.has(w);
           return (
-            <g key={w} className={selected ? 'world-frame world-frame--sel' : 'world-frame'}>
+            <g
+              key={w}
+              data-world={w}
+              className={selected ? 'world-frame world-frame--sel' : 'world-frame'}
+            >
               <rect
                 x={frame.l}
                 y={frame.t}
@@ -162,7 +179,7 @@ export function WorldLayer({
 
   const chips: ChipHit[] = [];
   for (const w of worldNames) {
-    const frame = worldFrame(w, nodes, groups, packVis);
+    const frame = worldFrame(w, nodes, groups, packVis, buckets);
     if (!frame) continue;
     const pillW = (w.length * 8.2 + 46) * tag.scale;
     const bw = frame.r - frame.l;
@@ -189,9 +206,9 @@ export function WorldLayer({
     if (!chip) return;
     ev.stopPropagation();
     const base: Record<string, { ox: number; oy: number }> = {};
-    nodes.forEach((n) => {
-      if (n.world === chip.w) base[n.id] = { ox: n.ox ?? 0, oy: n.oy ?? 0 };
-    });
+    for (const n of nodesForWorld(chip.w, nodes, buckets)) {
+      base[n.id] = { ox: n.ox ?? 0, oy: n.oy ?? 0 };
+    }
     onWorldDragStart(chip.w, pt.wx, pt.wy, base, ev);
   };
 
@@ -202,6 +219,7 @@ export function WorldLayer({
         return (
           <g
             key={c.w}
+            data-world={c.w}
             className={selected ? 'whandle whandle--sel' : 'whandle'}
             style={{ cursor: 'grab' }}
             onPointerDown={beginDrag}
@@ -267,4 +285,4 @@ export function WorldLayer({
       })}
     </g>
   );
-}
+});

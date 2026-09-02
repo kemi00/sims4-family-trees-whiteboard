@@ -1357,11 +1357,43 @@ function layoutWorld(mem: SimNode[], edges: Edge[], world: string): WorldBlock {
   };
 }
 
-export function layoutBases(
+/**
+ * Packing identity — membership, names, ages, and edges. Visual `ox`/`oy`
+ * (and derived x/y/w/h) do not change packed bases.
+ */
+export function packingSignature(
   nodes: SimNode[],
   worlds: World[],
   edges: Edge[],
-): Map<string, { x: number; y: number; w: number; h: number }> {
+): string {
+  const parts: string[] = [];
+  for (const w of worlds) parts.push('w', w.name);
+  for (const n of nodes) {
+    parts.push(
+      n.id,
+      n.gid,
+      n.world || '',
+      n.hh,
+      n.age,
+      n.first,
+      n.sur,
+      n.gender,
+    );
+  }
+  for (const e of edges) parts.push(e.id, e.a, e.b, e.type);
+  return parts.join('\0');
+}
+
+type LayoutBase = { x: number; y: number; w: number; h: number };
+
+let layoutBasesCache: { signature: string; bases: Map<string, LayoutBase> } | null =
+  null;
+
+function computeLayoutBases(
+  nodes: SimNode[],
+  worlds: World[],
+  edges: Edge[],
+): Map<string, LayoutBase> {
   const byWorld = new Map<string, SimNode[]>();
   for (const n of nodes) {
     const w = n.world || OTHER_WORLD;
@@ -1383,6 +1415,18 @@ export function layoutBases(
 
   const bases = placeWorldColumns(worldBlocks);
   resolveHouseholdBoxOverlaps(nodes, bases, edges);
+  return bases;
+}
+
+export function layoutBases(
+  nodes: SimNode[],
+  worlds: World[],
+  edges: Edge[],
+): Map<string, { x: number; y: number; w: number; h: number }> {
+  const signature = packingSignature(nodes, worlds, edges);
+  if (layoutBasesCache?.signature === signature) return layoutBasesCache.bases;
+  const bases = computeLayoutBases(nodes, worlds, edges);
+  layoutBasesCache = { signature, bases };
   return bases;
 }
 

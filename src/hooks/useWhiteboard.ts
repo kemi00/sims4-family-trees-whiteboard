@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import seedData from '../data/whiteboard.json';
-import { ADDED_HOUSEHOLD, AGES_H, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MAX, ZOOM_MIN } from '../lib/constants.ts';
+import { ADDED_HOUSEHOLD, AGES_H, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT } from '../lib/constants.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
+  boardMatchesBuiltIn,
   bootWhiteboardData,
   buildPersistPayload,
   clearDraft,
@@ -17,11 +18,15 @@ import {
   bbox,
   cardOriginAtViewportCenter,
   coreOffsetsAfterWorldSeparation,
+  introducedWorldNames,
   dominantWorldInViewport,
   snapHouseholdDelta,
   snapPosition,
+  zoomViewportAt,
   type SnapSticky,
 } from '../lib/geometry.ts';
+import { bucketNodes } from '../lib/nodeIndex.ts';
+import { bloodVerts, computeEdgeRenderData, EMPTY_EDGE_DATA, hopD } from '../lib/routing.ts';
 import {
   computeLayout,
   layoutBases,
@@ -32,7 +37,6 @@ import {
   spawnChildOrigin,
 } from '../lib/layout.ts';
 import { snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
-import { bloodVerts, computeEdgeRenderData, hopD } from '../lib/routing.ts';
 import { lineageIds } from '../lib/bloodline.ts';
 import {
   buildConnectionLog,
@@ -189,6 +193,7 @@ export function useWhiteboard() {
   });
   const [status, setStatus] = useState('');
   const [fastRoute, setFastRoute] = useState(false);
+  const [skipRoute, setSkipRoute] = useState(false);
   const [editNodeId, setEditNodeId] = useState<string | null>(null);
   const [gamesOpen, setGamesOpen] = useState(false);
   const [agesOpen, setAgesOpen] = useState(false);
@@ -322,16 +327,20 @@ export function useWhiteboard() {
 
   const edgeData = useMemo(
     () =>
-      computeEdgeRenderData({
-        nodes,
-        edges,
-        groups,
-        show,
-        packVis: nodeVis,
-        fastRoute,
-      }),
-    [nodes, edges, groups, show, nodeVis, fastRoute],
+      skipRoute
+        ? EMPTY_EDGE_DATA
+        : computeEdgeRenderData({
+            nodes,
+            edges,
+            groups,
+            show,
+            packVis: nodeVis,
+            fastRoute,
+          }),
+    [nodes, edges, groups, show, nodeVis, fastRoute, skipRoute],
   );
+
+  const nodeBuckets = useMemo(() => bucketNodes(nodes), [nodes]);
 
   const bloodVertsMemo = useMemo(
     () => bloodVerts(edgeData.blood),
@@ -425,6 +434,11 @@ export function useWhiteboard() {
     ],
   );
 
+  const canResetBoard = useMemo(
+    () => !boardMatchesBuiltIn(persistPayload(), seed),
+    [persistPayload, seed],
+  );
+
   /** Skip the immediate post-hydrate write; debounce later board edits. */
   const skipAutosaveRef = useRef(true);
   useEffect(() => {
@@ -433,15 +447,23 @@ export function useWhiteboard() {
       return;
     }
     const t = setTimeout(() => {
+      const payload = persistPayload();
+      if (boardMatchesBuiltIn(payload, seed)) {
+        clearDraft();
+        setFromBrowserDraft(false);
+        return;
+      }
       setStatus('Autosaving…');
-      const result = writeDraft(persistPayload());
-      if (result === 'ok') flashStatus('Autosaved');
-      else if (result === 'quota')
+      const result = writeDraft(payload);
+      if (result === 'ok') {
+        if (!payload.sourceFileName) setFromBrowserDraft(true);
+        flashStatus('Autosaved');
+      } else if (result === 'quota')
         flashStatus('Autosave full — Download JSON to keep a copy');
       else flashStatus('Autosave failed');
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [persistPayload, flashStatus]);
+  }, [persistPayload, flashStatus, seed]);
 
   const pushUndo = useCallback(() => {
     undoRef.current.push({
@@ -755,14 +777,17 @@ export function useWhiteboard() {
         if (n.id !== id) return n;
         const next: SimNode = { ...n, ...patch };
         if (patch.x !== undefined || patch.y !== undefined) {
-          const base = layoutBases(ns, worlds, edges).get(id);
-          if (base) {
+          const laid = byid[id];
+          const packed = laid
+            ? { x: laid.x - (laid.ox ?? 0), y: laid.y - (laid.oy ?? 0) }
+            : layoutBases(ns, worlds, edges).get(id);
+          if (packed) {
             const absX =
-              patch.x !== undefined ? patch.x : base.x + (n.ox ?? 0);
+              patch.x !== undefined ? patch.x : packed.x + (n.ox ?? 0);
             const absY =
-              patch.y !== undefined ? patch.y : base.y + (n.oy ?? 0);
-            next.ox = absX - base.x;
-            next.oy = absY - base.y;
+              patch.y !== undefined ? patch.y : packed.y + (n.oy ?? 0);
+            next.ox = absX - packed.x;
+            next.oy = absY - packed.y;
           }
         }
         return toCore(next);
@@ -799,7 +824,7 @@ export function useWhiteboard() {
         },
       ]);
     }
-  }, [nodesCore, worlds, edges, pinCardsToCurrentPlaces]);
+  }, [nodesCore, worlds, edges, byid, pinCardsToCurrentPlaces]);
 
   const moveNodesByGid = useCallback(
     (
@@ -880,16 +905,6 @@ export function useWhiteboard() {
     },
     [snap, nodes, updateNode],
   );
-
-  /** Push world frames apart by whole tiles; persists via ox/oy. */
-  const enforceWorldSeparation = useCallback(() => {
-    setNodesCore((core) => {
-      const laid = snap
-        ? snapNodesToTiles(computeLayout(core, worlds, edges))
-        : computeLayout(core, worlds, edges);
-      return coreOffsetsAfterWorldSeparation(core, laid, groups, () => true);
-    });
-  }, [snap, worlds, edges, groups]);
 
   const makeChildOfCouple = useCallback(
     (pa: string, pb: string, childId: string) => {
@@ -1202,17 +1217,7 @@ export function useWhiteboard() {
 
   const zoomAt = useCallback(
     (f: number, cx: number, cy: number, svgRect: DOMRect) => {
-      setViewport((v) => {
-        const nk = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v.k * f));
-        if (nk === v.k) return v;
-        const mx = cx - svgRect.left;
-        const my = cy - svgRect.top;
-        return {
-          k: nk,
-          tx: mx - (mx - v.tx) * (nk / v.k),
-          ty: my - (my - v.ty) * (nk / v.k),
-        };
-      });
+      setViewport((v) => zoomViewportAt(v, f, cx, cy, svgRect));
     },
     [],
   );
@@ -1401,17 +1406,20 @@ export function useWhiteboard() {
           flashStatus(`Loaded ${file.name}`);
         }
         setTimeout(() => {
-          setNodesCore((core) => {
-            const laid = snap
-              ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
-              : computeLayout(core, worlds, loadedEdges);
-            return coreOffsetsAfterWorldSeparation(
-              core,
-              laid,
-              (d.groups as Group[]) ?? groups,
-              () => true,
-            );
-          });
+          // Fresh pack only. A loaded board may have user-overlapped worlds.
+          if (prepared.repacked) {
+            setNodesCore((core) => {
+              const laid = snap
+                ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
+                : computeLayout(core, worlds, loadedEdges);
+              return coreOffsetsAfterWorldSeparation(
+                core,
+                laid,
+                (d.groups as Group[]) ?? groups,
+                () => true,
+              );
+            });
+          }
           fit(svgWidth, svgHeight);
         }, 0);
       } catch {
@@ -1514,6 +1522,8 @@ export function useWhiteboard() {
         );
         setTimeout(() => {
           setNodesCore((core) => {
+            const movable = introducedWorldNames(nodesCore, core);
+            if (!movable.size) return core;
             const laid = snap
               ? snapNodesToTiles(computeLayout(core, worlds, merged.edges))
               : computeLayout(core, worlds, merged.edges);
@@ -1522,6 +1532,7 @@ export function useWhiteboard() {
               laid,
               merged.groups,
               () => true,
+              movable,
             );
           });
           fit(pending.svgWidth, pending.svgHeight);
@@ -1581,13 +1592,20 @@ export function useWhiteboard() {
       const laid = snap
         ? snapNodesToTiles(computeLayout(coreNodes, worlds, result.edges))
         : computeLayout(coreNodes, worlds, result.edges);
+      const movable =
+        mode === 'replace'
+          ? undefined
+          : introducedWorldNames(Object.values(byid), result.nodes);
       setNodesCore(
-        coreOffsetsAfterWorldSeparation(
-          coreNodes,
-          laid,
-          result.groups,
-          () => true,
-        ),
+        mode !== 'replace' && movable && movable.size === 0
+          ? coreNodes
+          : coreOffsetsAfterWorldSeparation(
+              coreNodes,
+              laid,
+              result.groups,
+              () => true,
+              movable,
+            ),
       );
       eidcRef.current = nextEidc(result.edges, eidcRef.current);
       const s = result.summary;
@@ -1960,6 +1978,7 @@ export function useWhiteboard() {
     packVis,
     playVis,
     nodeVis,
+    nodeBuckets,
     edgeData,
     bloodVerts: bloodVertsMemo,
     hopD,
@@ -1991,7 +2010,6 @@ export function useWhiteboard() {
     snapDragPosition,
     snapHouseholdDrag,
     snapNodeAction,
-    enforceWorldSeparation,
     handleConnectClick,
     handleConnectUnion,
     confirmConnect,
@@ -2007,6 +2025,7 @@ export function useWhiteboard() {
     searchHitSet,
     sourceFileName,
     boardSourceLabel,
+    canResetBoard,
     resetToBuiltInBoard,
     saveJson,
     loadJson,
@@ -2032,6 +2051,7 @@ export function useWhiteboard() {
     setSnap,
     setStatus,
     setFastRoute,
+    setSkipRoute,
     setViewport,
   };
 }

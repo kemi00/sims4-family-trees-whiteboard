@@ -15,7 +15,7 @@ import {
   TreeStructure,
   UserPlus,
   UsersThree,
-} from '@phosphor-icons/react';
+} from '../icons.ts';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
@@ -366,6 +366,7 @@ export function AppBar({
           wb.loadJson(f, w, h);
         }}
         onLoadSave={(f) => wb.previewSave(f)}
+        canResetBoard={wb.canResetBoard}
         onResetBuiltIn={() => {
           const { w, h } = svgSize();
           wb.resetToBuiltInBoard(w, h);

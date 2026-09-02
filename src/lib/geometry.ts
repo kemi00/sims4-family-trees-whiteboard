@@ -17,7 +17,14 @@ import {
   WORLD_TAG_NORMAL_ZOOM,
   WORLD_TAG_PILL_H,
   WORLD_TAG_ZOOM_OUT_MAX,
+  ZOOM_MAX,
+  ZOOM_MIN,
 } from './constants.ts';
+import {
+  nodesForGid,
+  nodesForWorld,
+  type NodeBuckets,
+} from './nodeIndex.ts';
 import { LAYOUT } from './layout.ts';
 import type {
   BuildRectsResult,
@@ -180,8 +187,9 @@ export function hhBoxDraw(
   nodes: SimNode[],
   groups: Group[],
   packVis: (n: SimNode) => boolean,
+  buckets?: NodeBuckets,
 ): HhBoxDraw | null {
-  const mem = nodes.filter((n) => n.gid === gid && packVis(n));
+  const mem = nodesForGid(gid, nodes, buckets).filter(packVis);
   const chrome = householdChrome(
     mem,
     groups.find((g) => g.gid === gid),
@@ -201,10 +209,11 @@ export function worldFrame(
   nodes: SimNode[],
   groups: Group[],
   packVis: (n: SimNode) => boolean,
+  buckets?: NodeBuckets,
 ): HhBoxDraw | null {
   const gids = new Set<string>();
-  for (const n of nodes) {
-    if (n.world !== world || !packVis(n)) continue;
+  for (const n of nodesForWorld(world, nodes, buckets)) {
+    if (!packVis(n)) continue;
     gids.add(n.gid);
   }
   let x0 = 1e9;
@@ -213,7 +222,7 @@ export function worldFrame(
   let y1 = -1e9;
   let any = false;
   for (const gid of gids) {
-    const bx = hhBoxDraw(gid, nodes, groups, packVis);
+    const bx = hhBoxDraw(gid, nodes, groups, packVis, buckets);
     if (!bx) continue;
     any = true;
     x0 = Math.min(x0, bx.l);
@@ -271,15 +280,36 @@ export function worldTagMetrics(k: number): {
   };
 }
 
+/** World names on `next` that no node in `prev` lived in. */
+export function introducedWorldNames(
+  prev: Iterable<SimNode>,
+  next: Iterable<SimNode>,
+): Set<string> {
+  const had = new Set<string>();
+  for (const n of prev) {
+    if (n.world && n.world !== '—') had.add(n.world);
+  }
+  const out = new Set<string>();
+  for (const n of next) {
+    if (n.world && n.world !== '—' && !had.has(n.world)) out.add(n.world);
+  }
+  return out;
+}
+
 /**
- * Nudge whole worlds apart until drawn frames no longer overlap.
- * Prefers pushing the lower/righter world by whole tiles. Mutates a copy.
+ * Platform packing only: nudge world frames so the packer does not stack one
+ * world on another. Never run this after a user drag — the user may overlap
+ * worlds on purpose, and shoving everyone else is the Word-doc failure mode.
+ *
+ * When `movableWorlds` is set, only those worlds may be pushed (a save-import
+ * world that landed on a user-placed one). User-stacked pairs are left alone.
  */
 export function separateOverlappingWorldFrames(
   nodes: SimNode[],
   groups: Group[],
   packVis: (n: SimNode) => boolean = () => true,
   gap: number = TILE,
+  movableWorlds?: ReadonlySet<string>,
 ): SimNode[] {
   const names = [
     ...new Set(
@@ -303,12 +333,21 @@ export function separateOverlappingWorldFrames(
         const A = frames[i]!;
         const B = frames[j]!;
         if (!framesOverlap(A.f, B.f)) continue;
+        const aMov = !movableWorlds || movableWorlds.has(A.w);
+        const bMov = !movableWorlds || movableWorlds.has(B.w);
+        if (!aMov && !bMov) continue;
         const aCy = (A.f.t + A.f.b) / 2;
         const bCy = (B.f.t + B.f.b) / 2;
         const aCx = (A.f.l + A.f.r) / 2;
         const bCx = (B.f.l + B.f.r) / 2;
         const moveName =
-          bCy > aCy || (bCy === aCy && bCx >= aCx) ? B.w : A.w;
+          aMov && !bMov
+            ? A.w
+            : bMov && !aMov
+              ? B.w
+              : bCy > aCy || (bCy === aCy && bCx >= aCx)
+                ? B.w
+                : A.w;
         const stay = moveName === B.w ? A.f : B.f;
         const mov = moveName === B.w ? B.f : A.f;
         const dxNeed = stay.r - mov.l + gap;
@@ -345,8 +384,15 @@ export function coreOffsetsAfterWorldSeparation(
   laid: SimNode[],
   groups: Group[],
   packVis: (n: SimNode) => boolean = () => true,
+  movableWorlds?: ReadonlySet<string>,
 ): SimNode[] {
-  const separated = separateOverlappingWorldFrames(laid, groups, packVis);
+  const separated = separateOverlappingWorldFrames(
+    laid,
+    groups,
+    packVis,
+    TILE,
+    movableWorlds,
+  );
   const before = new Map(laid.map((n) => [n.id, n]));
   const after = new Map(separated.map((n) => [n.id, n]));
   let changed = false;
@@ -390,6 +436,27 @@ export function viewportWorldRect(
     t: -ty / k,
     r: (svgWidth - tx) / k,
     b: (svgHeight - ty) / k,
+  };
+}
+
+/** Zoom toward a screen point, keeping that world point under the cursor. */
+export function zoomViewportAt(
+  v: Viewport,
+  f: number,
+  cx: number,
+  cy: number,
+  svgRect: DOMRect,
+  zoomMin = ZOOM_MIN,
+  zoomMax = ZOOM_MAX,
+): Viewport {
+  const nk = Math.min(zoomMax, Math.max(zoomMin, v.k * f));
+  if (nk === v.k) return v;
+  const mx = cx - svgRect.left;
+  const my = cy - svgRect.top;
+  return {
+    k: nk,
+    tx: mx - (mx - v.tx) * (nk / v.k),
+    ty: my - (my - v.ty) * (nk / v.k),
   };
 }
 
