@@ -1,9 +1,16 @@
 {
  "entries": [
   {
+   "sha": "5e9e744",
+   "date": "2026-09-02",
+   "text": "Log the tooltip fix and the plain-language rewrite.",
+   "hidden": true
+  },
+  {
    "sha": "5773673",
    "date": "2026-09-02",
-   "text": "Rewrite this list in plain language, and drop the entries that only mean something to a programmer."
+   "text": "Rewrite this list in plain language, and drop the entries that only mean something to a programmer.",
+   "hidden": true
   },
   {
    "sha": "6296e0a",
