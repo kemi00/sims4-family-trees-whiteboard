@@ -1,5 +1,4 @@
-import { Warning } from '@phosphor-icons/react/Warning';
-import { X } from '@phosphor-icons/react/X';
+import { Warning, X } from '../icons.ts';
 import { useEffect, useMemo, useRef } from 'react';
 import { formatDay, groupByDay, type ChangelogEntry } from '../lib/changelog.ts';
 import { REPO_URL } from '../lib/credits.ts';

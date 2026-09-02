@@ -1,4 +1,4 @@
-import { Warning } from '@phosphor-icons/react/Warning';
+import { Warning } from '../icons.ts';
 import type { LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 
 type Props = {
