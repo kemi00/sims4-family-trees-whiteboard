@@ -1494,7 +1494,7 @@ export function useWhiteboard() {
     );
   }, [pendingLoadJson, applyLoadedJson]);
 
-  const confirmMergeJson = useCallback(() => {
+  const confirmMergeJson = useCallback((keepBoardPositions: boolean) => {
     const pending = pendingLoadJson;
     if (!pending) return;
     try {
@@ -1517,6 +1517,7 @@ export function useWhiteboard() {
           incomingNodes: prepared.nodes,
           incomingEdges,
           incomingGroups: (d.groups as Group[]) ?? [],
+          keepBoardPositions,
         });
         setNodesCore(merged.nodes);
         setEdges(merged.edges);

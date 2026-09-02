@@ -264,7 +264,9 @@ export default function App() {
             willRepack={wb.pendingLoadJson.willRepack}
             onDownload={wb.saveJson}
             onCancel={wb.cancelLoadJson}
-            onMerge={wb.confirmMergeJson}
+            onMerge={(keepBoardPositions) =>
+              wb.confirmMergeJson(keepBoardPositions)
+            }
             onReplace={wb.confirmReplaceJson}
           />
         )}

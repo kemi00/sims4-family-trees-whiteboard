@@ -9,7 +9,7 @@ type Props = {
   willRepack: boolean;
   onDownload: () => void;
   onCancel: () => void;
-  onMerge: () => void;
+  onMerge: (keepBoardPositions: boolean) => void;
   onReplace: () => void;
 };
 
@@ -28,6 +28,7 @@ export function LoadJsonDialog({
   onReplace,
 }: Props) {
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
+  const [keepBoardPositions, setKeepBoardPositions] = useState(true);
 
   return (
     <div
@@ -55,38 +56,78 @@ export function LoadJsonDialog({
         )}
         <fieldset className="save-import__choices">
           <legend className="save-import__lead">What to do</legend>
-          <label className="save-import__choice">
-            <input
-              type="radio"
-              name="load-json-mode"
-              checked={mode === 'merge'}
-              onChange={() => setMode('merge')}
-            />
-            <span className="save-import__choice-body">
-              <b>Merge into this board</b>
-              <span className="save-import__choice-note">
-                Updates matching sims and links and keeps your layout. When the
-                same pair disagrees, the JSON wins.
+          <div className="save-import__choice">
+            <label className="save-import__choice-row">
+              <input
+                type="radio"
+                name="load-json-mode"
+                checked={mode === 'merge'}
+                onChange={() => setMode('merge')}
+              />
+              <span className="save-import__choice-body">
+                <b>Merge into this board</b>
+                <span className="save-import__choice-note">
+                  Updates matching sims and links and keeps your layout. When the
+                  same pair disagrees, the JSON wins.
+                </span>
+                <ul className="save-import__stats">
+                  <li>
+                    <b>{risk.fromSaveCards}</b> cards from a save merge stay
+                  </li>
+                  <li>
+                    <b>{risk.saveLinks}</b> save links (gray) ·{' '}
+                    <b>{risk.plannedLinks}</b> planned (violet)
+                  </li>
+                  <li>
+                    <b>{risk.editorAdds}</b> editor-added sims stay
+                  </li>
+                  <li>
+                    {risk.hasUndo
+                      ? 'Undo history is kept'
+                      : 'No undo history on this board'}
+                  </li>
+                </ul>
               </span>
-              <ul className="save-import__stats">
-                <li>
-                  <b>{risk.fromSaveCards}</b> cards from a save merge stay
-                </li>
-                <li>
-                  <b>{risk.saveLinks}</b> save links (gray) ·{' '}
-                  <b>{risk.plannedLinks}</b> planned (violet)
-                </li>
-                <li>
-                  <b>{risk.editorAdds}</b> editor-added sims stay
-                </li>
-                <li>
-                  {risk.hasUndo
-                    ? 'Undo history is kept'
-                    : 'No undo history on this board'}
-                </li>
-              </ul>
-            </span>
-          </label>
+            </label>
+            {mode === 'merge' &&
+              (willRepack ? (
+                <p className="save-import__subchoice-note">
+                  The file's positions cannot be used — see the note above.
+                </p>
+              ) : (
+                <fieldset className="save-import__subchoice">
+                  <legend className="save-import__lead">Card positions</legend>
+                  <label className="save-import__choice">
+                    <input
+                      type="radio"
+                      name="load-json-positions"
+                      checked={keepBoardPositions}
+                      onChange={() => setKeepBoardPositions(true)}
+                    />
+                    <span className="save-import__choice-body">
+                      <b>Keep the ones on this board</b>
+                      <span className="save-import__choice-note">
+                        Matched cards stay where you have them.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="save-import__choice">
+                    <input
+                      type="radio"
+                      name="load-json-positions"
+                      checked={!keepBoardPositions}
+                      onChange={() => setKeepBoardPositions(false)}
+                    />
+                    <span className="save-import__choice-body">
+                      <b>Use the ones in the file</b>
+                      <span className="save-import__choice-note">
+                        Matched cards move to the file's placements.
+                      </span>
+                    </span>
+                  </label>
+                </fieldset>
+              ))}
+          </div>
           <label className="save-import__choice">
             <input
               type="radio"
@@ -116,7 +157,11 @@ export function LoadJsonDialog({
           <button
             type="button"
             className="save-import__ok"
-            onClick={mode === 'merge' ? onMerge : onReplace}
+            onClick={
+              mode === 'merge'
+                ? () => onMerge(willRepack ? true : keepBoardPositions)
+                : onReplace
+            }
           >
             Proceed
           </button>

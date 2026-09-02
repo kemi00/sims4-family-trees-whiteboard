@@ -91,11 +91,28 @@ describe('mergeJsonIntoBoard', () => {
     assert.equal(unions.length, 1);
     assert.equal(unions[0]!.type, 'divorced');
     assert.ok(result.summary.relationshipsOverwritten >= 1);
-    // Board placement + fromSave preserved on match.
+    // Default: board placement + fromSave preserved on match.
     const b = result.nodes.find((n) => n.id === bella.id)!;
     assert.equal(b.ox, 100);
     assert.equal(b.oy, 50);
     assert.equal(b.fromSave, true);
+
+    const filePositions = mergeJsonIntoBoard({
+      boardNodes: [bella, mort],
+      boardEdges,
+      boardGroups: groups,
+      incomingNodes: [
+        node('Bella Goth', { ox: 7, oy: 9 }),
+        node('Mortimer Goth', { gender: 'Male', ox: 0, oy: 0 }),
+      ],
+      incomingEdges,
+      incomingGroups: groups,
+      keepBoardPositions: false,
+    });
+    const bFile = filePositions.nodes.find((n) => n.id === bella.id)!;
+    assert.equal(bFile.ox, 7);
+    assert.equal(bFile.oy, 9);
+    assert.equal(bFile.fromSave, true);
   });
 
   it('keeps board-only planned links and adds JSON-only sims/links', () => {

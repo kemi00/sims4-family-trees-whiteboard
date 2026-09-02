@@ -35,7 +35,8 @@ function edgePairKey(e: Edge): string {
  * Conflict policy — incoming JSON wins for the same sim pair's partner
  * relationship (marriage / romance / divorced). Example: board married +
  * JSON divorced → divorced. Board-only links that the JSON does not
- * contradict are kept. Matched cards keep board ox/oy and fromSave marks.
+ * contradict are kept. Matched cards keep fromSave marks; ox/oy follow
+ * `keepBoardPositions` (true by default — board placement wins).
  */
 export function mergeJsonIntoBoard(input: {
   boardNodes: SimNode[];
@@ -44,7 +45,10 @@ export function mergeJsonIntoBoard(input: {
   incomingNodes: SimNode[];
   incomingEdges: Edge[];
   incomingGroups: Group[];
+  /** When true (default), matched cards keep the board's ox/oy. When false, they take the file's. */
+  keepBoardPositions?: boolean;
 }): JsonMergeResult {
+  const keepPos = input.keepBoardPositions !== false;
   const boardById = new Map(input.boardNodes.map((n) => [n.id, n]));
   const incomingById = new Map(input.incomingNodes.map((n) => [n.id, n]));
 
@@ -62,9 +66,8 @@ export function mergeJsonIntoBoard(input: {
     const core = toCore(inc);
     nodes.push({
       ...core,
-      // Keep hand placement and save-merge marks from the live board.
-      ox: board.ox ?? 0,
-      oy: board.oy ?? 0,
+      ox: keepPos ? (board.ox ?? 0) : (core.ox ?? 0),
+      oy: keepPos ? (board.oy ?? 0) : (core.oy ?? 0),
       fromSave: board.fromSave || core.fromSave,
       saveSimId: board.saveSimId ?? core.saveSimId,
       added: board.added && !core.fromSave ? board.added : core.added,
