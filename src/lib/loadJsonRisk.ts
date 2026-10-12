@@ -63,3 +63,78 @@ export function loadJsonRisk(
     sourceLabel,
   };
 }
+
+/** Game and playability filters plus age/single highlights, as a board file saves them. */
+export type BoardFilters = {
+  hiddenPacks: string[];
+  hiddenPlay: string[];
+  hiAges: string[];
+  hiSingle: boolean;
+};
+
+/**
+ * The filters a board file carries, or null when it has none (older exports).
+ * A file with no opinion must not wipe the filters on screen.
+ */
+export function fileFilters(d: {
+  hiddenPacks?: unknown;
+  hiddenPlay?: unknown;
+  hiAges?: unknown;
+  hiSingle?: unknown;
+}): BoardFilters | null {
+  if (
+    d.hiddenPacks === undefined &&
+    d.hiddenPlay === undefined &&
+    d.hiAges === undefined &&
+    d.hiSingle === undefined
+  ) {
+    return null;
+  }
+  const list = (v: unknown) =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  return {
+    hiddenPacks: list(d.hiddenPacks),
+    hiddenPlay: list(d.hiddenPlay),
+    hiAges: list(d.hiAges),
+    hiSingle: d.hiSingle === true,
+  };
+}
+
+const sameSet = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((x) => b.includes(x));
+
+const count = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`;
+
+/**
+ * One plain sentence for the Load JSON dialog on how a merge would change the
+ * filters on screen, or null when it would leave them as they are.
+ */
+export function filterChangeNote(
+  board: BoardFilters,
+  file: BoardFilters | null,
+): string | null {
+  if (
+    !file ||
+    (sameSet(board.hiddenPacks, file.hiddenPacks) &&
+      sameSet(board.hiddenPlay, file.hiddenPlay) &&
+      sameSet(board.hiAges, file.hiAges) &&
+      board.hiSingle === file.hiSingle)
+  ) {
+    return null;
+  }
+  const hides = [
+    file.hiddenPacks.length && count(file.hiddenPacks.length, 'game', 'games'),
+    file.hiddenPlay.length &&
+      count(file.hiddenPlay.length, 'playability type', 'playability types'),
+  ].filter(Boolean);
+  const highlights = [
+    file.hiAges.length && count(file.hiAges.length, 'age', 'ages'),
+    file.hiSingle && 'single sims',
+  ].filter(Boolean);
+  const parts = [
+    hides.length ? `hides ${hides.join(' and ')}` : 'shows every game',
+    highlights.length ? `highlights ${highlights.join(' and ')}` : null,
+  ].filter(Boolean);
+  return `Your filters switch to the file's: it ${parts.join(', ')}.`;
+}

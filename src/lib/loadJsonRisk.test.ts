@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { loadJsonRisk } from './loadJsonRisk.ts';
+import { fileFilters, filterChangeNote, loadJsonRisk } from './loadJsonRisk.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
 function node(partial: Partial<SimNode> & { id: string }): SimNode {
@@ -97,6 +97,40 @@ describe('loadJsonRisk', () => {
         fromBrowserDraft: true,
       }).needsConfirm,
       true,
+    );
+  });
+});
+
+describe('JSON merge filters', () => {
+  const none = { hiddenPacks: [], hiddenPlay: [], hiAges: [], hiSingle: false };
+
+  it('treats a file without filter fields as having no opinion', () => {
+    assert.equal(fileFilters({}), null);
+    assert.equal(filterChangeNote({ ...none, hiddenPacks: ['Get Famous'] }, null), null);
+  });
+
+  it('says nothing when the file matches the board, in any order', () => {
+    const board = { ...none, hiddenPacks: ['A', 'B'] };
+    assert.equal(filterChangeNote(board, { ...none, hiddenPacks: ['B', 'A'] }), null);
+  });
+
+  it('spells out what the file hides and highlights', () => {
+    const file = fileFilters({
+      hiddenPacks: ['Get Famous', 'Seasons', 'Vampires'],
+      hiddenPlay: ['Townie'],
+      hiAges: ['Teen', 'Child'],
+      hiSingle: true,
+    });
+    assert.equal(
+      filterChangeNote(none, file),
+      "Your filters switch to the file's: it hides 3 games and 1 playability type, highlights 2 ages and single sims.",
+    );
+  });
+
+  it('warns when merging would clear the filters on screen', () => {
+    assert.equal(
+      filterChangeNote({ ...none, hiddenPacks: ['Seasons'] }, fileFilters({ hiddenPacks: [] })),
+      "Your filters switch to the file's: it shows every game.",
     );
   });
 });

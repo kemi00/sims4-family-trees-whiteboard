@@ -81,13 +81,13 @@ export function pinCoreToTargets(
 }
 
 /**
- * Where each card should sit after a JSON merge. A merge can add sims and
- * links, which moves layout bases, so raw ox/oy alone would make cards jump.
- * Board cards stay where they are on screen. With the file's positions, every
- * card in the file goes where the file shows it. When the board's positions
- * win, sims new to the board keep their packed spot in the merged layout.
+ * Where each card should sit after a JSON merge or replace. Loading can add
+ * sims and links, which moves layout bases, so raw ox/oy alone would make
+ * cards jump. When the board's positions win, sims already on the board stay
+ * where they are on screen and sims new to it keep their packed spot. With the
+ * file's positions, every card in the file goes where the file shows it.
  */
-export function jsonMergeTargets(opts: {
+export function jsonLoadTargets(opts: {
   keepBoardPositions: boolean;
   boardVisualById: Record<string, Point>;
   fileCore: SimNode[];

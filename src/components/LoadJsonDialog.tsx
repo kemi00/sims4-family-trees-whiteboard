@@ -7,10 +7,12 @@ type Props = {
   pendingFileName: string;
   /** File predates the current layout, so its card placements cannot be kept. */
   willRepack: boolean;
+  /** How merging would change the filters on screen; null when it would not. */
+  filtersNote: string | null;
   onDownload: () => void;
   onCancel: () => void;
   onMerge: (keepBoardPositions: boolean) => void;
-  onReplace: () => void;
+  onReplace: (keepBoardPositions: boolean) => void;
 };
 
 /**
@@ -22,13 +24,17 @@ export function LoadJsonDialog({
   risk,
   pendingFileName,
   willRepack,
+  filtersNote,
   onDownload,
   onCancel,
   onMerge,
   onReplace,
 }: Props) {
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
+  // Each mode remembers its own choice. Merge keeps your layout by default;
+  // Replace means "the file on its own", so it starts with the file's layout.
   const [keepBoardPositions, setKeepBoardPositions] = useState(true);
+  const [keepOnReplace, setKeepOnReplace] = useState(false);
 
   return (
     <div
@@ -86,6 +92,7 @@ export function LoadJsonDialog({
                       ? 'Undo history is kept'
                       : 'No undo history on this board'}
                   </li>
+                  {filtersNote && <li>{filtersNote}</li>}
                 </ul>
               </span>
             </label>
@@ -128,22 +135,72 @@ export function LoadJsonDialog({
                 </fieldset>
               ))}
           </div>
-          <label className="save-import__choice">
-            <input
-              type="radio"
-              name="load-json-mode"
-              checked={mode === 'replace'}
-              onChange={() => setMode('replace')}
-            />
-            <span className="save-import__choice-body">
-              <b>Replace this board</b>
-              <span className="save-import__choice-note">
-                Discards the current board (<b>{risk.sourceLabel}</b>) and loads
-                the file on its own
-                {risk.hasUndo ? ', clearing the undo history' : ''}.
+          <div className="save-import__choice">
+            <label className="save-import__choice-row">
+              <input
+                type="radio"
+                name="load-json-mode"
+                checked={mode === 'replace'}
+                onChange={() => setMode('replace')}
+              />
+              <span className="save-import__choice-body">
+                <b>Replace this board</b>
+                <span className="save-import__choice-note">
+                  Discards the current board (<b>{risk.sourceLabel}</b>) and
+                  loads the file on its own
+                  {risk.hasUndo ? ', clearing the undo history' : ''}.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+            {mode === 'replace' && (
+              <fieldset className="save-import__subchoice">
+                <legend className="save-import__lead">Card positions</legend>
+                <label className="save-import__choice">
+                  <input
+                    type="radio"
+                    name="load-json-replace-positions"
+                    checked={keepOnReplace}
+                    onChange={() => setKeepOnReplace(true)}
+                  />
+                  <span className="save-import__choice-body">
+                    <b>Keep the ones on this board</b>
+                    <span className="save-import__choice-note">
+                      Sims already on this board stay where you have them.
+                      {willRepack
+                        ? ' Everyone else is laid out automatically.'
+                        : ' Everyone else goes where the file puts them.'}
+                    </span>
+                  </span>
+                </label>
+                <label className="save-import__choice">
+                  <input
+                    type="radio"
+                    name="load-json-replace-positions"
+                    checked={!keepOnReplace}
+                    onChange={() => setKeepOnReplace(false)}
+                  />
+                  <span className="save-import__choice-body">
+                    {willRepack ? (
+                      <>
+                        <b>Lay everything out automatically</b>
+                        <span className="save-import__choice-note">
+                          The file is too old to keep its positions — see the
+                          note above.
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <b>Use the ones in the file</b>
+                        <span className="save-import__choice-note">
+                          The board looks exactly like the file.
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </label>
+              </fieldset>
+            )}
+          </div>
         </fieldset>
         <p className="save-import__backup">
           <button type="button" className="save-import__text-btn" onClick={onDownload}>
@@ -160,7 +217,7 @@ export function LoadJsonDialog({
             onClick={
               mode === 'merge'
                 ? () => onMerge(willRepack ? true : keepBoardPositions)
-                : onReplace
+                : () => onReplace(keepOnReplace)
             }
           >
             Proceed

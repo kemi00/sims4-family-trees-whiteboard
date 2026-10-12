@@ -273,12 +273,15 @@ export default function App() {
             risk={wb.pendingLoadJson.risk}
             pendingFileName={wb.pendingLoadJson.file.name}
             willRepack={wb.pendingLoadJson.willRepack}
+            filtersNote={wb.pendingLoadJson.filtersNote}
             onDownload={wb.saveJson}
             onCancel={wb.cancelLoadJson}
             onMerge={(keepBoardPositions) =>
               wb.confirmMergeJson(keepBoardPositions)
             }
-            onReplace={wb.confirmReplaceJson}
+            onReplace={(keepBoardPositions) =>
+              wb.confirmReplaceJson(keepBoardPositions)
+            }
           />
         )}
       </div>

@@ -11,8 +11,8 @@ import {
   writeDraft,
 } from '../lib/autosave.ts';
 import { trackAction } from '../lib/analytics.ts';
-import { jsonMergeTargets, pinCoreToTargets, prepareLoadedNodes, shouldRepackOffsets } from '../lib/loadLayout.ts';
-import { loadJsonRisk, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
+import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, shouldRepackOffsets } from '../lib/loadLayout.ts';
+import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import {
   bbox,
@@ -108,6 +108,8 @@ type BoardSnap = {
   householdAgeUps: HouseholdAgeUp[];
   deceasedMarks: DeceasedMark[];
   simAgeUps: SimAgeUp[];
+  /** Set only by actions that change filters, so only their undo restores them. */
+  filters?: BoardFilters;
 };
 
 /** Fields that change packing (generation rows, household tiles, world columns). */
@@ -230,6 +232,8 @@ export function useWhiteboard() {
     risk: LoadJsonRisk;
     /** File is too old to restore card placements; the board gets re-packed. */
     willRepack: boolean;
+    /** How merging would change the filters on screen; null when it would not. */
+    filtersNote: string | null;
   } | null>(null);
   const [searchHits, setSearchHits] = useState<string[]>([]);
   const [searchHitIndex, setSearchHitIndex] = useState(0);
@@ -469,7 +473,7 @@ export function useWhiteboard() {
     return () => clearTimeout(t);
   }, [persistPayload, flashStatus, seed]);
 
-  const pushUndo = useCallback(() => {
+  const pushUndo = useCallback((opts?: { filters?: boolean }) => {
     undoRef.current.push({
       nodesCore: nodesCore.map((n) => ({ ...n })),
       edges: edges.map((e) => ({ ...e })),
@@ -478,9 +482,17 @@ export function useWhiteboard() {
       householdAgeUps: householdAgeUps.map((a) => ({ ...a })),
       deceasedMarks: deceasedMarks.map((d) => ({ ...d })),
       simAgeUps: simAgeUps.map((a) => ({ ...a })),
+      filters: opts?.filters
+        ? {
+            hiddenPacks: [...hiddenPacks],
+            hiddenPlay: [...hiddenPlay],
+            hiAges: [...hiAges],
+            hiSingle,
+          }
+        : undefined,
     });
     setCanUndo(true);
-  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps]);
+  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, hiddenPacks, hiddenPlay, hiAges, hiSingle]);
 
   const undo = useCallback(() => {
     const prev = undoRef.current.pop();
@@ -492,6 +504,12 @@ export function useWhiteboard() {
     setHouseholdAgeUps(prev.householdAgeUps);
     setDeceasedMarks(prev.deceasedMarks);
     setSimAgeUps(prev.simAgeUps);
+    if (prev.filters) {
+      setHiddenPacks(new Set(prev.filters.hiddenPacks));
+      setHiddenPlay(new Set(prev.filters.hiddenPlay));
+      setHiAges(new Set(prev.filters.hiAges));
+      setHiSingle(prev.filters.hiSingle);
+    }
     setCanUndo(undoRef.current.length > 0);
     setSel(null);
     setEditNodeId(null);
@@ -1376,7 +1394,13 @@ export function useWhiteboard() {
   }, [persistPayload]);
 
   const applyLoadedJson = useCallback(
-    (file: File, text: string, svgWidth: number, svgHeight: number) => {
+    (
+      file: File,
+      text: string,
+      svgWidth: number,
+      svgHeight: number,
+      keepBoardPositions = false,
+    ) => {
       try {
         const parsed = JSON.parse(text) as WhiteboardData & {
           layoutEpoch?: number;
@@ -1389,7 +1413,21 @@ export function useWhiteboard() {
           worlds,
           loadedEdges,
         );
-        setNodesCore(prepared.nodes);
+        const loadedCore = keepBoardPositions
+          ? pinCoreToTargets(
+              jsonLoadTargets({
+                keepBoardPositions: true,
+                boardVisualById: byid,
+                fileCore: prepared.nodes,
+                fileEdges: loadedEdges,
+                worlds,
+              }),
+              prepared.nodes,
+              worlds,
+              loadedEdges,
+            )
+          : prepared.nodes;
+        setNodesCore(loadedCore);
         setEdges(loadedEdges);
         const loadedMoves = d.householdMoves ?? [];
         const loadedAgeUps = d.householdAgeUps ?? [];
@@ -1428,7 +1466,11 @@ export function useWhiteboard() {
         setFromBrowserDraft(false);
         setPendingLoadJson(null);
         trackAction('/action/load-json');
-        if (prepared.repacked) {
+        if (keepBoardPositions) {
+          flashStatus(
+            `Loaded ${file.name} — sims already on the board kept their positions.`,
+          );
+        } else if (prepared.repacked) {
           flashStatus(
             'Older save — board re-packed for the current layout. Download JSON to keep it.',
           );
@@ -1436,8 +1478,24 @@ export function useWhiteboard() {
           flashStatus(`Loaded ${file.name}`);
         }
         setTimeout(() => {
-          // Fresh pack only. A loaded board may have user-overlapped worlds.
-          if (prepared.repacked) {
+          // Kept positions: only worlds the file brings in may be nudged apart.
+          if (keepBoardPositions) {
+            setNodesCore((core) => {
+              const movable = introducedWorldNames(nodesCore, core);
+              if (!movable.size) return core;
+              const laid = snap
+                ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
+                : computeLayout(core, worlds, loadedEdges);
+              return coreOffsetsAfterWorldSeparation(
+                core,
+                laid,
+                (d.groups as Group[]) ?? groups,
+                () => true,
+                movable,
+              );
+            });
+          } else if (prepared.repacked) {
+            // Fresh pack only. A loaded board may have user-overlapped worlds.
             setNodesCore((core) => {
               const laid = snap
                 ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
@@ -1457,7 +1515,7 @@ export function useWhiteboard() {
         setPendingLoadJson(null);
       }
     },
-    [fit, snap, worlds, groups, flashStatus],
+    [fit, snap, worlds, groups, byid, nodesCore, flashStatus],
   );
 
   /**
@@ -1471,9 +1529,21 @@ export function useWhiteboard() {
       rd.onload = () => {
         const text = String(rd.result ?? '');
         let willRepack = false;
+        let filtersNote: string | null = null;
         try {
-          const { layoutEpoch } = JSON.parse(text) as { layoutEpoch?: number };
-          willRepack = shouldRepackOffsets(layoutEpoch);
+          const parsed = JSON.parse(text) as Parameters<typeof fileFilters>[0] & {
+            layoutEpoch?: number;
+          };
+          willRepack = shouldRepackOffsets(parsed.layoutEpoch);
+          filtersNote = filterChangeNote(
+            {
+              hiddenPacks: [...hiddenPacks],
+              hiddenPlay: [...hiddenPlay],
+              hiAges: [...hiAges],
+              hiSingle,
+            },
+            fileFilters(parsed),
+          );
         } catch {
           // Unparseable — applyLoadedJson reports it.
         }
@@ -1490,6 +1560,7 @@ export function useWhiteboard() {
             svgHeight,
             risk,
             willRepack,
+            filtersNote,
           });
           return;
         }
@@ -1503,13 +1574,17 @@ export function useWhiteboard() {
       canUndo,
       sourceFileName,
       fromBrowserDraft,
+      hiddenPacks,
+      hiddenPlay,
+      hiAges,
+      hiSingle,
       applyLoadedJson,
     ],
   );
 
   const cancelLoadJson = useCallback(() => setPendingLoadJson(null), []);
 
-  const confirmReplaceJson = useCallback(() => {
+  const confirmReplaceJson = useCallback((keepBoardPositions: boolean) => {
     const pending = pendingLoadJson;
     if (!pending) return;
     applyLoadedJson(
@@ -1517,6 +1592,7 @@ export function useWhiteboard() {
       pending.text,
       pending.svgWidth,
       pending.svgHeight,
+      keepBoardPositions,
     );
   }, [pendingLoadJson, applyLoadedJson]);
 
@@ -1535,7 +1611,7 @@ export function useWhiteboard() {
           worlds,
           incomingEdges,
         );
-        pushUndo();
+        pushUndo({ filters: true });
         const merged = mergeJsonIntoBoard({
           boardNodes: nodesCore,
           boardEdges: edges,
@@ -1549,7 +1625,7 @@ export function useWhiteboard() {
         // positions rather than trusting the raw ox/oy the merge copied.
         setNodesCore(
           pinCoreToTargets(
-            jsonMergeTargets({
+            jsonLoadTargets({
               keepBoardPositions,
               boardVisualById: byid,
               fileCore: prepared.nodes,
@@ -1571,6 +1647,13 @@ export function useWhiteboard() {
             return extra.length ? [...prev, ...extra] : prev;
           });
         }
+        const incomingFilters = fileFilters(d);
+        if (pending.filtersNote && incomingFilters) {
+          setHiddenPacks(new Set(incomingFilters.hiddenPacks));
+          setHiddenPlay(new Set(incomingFilters.hiddenPlay));
+          setHiAges(new Set(incomingFilters.hiAges));
+          setHiSingle(incomingFilters.hiSingle);
+        }
         setSourceFileName(pending.file.name);
         setFromBrowserDraft(false);
         setPendingLoadJson(null);
@@ -1578,7 +1661,7 @@ export function useWhiteboard() {
         trackAction('/action/load-json');
         const s = merged.summary;
         flashStatus(
-          `JSON merged — ${s.nodesUpdated} updated, ${s.nodesAdded} added, ${s.relationshipsOverwritten} relationships overwritten. Download JSON to keep it.`,
+          `JSON merged — ${s.nodesUpdated} updated, ${s.nodesAdded} added, ${s.relationshipsOverwritten} relationships overwritten.${pending.filtersNote ? ' Filters now match the file.' : ''} Download JSON to keep it.`,
         );
         setTimeout(() => {
           setNodesCore((core) => {

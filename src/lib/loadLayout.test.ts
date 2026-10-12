@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { LAYOUT_EPOCH } from './constants.ts';
 import { computeLayout } from './layout.ts';
 import {
-  jsonMergeTargets,
+  jsonLoadTargets,
   pinCoreToTargets,
   prepareLoadedNodes,
   shouldRepackOffsets,
@@ -137,7 +137,7 @@ describe('JSON merge pinning', () => {
     });
     const boardVisualById = Object.fromEntries(at(board, boardEdges));
     const pinned = pinCoreToTargets(
-      jsonMergeTargets({ keepBoardPositions, boardVisualById, fileCore: file, fileEdges, worlds }),
+      jsonLoadTargets({ keepBoardPositions, boardVisualById, fileCore: file, fileEdges, worlds }),
       merged.nodes,
       worlds,
       merged.edges,
@@ -158,6 +158,28 @@ describe('JSON merge pinning', () => {
   it('leaves sims new to the board at their packed spot', () => {
     const { raw, pinned } = merge(true);
     assert.deepEqual(pinned.get('Gunther Goth'), raw.get('Gunther Goth'));
+  });
+
+  it('keeps board sims in place on a replace, and file-only sims where the file has them', () => {
+    const before = at(board, boardEdges);
+    const shown = at(file, fileEdges);
+    const replaced = at(
+      pinCoreToTargets(
+        jsonLoadTargets({
+          keepBoardPositions: true,
+          boardVisualById: Object.fromEntries(before),
+          fileCore: file,
+          fileEdges,
+          worlds,
+        }),
+        file,
+        worlds,
+        fileEdges,
+      ),
+      fileEdges,
+    );
+    for (const [id, p] of before) assert.deepEqual(replaced.get(id), p, id);
+    assert.deepEqual(replaced.get('Gunther Goth'), shown.get('Gunther Goth'));
   });
 
   it("puts every file card where the file shows it when the file's positions win", () => {
