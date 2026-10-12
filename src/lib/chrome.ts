@@ -2,18 +2,23 @@ import {
   CHROME_COMPACT_MAX_PX,
   CHROME_DROPDOWN_GAP_PX,
   CHROME_EDGE_PAD_PX,
+  CHROME_PANEL_SHEET_MAX_PX,
 } from './constants.ts';
 
 export function isCompactChrome(width = window.innerWidth): boolean {
   return width <= CHROME_COMPACT_MAX_PX;
 }
 
-/** Dropdown coords on desktop; bottom-sheet classing is CSS-only on compact. */
+export function isPanelSheet(width = window.innerWidth): boolean {
+  return width <= CHROME_PANEL_SHEET_MAX_PX;
+}
+
+/** Dropdown coords on desktop; bottom-sheet classing is CSS-only on narrow viewports. */
 export function panelPosition(
   anchorRect: DOMRect | null,
   widthPx: number,
 ): { left?: number; top?: number } | null {
-  if (isCompactChrome()) return {};
+  if (isPanelSheet()) return {};
   if (!anchorRect) return null;
   let left = anchorRect.left;
   if (left + widthPx > window.innerWidth) left = window.innerWidth - widthPx;

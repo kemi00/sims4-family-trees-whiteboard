@@ -1,5 +1,5 @@
 import { panelPosition } from '../lib/chrome.ts';
-import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 type Props = {
@@ -21,7 +21,7 @@ export function PlayabilityPanel({
   onAll,
   onNone,
 }: Props) {
-  const compact = useCompactChrome();
+  const sheet = usePanelSheet();
   const pos = panelPosition(anchorRect, 266);
   if (!pos) return null;
 
@@ -30,7 +30,7 @@ export function PlayabilityPanel({
   return (
     <div
       id="playability"
-      className={compact ? 'gpanel gpanel--sheet' : 'gpanel'}
+      className={sheet ? 'gpanel gpanel--sheet' : 'gpanel'}
       style={{ display: 'block', ...pos }}
     >
       <div className="gph">

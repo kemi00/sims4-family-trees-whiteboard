@@ -212,6 +212,9 @@ export const ADDED_HOUSEHOLD = '(added)';
 /** Phone chrome / bottom sheets. Keep the CSS `@media` in App.css in sync. */
 export const CHROME_COMPACT_MAX_PX = 640;
 
+/** Filter / log panels become full-width bottom sheets at or below this width. */
+export const CHROME_PANEL_SHEET_MAX_PX = 900;
+
 /** Inset from the viewport edge when clamping floating chrome. */
 export const CHROME_EDGE_PAD_PX = 6;
 

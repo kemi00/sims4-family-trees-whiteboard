@@ -2,7 +2,7 @@ import { ArrowsDownUp, X } from '../icons.ts';
 import { useMemo, useState } from 'react';
 import { CONNECTION_LOG_PANEL_W } from '../lib/constants.ts';
 import { panelPosition } from '../lib/chrome.ts';
-import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import {
   connectionLogRows,
   relDisplay,
@@ -81,7 +81,7 @@ export function ConnectionLogPanel({
   onFocusSim,
   onClose,
 }: Props) {
-  const compact = useCompactChrome();
+  const sheet = usePanelSheet();
   const pos = panelPosition(anchorRect, CONNECTION_LOG_PANEL_W);
   const [newestFirst, setNewestFirst] = useState(true);
   const [origin, setOrigin] = useState<'all' | 'planned' | 'save'>('all');
@@ -106,7 +106,7 @@ export function ConnectionLogPanel({
     <div
       id="connection-log"
       className={
-        compact
+        sheet
           ? 'gpanel connection-log gpanel--sheet'
           : 'gpanel connection-log'
       }

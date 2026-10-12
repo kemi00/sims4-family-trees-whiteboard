@@ -73,7 +73,7 @@ type Props = {
 
 /** Chrome on #stage that owns its own wheel (scroll), not board zoom. */
 const STAGE_WHEEL_SCROLL_SEL =
-  '#legend, .legend-chip, .editor, .menu, .bloodline-banner, .minimap';
+  '#legend, #hint, .legend-chip, .editor, .menu, .bloodline-banner, .minimap';
 
 export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const compact = useCompactChrome();

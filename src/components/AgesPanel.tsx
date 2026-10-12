@@ -1,6 +1,6 @@
 import { AGES_H, SPECIES, SPECIES_H } from '../lib/constants.ts';
 import { panelPosition } from '../lib/chrome.ts';
-import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { isPet, partneredIdSet } from '../lib/utils.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
@@ -27,7 +27,7 @@ export function AgesPanel({
   onToggleSingle,
   onClear,
 }: Props) {
-  const compact = useCompactChrome();
+  const sheet = usePanelSheet();
   const pos = panelPosition(anchorRect, 266);
   if (!pos) return null;
 
@@ -43,7 +43,7 @@ export function AgesPanel({
   return (
     <div
       id="ages"
-      className={compact ? 'gpanel gpanel--sheet' : 'gpanel'}
+      className={sheet ? 'gpanel gpanel--sheet' : 'gpanel'}
       style={{ display: 'block', ...pos }}
     >
       <div className="gph">
