@@ -1,6 +1,16 @@
 {
  "entries": [
   {
+   "sha": "bcfc43b",
+   "date": "2026-10-12",
+   "text": "Moving a sim on a big board is quicker: only the links near it are redrawn, not every link on the board."
+  },
+  {
+   "sha": "63db551",
+   "date": "2026-10-12",
+   "text": "Every child's line now reaches its parents. Lines no longer stop in mid-air when the parents aren't partners or when siblings sit to one side."
+  },
+  {
    "sha": "8ec0628",
    "date": "2026-10-12",
    "text": "Big boards pan and zoom more smoothly: only the part around your view is drawn, and it keeps up as you move."
