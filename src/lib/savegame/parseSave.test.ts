@@ -72,9 +72,13 @@ function refpackCompress(data: Uint8Array): Uint8Array {
   return Uint8Array.from(chunks);
 }
 
-function wrapDbpf(payload: Uint8Array): Uint8Array {
+/**
+ * One-resource DBPF. `compactGroup` writes the index the way late-2026 saves
+ * do: flags 0x2 and the shared group once, then 28-byte entries without it.
+ */
+function wrapDbpf(payload: Uint8Array, compactGroup = false): Uint8Array {
   const headerSize = 96;
-  const indexSize = 36;
+  const indexSize = compactGroup ? 4 + 4 + 28 : 4 + 32;
   const indexOff = headerSize + payload.byteLength;
   const buf = new Uint8Array(indexOff + indexSize);
   const view = new DataView(buf.buffer);
@@ -88,15 +92,21 @@ function wrapDbpf(payload: Uint8Array): Uint8Array {
   view.setUint32(0x2c, indexSize, true);
   view.setUint32(0x40, indexOff, true);
   buf.set(payload, headerSize);
-  view.setUint32(indexOff, 0, true);
-  view.setUint32(indexOff + 4, SAVE_GAME_DATA_TYPE, true);
-  view.setUint32(indexOff + 8, 0, true);
-  view.setUint32(indexOff + 12, 0, true);
-  view.setUint32(indexOff + 16, 1, true);
-  view.setUint32(indexOff + 20, headerSize, true);
-  view.setUint32(indexOff + 24, payload.byteLength, true);
-  view.setUint32(indexOff + 28, payload.byteLength, true);
-  view.setUint32(indexOff + 32, 0, true);
+  let at = indexOff;
+  const put = (v: number) => {
+    view.setUint32(at, v, true);
+    at += 4;
+  };
+  put(compactGroup ? 0x2 : 0); // index flags
+  if (compactGroup) put(0); // the shared group
+  put(SAVE_GAME_DATA_TYPE);
+  if (!compactGroup) put(0); // group
+  put(0); // instance high
+  put(1); // instance low
+  put(headerSize); // offset
+  put(payload.byteLength); // file size
+  put(payload.byteLength); // memory size
+  put(0); // compression code + committed
   return buf;
 }
 
@@ -136,7 +146,7 @@ function treeNode(self: number, ...edges: Uint8Array[]): Uint8Array {
 }
 
 /** Tiny DBPF + RefPack + protobuf save: two spouses and one child. */
-function tinySave(): Uint8Array {
+function tinySave(compactGroup = false): Uint8Array {
   const bob = simBlob({
     id: 1,
     householdId: 10,
@@ -178,7 +188,7 @@ function tinySave(): Uint8Array {
     encodeBytes(6, iggy),
     slot,
   );
-  return wrapDbpf(refpackCompress(data));
+  return wrapDbpf(refpackCompress(data), compactGroup);
 }
 
 /** Packed repeated varint field (how the game stores relationship bits). */
@@ -304,6 +314,19 @@ describe('parseSaveGame', () => {
     assert.ok(
       parsed.rels.some((r) => r.type === 'parent' && r.b === '3'),
     );
+  });
+
+  it('reads a save whose index writes the shared group once (late-2026 saves)', () => {
+    const compact = parseSaveGame(tinySave(true));
+    assert.deepEqual(compact, parseSaveGame(tinySave()));
+    assert.equal(compact.sims.length, 3);
+  });
+
+  it('still refuses index flags it does not know', () => {
+    const buf = tinySave();
+    const view = new DataView(buf.buffer);
+    view.setUint32(view.getUint32(0x40, true), 0x8, true);
+    assert.throws(() => parseSaveGame(buf), /index layout/);
   });
 
   it('round-trips RefPack on a protobuf blob', () => {
