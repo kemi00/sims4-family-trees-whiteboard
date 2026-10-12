@@ -1,4 +1,5 @@
 import { LAYOUT_EPOCH } from './constants.ts';
+import { computeLayout, layoutBases } from './layout.ts';
 import type { Edge, SimNode, World } from '../types/whiteboard.ts';
 
 /**
@@ -48,4 +49,58 @@ export function prepareLoadedNodes(
     };
   }
   return { nodes: nodesWithClearedOffsets(nodes), repacked: true };
+}
+
+type Point = { x: number; y: number };
+
+/** Screen top-left of every sim after layout + ox/oy on this node/edge set. */
+export function visualPositionsFromCore(
+  core: SimNode[],
+  worlds: World[],
+  edges: Edge[],
+): Map<string, Point> {
+  const m = new Map<string, Point>();
+  for (const n of computeLayout(core, worlds, edges)) m.set(n.id, { x: n.x, y: n.y });
+  return m;
+}
+
+/** Rewrite ox/oy so each targeted sim lands on its target under this layout. */
+export function pinCoreToTargets(
+  targets: Map<string, Point>,
+  core: SimNode[],
+  worlds: World[],
+  edges: Edge[],
+): SimNode[] {
+  const bases = layoutBases(core, worlds, edges);
+  return core.map((n) => {
+    const target = targets.get(n.id);
+    const base = bases.get(n.id);
+    if (!target || !base) return n;
+    return { ...n, ox: target.x - base.x, oy: target.y - base.y };
+  });
+}
+
+/**
+ * Where each card should sit after a JSON merge. A merge can add sims and
+ * links, which moves layout bases, so raw ox/oy alone would make cards jump.
+ * Board cards stay where they are on screen. With the file's positions, every
+ * card in the file goes where the file shows it. When the board's positions
+ * win, sims new to the board keep their packed spot in the merged layout.
+ */
+export function jsonMergeTargets(opts: {
+  keepBoardPositions: boolean;
+  boardVisualById: Record<string, Point>;
+  fileCore: SimNode[];
+  fileEdges: Edge[];
+  worlds: World[];
+}): Map<string, Point> {
+  const targets = new Map<string, Point>();
+  for (const [id, v] of Object.entries(opts.boardVisualById)) {
+    targets.set(id, { x: v.x, y: v.y });
+  }
+  if (!opts.keepBoardPositions) {
+    const filePos = visualPositionsFromCore(opts.fileCore, opts.worlds, opts.fileEdges);
+    for (const [id, p] of filePos) targets.set(id, p);
+  }
+  return targets;
 }

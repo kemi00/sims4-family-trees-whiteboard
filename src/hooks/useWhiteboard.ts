@@ -11,7 +11,7 @@ import {
   writeDraft,
 } from '../lib/autosave.ts';
 import { trackAction } from '../lib/analytics.ts';
-import { prepareLoadedNodes, shouldRepackOffsets } from '../lib/loadLayout.ts';
+import { jsonMergeTargets, pinCoreToTargets, prepareLoadedNodes, shouldRepackOffsets } from '../lib/loadLayout.ts';
 import { loadJsonRisk, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import {
@@ -1545,7 +1545,22 @@ export function useWhiteboard() {
           incomingGroups: (d.groups as Group[]) ?? [],
           keepBoardPositions,
         });
-        setNodesCore(merged.nodes);
+        // New sims and links move layout bases, so pin cards to real screen
+        // positions rather than trusting the raw ox/oy the merge copied.
+        setNodesCore(
+          pinCoreToTargets(
+            jsonMergeTargets({
+              keepBoardPositions,
+              boardVisualById: byid,
+              fileCore: prepared.nodes,
+              fileEdges: incomingEdges,
+              worlds,
+            }),
+            merged.nodes,
+            worlds,
+            merged.edges,
+          ),
+        );
         setEdges(merged.edges);
         setGroups(merged.groups);
         eidcRef.current = nextEidc(merged.edges, eidcRef.current);
@@ -1592,6 +1607,7 @@ export function useWhiteboard() {
     edges,
     groups,
     worlds,
+    byid,
     snap,
     pushUndo,
     flashStatus,
