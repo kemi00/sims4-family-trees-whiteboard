@@ -1,6 +1,16 @@
 {
  "entries": [
   {
+   "sha": "bff9d34",
+   "date": "2026-10-13",
+   "text": "When you load a file and keep your board positions, sims new to your board now fit in beside their family or world instead of landing on top of other households."
+  },
+  {
+   "sha": "9f43ddd",
+   "date": "2026-10-13",
+   "text": "Importing a save no longer piles households and worlds on top of each other. Sims who join a family already on the board sit with that family, and anything below moves down to make room."
+  },
+  {
    "sha": "9f9f748",
    "date": "2026-10-12",
    "text": "New Hide secrets filter: take secret lovers and secret parents off the board for spoiler-free screenshots. Nothing moves, and they come back when you turn it off."
