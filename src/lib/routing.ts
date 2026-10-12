@@ -4,7 +4,6 @@ import {
   edgeVisible,
   ptsClear,
   segClear,
-  segHit,
   unionGeom,
 } from './geometry.ts';
 import { isUserE, simplify, uKey } from './utils.ts';
@@ -85,6 +84,39 @@ export interface RoutingContext {
   rects: Rect[];
   rbands: Record<number, Rect[]>;
   fastRoute: boolean;
+  /**
+   * When set, grows to cover every area an obstacle query looks at, so a
+   * cached route knows which obstacle moves could change it.
+   */
+  probe?: Box;
+}
+
+type Box = { l: number; t: number; r: number; b: number };
+
+function seeArea(ctx: RoutingContext, l: number, t: number, r: number, b: number): void {
+  const p = ctx.probe;
+  if (!p) return;
+  if (l < p.l) p.l = l;
+  if (t < p.t) p.t = t;
+  if (r > p.r) p.r = r;
+  if (b > p.b) p.b = b;
+}
+
+function clearSeg(
+  ctx: RoutingContext,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  ex: Set<string>,
+): boolean {
+  seeArea(ctx, Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2));
+  return segClear(x1, y1, x2, y2, ctx.rbands, ex);
+}
+
+function clearPts(ctx: RoutingContext, pts: Point[], ex: Set<string>): boolean {
+  for (const [x, y] of pts) seeArea(ctx, x, y, x, y);
+  return ptsClear(pts, ctx.rbands, ex);
 }
 
 function astar(
@@ -124,6 +156,8 @@ function astar(
     }
     if (!grew) break;
   }
+  // Every obstacle that can change this search touches the final box.
+  seeArea(ctx, minx, miny, maxx, maxy);
   const xs = new Set<number>([p0[0], p1[0]]);
   const ys = new Set<number>([p0[1], p1[1]]);
   const near: Rect[] = [];
@@ -138,69 +172,93 @@ function astar(
       if (v >= miny && v <= maxy) ys.add(v);
     });
   }
+  if (xs.size * ys.size > 60000) return null;
   const X = [...xs].sort((a, b) => a - b);
   const Y = [...ys].sort((a, b) => a - b);
+  const NX = X.length;
   const NY = Y.length;
-  if (X.length * NY > 60000) return null;
+  const N = NX * NY;
   const xi = new Map(X.map((v, i) => [v, i] as const));
   const yi = new Map(Y.map((v, i) => [v, i] as const));
-  const clrSeg = (x1: number, y1: number, x2: number, y2: number): boolean => {
-    for (const r of near) {
-      if (segHit(x1, y1, x2, y2, r)) return false;
+  // Which grid steps run through an obstacle, worked out once per search
+  // instead of testing every nearby rect on every step. Same rule as
+  // segHit: a step is blocked when it crosses a rect's open interior.
+  // blockH[i * NY + j]: (i, j) → (i + 1, j); blockV[i * NY + j]: (i, j) → (i, j + 1).
+  const blockH = new Uint8Array(N);
+  const blockV = new Uint8Array(N);
+  /** First index whose value is > v (strict) or >= v. */
+  const bound = (A: number[], v: number, strict: boolean): number => {
+    let lo = 0;
+    let hi = A.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (strict ? A[mid]! <= v : A[mid]! < v) lo = mid + 1;
+      else hi = mid;
     }
-    return true;
+    return lo;
   };
+  for (const r of near) {
+    // Horizontal steps: row strictly inside (t, b), span overlapping (l, r).
+    const j0 = bound(Y, r.t, true);
+    const j1 = bound(Y, r.b, false);
+    const i0 = Math.max(0, bound(X, r.l, true) - 1);
+    const i1 = Math.min(NX - 2, bound(X, r.r, false) - 1);
+    for (let j = j0; j < j1; j++) {
+      for (let i = i0; i <= i1; i++) blockH[i * NY + j] = 1;
+    }
+    // Vertical steps: column strictly inside (l, r), span overlapping (t, b).
+    const c0 = bound(X, r.l, true);
+    const c1 = bound(X, r.r, false);
+    const k0 = Math.max(0, bound(Y, r.t, true) - 1);
+    const k1 = Math.min(NY - 2, bound(Y, r.b, false) - 1);
+    for (let i = c0; i < c1; i++) {
+      for (let j = k0; j <= k1; j++) blockV[i * NY + j] = 1;
+    }
+  }
   const s = xi.get(p0[0])! * NY + yi.get(p0[1])!;
   const gg = xi.get(p1[0])! * NY + yi.get(p1[1])!;
   const TURN = 26;
-  const gc: Record<number, number> = {};
-  const came: Record<number, number | undefined> = {};
-  const dir: Record<number, number> = {};
+  const gc = new Float64Array(N).fill(Infinity);
+  const came = new Int32Array(N).fill(-1);
+  const dir = new Uint8Array(N);
+  const done = new Uint8Array(N);
   gc[s] = 0;
-  dir[s] = 0;
   const open = new MinHeap();
   open.push(0, s);
-  const done = new Set<number>();
+  const relax = (cur: number, k: number, step: number, md: number, nx: number, ny: number) => {
+    const turn = dir[cur] && dir[cur] !== md ? TURN : 0;
+    const ng = gc[cur]! + step + turn;
+    if (ng < gc[k]!) {
+      gc[k] = ng;
+      came[k] = cur;
+      dir[k] = md;
+      open.push(ng + Math.abs(nx - p1[0]) + Math.abs(ny - p1[1]), k);
+    }
+  };
   while (open.size()) {
     const cur = open.pop();
     if (cur === gg) break;
-    if (done.has(cur)) continue;
-    done.add(cur);
+    if (done[cur]) continue;
+    done[cur] = 1;
     const i = (cur / NY) | 0;
     const j = cur % NY;
     const cx = X[i]!;
     const cy = Y[j]!;
-    const nb: [number, number][] = [];
-    if (i > 0) nb.push([i - 1, j]);
-    if (i < X.length - 1) nb.push([i + 1, j]);
-    if (j > 0) nb.push([i, j - 1]);
-    if (j < NY - 1) nb.push([i, j + 1]);
-    for (const [ni, nj] of nb) {
-      const nx = X[ni]!;
-      const ny = Y[nj]!;
-      if (!clrSeg(cx, cy, nx, ny)) continue;
-      const k = ni * NY + nj;
-      const md = nx !== cx ? 1 : 2;
-      const turn = dir[cur] && dir[cur] !== md ? TURN : 0;
-      const ng =
-        gc[cur]! + Math.abs(nx - cx) + Math.abs(ny - cy) + turn;
-      if (gc[k] === undefined || ng < gc[k]!) {
-        gc[k] = ng;
-        came[k] = cur;
-        dir[k] = md;
-        open.push(ng + Math.abs(nx - p1[0]) + Math.abs(ny - p1[1]), k);
-      }
-    }
+    // Same neighbour order as before: left, right, up, down.
+    if (i > 0 && !blockH[cur - NY]) relax(cur, cur - NY, cx - X[i - 1]!, 1, X[i - 1]!, cy);
+    if (i < NX - 1 && !blockH[cur]) relax(cur, cur + NY, X[i + 1]! - cx, 1, X[i + 1]!, cy);
+    if (j > 0 && !blockV[cur - 1]) relax(cur, cur - 1, cy - Y[j - 1]!, 2, cx, Y[j - 1]!);
+    if (j < NY - 1 && !blockV[cur]) relax(cur, cur + 1, Y[j + 1]! - cy, 2, cx, Y[j + 1]!);
   }
-  if (came[gg] === undefined && s !== gg) return null;
+  if (came[gg] === -1 && s !== gg) return null;
   const path: Point[] = [];
-  let c: number | undefined = gg;
-  while (c !== undefined) {
+  let c = gg;
+  while (c !== -1) {
     const i = (c / NY) | 0;
     const j = c % NY;
     path.push([X[i]!, Y[j]!]);
     if (c === s) break;
-    c = came[c];
+    c = came[c]!;
   }
   path.reverse();
   return simplify(path);
@@ -213,7 +271,7 @@ export function orthPath(
   ctx: RoutingContext,
 ): Point[] {
   const ex = new Set(exIds ?? []);
-  const { rbands, fastRoute } = ctx;
+  const { fastRoute } = ctx;
   const tries: Point[][] = [
     [p0, [p1[0], p0[1]], p1],
     [p0, [p0[0], p1[1]], p1],
@@ -221,7 +279,7 @@ export function orthPath(
     [p0, [p0[0], (p0[1] + p1[1]) / 2], [p1[0], (p0[1] + p1[1]) / 2], p1],
   ];
   for (const t of tries) {
-    if (ptsClear(t, rbands, ex)) return simplify(t);
+    if (clearPts(ctx, t, ex)) return simplify(t);
   }
   if (fastRoute) return simplify(tries[0]!);
   return (
@@ -371,39 +429,41 @@ function routeToChildStemJunction(
   const cx = child.x + child.w / 2;
   const jy = childStemJunctionY(child.y);
   const ex = new Set([...exIds, child.id]);
-  const { rbands } = ctx;
 
   const wingX =
     cx >= ax
       ? Math.max(ax, child.x + child.w) + STUB
       : Math.min(ax, child.x) - STUB;
 
-  const candidates: Point[][] = [
+  // Cheapest first; the routed path (possibly an A* search) is only built
+  // when none of the simple shapes is clear.
+  const candidates: (() => Point[])[] = [
     // Climb on the parent column to junction height, then across.
-    [
+    () => [
       [ax, ay],
       [ax, jy],
       [cx, jy],
     ],
     // Across at anchor height only when that height is already above the card.
-    [
+    () => [
       [ax, ay],
       [cx, ay],
       [cx, jy],
     ],
     // Wing around the far side of the child, then in at junction height.
-    [
+    () => [
       [ax, ay],
       [wingX, ay],
       [wingX, jy],
       [cx, jy],
     ],
-    orthPath([ax, ay], [cx, jy], [...exIds, child.id], ctx),
+    () => orthPath([ax, ay], [cx, jy], [...exIds, child.id], ctx),
   ];
 
-  for (const cand of candidates) {
+  for (const make of candidates) {
+    const cand = make();
     if (crossesChildInterior(cand, child)) continue;
-    if (!ptsClear(cand, rbands, ex)) continue;
+    if (!clearPts(ctx, cand, ex)) continue;
     return simplify(cand);
   }
 
@@ -452,7 +512,6 @@ function drawPedigreeFork(
   exBase: string[],
   ctx: RoutingContext,
   blood: BloodPath[],
-  parentBusKids: Set<string>,
   tagsBottom: number,
 ): void {
   if (!belowK.length) return;
@@ -477,7 +536,6 @@ function drawPedigreeFork(
     if (cluster.length === 1) {
       const n = cluster[0]!;
       const cx = n.x + n.w / 2;
-      parentBusKids.add(n.id);
       const approach: Point[] =
         Math.abs(cx - ax) > 0.5
           ? [
@@ -512,7 +570,6 @@ function drawPedigreeFork(
 
     for (const n of cluster) {
       const cx = n.x + n.w / 2;
-      parentBusKids.add(n.id);
       blood.push({
         ids: pEB[n.id] || [],
         pts: ensureChildTopStem([[cx, forkY]], n),
@@ -614,17 +671,16 @@ export function laneBus(
   const minTop = Math.min(...kidNodes.map((n) => n.y));
   const topLimit = childStemJunctionY(minTop);
   const stemEnd = unionStemJunctionY(ay, tagsBottom);
-  const { rbands } = ctx;
   // Search from the child stem junction upward, but never above the
   // floor that clears parent tag bottoms.
   for (let lane = topLimit; lane >= stemEnd; lane -= 8) {
-    if (!segClear(ax, ay, ax, lane, rbands, ex)) continue;
-    if (!segClear(minx, lane, maxx, lane, rbands, ex)) continue;
+    if (!clearSeg(ctx, ax, ay, ax, lane, ex)) continue;
+    if (!clearSeg(ctx, minx, lane, maxx, lane, ex)) continue;
     let ok = true;
     for (const n of kidNodes) {
       const cx = n.x + n.w / 2;
       // Drop only needs a clear path to the stem junction, not through the card.
-      if (!segClear(cx, lane, cx, childStemJunctionY(n.y), rbands, ex)) {
+      if (!clearSeg(ctx, cx, lane, cx, childStemJunctionY(n.y), ex)) {
         ok = false;
         break;
       }
@@ -713,7 +769,6 @@ function drawSiblingFork(
   ids: string[],
   ctx: RoutingContext,
 ): BloodPath[] {
-  const { rbands } = ctx;
   const ex = new Set(members.map((n) => n.id));
   const cxs = members.map((n) => n.x + n.w / 2);
   const minx = Math.min(...cxs);
@@ -726,11 +781,11 @@ function drawSiblingFork(
   // lanes are blocked by household frames / other edges.
   const searchCeil = laneTop - MINDROP * 4;
   for (let y = laneTop; y >= searchCeil; y -= 8) {
-    if (!segClear(minx, y, maxx, y, rbands, ex)) continue;
+    if (!clearSeg(ctx, minx, y, maxx, y, ex)) continue;
     let ok = true;
     for (const n of members) {
       const cx = n.x + n.w / 2;
-      if (!segClear(cx, y, cx, childStemJunctionY(n.y), rbands, ex)) {
+      if (!clearSeg(ctx, cx, y, cx, childStemJunctionY(n.y), ex)) {
         ok = false;
         break;
       }
@@ -797,7 +852,52 @@ export interface ComputeEdgeRenderInput {
   fastRoute: boolean;
   /** Skip the whole routing pass (edges are hidden during pan/zoom/drag). */
   skipRoute?: boolean;
+  /** Reuse routes from the previous pass that this edit cannot have changed. */
+  cache?: RouteCache;
 }
+
+type CachedRoute = { sig: string; probe: Box; out: unknown };
+
+/**
+ * Routes kept between passes. Each family, sibling group and custom link is a
+ * unit whose route depends only on its own cards (its signature) and on the
+ * obstacles inside the area its queries looked at (its probe). A unit is
+ * reused when its signature is unchanged and no obstacle that moved, appeared
+ * or vanished since the last pass touches its probe — so dropping one card
+ * re-routes only the links near it, not the whole board.
+ */
+export class RouteCache {
+  /** Obstacle boxes of the last pass, keyed by id (plus a count for repeats). */
+  rects = new Map<string, Rect>();
+  units = new Map<string, CachedRoute>();
+  fastRoute = false;
+  /** Units routed (not reused) by the last pass — for tests and profiling. */
+  lastRouted = 0;
+}
+
+function rectKeyMap(rects: Rect[]): Map<string, Rect> {
+  const m = new Map<string, Rect>();
+  for (const r of rects) {
+    let k = r.id;
+    for (let i = 1; m.has(k); i++) k = `${r.id}#${i}`;
+    m.set(k, r);
+  }
+  return m;
+}
+
+/** Boxes of every obstacle that moved, appeared or vanished between passes. */
+function changedObstacles(prev: Map<string, Rect>, next: Map<string, Rect>): Box[] {
+  const out: Box[] = [];
+  for (const [k, r] of next) {
+    const o = prev.get(k);
+    if (!o) out.push(r);
+    else if (o.l !== r.l || o.t !== r.t || o.r !== r.r || o.b !== r.b) out.push(o, r);
+  }
+  for (const [k, o] of prev) if (!next.has(k)) out.push(o);
+  return out;
+}
+
+const nodeSig = (n: SimNode): string => `${n.id}@${n.x},${n.y},${n.w},${n.h},${n.gid}`;
 
 function parentSetKey(parentsOf: Record<string, string[]>, id: string): string {
   return (parentsOf[id] || []).slice().sort().join('|');
@@ -842,6 +942,7 @@ export function computeEdgeRenderData(
   const RBANDS = { ...built.rbands };
 
   const ctx: RoutingContext = { rects: RECTS, rbands: RBANDS, fastRoute };
+  const cache = input.cache;
 
   const vis = (e: Edge): boolean =>
     !!byid[e.a] &&
@@ -890,6 +991,35 @@ export function computeEdgeRenderData(
   ctx.rects = RECTS;
   ctx.rbands = RBANDS;
 
+  const nextRects = cache ? rectKeyMap(RECTS) : null;
+  const moved =
+    cache && nextRects && cache.fastRoute === fastRoute
+      ? changedObstacles(cache.rects, nextRects)
+      : null;
+  const nextUnits = new Map<string, CachedRoute>();
+  let routedCount = 0;
+  /** Reuse a unit's route from the last pass, or route it now and keep it. */
+  const routed = <T>(key: string, sig: string, run: () => T): T => {
+    const hit = moved ? cache!.units.get(key) : undefined;
+    if (
+      hit &&
+      hit.sig === sig &&
+      !moved!.some(
+        (m) => m.l <= hit.probe.r && m.r >= hit.probe.l && m.t <= hit.probe.b && m.b >= hit.probe.t,
+      )
+    ) {
+      nextUnits.set(key, hit);
+      return hit.out as T;
+    }
+    const probe: Box = { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity };
+    ctx.probe = probe;
+    const out = run();
+    ctx.probe = undefined;
+    routedCount++;
+    nextUnits.set(key, { sig, probe, out });
+    return out;
+  };
+
   const pEdges = edges.filter((e) => e.type === 'parent' && vis(e));
   const parentsOf: Record<string, string[]> = {};
   const pEB: Record<string, string[]> = {};
@@ -917,11 +1047,36 @@ export function computeEdgeRenderData(
     const kids = f.kids.filter((c) => byid[c]);
     if (!kids.length) return;
     const ps = f.parents;
-    const isCouple = ps.length === 2 && uAnchor[uKey(ps[0]!, ps[1]!)];
+    const kn = kids.map((c) => byid[c]!);
+    const isCouple = ps.length === 2 && !!uAnchor[uKey(ps[0]!, ps[1]!)];
+    const sig = [
+      isCouple ? 'u' : '-',
+      ...ps.map((pid) => (byid[pid] ? nodeSig(byid[pid]!) : pid)),
+      ...kn.map((n) => `${nodeSig(n)}<${(pEB[n.id] || []).join(',')}`),
+    ].join(';');
+    const key = `f:${ps.join('|')}`;
+
+    if (ps.length > 2) {
+      BLOOD.push(
+        ...routed(key, sig, () =>
+          ps.flatMap((pid) => {
+            const p = byid[pid];
+            if (!p) return [];
+            return kn.map((n) => ({
+              ids: pEB[n.id] || [],
+              pts: childRoute(p.x + p.w / 2, p.y + p.h, n, [pid, n.id], ctx, p.y + p.h),
+            }));
+          }),
+        ),
+      );
+      return;
+    }
+
     let ax: number;
     let ay: number;
     let tagsBottom: number;
     let exBase: string[];
+    let coParents: [SimNode, SimNode] | null = null;
     if (isCouple) {
       const a = uAnchor[uKey(ps[0]!, ps[1]!)]!;
       const p0 = byid[ps[0]!]!;
@@ -930,79 +1085,49 @@ export function computeEdgeRenderData(
       ay = a.ry + PILL_DROP;
       tagsBottom = Math.max(p0.y + p0.h, p1.y + p1.h);
       exBase = [ps[0]!, ps[1]!].concat(mObs[uKey(ps[0]!, ps[1]!)] || []);
-    } else if (ps.length === 2 && byid[ps[0]!] && byid[ps[1]!]) {
+    } else if (ps.length === 2) {
       // Co-parents with no partner link: join them, then hang the kids from
       // the join. Starting at the bare midpoint left a line to nowhere.
       const p0 = byid[ps[0]!]!;
       const p1 = byid[ps[1]!]!;
-      const join = coParentJoin(p0, p1, ctx);
-      const ids = edgeIdsForKids(kids.map((c) => byid[c]!), pEB);
-      for (const pts of join.legs) BLOOD.push({ ids, pts });
-      ax = join.ax;
-      ay = join.ay;
+      ax = (p0.x + p0.w / 2 + p1.x + p1.w / 2) / 2;
+      ay = coParentJoinY(p0, p1);
       tagsBottom = Math.max(p0.y + p0.h, p1.y + p1.h);
       exBase = [ps[0]!, ps[1]!];
-    } else if (ps.length === 1 && byid[ps[0]!]) {
+      coParents = [p0, p1];
+    } else {
       const p = byid[ps[0]!]!;
       ax = p.x + p.w / 2;
       tagsBottom = p.y + p.h;
       ay = tagsBottom;
       exBase = [ps[0]!];
-    } else {
-      ps.forEach((pid) => {
-        const p = byid[pid];
-        if (!p) return;
-        kids.forEach((c) => {
-          const n = byid[c];
-          if (!n) return;
-          BLOOD.push({
-            ids: pEB[c] || [],
-            pts: childRoute(
-              p.x + p.w / 2,
-              p.y + p.h,
-              n,
-              [pid, c],
-              ctx,
-              p.y + p.h,
-            ),
-          });
-        });
-      });
-      return;
     }
-    const kn = kids.map((c) => byid[c]!);
-    if (!kn.length) return;
     const belowK = kn.filter((n) => childBelowFork(ay, n, tagsBottom));
     const sideK = kn.filter((n) => !childBelowFork(ay, n, tagsBottom));
-    /** Cross-household kids get their own drop — no shared horizontal bus. */
-    const inHHBelow = belowK.filter((n) => !crossHouseholdChild(n, ps, byid));
-    const crossHHBelow = belowK.filter((n) => crossHouseholdChild(n, ps, byid));
-    if (inHHBelow.length) {
-      drawPedigreeFork(
-        ax,
-        ay,
-        inHHBelow,
-        pEB,
-        exBase,
-        ctx,
-        BLOOD,
-        parentBusKids,
-        tagsBottom,
-      );
-    }
-    crossHHBelow.forEach((n) => {
-      parentBusKids.add(n.id);
-      BLOOD.push({
-        ids: pEB[n.id] || [],
-        pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx, tagsBottom),
-      });
-    });
-    sideK.forEach((n) => {
-      BLOOD.push({
-        ids: pEB[n.id] || [],
-        pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx, tagsBottom),
-      });
-    });
+    for (const n of belowK) parentBusKids.add(n.id);
+
+    BLOOD.push(
+      ...routed(key, sig, () => {
+        const out: BloodPath[] = [];
+        if (coParents) {
+          const ids = edgeIdsForKids(kn, pEB);
+          for (const pts of coParentJoin(...coParents, ctx).legs) out.push({ ids, pts });
+        }
+        /** Cross-household kids get their own drop — no shared horizontal bus. */
+        const inHHBelow = belowK.filter((n) => !crossHouseholdChild(n, ps, byid));
+        const crossHHBelow = belowK.filter((n) => crossHouseholdChild(n, ps, byid));
+        if (inHHBelow.length) {
+          drawPedigreeFork(ax, ay, inHHBelow, pEB, exBase, ctx, out, tagsBottom);
+        }
+        for (const n of [...crossHHBelow, ...sideK]) {
+          out.push({
+            ids: pEB[n.id] || [],
+            pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx, tagsBottom),
+          });
+        }
+        return out;
+      }),
+    );
   });
 
   const sibEdges = edges.filter((e) => e.type === 'sibling' && vis(e));
@@ -1042,9 +1167,9 @@ export function computeEdgeRenderData(
       const ids = sibEdges
         .filter((e) => members.includes(e.a) && members.includes(e.b))
         .map((e) => e.id);
-      drawSiblingFork(ms.map((m) => byid[m]!), ids, ctx).forEach((p) => {
-        BLOOD.push(p);
-      });
+      const mn = ms.map((m) => byid[m]!);
+      const sig = [...mn.map(nodeSig), ids.join(',')].join(';');
+      BLOOD.push(...routed(`s:${ms.slice().sort().join('|')}`, sig, () => drawSiblingFork(mn, ids, ctx)));
     });
   }
 
@@ -1071,15 +1196,24 @@ export function computeEdgeRenderData(
         edgeId: e.id,
         a: e.a,
         b: e.b,
-        pts: orthPath(
-          [a.x + a.w / 2, a.y + a.h / 2],
-          [b.x + b.w / 2, b.y + b.h / 2],
-          [e.a, e.b],
-          ctx,
+        pts: routed(`c:${e.id}`, `${nodeSig(a)};${nodeSig(b)}`, () =>
+          orthPath(
+            [a.x + a.w / 2, a.y + a.h / 2],
+            [b.x + b.w / 2, b.y + b.h / 2],
+            [e.a, e.b],
+            ctx,
+          ),
         ),
         isUser: isUserE(e),
       };
     });
+
+  if (cache) {
+    cache.rects = nextRects!;
+    cache.units = nextUnits;
+    cache.fastRoute = fastRoute;
+    cache.lastRouted = routedCount;
+  }
 
   return {
     blood: BLOOD,

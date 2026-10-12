@@ -594,11 +594,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       !!moving && ends.length > 0 && ends.every((id) => moving.has(id));
     const bloodEnds = (ids: string[] | undefined) =>
       (ids ?? []).flatMap((id) => edgeEndsById.get(id) ?? []);
+    // Keep each mounted path's index in the full list: hop arcs are matched
+    // against that list, and keys stay stable as paths scroll in and out.
+    const bloodIdx: number[] = [];
+    ed.blood.forEach((p, i) => {
+      if (pathInCull(p.pts, cullWin) || carried(bloodEnds(p.ids))) bloodIdx.push(i);
+    });
     return {
       ...ed,
-      blood: ed.blood.filter(
-        (p) => pathInCull(p.pts, cullWin) || carried(bloodEnds(p.ids)),
-      ),
+      blood: bloodIdx.map((i) => ed.blood[i]!),
+      bloodIdx,
       unions: ed.unions.filter(
         (u) => pathInCull(parsePointList(u.pts), cullWin) || carried([u.a, u.b]),
       ),
@@ -1479,6 +1484,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           />
           <EdgeLayer
             blood={mountedEdges.blood}
+            bloodIdx={'bloodIdx' in mountedEdges ? mountedEdges.bloodIdx : undefined}
             bloodVerts={wb.bloodVerts}
             hopD={wb.hopD}
             unions={mountedEdges.unions}

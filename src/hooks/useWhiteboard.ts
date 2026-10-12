@@ -26,7 +26,13 @@ import {
   type SnapSticky,
 } from '../lib/geometry.ts';
 import { bucketNodes } from '../lib/nodeIndex.ts';
-import { bloodVerts, computeEdgeRenderData, EMPTY_EDGE_DATA, hopD } from '../lib/routing.ts';
+import {
+  bloodVerts,
+  computeEdgeRenderData,
+  EMPTY_EDGE_DATA,
+  hopD,
+  RouteCache,
+} from '../lib/routing.ts';
 import {
   computeLayout,
   layoutBases,
@@ -333,6 +339,8 @@ export function useWhiteboard() {
     [packVis, playVis],
   );
 
+  // Routes from the last pass; an edit re-routes only the links it can reach.
+  const [routeCache] = useState(() => new RouteCache());
   const edgeData = useMemo(
     () =>
       skipRoute
@@ -344,8 +352,9 @@ export function useWhiteboard() {
             show,
             packVis: nodeVis,
             fastRoute,
+            cache: routeCache,
           }),
-    [nodes, edges, groups, show, nodeVis, fastRoute, skipRoute],
+    [nodes, edges, groups, show, nodeVis, fastRoute, skipRoute, routeCache],
   );
 
   const nodeBuckets = useMemo(() => bucketNodes(nodes), [nodes]);

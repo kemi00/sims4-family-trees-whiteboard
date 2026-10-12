@@ -21,6 +21,7 @@ import {
   ZOOM_MIN,
 } from './constants.ts';
 import {
+  bucketNodes,
   nodesForGid,
   nodesForWorld,
   type NodeBuckets,
@@ -181,6 +182,19 @@ export function hhBox(gid: string, nodes: SimNode[]): HhBox | null {
   };
 }
 
+const groupIndexCache = new WeakMap<Group[], Map<string, Group>>();
+
+/** gid → group, built once per groups array (first match wins, like `find`). */
+function groupIndex(groups: Group[]): Map<string, Group> {
+  let m = groupIndexCache.get(groups);
+  if (!m) {
+    m = new Map();
+    for (const g of groups) if (!m.has(g.gid)) m.set(g.gid, g);
+    groupIndexCache.set(groups, m);
+  }
+  return m;
+}
+
 /** Drawn household box extent (matches GroupLayer; includes title width). */
 export function hhBoxDraw(
   gid: string,
@@ -190,10 +204,7 @@ export function hhBoxDraw(
   buckets?: NodeBuckets,
 ): HhBoxDraw | null {
   const mem = nodesForGid(gid, nodes, buckets).filter(packVis);
-  const chrome = householdChrome(
-    mem,
-    groups.find((g) => g.gid === gid),
-  );
+  const chrome = householdChrome(mem, groupIndex(groups).get(gid));
   if (!chrome) return null;
   return {
     l: chrome.boxL,
@@ -633,6 +644,9 @@ export function buildRects(
   packVis: (n: SimNode) => boolean,
 ): BuildRectsResult {
   const R: Rect[] = [];
+  // One pass to bucket by household and world; scanning every sim per
+  // household made this the slowest part of re-routing a big board.
+  const buckets = bucketNodes(nodes);
   for (const n of nodes) {
     if (!packVis(n)) continue;
     R.push({
@@ -645,7 +659,7 @@ export function buildRects(
   }
   if (show.groups) {
     for (const g of groups) {
-      const m = nodes.filter((n) => n.gid === g.gid && packVis(n));
+      const m = nodesForGid(g.gid, nodes, buckets).filter(packVis);
       const chrome = householdChrome(m, g);
       if (!chrome) continue;
       R.push({
@@ -665,7 +679,7 @@ export function buildRects(
       const w = n.world;
       if (!w || w === '—' || !packVis(n) || seen.has(w)) continue;
       seen.add(w);
-      const frame = worldFrame(w, nodes, groups, packVis);
+      const frame = worldFrame(w, nodes, groups, packVis, buckets);
       if (!frame) continue;
       const lw = w.length * 8.2 + 46;
       R.push({

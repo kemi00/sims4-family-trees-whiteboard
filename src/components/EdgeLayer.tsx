@@ -132,6 +132,8 @@ function AddInfantPlus({
 
 type Props = {
   blood: BloodPath[];
+  /** Index of each `blood` path in the full routed list, when culled. */
+  bloodIdx?: readonly number[];
   bloodVerts: BloodVert[];
   hopD: (pts: [number, number][], verts: BloodVert[], pi: number) => string;
   unions: UnionRender[];
@@ -180,6 +182,7 @@ function chromeDataProps(
 
 export const EdgeLayer = memo(function EdgeLayer({
   blood,
+  bloodIdx,
   bloodVerts,
   hopD,
   unions,
@@ -198,7 +201,8 @@ export const EdgeLayer = memo(function EdgeLayer({
 }: Props) {
   return (
     <g id="lEdges">
-      {blood.map((p, pi) => {
+      {blood.map((p, i) => {
+        const pi = bloodIdx?.[i] ?? i;
         const isU = p.ids?.some((id) => userEdgeIds.has(id));
         const selected = isSelLink(p.ids);
         const col = selected ? '#1b6cd6' : isU ? UEDIT : COL.blood;
