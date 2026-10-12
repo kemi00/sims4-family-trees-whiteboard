@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "fc63588",
+   "date": "2026-10-13",
+   "text": "Fix the Games filter being empty after replacing the board from a save: every sim now gets its game, and a hidden game always shows in the list so you can switch it back on."
+  },
+  {
    "sha": "33391e4",
    "date": "2026-10-13",
    "text": "Fix newer saves failing to import with \"This save uses an index layout this reader does not handle\". Saves from recent game versions load again."
