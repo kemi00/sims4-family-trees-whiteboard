@@ -994,11 +994,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   };
 
   const finishNodePointer = (wasMoved: boolean, n: SimNode) => {
-    if (wasMoved) {
-      const cur = wb.byid[n.id];
-      if (cur) wb.snapNodeAction(cur);
-      return;
-    }
+    // The drop already wrote the snapped spot via moveNodesByIds. wb.byid is
+    // still the pre-drag render, so snapping it here put the sim back.
+    if (wasMoved) return;
     const now = performance.now();
     if (
       lastClickRef.current?.id === n.id &&
