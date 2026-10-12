@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "33391e4",
+   "date": "2026-10-13",
+   "text": "Fix newer saves failing to import with \"This save uses an index layout this reader does not handle\". Saves from recent game versions load again."
+  },
+  {
    "sha": "c46d7a1",
    "date": "2026-10-13",
    "text": "On new boards, a household with a long name tag no longer covers the one beside it: the neighbour moves down to make room. Boards you already have keep every card exactly where it is."
