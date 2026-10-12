@@ -124,6 +124,33 @@ export function siblingsShareParents(
   return !!ka && ka === kb;
 }
 
+/**
+ * True when a new `parent` → `child` link would make a sim their own ancestor:
+ * the parent is the child, or already descends from the child.
+ */
+export function parentLinkMakesCycle(
+  parent: string,
+  child: string,
+  edges: Edge[],
+): boolean {
+  if (parent === child) return true;
+  const kidsOf: Record<string, string[]> = {};
+  edges.forEach((e) => {
+    if (e.type === 'parent') (kidsOf[e.a] = kidsOf[e.a] || []).push(e.b);
+  });
+  const seen = new Set([child]);
+  const stack = [child];
+  while (stack.length) {
+    for (const kid of kidsOf[stack.pop()!] || []) {
+      if (kid === parent) return true;
+      if (seen.has(kid)) continue;
+      seen.add(kid);
+      stack.push(kid);
+    }
+  }
+  return false;
+}
+
 /** Drop parent edges that contradict a union link between the same pair. */
 export function pruneContradictoryParentEdges(edges: Edge[]): Edge[] {
   const unionPairs = new Set(

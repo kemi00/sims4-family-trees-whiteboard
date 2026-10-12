@@ -1617,6 +1617,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           left={menu.x}
           top={menu.y}
           hideSibling={siblingsShareParents(menu.a, menu.b, wb.edges)}
+          blocked={{
+            parent: wb.parentCycleReason(menu.a, menu.b) ?? undefined,
+            childof: wb.parentCycleReason(menu.b, menu.a) ?? undefined,
+          }}
           onConfirm={(type) => {
             if (type === 'parent')
               wb.confirmConnect('parent');

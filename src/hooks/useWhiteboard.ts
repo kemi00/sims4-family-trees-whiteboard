@@ -44,7 +44,7 @@ import {
   householdPlace,
   simName,
 } from '../lib/connectionLog.ts';
-import { fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
+import { fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   mergeSaveIntoBoard,
@@ -612,6 +612,15 @@ export function useWhiteboard() {
     [pinCardsToCurrentPlaces, lockViewToSims],
   );
 
+  /** Why `parent` → `child` can't be linked (they'd be their own ancestor), or null. */
+  const parentCycleReason = useCallback(
+    (parent: string, child: string) =>
+      parentLinkMakesCycle(parent, child, edges)
+        ? `${byid[parent]?.first ?? 'That sim'} already descends from ${byid[child]?.first ?? 'that sim'}`
+        : null,
+    [edges, byid],
+  );
+
   const addEdge = useCallback((a: string, b: string, type: Edge['type']) => {
     if (type === 'sibling' && siblingsShareParents(a, b, edges)) return;
     let nextEdges: Edge[] | null = null;
@@ -916,6 +925,13 @@ export function useWhiteboard() {
         cancelConnect();
         return;
       }
+      const why = parentCycleReason(pa, childId) ?? parentCycleReason(pb, childId);
+      if (why) {
+        setConnSrc(null);
+        setConnectMenu(null);
+        flashStatus(`Not linked — ${why}. Click a sim for the next link`);
+        return;
+      }
       pushUndo();
       let nextEdges: Edge[] | null = null;
       setEdges((es) => {
@@ -957,7 +973,7 @@ export function useWhiteboard() {
       setConnSrc(null);
       setConnectMenu(null);
     },
-    [byid, cancelConnect, flashStatus, freezeAfterEdgeChange, pushUndo],
+    [byid, cancelConnect, flashStatus, freezeAfterEdgeChange, parentCycleReason, pushUndo],
   );
 
   const addInfantOfCouple = useCallback(
@@ -1162,13 +1178,23 @@ export function useWhiteboard() {
     (type: string) => {
       if (!connectMenu) return;
       const { a, b } = connectMenu;
+      if (type === 'parent' || type === 'childof') {
+        const why =
+          type === 'parent' ? parentCycleReason(a, b) : parentCycleReason(b, a);
+        if (why) {
+          setConnectMenu(null);
+          setConnSrc(null);
+          flashStatus(`Not linked — ${why}. Click a sim for the next link`);
+          return;
+        }
+      }
       if (type === 'childof') addEdge(b, a, 'parent');
       else addEdge(a, b, type as Edge['type']);
       setConnectMenu(null);
       flashStatus('Linked ✓ — click a sim for the next link');
       setConnSrc(null);
     },
-    [connectMenu, addEdge, flashStatus],
+    [connectMenu, addEdge, flashStatus, parentCycleReason],
   );
 
   const fit = useCallback((svgWidth: number, svgHeight: number) => {
@@ -2030,6 +2056,7 @@ export function useWhiteboard() {
     selectLink,
     clearSel,
     addEdge,
+    parentCycleReason,
     deleteSelected,
     addSim,
     updateNode,

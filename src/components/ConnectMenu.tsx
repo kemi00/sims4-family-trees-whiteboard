@@ -7,6 +7,8 @@ type Props = {
   top: number;
   /** Hide sibling option when both sims already share parents on the board. */
   hideSibling?: boolean;
+  /** Why a parent/child option is off — it would make a sim their own ancestor. */
+  blocked?: Partial<Record<'parent' | 'childof', string>>;
   onConfirm: (type: string) => void;
   onCancel: () => void;
 };
@@ -33,6 +35,7 @@ export function ConnectMenu({
   left,
   top,
   hideSibling,
+  blocked,
   onConfirm,
   onCancel,
 }: Props) {
@@ -52,11 +55,20 @@ export function ConnectMenu({
       <div style={{ fontSize: 10, color: '#889', padding: '2px 4px' }}>
         {aName} ↔ {bName}
       </div>
-      {options.map(([ty, lab]) => (
-        <button key={ty} type="button" onClick={() => onConfirm(ty)}>
-          {labelFor(ty, aName, bName, lab)}
-        </button>
-      ))}
+      {options.map(([ty, lab]) => {
+        const why = blocked?.[ty as 'parent' | 'childof'];
+        return (
+          <button
+            key={ty}
+            type="button"
+            disabled={!!why}
+            onClick={() => onConfirm(ty)}
+          >
+            {labelFor(ty, aName, bName, lab)}
+            {why && <span className="menu__why">{why}</span>}
+          </button>
+        );
+      })}
       <button type="button" style={{ color: '#b00' }} onClick={onCancel}>
         ✕ cancel
       </button>
