@@ -91,33 +91,92 @@ function ageRank(age: string): number {
   return i >= 0 ? i : 4;
 }
 
+/**
+ * Edge lookups for one layout pass, so per-household work touches only the
+ * household's own links instead of rescanning every edge on the board.
+ */
+type LinkIndex = {
+  edges: Edge[];
+  /** Positions of edges by `a`, ascending. */
+  fromA: Map<string, number[]>;
+  /** Positions of parent edges by child `b`, ascending. */
+  parentTo: Map<string, number[]>;
+  /** Parent edges by parent `a`. */
+  parentFrom: Map<string, Edge[]>;
+};
+
+const linkIndexes = new WeakMap<Edge[], LinkIndex>();
+
+function buildLinkIndex(edges: Edge[]): LinkIndex {
+  const fromA = new Map<string, number[]>();
+  const parentTo = new Map<string, number[]>();
+  const parentFrom = new Map<string, Edge[]>();
+  const push = <T>(m: Map<string, T[]>, k: string, v: T) => {
+    const list = m.get(k);
+    if (list) list.push(v);
+    else m.set(k, [v]);
+  };
+  edges.forEach((e, i) => {
+    push(fromA, e.a, i);
+    if (e.type !== 'parent') return;
+    push(parentTo, e.b, i);
+    push(parentFrom, e.a, e);
+  });
+  const index = { edges, fromA, parentTo, parentFrom };
+  linkIndexes.set(edges, index);
+  return index;
+}
+
+/** computeLayoutBases rebuilds this per pass, so in-place edge edits never go stale. */
+function linkIndex(edges: Edge[]): LinkIndex {
+  return linkIndexes.get(edges) ?? buildLinkIndex(edges);
+}
+
+/** Edges at the positions `by` lists for `ids`, in original board order. */
+function edgesAt(
+  index: LinkIndex,
+  by: Map<string, number[]>,
+  ids: Set<string>,
+): Edge[] {
+  const at: number[] = [];
+  for (const id of ids) {
+    const list = by.get(id);
+    if (list) at.push(...list);
+  }
+  at.sort((a, b) => a - b);
+  return at.map((i) => index.edges[i]!);
+}
+
+/** Parent links into these sims, including parents in other households. */
+function parentEdgesInto(edges: Edge[], ids: Set<string>): Edge[] {
+  const index = linkIndex(edges);
+  return edgesAt(index, index.parentTo, ids);
+}
+
 function buildHHGraph(mem: SimNode[], edges: Edge[]): HHGraph {
   const ids = new Set(mem.map((n) => n.id));
   const byId = new Map(mem.map((n) => [n.id, n]));
   const partner = new Map<string, string>();
   const parents = new Map<string, Set<string>>();
+  const index = linkIndex(edges);
+  const inner = edgesAt(index, index.fromA, ids).filter((e) => ids.has(e.b));
+  const parentsKidHere = (p: string, except?: string) =>
+    (index.parentFrom.get(p) ?? []).some(
+      (x) => x.b !== except && ids.has(x.b),
+    );
 
-  for (const e of edges) {
-    if (!ids.has(e.a) || !ids.has(e.b)) continue;
+  for (const e of inner) {
     if (e.type === 'marriage' || e.type === 'romance' || e.type === 'divorced') {
       partner.set(e.a, e.b);
       partner.set(e.b, e.a);
     }
   }
 
-  for (const e of edges) {
-    if (e.type !== 'parent' || !ids.has(e.a) || !ids.has(e.b)) continue;
+  for (const e of inner) {
+    if (e.type !== 'parent') continue;
 
-    const bParentsKidsInHh = edges.some(
-      (x) => x.type === 'parent' && x.a === e.b && ids.has(x.b),
-    );
-    const aParentsThoseKids = edges.some(
-      (x) =>
-        x.type === 'parent' &&
-        x.a === e.a &&
-        x.b !== e.b &&
-        ids.has(x.b),
-    );
+    const bParentsKidsInHh = parentsKidHere(e.b);
+    const aParentsThoseKids = parentsKidHere(e.a, e.b);
     const na = byId.get(e.a)!;
     const nb = byId.get(e.b)!;
     const ageGap = Math.abs(ageRank(na.age) - ageRank(nb.age));
@@ -811,8 +870,7 @@ function layoutOtherHouseholdTile(
 ): { placed: PlacedCard[]; w: number; h: number; colSpan: number } {
   const g = buildHHGraph(mem, edges);
   const hhIds = new Set(mem.map((n) => n.id));
-  for (const e of edges) {
-    if (e.type !== 'parent' || !hhIds.has(e.b)) continue;
+  for (const e of parentEdgesInto(edges, hhIds)) {
     if (!g.parents.has(e.b)) g.parents.set(e.b, new Set());
     g.parents.get(e.b)!.add(e.a);
   }
@@ -991,8 +1049,7 @@ function layoutClusterTile(
   const allIds = new Set(allMem.map((n) => n.id));
 
   const g = buildHHGraph(allMem, edges);
-  for (const e of edges) {
-    if (e.type !== 'parent' || !allIds.has(e.b)) continue;
+  for (const e of parentEdgesInto(edges, allIds)) {
     if (!g.parents.has(e.b)) g.parents.set(e.b, new Set());
     g.parents.get(e.b)!.add(e.a);
   }
@@ -1254,8 +1311,7 @@ function layoutHousehold(
   const g = buildHHGraph(mem, edges);
   const hhIds = new Set(mem.map((n) => n.id));
   /** Parents in linked households still set generation rows for children here. */
-  for (const e of edges) {
-    if (e.type !== 'parent' || !hhIds.has(e.b)) continue;
+  for (const e of parentEdgesInto(edges, hhIds)) {
     if (!g.parents.has(e.b)) g.parents.set(e.b, new Set());
     g.parents.get(e.b)!.add(e.a);
   }
@@ -1394,6 +1450,7 @@ function computeLayoutBases(
   worlds: World[],
   edges: Edge[],
 ): Map<string, LayoutBase> {
+  buildLinkIndex(edges);
   const byWorld = new Map<string, SimNode[]>();
   for (const n of nodes) {
     const w = n.world || OTHER_WORLD;
