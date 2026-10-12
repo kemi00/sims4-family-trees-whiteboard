@@ -1,6 +1,26 @@
 {
  "entries": [
   {
+   "sha": "bd87d02",
+   "date": "2026-10-12",
+   "text": "Connect now refuses a link that would make a sim their own ancestor, and tells you why."
+  },
+  {
+   "sha": "81f5ba9",
+   "date": "2026-10-12",
+   "text": "Fix the board freezing when two sims are linked as each other's parent."
+  },
+  {
+   "sha": "924b8ad",
+   "date": "2026-10-12",
+   "text": "Make big boards, like imported saves, rearrange about twice as fast after an edit."
+  },
+  {
+   "sha": "60141eb",
+   "date": "2026-10-12",
+   "text": "Fix sims jumping back to where they started after you drag them."
+  },
+  {
    "sha": "8b1623c",
    "date": "2026-09-02",
    "text": "When you merge a JSON file, you can now keep the card positions on this board or use the ones in the file."
