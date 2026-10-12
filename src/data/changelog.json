@@ -1,6 +1,21 @@
 {
  "entries": [
   {
+   "sha": "8ec0628",
+   "date": "2026-10-12",
+   "text": "Big boards pan and zoom more smoothly: only the part around your view is drawn, and it keeps up as you move."
+  },
+  {
+   "sha": "53b2648",
+   "date": "2026-10-12",
+   "text": "When you load a file and keep your board positions, your view stays where it was too."
+  },
+  {
+   "sha": "8f0bcbd",
+   "date": "2026-10-12",
+   "text": "Replace can now keep your board's positions, and merging a file brings its filters along. The dialog tells you first, and Undo puts yours back."
+  },
+  {
    "sha": "48ffaa2",
    "date": "2026-10-12",
    "text": "When you merge a JSON file, cards no longer jump around: they stay where they are, or go exactly where the file shows them."
