@@ -11,7 +11,7 @@ import {
   writeDraft,
 } from '../lib/autosave.ts';
 import { trackAction } from '../lib/analytics.ts';
-import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, shouldRepackOffsets } from '../lib/loadLayout.ts';
+import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, separateLoadOverlaps, shouldRepackOffsets } from '../lib/loadLayout.ts';
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import {
@@ -1457,18 +1457,25 @@ export function useWhiteboard() {
           loadedEdges,
         );
         const loadedCore = keepBoardPositions
-          ? pinCoreToTargets(
-              jsonLoadTargets({
-                keepBoardPositions: true,
-                boardVisualById: byid,
-                fileCore: prepared.nodes,
-                fileEdges: loadedEdges,
+          ? separateLoadOverlaps({
+              core: pinCoreToTargets(
+                jsonLoadTargets({
+                  keepBoardPositions: true,
+                  boardVisualById: byid,
+                  fileCore: prepared.nodes,
+                  fileEdges: loadedEdges,
+                  worlds,
+                }),
+                prepared.nodes,
                 worlds,
-              }),
-              prepared.nodes,
+                loadedEdges,
+              ),
+              boardById: byid,
+              edges: loadedEdges,
+              groups: (d.groups as Group[]) ?? groups,
               worlds,
-              loadedEdges,
-            )
+              snap,
+            })
           : prepared.nodes;
         setNodesCore(loadedCore);
         setEdges(loadedEdges);
@@ -1523,23 +1530,7 @@ export function useWhiteboard() {
           flashStatus(`Loaded ${file.name}`);
         }
         setTimeout(() => {
-          // Kept positions: only worlds the file brings in may be nudged apart.
-          if (keepBoardPositions) {
-            setNodesCore((core) => {
-              const movable = introducedWorldNames(nodesCore, core);
-              if (!movable.size) return core;
-              const laid = snap
-                ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
-                : computeLayout(core, worlds, loadedEdges);
-              return coreOffsetsAfterWorldSeparation(
-                core,
-                laid,
-                (d.groups as Group[]) ?? groups,
-                () => true,
-                movable,
-              );
-            });
-          } else if (prepared.repacked) {
+          if (!keepBoardPositions && prepared.repacked) {
             // Fresh pack only. A loaded board may have user-overlapped worlds.
             setNodesCore((core) => {
               const laid = snap
@@ -1561,7 +1552,7 @@ export function useWhiteboard() {
         setPendingLoadJson(null);
       }
     },
-    [fit, snap, worlds, groups, byid, nodesCore, flashStatus],
+    [fit, snap, worlds, groups, byid, flashStatus],
   );
 
   /**
@@ -1671,19 +1662,29 @@ export function useWhiteboard() {
         });
         // New sims and links move layout bases, so pin cards to real screen
         // positions rather than trusting the raw ox/oy the merge copied.
-        setNodesCore(
-          pinCoreToTargets(
-            jsonLoadTargets({
-              keepBoardPositions,
-              boardVisualById: byid,
-              fileCore: prepared.nodes,
-              fileEdges: incomingEdges,
-              worlds,
-            }),
-            merged.nodes,
+        const pinned = pinCoreToTargets(
+          jsonLoadTargets({
+            keepBoardPositions,
+            boardVisualById: byid,
+            fileCore: prepared.nodes,
+            fileEdges: incomingEdges,
             worlds,
-            merged.edges,
-          ),
+          }),
+          merged.nodes,
+          worlds,
+          merged.edges,
+        );
+        setNodesCore(
+          keepBoardPositions
+            ? separateLoadOverlaps({
+                core: pinned,
+                boardById: byid,
+                edges: merged.edges,
+                groups: merged.groups,
+                worlds,
+                snap,
+              })
+            : pinned,
         );
         setEdges(merged.edges);
         setGroups(merged.groups);
@@ -1717,6 +1718,8 @@ export function useWhiteboard() {
         );
         setTimeout(() => {
           setNodesCore((core) => {
+            // Kept positions were already fitted around the board above.
+            if (keepBoardPositions) return core;
             const movable = introducedWorldNames(nodesCore, core);
             if (!movable.size) return core;
             const laid = snap

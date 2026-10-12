@@ -1692,6 +1692,34 @@ export function computeLayout(
 }
 
 /**
+ * Spots for sims joining a household, in rows under its current cards and no
+ * wider than they are, so the household box grows straight down.
+ */
+export function rowsUnderHousehold(
+  home: { x: number; y: number; w?: number; h?: number }[],
+  joiners: SimNode[],
+): Map<string, { x: number; y: number }> {
+  const out = new Map<string, { x: number; y: number }>();
+  if (!home.length) return out;
+  const left = Math.min(...home.map((n) => n.x));
+  const right = Math.max(...home.map((n) => n.x + (n.w || CARD_MIN_W)));
+  const bottom = Math.max(...home.map((n) => n.y + (n.h || CARD_H)));
+  const rowW = right - left;
+  let x = left;
+  let y = bottom + LAYOUT.gapYExtra;
+  for (const n of joiners) {
+    const size = measureCard(n);
+    if (x > left && x + size.w > left + rowW) {
+      x = left;
+      y += rowPitch();
+    }
+    out.set(n.id, tileSnapOrigin(x, y));
+    x += size.w + LAYOUT.partnerGap;
+  }
+  return out;
+}
+
+/**
  * Keep existing cards where they are. A sim who joins a household already on
  * the board goes in rows under that household's cards, so its box grows in
  * place instead of stretching down to wherever the newcomer lands. Pack
@@ -1745,23 +1773,10 @@ export function offsetsForNewGids(
 
   for (const [gid, joiners] of joinersByGid) {
     const home = prevByGid.get(gid)!;
-    const left = Math.min(...home.map((n) => n.x));
-    const right = Math.max(...home.map((n) => n.x + (n.w || CARD_MIN_W)));
-    const bottom = Math.max(...home.map((n) => n.y + (n.h || CARD_H)));
-    const rowW = right - left;
-    let x = left;
-    let y = bottom + LAYOUT.gapYExtra;
     const placed = footprint.get(home[0]!.world || OTHER_WORLD) ?? [];
-    for (const n of joiners) {
-      const size = measureCard(n);
-      if (x > left && x + size.w > left + rowW) {
-        x = left;
-        y += rowPitch();
-      }
-      const at = tileSnapOrigin(x, y);
-      pack.set(n.id, at);
-      placed.push({ ...at, ...size });
-      x += size.w + LAYOUT.partnerGap;
+    for (const [id, at] of rowsUnderHousehold(home, joiners)) {
+      pack.set(id, at);
+      placed.push({ ...at, ...measureCard() });
     }
   }
 

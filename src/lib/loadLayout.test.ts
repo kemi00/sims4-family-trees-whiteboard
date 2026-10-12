@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { LAYOUT_EPOCH } from './constants.ts';
+import { CARD_H, CARD_MIN_W, LAYOUT_EPOCH } from './constants.ts';
 import { hhBoxDraw, worldFrame } from './geometry.ts';
 import { computeLayout } from './layout.ts';
 import {
@@ -8,10 +8,11 @@ import {
   pinCoreToTargets,
   prepareLoadedNodes,
   saveImportCore,
+  separateLoadOverlaps,
   shouldRepackOffsets,
 } from './loadLayout.ts';
 import { mergeJsonIntoBoard } from './mergeJson.ts';
-import { snapNodesToTiles } from './tiles.ts';
+import { snapNodesToTiles, snapToTile } from './tiles.ts';
 import type { Edge, Group, HhBoxDraw, SimNode, World } from '../types/whiteboard.ts';
 
 function node(ox: number, oy = 0): SimNode {
@@ -158,14 +159,8 @@ describe('JSON merge pinning', () => {
     for (const [id, p] of before) assert.deepEqual(pinned.get(id), p, id);
   });
 
-  it('leaves sims new to the board at their packed spot', () => {
-    const { raw, pinned } = merge(true);
-    assert.deepEqual(pinned.get('Gunther Goth'), raw.get('Gunther Goth'));
-  });
-
-  it('keeps board sims in place on a replace, and file-only sims where the file has them', () => {
+  it('keeps board sims in place on a replace, and keeps file-only sims off them', () => {
     const before = at(board, boardEdges);
-    const shown = at(file, fileEdges);
     const replaced = at(
       pinCoreToTargets(
         jsonLoadTargets({
@@ -182,7 +177,79 @@ describe('JSON merge pinning', () => {
       fileEdges,
     );
     for (const [id, p] of before) assert.deepEqual(replaced.get(id), p, id);
-    assert.deepEqual(replaced.get('Gunther Goth'), shown.get('Gunther Goth'));
+    const gunther = replaced.get('Gunther Goth')!;
+    for (const [id, p] of before) {
+      assert.ok(
+        Math.abs(gunther.x - p.x) >= CARD_MIN_W || Math.abs(gunther.y - p.y) >= CARD_H,
+        `Gunther lands on ${id}`,
+      );
+    }
+  });
+
+  describe('sims new to the board, when the board keeps its positions', () => {
+    // The file adds a son for the Goths and a new household in their world.
+    const fileNew = [
+      ...file.filter((n) => n.id !== 'Gunther Goth'),
+      sim('Alexander Goth', 'Goth', { age: 'Child', gender: 'Male' }),
+      sim('Gunther Goth', 'Goth Elders', { age: 'Elder', gender: 'Male' }),
+    ];
+    const fileNewEdges = [
+      ...boardEdges,
+      link('Bella Goth', 'Alexander Goth', 'parent'),
+      link('Mortimer Goth', 'Alexander Goth', 'parent'),
+    ];
+    const shown = at(fileNew, fileNewEdges);
+    const onBoard = fileNew.filter((n) => !['Alexander Goth', 'Gunther Goth'].includes(n.id));
+    /** The board shows every shared card `shift(n)` away from the file. */
+    const targets = (shift: (n: SimNode) => { x: number; y: number }) => {
+      const boardVisualById = Object.fromEntries(
+        onBoard.map((n) => {
+          const p = shown.get(n.id)!;
+          const d = shift(n);
+          return [n.id, { x: p.x + d.x, y: p.y + d.y }];
+        }),
+      );
+      return {
+        boardVisualById,
+        targets: jsonLoadTargets({
+          keepBoardPositions: true,
+          boardVisualById,
+          fileCore: fileNew,
+          fileEdges: fileNewEdges,
+          worlds,
+        }),
+      };
+    };
+    const plus = (p: { x: number; y: number }, x: number, y: number) => ({ x: p.x + x, y: p.y + y });
+
+    it('keeps a sim joining a household where the file has it beside that household', () => {
+      const { targets: t } = targets((n) =>
+        n.hh === 'Goth' ? { x: 1200, y: 400 } : { x: 0, y: 0 },
+      );
+      assert.deepEqual(t.get('Alexander Goth'), plus(shown.get('Alexander Goth')!, 1200, 400));
+    });
+
+    it('moves a household new to the board as far as the board moved its world', () => {
+      const { targets: t } = targets(() => ({ x: 0, y: 800 }));
+      assert.deepEqual(t.get('Gunther Goth'), plus(shown.get('Gunther Goth')!, 0, 800));
+    });
+
+    it('puts a joiner under its household when the board rearranged it onto the joiner\'s spot', () => {
+      const son = shown.get('Alexander Goth')!;
+      const sister = shown.get('Cassandra Goth')!;
+      // The user dragged Cassandra onto the spot the file gives her brother.
+      const { boardVisualById, targets: t } = targets((n) =>
+        n.id === 'Cassandra Goth'
+          ? { x: son.x - sister.x, y: son.y - sister.y }
+          : { x: 0, y: 0 },
+      );
+      const placed = t.get('Alexander Goth')!;
+      const goths = ['Bella Goth', 'Mortimer Goth', 'Cassandra Goth'].map(
+        (id) => boardVisualById[id]!,
+      );
+      assert.ok(placed.y >= Math.max(...goths.map((p) => p.y + CARD_H)), 'below the Goths');
+      assert.equal(placed.x, snapToTile(Math.min(...goths.map((p) => p.x))));
+    });
   });
 
   it("puts every file card where the file shows it when the file's positions win", () => {
@@ -237,6 +304,8 @@ describe('save import placement', () => {
 
   const byId = (nodes: SimNode[]) =>
     Object.fromEntries(nodes.map((n) => [n.id, n]));
+
+  const at = (nodes: SimNode[], id: string) => nodes.find((n) => n.id === id)!;
 
   const overlaps = (a: HhBoxDraw, b: HhBoxDraw) =>
     a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
@@ -361,7 +430,6 @@ describe('save import placement', () => {
       saveSimId: `n${i}`,
     }));
     const { shown, groups, after } = importInto(board, added);
-    const at = (nodes: SimNode[], id: string) => nodes.find((n) => n.id === id)!;
     assert.ok(
       at(shown, 'e1').x === at(shown, 'a1').x && at(shown, 'i1').y > at(shown, 'e1').y,
       'fixture: E and I stack under A',
@@ -375,6 +443,58 @@ describe('save import placement', () => {
       if (!['E', 'I'].includes(n.world)) assert.equal(now.y, n.y, n.id);
     }
     assert.ok(at(after, 'e1').y < at(after, 'i1').y, 'E stays above I');
+  });
+
+  it('fits a JSON merge that keeps board positions around the board too', () => {
+    // The file is this board after a save grew world A, which pushed E down.
+    const board = starterBoard();
+    const added = Array.from({ length: 6 }, (_, i) => ({
+      ...sim(`n${i}`, 'A', `New ${i}`),
+      saveSimId: `n${i}`,
+    }));
+    const { after: fileShown } = importInto(board, added);
+    const fileCore = fileShown.map((n) => ({ ...n, x: 0, y: 0, w: 0, h: 0 }));
+    const shown = laidOut(board);
+    assert.ok(
+      at(fileShown, 'e1').y > at(shown, 'e1').y,
+      'fixture: the file has E lower than the board does',
+    );
+
+    const merged = mergeJsonIntoBoard({
+      boardNodes: board,
+      boardEdges: [],
+      boardGroups: groupsOf(board),
+      incomingNodes: fileCore,
+      incomingEdges: [],
+      incomingGroups: groupsOf(fileCore),
+      keepBoardPositions: true,
+    });
+    const core = separateLoadOverlaps({
+      core: pinCoreToTargets(
+        jsonLoadTargets({
+          keepBoardPositions: true,
+          boardVisualById: byId(shown),
+          fileCore,
+          fileEdges: [],
+          worlds,
+        }),
+        merged.nodes,
+        worlds,
+        merged.edges,
+      ),
+      boardById: byId(shown),
+      edges: merged.edges,
+      groups: merged.groups,
+      worlds,
+      snap: true,
+    });
+    const after = laidOut(core);
+    assert.deepEqual(worldOverlaps(after, merged.groups), []);
+    assert.deepEqual(householdOverlaps(after, merged.groups), []);
+    for (const n of shown) {
+      if (n.world === 'E') continue;
+      assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
+    }
   });
 
   it('leaves worlds the user stacked on purpose where they are', () => {

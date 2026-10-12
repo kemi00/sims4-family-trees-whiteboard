@@ -3,7 +3,13 @@ import {
   coreOffsetsAfterImportSeparation,
   coreOffsetsAfterWorldSeparation,
 } from './geometry.ts';
-import { computeLayout, layoutBases, offsetsForNewGids } from './layout.ts';
+import {
+  computeLayout,
+  layoutBases,
+  measureCard,
+  offsetsForNewGids,
+  rowsUnderHousehold,
+} from './layout.ts';
 import { snapNodesToTiles } from './tiles.ts';
 import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 
@@ -85,12 +91,78 @@ export function pinCoreToTargets(
   });
 }
 
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)]!;
+}
+
+function cardsOverlap(a: Point, b: Point): boolean {
+  const { w, h } = measureCard();
+  return a.x < b.x + w && a.x + w > b.x && a.y < b.y + h && a.y + h > b.y;
+}
+
+/**
+ * Screen spots for file cards the board does not have yet, when the board
+ * keeps its own positions. The board and the file can be laid out differently
+ * (the file's worlds pushed down by a save merge, a household dragged on the
+ * board), so the file's own coordinates would drop a newcomer wherever that
+ * spot happens to be on this board. Instead each one keeps its place relative
+ * to its household as the file shows it, or to its world for a household new
+ * to the board, moved as far as the board has moved those cards.
+ */
+function newcomerTargets(
+  fileCore: SimNode[],
+  filePos: Map<string, Point>,
+  board: Record<string, Point>,
+): Map<string, Point> {
+  const out = new Map<string, Point>();
+  const byGid = new Map<string, SimNode[]>();
+  const byWorld = new Map<string, SimNode[]>();
+  for (const n of fileCore) {
+    byGid.set(n.gid, [...(byGid.get(n.gid) ?? []), n]);
+    byWorld.set(n.world, [...(byWorld.get(n.world) ?? []), n]);
+  }
+  const kept = (mem: SimNode[]) => mem.filter((n) => board[n.id] && filePos.has(n.id));
+  const shiftOf = (mem: SimNode[]): Point | null => {
+    const both = kept(mem);
+    if (!both.length) return null;
+    return {
+      x: median(both.map((n) => board[n.id]!.x - filePos.get(n.id)!.x)),
+      y: median(both.map((n) => board[n.id]!.y - filePos.get(n.id)!.y)),
+    };
+  };
+  const hhShift = new Map<string, Point | null>();
+  const worldShift = new Map<string, Point | null>();
+
+  for (const n of fileCore) {
+    const p = filePos.get(n.id);
+    if (board[n.id] || !p) continue;
+    if (!hhShift.has(n.gid)) hhShift.set(n.gid, shiftOf(byGid.get(n.gid)!));
+    if (!worldShift.has(n.world)) worldShift.set(n.world, shiftOf(byWorld.get(n.world)!));
+    const d = hhShift.get(n.gid) ?? worldShift.get(n.world) ?? { x: 0, y: 0 };
+    out.set(n.id, { x: p.x + d.x, y: p.y + d.y });
+  }
+
+  // A household arranged differently on the board can put a newcomer on one
+  // of its own kept cards. Those newcomers go in rows under it instead.
+  for (const mem of byGid.values()) {
+    const home = kept(mem).map((n) => board[n.id]!);
+    const joiners = mem.filter((n) => out.has(n.id));
+    if (!home.length || !joiners.length) continue;
+    const lands = joiners.some((n) => home.some((h) => cardsOverlap(out.get(n.id)!, h)));
+    if (!lands) continue;
+    for (const [id, at] of rowsUnderHousehold(home, joiners)) out.set(id, at);
+  }
+  return out;
+}
+
 /**
  * Where each card should sit after a JSON merge or replace. Loading can add
  * sims and links, which moves layout bases, so raw ox/oy alone would make
  * cards jump. When the board's positions win, sims already on the board stay
- * where they are on screen and sims new to it keep their packed spot. With the
- * file's positions, every card in the file goes where the file shows it.
+ * where they are on screen and sims new to it move with their household or
+ * world (see {@link newcomerTargets}). With the file's positions, every card
+ * in the file goes where the file shows it.
  */
 export function jsonLoadTargets(opts: {
   keepBoardPositions: boolean;
@@ -103,11 +175,34 @@ export function jsonLoadTargets(opts: {
   for (const [id, v] of Object.entries(opts.boardVisualById)) {
     targets.set(id, { x: v.x, y: v.y });
   }
-  if (!opts.keepBoardPositions) {
-    const filePos = visualPositionsFromCore(opts.fileCore, opts.worlds, opts.fileEdges);
-    for (const [id, p] of filePos) targets.set(id, p);
-  }
+  const filePos = visualPositionsFromCore(opts.fileCore, opts.worlds, opts.fileEdges);
+  const extra = opts.keepBoardPositions
+    ? newcomerTargets(opts.fileCore, filePos, opts.boardVisualById)
+    : filePos;
+  for (const [id, p] of extra) targets.set(id, p);
   return targets;
+}
+
+/**
+ * Push apart the households and worlds a load made overlap, as core ox/oy.
+ * `boardById` is the board as it was on screen before the load; whatever
+ * already overlapped there stays as it is.
+ */
+export function separateLoadOverlaps(opts: {
+  core: SimNode[];
+  boardById: Record<string, SimNode>;
+  edges: Edge[];
+  groups: Group[];
+  worlds: World[];
+  snap: boolean;
+}): SimNode[] {
+  const { core, edges, groups, worlds, snap } = opts;
+  const ids = new Set(core.map((n) => n.id));
+  const before = Object.values(opts.boardById).filter((n) => ids.has(n.id));
+  const laid = snap
+    ? snapNodesToTiles(computeLayout(core, worlds, edges))
+    : computeLayout(core, worlds, edges);
+  return coreOffsetsAfterImportSeparation(core, laid, groups, before);
 }
 
 /**
@@ -128,18 +223,18 @@ export function saveImportCore(opts: {
 }): SimNode[] {
   const { mode, boardById, edges, groups, worlds, snap } = opts;
   const all = opts.nodes.map((n) => asCore(n, n.ox ?? 0, n.oy ?? 0));
-  const coreNodes =
-    mode === 'replace' ? all : offsetsForNewGids(boardById, all, worlds, edges);
-  const laid = snap
-    ? snapNodesToTiles(computeLayout(coreNodes, worlds, edges))
-    : computeLayout(coreNodes, worlds, edges);
   if (mode === 'replace') {
-    return coreOffsetsAfterWorldSeparation(coreNodes, laid, groups);
+    const laid = snap
+      ? snapNodesToTiles(computeLayout(all, worlds, edges))
+      : computeLayout(all, worlds, edges);
+    return coreOffsetsAfterWorldSeparation(all, laid, groups);
   }
-  return coreOffsetsAfterImportSeparation(
-    coreNodes,
-    laid,
+  return separateLoadOverlaps({
+    core: offsetsForNewGids(boardById, all, worlds, edges),
+    boardById,
+    edges,
     groups,
-    Object.values(boardById),
-  );
+    worlds,
+    snap,
+  });
 }
