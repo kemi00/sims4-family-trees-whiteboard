@@ -1692,8 +1692,14 @@ export function computeLayout(
 }
 
 /**
- * Keep existing cards where they are. Pack brand-new households in a grid
- * under each world's current cards so a save merge does not restack the board.
+ * Keep existing cards where they are. A sim who joins a household already on
+ * the board goes in rows under that household's cards, so its box grows in
+ * place instead of stretching down to wherever the newcomer lands. Pack
+ * brand-new households in a grid under each world's current cards, no wider
+ * than the world already is, so a save merge does not restack the board.
+ *
+ * Growing a household or world can still run it into whatever sits below;
+ * {@link separateImportOverlaps} pushes those apart afterwards.
  */
 export function offsetsForNewGids(
   prevById: Record<string, SimNode>,
@@ -1703,10 +1709,32 @@ export function offsetsForNewGids(
 ): SimNode[] {
   const bases = layoutBases(nextCore, worlds, edges);
   const newcomers = nextCore.filter((n) => !prevById[n.id]);
+  const prevByGid = new Map<string, SimNode[]>();
+  for (const n of Object.values(prevById)) {
+    const list = prevByGid.get(n.gid) ?? [];
+    list.push(n);
+    prevByGid.set(n.gid, list);
+  }
   const pack = new Map<string, { x: number; y: number }>();
+  /** Cards each world already has, plus joiners placed below. */
+  const footprint = new Map<string, { x: number; y: number; w: number; h: number }[]>();
+  for (const n of Object.values(prevById)) {
+    const world = n.world || OTHER_WORLD;
+    const list = footprint.get(world) ?? [];
+    list.push({ x: n.x, y: n.y, w: n.w || CARD_MIN_W, h: n.h || CARD_H });
+    footprint.set(world, list);
+  }
+
+  const joinersByGid = new Map<string, SimNode[]>();
   const gidsByWorld = new Map<string, string[]>();
   const seenGid = new Set<string>();
   for (const n of newcomers) {
+    if (prevByGid.has(n.gid)) {
+      const list = joinersByGid.get(n.gid) ?? [];
+      list.push(n);
+      joinersByGid.set(n.gid, list);
+      continue;
+    }
     if (seenGid.has(n.gid)) continue;
     seenGid.add(n.gid);
     const world = n.world || OTHER_WORLD;
@@ -1715,18 +1743,40 @@ export function offsetsForNewGids(
     gidsByWorld.set(world, list);
   }
 
+  for (const [gid, joiners] of joinersByGid) {
+    const home = prevByGid.get(gid)!;
+    const left = Math.min(...home.map((n) => n.x));
+    const right = Math.max(...home.map((n) => n.x + (n.w || CARD_MIN_W)));
+    const bottom = Math.max(...home.map((n) => n.y + (n.h || CARD_H)));
+    const rowW = right - left;
+    let x = left;
+    let y = bottom + LAYOUT.gapYExtra;
+    const placed = footprint.get(home[0]!.world || OTHER_WORLD) ?? [];
+    for (const n of joiners) {
+      const size = measureCard(n);
+      if (x > left && x + size.w > left + rowW) {
+        x = left;
+        y += rowPitch();
+      }
+      const at = tileSnapOrigin(x, y);
+      pack.set(n.id, at);
+      placed.push({ ...at, ...size });
+      x += size.w + LAYOUT.partnerGap;
+    }
+  }
+
   for (const [world, gids] of gidsByWorld) {
-    const old = Object.values(prevById).filter(
-      (n) => (n.world || OTHER_WORLD) === world,
-    );
+    const old = footprint.get(world) ?? [];
     if (!old.length) continue;
     const origin = tileSnapOrigin(
       Math.min(...old.map((n) => n.x)),
-      Math.max(...old.map((n) => n.y + (n.h || CARD_H))) + LAYOUT.worldGapY,
+      Math.max(...old.map((n) => n.y + n.h)) + LAYOUT.worldGapY,
     );
     const originX = origin.x;
-    const rowMax =
-      world === OTHER_WORLD ? LAYOUT.worldRowMaxW * 1.4 : LAYOUT.worldRowMaxW;
+    const rowMax = Math.min(
+      world === OTHER_WORLD ? LAYOUT.worldRowMaxW * 1.4 : LAYOUT.worldRowMaxW,
+      Math.max(...old.map((n) => n.x + n.w)) - originX,
+    );
     let x = originX;
     let y = origin.y;
     let rowH = 0;

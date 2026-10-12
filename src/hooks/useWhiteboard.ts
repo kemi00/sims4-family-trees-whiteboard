@@ -11,7 +11,7 @@ import {
   writeDraft,
 } from '../lib/autosave.ts';
 import { trackAction } from '../lib/analytics.ts';
-import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, shouldRepackOffsets } from '../lib/loadLayout.ts';
+import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, shouldRepackOffsets } from '../lib/loadLayout.ts';
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import {
@@ -37,7 +37,6 @@ import {
   computeLayout,
   layoutBases,
   measureCard,
-  offsetsForNewGids,
   OTHER_WORLD,
   rowPitch,
   spawnChildOrigin,
@@ -1778,32 +1777,16 @@ export function useWhiteboard() {
       setEdges(result.edges);
       setGroups(result.groups);
       setPairStatus(result.pairStatus);
-      const coreNodes =
-        mode === 'replace'
-          ? result.nodes.map(toCore)
-          : offsetsForNewGids(
-              byid,
-              result.nodes.map(toCore),
-              worlds,
-              result.edges,
-            );
-      const laid = snap
-        ? snapNodesToTiles(computeLayout(coreNodes, worlds, result.edges))
-        : computeLayout(coreNodes, worlds, result.edges);
-      const movable =
-        mode === 'replace'
-          ? undefined
-          : introducedWorldNames(Object.values(byid), result.nodes);
       setNodesCore(
-        mode !== 'replace' && movable && movable.size === 0
-          ? coreNodes
-          : coreOffsetsAfterWorldSeparation(
-              coreNodes,
-              laid,
-              result.groups,
-              () => true,
-              movable,
-            ),
+        saveImportCore({
+          mode,
+          boardById: byid,
+          nodes: result.nodes,
+          edges: result.edges,
+          groups: result.groups,
+          worlds,
+          snap,
+        }),
       );
       eidcRef.current = nextEidc(result.edges, eidcRef.current);
       const s = result.summary;

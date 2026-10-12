@@ -386,6 +386,196 @@ export function separateOverlappingWorldFrames(
   return next;
 }
 
+function pairKey(a: string, b: string): string {
+  return a < b ? `${a}\0${b}` : `${b}\0${a}`;
+}
+
+function overlappingPairs(boxes: Map<string, HhBoxDraw>): Set<string> {
+  const keys = [...boxes.keys()];
+  const out = new Set<string>();
+  for (let i = 0; i < keys.length; i++) {
+    for (let j = i + 1; j < keys.length; j++) {
+      if (framesOverlap(boxes.get(keys[i]!)!, boxes.get(keys[j]!)!)) {
+        out.add(pairKey(keys[i]!, keys[j]!));
+      }
+    }
+  }
+  return out;
+}
+
+/** Drawn household boxes for every gid, read once instead of per lookup. */
+function householdBoxes(
+  buckets: NodeBuckets,
+  groups: Group[],
+): Map<string, HhBoxDraw> {
+  const byGid = new Map(groups.map((g) => [g.gid, g]));
+  const out = new Map<string, HhBoxDraw>();
+  for (const [gid, mem] of buckets.byGid) {
+    const c = householdChrome(mem, byGid.get(gid));
+    if (c) out.set(gid, { l: c.boxL, t: c.boxT, r: c.boxR, b: c.boxB });
+  }
+  return out;
+}
+
+/** Same frame as {@link worldFrame}, built from boxes already measured. */
+function worldFrames(
+  buckets: NodeBuckets,
+  boxes: Map<string, HhBoxDraw>,
+): Map<string, HhBoxDraw> {
+  const out = new Map<string, HhBoxDraw>();
+  for (const [world, mem] of buckets.byWorld) {
+    if (world === '—') continue;
+    let f: HhBoxDraw | null = null;
+    for (const gid of new Set(mem.map((n) => n.gid))) {
+      const bx = boxes.get(gid);
+      if (!bx) continue;
+      f = f
+        ? { l: Math.min(f.l, bx.l), t: Math.min(f.t, bx.t), r: Math.max(f.r, bx.r), b: Math.max(f.b, bx.b) }
+        : { ...bx };
+    }
+    if (!f) continue;
+    out.set(world, {
+      l: f.l - LAYOUT.worldMargin,
+      t: f.t - LAYOUT.worldTitle,
+      r: f.r + LAYOUT.worldMargin,
+      b: f.b + LAYOUT.worldMargin,
+    });
+  }
+  return out;
+}
+
+/**
+ * Push boxes straight down until none overlaps a box settled before it.
+ * Boxes that were already on the board settle first, top to bottom, then the
+ * import's own — so a new box never shoves an old one, and a column keeps its
+ * order instead of every box below a grown one piling up at the same height.
+ * A pair in `stacked` may keep overlapping. Returns each box's drop.
+ */
+function settleDownward(
+  boxes: Map<string, HhBoxDraw>,
+  existed: ReadonlySet<string>,
+  stacked: ReadonlySet<string>,
+  gap: number,
+): Map<string, number> {
+  const order = [...boxes.keys()].sort((a, b) => {
+    const aNew = !existed.has(a);
+    if (aNew !== !existed.has(b)) return aNew ? 1 : -1;
+    const A = boxes.get(a)!;
+    const B = boxes.get(b)!;
+    return A.t - B.t || A.l - B.l;
+  });
+  const settled: { key: string; box: HhBoxDraw }[] = [];
+  const drops = new Map<string, number>();
+  for (const key of order) {
+    const box = { ...boxes.get(key)! };
+    let dy = 0;
+    for (let hit = true; hit; ) {
+      const under = settled.find(
+        (s) => framesOverlap(box, s.box) && !stacked.has(pairKey(key, s.key)),
+      );
+      hit = !!under;
+      if (!under) continue;
+      const step = tileCeil(under.box.b + gap - box.t);
+      box.t += step;
+      box.b += step;
+      dy += step;
+    }
+    if (dy) drops.set(key, dy);
+    settled.push({ key, box });
+  }
+  return drops;
+}
+
+/**
+ * Save merge only: push apart the household boxes and world frames that the
+ * import itself made overlap — a household that gained sims growing into the
+ * one below it, or a world growing into the next world in its column.
+ * Everything moves straight down, so columns stay columns.
+ *
+ * `before` is the board as it was laid out before the import. Any pair that
+ * already overlapped there is left alone: the user may have stacked those on
+ * purpose, and a drag never shoves anything else either.
+ */
+export function separateImportOverlaps(
+  laid: SimNode[],
+  groups: Group[],
+  before: SimNode[],
+  gap: number = TILE,
+): SimNode[] {
+  const was = bucketNodes(before);
+  const wasBoxes = householdBoxes(was, groups);
+  const stackedHh = overlappingPairs(wasBoxes);
+  const stackedWorlds = overlappingPairs(worldFrames(was, wasBoxes));
+
+  const next = laid.map((n) => ({ ...n }));
+  const now = bucketNodes(next);
+  const boxes = householdBoxes(now, groups);
+  const drop = (mem: SimNode[], dy: number) => {
+    for (const n of mem) {
+      n.y += dy;
+      n.oy = (n.oy ?? 0) + dy;
+    }
+    for (const gid of new Set(mem.map((n) => n.gid))) {
+      const bx = boxes.get(gid);
+      if (bx) boxes.set(gid, { ...bx, t: bx.t + dy, b: bx.b + dy });
+    }
+  };
+
+  for (const mem of now.byWorld.values()) {
+    const inWorld = new Map<string, HhBoxDraw>();
+    for (const n of mem) {
+      const bx = boxes.get(n.gid);
+      if (bx) inWorld.set(n.gid, bx);
+    }
+    const drops = settleDownward(inWorld, new Set(was.byGid.keys()), stackedHh, gap);
+    for (const [gid, dy] of drops) drop(now.byGid.get(gid) ?? [], dy);
+  }
+
+  const frames = worldFrames(now, boxes);
+  const drops = settleDownward(frames, new Set(was.byWorld.keys()), stackedWorlds, gap);
+  for (const [world, dy] of drops) drop(now.byWorld.get(world) ?? [], dy);
+  return next;
+}
+
+/** Carry layout moves from `laid` to `moved` over to core ox/oy. */
+function coreOffsetsFromMoves(
+  core: SimNode[],
+  laid: SimNode[],
+  moved: SimNode[],
+): SimNode[] {
+  const before = new Map(laid.map((n) => [n.id, n]));
+  const after = new Map(moved.map((n) => [n.id, n]));
+  let changed = false;
+  const out = core.map((n) => {
+    const b = before.get(n.id);
+    const a = after.get(n.id);
+    if (!b || !a) return n;
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    if (!dx && !dy) return n;
+    changed = true;
+    return { ...n, ox: (n.ox ?? 0) + dx, oy: (n.oy ?? 0) + dy };
+  });
+  return changed ? out : core;
+}
+
+/**
+ * Apply {@link separateImportOverlaps} as ox/oy deltas on core nodes so the
+ * separation survives the next layout pass.
+ */
+export function coreOffsetsAfterImportSeparation(
+  core: SimNode[],
+  laid: SimNode[],
+  groups: Group[],
+  before: SimNode[],
+): SimNode[] {
+  return coreOffsetsFromMoves(
+    core,
+    laid,
+    separateImportOverlaps(laid, groups, before),
+  );
+}
+
 /**
  * Apply {@link separateOverlappingWorldFrames} as ox/oy deltas on core nodes
  * so the separation survives the next layout pass.
@@ -404,20 +594,7 @@ export function coreOffsetsAfterWorldSeparation(
     TILE,
     movableWorlds,
   );
-  const before = new Map(laid.map((n) => [n.id, n]));
-  const after = new Map(separated.map((n) => [n.id, n]));
-  let changed = false;
-  const out = core.map((n) => {
-    const b = before.get(n.id);
-    const a = after.get(n.id);
-    if (!b || !a) return n;
-    const dx = a.x - b.x;
-    const dy = a.y - b.y;
-    if (!dx && !dy) return n;
-    changed = true;
-    return { ...n, ox: (n.ox ?? 0) + dx, oy: (n.oy ?? 0) + dy };
-  });
-  return changed ? out : core;
+  return coreOffsetsFromMoves(core, laid, separated);
 }
 
 function rectIntersectionArea(a: HhBoxDraw, b: HhBoxDraw): number {

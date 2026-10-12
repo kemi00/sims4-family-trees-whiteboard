@@ -1,6 +1,11 @@
 import { LAYOUT_EPOCH } from './constants.ts';
-import { computeLayout, layoutBases } from './layout.ts';
-import type { Edge, SimNode, World } from '../types/whiteboard.ts';
+import {
+  coreOffsetsAfterImportSeparation,
+  coreOffsetsAfterWorldSeparation,
+} from './geometry.ts';
+import { computeLayout, layoutBases, offsetsForNewGids } from './layout.ts';
+import { snapNodesToTiles } from './tiles.ts';
+import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 
 /**
  * True when saved drag offsets should be cleared and the board re-packed.
@@ -103,4 +108,38 @@ export function jsonLoadTargets(opts: {
     for (const [id, p] of filePos) targets.set(id, p);
   }
   return targets;
+}
+
+/**
+ * Core nodes after a .save import. Replace packs the save from scratch and
+ * pushes worlds apart. Merge keeps every card already on the board where it
+ * is on screen, finds room for the sims the save brings, then clears only the
+ * overlaps the import itself made — never ones the user had already stacked.
+ */
+export function saveImportCore(opts: {
+  mode: 'merge' | 'replace';
+  /** Board cards before the import, as laid out on screen. */
+  boardById: Record<string, SimNode>;
+  nodes: SimNode[];
+  edges: Edge[];
+  groups: Group[];
+  worlds: World[];
+  snap: boolean;
+}): SimNode[] {
+  const { mode, boardById, edges, groups, worlds, snap } = opts;
+  const all = opts.nodes.map((n) => asCore(n, n.ox ?? 0, n.oy ?? 0));
+  const coreNodes =
+    mode === 'replace' ? all : offsetsForNewGids(boardById, all, worlds, edges);
+  const laid = snap
+    ? snapNodesToTiles(computeLayout(coreNodes, worlds, edges))
+    : computeLayout(coreNodes, worlds, edges);
+  if (mode === 'replace') {
+    return coreOffsetsAfterWorldSeparation(coreNodes, laid, groups);
+  }
+  return coreOffsetsAfterImportSeparation(
+    coreNodes,
+    laid,
+    groups,
+    Object.values(boardById),
+  );
 }
