@@ -1508,7 +1508,8 @@ export function useWhiteboard() {
               );
             });
           }
-          fit(svgWidth, svgHeight);
+          // Kept positions mean "leave my board as it is" — the view included.
+          if (!keepBoardPositions) fit(svgWidth, svgHeight);
         }, 0);
       } catch {
         alert('Bad file');
@@ -1678,7 +1679,8 @@ export function useWhiteboard() {
               movable,
             );
           });
-          fit(pending.svgWidth, pending.svgHeight);
+          // Kept positions mean "leave my board as it is" — the view included.
+          if (!keepBoardPositions) fit(pending.svgWidth, pending.svgHeight);
         }, 0);
     } catch {
       alert('Bad file');
