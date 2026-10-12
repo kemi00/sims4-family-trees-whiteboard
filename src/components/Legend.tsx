@@ -7,17 +7,21 @@ type Props = {
   worlds: World[];
   /** Worlds with at least one sim currently on the board. */
   liveWorlds: Set<string>;
+  /** Hide while a filter panel is open so it does not overlap the controls. */
+  hidden?: boolean;
   onPickWorld: (world: string) => void;
   ref?: Ref<HTMLDivElement>;
 };
 
-export function Legend({ worlds, liveWorlds, onPickWorld, ref }: Props) {
+export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) {
   const compact = useCompactChrome();
   const [expanded, setExpanded] = useState(!compact);
 
   useEffect(() => {
     if (compact) setExpanded(false);
   }, [compact]);
+
+  if (hidden) return null;
 
   if (compact && !expanded) {
     return (

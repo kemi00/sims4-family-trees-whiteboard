@@ -1645,6 +1645,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         ref={legendRef}
         worlds={wb.worlds}
         liveWorlds={wb.liveWorlds}
+        hidden={wb.gamesOpen || wb.playOpen || wb.agesOpen}
         onPickWorld={(world) => {
           const r = svgRef.current?.getBoundingClientRect();
           const lg = legendRef.current?.getBoundingClientRect();

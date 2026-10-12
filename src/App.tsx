@@ -152,6 +152,17 @@ export default function App() {
           devUpdatesUnseen={devUpdatesUnseen}
         />
         <WhiteboardStage wb={wb} svgRef={svgRef} stageRef={stageRef} />
+        {(wb.gamesOpen || wb.playOpen || wb.agesOpen) && (
+          <div
+            className="chrome-backdrop"
+            aria-hidden
+            onPointerDown={() => {
+              wb.setGamesOpen(false);
+              wb.setPlayOpen(false);
+              wb.setAgesOpen(false);
+            }}
+          />
+        )}
         {wb.gamesOpen && (
           <div ref={gamesPanelRef}>
             <GamesPanel
