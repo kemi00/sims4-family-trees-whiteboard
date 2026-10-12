@@ -2,7 +2,8 @@ import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import { COL, PILL_H, PILL_W, UEDIT } from '../lib/constants.ts';
 import { sharedChromeValue } from '../lib/liveScene.ts';
 import { ptsStr } from '../lib/utils.ts';
-import type { BloodPath, BloodVert, UnionRender } from '../types/whiteboard.ts';
+import type { BloodPath, BloodVert, SecretMark, UnionRender } from '../types/whiteboard.ts';
+import { LockGlyph } from './LockGlyph.tsx';
 
 /** Opaque capsule that masks the connector where the relationship glyph sits. */
 function PillBg({
@@ -54,6 +55,32 @@ function HeartPill({ x, y, color }: { x: number; y: number; color: string }) {
         stroke="none"
         transform={`translate(${x} ${y}) scale(0.9) translate(-12 -12.2)`}
       />
+    </>
+  );
+}
+
+/** Secret lovers: the romance heart with a padlock beside it. */
+function SecretLoversPill({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <>
+      <PillBg x={x} y={y} w={PILL_W.secret} color={color} />
+      <path
+        d={HEART_D}
+        fill={color}
+        stroke="none"
+        transform={`translate(${x - 6} ${y}) scale(0.68) translate(-12 -12.2)`}
+      />
+      <LockGlyph x={x + 9} y={y} color={color} size={10} />
+    </>
+  );
+}
+
+/** Lock on a child's top stem: one of the child's parents is a secret. */
+function SecretBadge({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <>
+      <circle cx={x} cy={y} r={8.5} fill="#fff" stroke={`${color}55`} strokeWidth={1} />
+      <LockGlyph x={x} y={y} color={color} size={9} />
     </>
   );
 }
@@ -138,6 +165,7 @@ type Props = {
   hopD: (pts: [number, number][], verts: BloodVert[], pi: number) => string;
   unions: UnionRender[];
   customs: { edgeId: string; pts: [number, number][]; isUser: boolean; a?: string; b?: string }[];
+  secrets?: SecretMark[];
   endsById: ReadonlyMap<string, readonly [string, string]>;
   userEdgeIds: Set<string>;
   isSelLink: (ids: string[]) => boolean;
@@ -187,6 +215,7 @@ export const EdgeLayer = memo(function EdgeLayer({
   hopD,
   unions,
   customs,
+  secrets,
   endsById,
   userEdgeIds,
   isSelLink,
@@ -276,9 +305,12 @@ export const EdgeLayer = memo(function EdgeLayer({
               {u.type === 'divorced' && (
                 <DivorcePill x={u.rx} y={u.ry} color={pc} />
               )}
-              {u.type === 'romance' && (
-                <HeartPill x={u.rx} y={u.ry} color={pc} />
-              )}
+              {u.type === 'romance' &&
+                (u.secret ? (
+                  <SecretLoversPill x={u.rx} y={u.ry} color={pc} />
+                ) : (
+                  <HeartPill x={u.rx} y={u.ry} color={pc} />
+                ))}
               {u.type === 'marriage' && (
                 <RingPill x={u.rx} y={u.ry} color={pc} />
               )}
@@ -291,6 +323,25 @@ export const EdgeLayer = memo(function EdgeLayer({
                 }}
               />
             </g>
+          </g>
+        );
+      })}
+      {secrets?.map((m) => {
+        const sq = isSelLink(m.ids);
+        const nodeIds = nodeIdsFromEdges(m.ids, endsById);
+        return (
+          <g
+            key={`secret-${m.child}`}
+            className={sq ? 'link edge sel' : 'link edge'}
+            data-ends={nodeIds.length ? JSON.stringify(nodeIds) : ''}
+            {...chromeDataProps(nodeIds, worldById, gidById)}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onLinkClick(m.ids, e);
+            }}
+          >
+            <title>Secret parent</title>
+            <SecretBadge x={m.at[0]} y={m.at[1]} color={sq ? '#1b6cd6' : COL.blood} />
           </g>
         );
       })}

@@ -1,6 +1,13 @@
 import { OTHER_WORLD } from '../layout.ts';
 import { edgeSourceOf, sanitizeEdges, uKey, worldColor } from '../utils.ts';
-import type { Edge, EdgeType, Group, SimNode, World } from '../../types/whiteboard.ts';
+import type {
+  Edge,
+  EdgeType,
+  Group,
+  PairStatus,
+  SimNode,
+  World,
+} from '../../types/whiteboard.ts';
 import type { ParsedSave, ParsedSaveRel, ParsedSaveSim } from './parseSave.ts';
 
 export type SaveMergeSummary = {
@@ -17,6 +24,10 @@ export type SaveMergeSummary = {
   extraWorlds: string[];
   /** Packs whose dedicated board worlds are missing from the save. */
   hidePacks: string[];
+  /** Parent links the save keeps secret (the family tree leaves them out). */
+  secretParents: number;
+  /** Pairs the save calls secret lovers. */
+  secretLovers: number;
 };
 
 export type SaveMergeInput = {
@@ -24,6 +35,8 @@ export type SaveMergeInput = {
   edges: Edge[];
   groups: Group[];
   worlds: World[];
+  /** The board's statuses from earlier imports; this save's pairs replace theirs. */
+  pairStatus?: PairStatus[];
   parsed: ParsedSave;
   seedNameKeys: Set<string>;
   now: string;
@@ -34,6 +47,7 @@ export type SaveMergeResult = {
   nodes: SimNode[];
   edges: Edge[];
   groups: Group[];
+  pairStatus: PairStatus[];
   summary: SaveMergeSummary;
 };
 
@@ -397,12 +411,15 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
 
   let confirmed = 0;
   let newLinks = 0;
+  /** Links this save calls secret, by pairKey. Others lose a stale flag. */
+  const secretKeys = new Set<string>();
 
   const applyRel = (rel: ParsedSaveRel) => {
     const a = saveIdToBoard.get(rel.a);
     const b = saveIdToBoard.get(rel.b);
     if (!a || !b) return;
     const type = rel.type as EdgeType;
+    if (rel.secret) secretKeys.add(pairKey(type, a, b));
     if (type === 'parent') {
       const existing = byPair.get(pairKey('parent', a, b));
       if (existing) {
@@ -410,6 +427,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
           existing.source = 'save';
           confirmed += 1;
         }
+        if (rel.secret) existing.secret = true;
         return;
       }
       const edge: SourcedEdge = {
@@ -419,6 +437,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         type: 'parent',
         source: 'save',
         createdAt: now,
+        ...(rel.secret ? { secret: true as const } : {}),
       };
       edges.push(edge);
       byPair.set(pairKey('parent', a, b), edge);
@@ -444,12 +463,16 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         drop(planned);
         confirmed += planned.length;
       }
+      if (rel.secret) {
+        for (const u of settled) if (u.type === 'romance') u.secret = true;
+      }
       return;
     }
     if (planned.length) {
       const keep = planned[0]!;
       keep.source = 'save';
       keep.type = type;
+      if (rel.secret) keep.secret = true;
       confirmed += 1;
       drop(planned.slice(1));
       return;
@@ -461,6 +484,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       type,
       source: 'save',
       createdAt: now,
+      ...(rel.secret ? { secret: true as const } : {}),
     };
     edges.push(edge);
     byPair.set(pairKey(type, a, b), edge);
@@ -468,6 +492,23 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   };
 
   for (const rel of parsed.rels) applyRel(rel);
+
+  // A secret the game has since revealed (or never had) drops its flag, but
+  // only between sims in this save — the save says nothing about the rest.
+  const inSave = new Set(saveIdToBoard.values());
+  for (const e of edges) {
+    if (!e.secret || !inSave.has(e.a) || !inSave.has(e.b)) continue;
+    if (!secretKeys.has(pairKey(e.type, e.a, e.b))) delete e.secret;
+  }
+
+  const pairStatus: PairStatus[] = (input.pairStatus ?? []).filter(
+    (p) => !inSave.has(p.a) || !inSave.has(p.b),
+  );
+  for (const p of parsed.pairs ?? []) {
+    const a = saveIdToBoard.get(p.a);
+    const b = saveIdToBoard.get(p.b);
+    if (a && b && a !== b) pairStatus.push({ a, b, tags: [...p.tags] });
+  }
 
   const parentsByChild = new Map<string, SourcedEdge[]>();
   for (const e of edges) {
@@ -483,6 +524,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   }
 
   const stillPlanned = edges.filter((e) => edgeSourceOf(e) === 'planned').length;
+  const secretParents = edges.filter((e) => e.secret && e.type === 'parent').length;
+  const secretLovers = edges.filter((e) => e.secret && e.type === 'romance').length;
   const groups = [...input.groups];
   const gids = new Set(groups.map((g) => g.gid));
   for (const n of nodes) {
@@ -508,6 +551,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     nodes,
     edges: sanitizeEdges(edges),
     groups,
+    pairStatus,
     summary: {
       matched,
       added,
@@ -519,6 +563,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       saveWorlds: worldReport.saveWorlds,
       extraWorlds: worldReport.extraWorlds,
       hidePacks,
+      secretParents,
+      secretLovers,
     },
   };
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
-import { parseSaveGame } from './parseSave.ts';
+import { pairTagsFromBits, parseSaveGame } from './parseSave.ts';
 import { decodeFields, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
 
@@ -180,6 +180,101 @@ function tinySave(): Uint8Array {
   );
   return wrapDbpf(refpackCompress(data));
 }
+
+/** Packed repeated varint field (how the game stores relationship bits). */
+function encodePacked(field: number, values: (number | bigint)[]): Uint8Array {
+  return encodeBytes(field, concat(...values.map(encodeVarint)));
+}
+
+/** One relationship record: shared bits, then each side's one-way bits. */
+function relRecord(
+  a: number,
+  b: number,
+  shared: number[],
+  aAboutB: number[] = [],
+  bAboutA: number[] = [],
+): Uint8Array {
+  return encodeBytes(
+    1,
+    concat(
+      encodeVarintField(1, a),
+      encodeVarintField(2, b),
+      encodeBytes(3, encodePacked(1, shared)),
+      encodeBytes(4, aAboutB.length ? encodePacked(1, aAboutB) : new Uint8Array()),
+      encodeBytes(5, bAboutA.length ? encodePacked(1, bAboutA) : new Uint8Array()),
+    ),
+  );
+}
+
+/**
+ * Four sims: Ann (1) married to Ben (2), their child Cal (3) in the tree,
+ * and Dee (4), Ann's secret lover and Cal's secret parent — the tree leaves
+ * Dee out. Ben and Dee are best (and good) friends.
+ */
+function secretsSave(): Uint8Array {
+  const sims = [
+    [1, 'Ann', 8192, 32],
+    [2, 'Ben', 4096, 32],
+    [3, 'Cal', 4096, 4],
+    [4, 'Dee', 4096, 32],
+  ] as const;
+  const blobs = sims.map(([id, first, gender, age]) =>
+    encodeBytes(
+      6,
+      simBlob({ id, householdId: 10, first, last: 'Ames', household: 'Ames', gender, age }),
+    ),
+  );
+  const graph = concat(
+    treeNode(1, treeEdge(1, 2, 4), treeEdge(1, 3, 1)),
+    treeNode(2, treeEdge(2, 3, 1)),
+  );
+  const rels = concat(
+    relRecord(1, 2, [15822, 15797]), // married, friends
+    relRecord(1, 4, [491011]), // secret lovers
+    relRecord(3, 4, [], [491219], [487507]), // Dee (b) holds secret child about Cal
+    relRecord(2, 4, [15794, 15799, 15797]), // bff + good friends + friends
+    relRecord(2, 3, [26560, 15802]), // enemy + disliked
+  );
+  const gameplay = encodeBytes(
+    8,
+    concat(encodeBytes(13, rels), encodeBytes(62, encodeBytes(1, graph))),
+  );
+  return wrapDbpf(refpackCompress(concat(...blobs, encodeBytes(2, gameplay))));
+}
+
+describe('save relationships', () => {
+  const parsed = parseSaveGame(secretsSave());
+  const tags = (a: string, b: string) =>
+    parsed.pairs?.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a))?.tags;
+
+  it('reads each pair\'s strongest status of each kind', () => {
+    assert.deepEqual(tags('1', '2'), ['married', 'friends']);
+    assert.deepEqual(tags('2', '4'), ['bestFriends']);
+    assert.deepEqual(tags('2', '3'), ['enemies']);
+    assert.deepEqual(tags('1', '4'), ['secretLovers']);
+  });
+
+  it('adds the secret parent the family tree leaves out', () => {
+    const parents = parsed.rels.filter((r) => r.type === 'parent' && r.b === '3');
+    assert.deepEqual(
+      parents.map((r) => [r.a, !!r.secret]).sort(),
+      [
+        ['1', false],
+        ['2', false],
+        ['4', true],
+      ],
+    );
+  });
+
+  it('adds secret lovers as a secret romance', () => {
+    const romance = parsed.rels.filter((r) => r.type === 'romance');
+    assert.deepEqual(romance, [{ a: '1', b: '4', type: 'romance', secret: true }]);
+  });
+
+  it('ignores bits it does not know', () => {
+    assert.deepEqual(pairTagsFromBits(new Set([1n, 34619n])), []);
+  });
+});
 
 describe('parseSaveGame', () => {
   it('rejects a file that is not DBPF', () => {

@@ -16,6 +16,7 @@ import type {
   Group,
   Point,
   Rect,
+  SecretMark,
   ShowToggles,
   SimNode,
   UnionRender,
@@ -1184,7 +1185,22 @@ export function computeEdgeRenderData(
       rx: g0.rx,
       ry: g0.ry,
       isUser: isUserE(e),
+      ...(e.type === 'romance' && e.secret ? { secret: true } : {}),
     };
+  });
+
+  // A lock on the child's top stem — the one stroke every parent route ends
+  // in — marks a secret parent, whichever way the parents are drawn.
+  const secretIds = new Map<string, string[]>();
+  for (const e of pEdges) {
+    if (!e.secret || !byid[e.b]) continue;
+    const ids = secretIds.get(e.b) ?? [];
+    ids.push(e.id);
+    secretIds.set(e.b, ids);
+  }
+  const secrets: SecretMark[] = [...secretIds].map(([child, ids]) => {
+    const n = byid[child]!;
+    return { child, at: [n.x + n.w / 2, n.y - STUB / 2], ids };
   });
 
   const customs: CustomRender[] = edges
@@ -1219,6 +1235,7 @@ export function computeEdgeRenderData(
     blood: BLOOD,
     unions: unionRenders,
     customs,
+    ...(secrets.length ? { secrets } : {}),
     rects: RECTS,
   };
 }

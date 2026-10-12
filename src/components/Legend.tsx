@@ -2,6 +2,21 @@ import { useEffect, useState } from 'react';
 import type { Ref } from 'react';
 import type { World } from '../types/whiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import { COL } from '../lib/constants.ts';
+import { LockGlyph } from './LockGlyph.tsx';
+
+/** Inline padlock for legend rows (the board's secret marker). */
+function LegendLock({ color }: { color: string }) {
+  return (
+    <svg
+      viewBox="-6 -6 12 12"
+      aria-hidden="true"
+      style={{ width: 12, height: 12, display: 'inline-block', flex: '0 0 auto' }}
+    >
+      <LockGlyph x={0} y={0.4} color={color} size={10} />
+    </svg>
+  );
+}
 
 type Props = {
   worlds: World[];
@@ -91,11 +106,22 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
           parent → child
         </div>
         <div className="lg">
+          <span style={{ fontSize: 13, lineHeight: 1, color: '#3f4756' }}>⊔</span>{' '}
+          parents who aren't a couple
+        </div>
+        <div className="lg">
+          <LegendLock color={COL.blood} /> on a child's line = a secret parent
+        </div>
+        <div className="lg">
           <span style={{ fontSize: 12, lineHeight: 1 }}>⊓</span> siblings
         </div>
         <div className="lg">
           <span style={{ fontSize: 13, lineHeight: 1, color: '#e0365f' }}>❤</span>{' '}
           romance / partners (dating, engaged, affair)
+        </div>
+        <div className="lg">
+          <span style={{ fontSize: 13, lineHeight: 1, color: COL.romance }}>❤</span>
+          <LegendLock color={COL.romance} /> secret lovers
         </div>
         <div className="lg">
           <span style={{ fontSize: 13, lineHeight: 1 }}>⚭</span> married

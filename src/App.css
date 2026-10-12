@@ -280,6 +280,12 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   white-space:nowrap;
 }
 .link-sel-chip__party--to{color:var(--ink);font-weight:600}
+.link-sel-chip__note{
+  font-size:11px;
+  font-weight:500;
+  font-style:italic;
+  color:var(--ink-2);
+}
 .link-sel-chip__dir{
   flex:0 0 auto;
   color:var(--accent-strong);

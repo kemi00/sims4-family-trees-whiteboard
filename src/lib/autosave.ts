@@ -4,6 +4,7 @@ import type {
   Group,
   HouseholdAgeUp,
   HouseholdMove,
+  PairStatus,
   SimAgeUp,
   SimNode,
   WhiteboardData,
@@ -35,6 +36,8 @@ export type PersistPayload = {
   householdAgeUps: HouseholdAgeUp[];
   deceasedMarks: DeceasedMark[];
   simAgeUps: SimAgeUp[];
+  /** Relationship statuses from the last save import (absent on older files). */
+  pairStatus?: PairStatus[];
   connectionLog: string[];
 };
 
@@ -61,6 +64,7 @@ export function buildPersistPayload(input: {
   householdAgeUps: HouseholdAgeUp[];
   deceasedMarks: DeceasedMark[];
   simAgeUps: SimAgeUp[];
+  pairStatus?: PairStatus[];
   connectionLog: { text: string }[];
   sourceFileName: string | null;
 }): PersistPayload {
@@ -79,6 +83,7 @@ export function buildPersistPayload(input: {
     householdAgeUps: input.householdAgeUps,
     deceasedMarks: input.deceasedMarks,
     simAgeUps: input.simAgeUps,
+    pairStatus: input.pairStatus ?? [],
     connectionLog: input.connectionLog.map((entry) => entry.text),
   };
 }
@@ -121,6 +126,7 @@ function edgeIdentity(e: Edge) {
     source: e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
     createdAt: e.createdAt ?? null,
     bundleId: e.bundleId ?? null,
+    secret: !!e.secret,
   };
 }
 
@@ -148,6 +154,7 @@ export function boardIdentity(payload: PersistPayload): string {
     householdAgeUps: payload.householdAgeUps ?? [],
     deceasedMarks: payload.deceasedMarks ?? [],
     simAgeUps: payload.simAgeUps ?? [],
+    pairStatus: payload.pairStatus ?? [],
   });
 }
 
@@ -167,6 +174,7 @@ export function persistPayloadFromSeed(seed: WhiteboardData): PersistPayload {
     householdAgeUps: migrated.householdAgeUps ?? [],
     deceasedMarks: migrated.deceasedMarks ?? [],
     simAgeUps: migrated.simAgeUps ?? [],
+    pairStatus: migrated.pairStatus ?? [],
     connectionLog: [],
     sourceFileName: null,
   });
@@ -285,6 +293,7 @@ export function bootWhiteboardData(
       householdAgeUps: draft.householdAgeUps,
       deceasedMarks: draft.deceasedMarks,
       simAgeUps: draft.simAgeUps,
+      pairStatus: draft.pairStatus,
       connectionLog: draft.connectionLog,
     },
   };

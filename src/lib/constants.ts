@@ -197,6 +197,8 @@ export const PILL_W = {
   marriage: 36,
   romance: 36,
   divorced: 38,
+  /** Heart + padlock; no wider than divorced, so union spacing is unchanged. */
+  secret: 38,
 } as const;
 /** Breathing room between a pill edge and the tag edge it sits next to. */
 export const PILL_CLEAR = 4;

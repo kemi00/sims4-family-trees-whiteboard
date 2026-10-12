@@ -70,6 +70,12 @@ export function SaveImportDialog({
                 <li>
                   <b>{summary.stillPlanned}</b> stay planned (violet)
                 </li>
+                {(summary.secretParents > 0 || summary.secretLovers > 0) && (
+                  <li>
+                    <b>{summary.secretParents}</b> secret parents ·{' '}
+                    <b>{summary.secretLovers}</b> secret lovers, marked with a lock
+                  </li>
+                )}
               </ul>
             </span>
           </label>

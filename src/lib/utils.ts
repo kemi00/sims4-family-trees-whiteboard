@@ -5,6 +5,7 @@ import type {
   Group,
   HouseholdAgeUp,
   HouseholdMove,
+  PairStatus,
   Point,
   SimAgeUp,
   SimNode,
@@ -197,6 +198,7 @@ export function migrateWhiteboardData(d: {
   householdAgeUps?: HouseholdAgeUp[];
   deceasedMarks?: DeceasedMark[];
   simAgeUps?: SimAgeUp[];
+  pairStatus?: PairStatus[];
 }): typeof d {
   const world = (w: string) => (w === 'Other / Townie' ? 'Other' : w);
   const gid = (g: string) => g.replace(/^Other \/ Townie\|\|/, 'Other||');

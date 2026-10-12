@@ -52,7 +52,9 @@ export function LinkSelectionChip({
       style={{ left, top }}
       role="status"
       aria-live="polite"
-      aria-label={[info.label, info.names].filter(Boolean).join(': ')}
+      aria-label={[[info.label, info.names].filter(Boolean).join(': '), info.note]
+        .filter(Boolean)
+        .join('. ')}
     >
       <span className="link-sel-chip__mark" aria-hidden="true">
         {info.mark}
@@ -72,6 +74,7 @@ export function LinkSelectionChip({
         ) : info.names ? (
           <span className="link-sel-chip__names">{info.names}</span>
         ) : null}
+        {info.note && <span className="link-sel-chip__note">{info.note}</span>}
       </span>
     </div>
   );

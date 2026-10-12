@@ -62,6 +62,33 @@ export interface Edge {
   createdAt?: string;
   /** Shared by parent links created together (child of a couple). */
   bundleId?: string;
+  /**
+   * The save keeps this link secret: on a parent link, a secret parent the
+   * family tree does not list; on a romance link, secret lovers.
+   */
+  secret?: true;
+}
+
+/** What two sims are to each other in the save (strongest of each kind). */
+export type PairTag =
+  | 'married'
+  | 'engaged'
+  | 'partners'
+  | 'secretLovers'
+  | 'divorced'
+  | 'exes'
+  | 'bestFriends'
+  | 'goodFriends'
+  | 'friends'
+  | 'disliked'
+  | 'despised'
+  | 'enemies';
+
+/** Relationship status between two board sims, from the last save import. */
+export interface PairStatus {
+  a: string;
+  b: string;
+  tags: PairTag[];
 }
 
 export interface Group {
@@ -148,6 +175,8 @@ export interface WhiteboardData {
   deceasedMarks?: DeceasedMark[];
   /** Editor life-stage increases. Load trusts this, not the text snapshot. */
   simAgeUps?: SimAgeUp[];
+  /** Relationship statuses read from the last save import. */
+  pairStatus?: PairStatus[];
   /** Pack names hidden by the Games filter. */
   hiddenPacks?: string[];
   /** Origin-playability values hidden by the Play filter. */
@@ -252,6 +281,16 @@ export interface UnionRender {
   rx: number;
   ry: number;
   isUser: boolean;
+  /** Secret lovers (a romance the save marks secret). */
+  secret?: boolean;
+}
+
+/** Lock badge on a child's top stem: one of its parents is secret. */
+export interface SecretMark {
+  child: string;
+  at: Point;
+  /** The secret parent links, so clicking the badge selects them. */
+  ids: string[];
 }
 
 /** Render data for a custom link. */
@@ -267,6 +306,8 @@ export interface EdgeRenderData {
   blood: BloodPath[];
   unions: UnionRender[];
   customs: CustomRender[];
+  /** Secret-parent badges. Absent when there are none. */
+  secrets?: SecretMark[];
   rects: Rect[];
 }
 

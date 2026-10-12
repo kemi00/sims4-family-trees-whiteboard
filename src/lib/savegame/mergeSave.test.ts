@@ -526,3 +526,82 @@ describe('mergeSaveIntoBoard', () => {
     assert.deepEqual(result.summary.extraWorlds, ['Granite Falls']);
   });
 });
+
+describe('mergeSaveIntoBoard secrets and statuses', () => {
+  const saveSim = (saveSimId: string, first: string) => ({
+    saveSimId,
+    householdId: '10',
+    first,
+    last: 'Ames',
+    household: 'Ames',
+    age: 'Adult',
+    gender: 'Female',
+  });
+  const parsed: ParsedSave = {
+    sims: [saveSim('1', 'Ann'), saveSim('2', 'Ben'), saveSim('3', 'Cal'), saveSim('4', 'Dee')],
+    rels: [
+      { a: '1', b: '2', type: 'marriage' },
+      { a: '1', b: '3', type: 'parent' },
+      { a: '4', b: '3', type: 'parent', secret: true },
+      { a: '1', b: '4', type: 'romance', secret: true },
+    ],
+    pairs: [
+      { a: '1', b: '2', tags: ['married', 'friends'] },
+      { a: '2', b: '4', tags: ['bestFriends'] },
+    ],
+  };
+  let n = 0;
+  const merge = (input: Partial<Parameters<typeof mergeSaveIntoBoard>[0]> = {}) =>
+    mergeSaveIntoBoard({
+      nodes: [],
+      edges: [],
+      groups: [],
+      worlds: world,
+      parsed,
+      seedNameKeys: new Set(),
+      now: '2026-10-12T00:00:00.000Z',
+      nextEdgeId: () => `v${n++}`,
+      ...input,
+    });
+
+  it('imports secret parents and secret lovers as secret links', () => {
+    const r = merge();
+    const secret = r.edges.filter((e) => e.secret).map((e) => `${e.type}:${e.a}>${e.b}`);
+    assert.deepEqual(secret.sort(), ['parent:s4>s3', 'romance:s1>s4']);
+    assert.equal(r.summary.secretParents, 1);
+    assert.equal(r.summary.secretLovers, 1);
+  });
+
+  it('maps statuses onto board sims and keeps pairs the save does not cover', () => {
+    const r = merge({
+      pairStatus: [
+        { a: 's2', b: 's1', tags: ['exes'] },
+        { a: 's1', b: 'Board Only', tags: ['friends'] },
+      ],
+    });
+    assert.deepEqual(
+      r.pairStatus.map((p) => `${p.a}+${p.b}:${p.tags.join(',')}`).sort(),
+      ['s1+Board Only:friends', 's1+s2:married,friends', 's2+s4:bestFriends'],
+    );
+  });
+
+  it('drops the secret flag once the save no longer keeps the secret', () => {
+    const first = merge();
+    const revealed: ParsedSave = {
+      ...parsed,
+      rels: parsed.rels.map(({ secret: _secret, ...r }) => r),
+    };
+    const again = mergeSaveIntoBoard({
+      nodes: first.nodes,
+      edges: first.edges,
+      groups: first.groups,
+      worlds: world,
+      parsed: revealed,
+      seedNameKeys: new Set(),
+      now: '2026-10-13T00:00:00.000Z',
+      nextEdgeId: () => `w${n++}`,
+    });
+    assert.equal(again.edges.filter((e) => e.secret).length, 0);
+    assert.equal(again.summary.newLinks, 0);
+  });
+});

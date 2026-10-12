@@ -1,5 +1,7 @@
 import { LINK_MARK } from './constants.ts';
 import { simName } from './connectionLog.ts';
+import { coParentNote, romanceWord, type PairIndex } from './pairStatus.ts';
+import { uKey } from './utils.ts';
 import type {
   Edge,
   EdgeRenderData,
@@ -31,6 +33,8 @@ export type LinkSelectionInfo = {
   nameFrom?: string;
   /** Right side of a directed relation (child/children). */
   nameTo?: string;
+  /** Extra line: a secret parent, or what co-parents are to each other. */
+  note?: string;
   /**
    * Ink polylines of the selected link in world space.
    * Sibling/parent geometry is often several disjoint strokes (bar + stems);
@@ -362,11 +366,48 @@ export function formatLinkNames(
   return { names };
 }
 
+const UNION_TYPES: ReadonlySet<EdgeType> = new Set(['marriage', 'romance', 'divorced']);
+
+/**
+ * Label and note from the save's secrets and statuses. Only what the line
+ * cannot show goes here: who is secret, and what co-parents who are not a
+ * couple are to each other.
+ */
+function relationshipCopy(
+  matched: Edge[],
+  edges: Edge[],
+  byid: Record<string, SimNode>,
+  pairs: PairIndex | undefined,
+): { label?: string; note?: string } {
+  const first = matched[0]!;
+  if (first.type === 'romance') {
+    if (first.secret) return { label: 'Secret lovers' };
+    const word = romanceWord(pairs?.get(uKey(first.a, first.b)));
+    return word ? { label: word } : {};
+  }
+  if (first.type !== 'parent') return {};
+  if (matched.every((e) => e.secret)) return { label: 'Secret parent → child' };
+  const notes: string[] = [];
+  const secret = namesForIds(
+    matched.filter((e) => e.secret).map((e) => e.a),
+    byid,
+  );
+  if (secret) notes.push(`Secret parent: ${secret}`);
+  const parents = [...new Set(matched.map((e) => e.a))];
+  if (parents.length === 2) {
+    const pair = uKey(parents[0]!, parents[1]!);
+    const couple = edges.some((e) => UNION_TYPES.has(e.type) && uKey(e.a, e.b) === pair);
+    if (!couple) notes.push(coParentNote(pairs?.get(pair)));
+  }
+  return notes.length ? { note: notes.join(' · ') } : {};
+}
+
 export function describeLinkSelection(
   ids: string[],
   edges: Edge[],
   byid: Record<string, SimNode>,
   edgeData: EdgeRenderData,
+  pairs?: PairIndex,
 ): LinkSelectionInfo | null {
   const idSet = new Set(ids.filter(Boolean));
   const matched = edges.filter((e) => idSet.has(e.id));
@@ -374,12 +415,13 @@ export function describeLinkSelection(
 
   const type = matched[0]!.type;
   const mark = LINK_MARK[type] ?? LINK_MARK.custom;
-  const label = CHIP_LABEL[type] ?? CHIP_LABEL.custom;
+  const copy = relationshipCopy(matched, edges, byid, pairs);
+  const label = copy.label ?? CHIP_LABEL[type] ?? CHIP_LABEL.custom;
   const { names, nameFrom, nameTo } = formatLinkNames(matched, byid);
 
   const path = linkSelectionPath(ids, edgeData, edges, byid);
   if (!path?.length) return null;
 
-  return { mark, label, names, nameFrom, nameTo, path };
+  return { mark, label, names, nameFrom, nameTo, note: copy.note, path };
 }
 

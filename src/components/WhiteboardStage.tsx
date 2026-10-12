@@ -610,6 +610,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       customs: ed.customs.filter(
         (c) => pathInCull(c.pts, cullWin) || carried([c.a, c.b]),
       ),
+      secrets: ed.secrets?.filter(
+        (m) => pathInCull([m.at], cullWin) || carried(bloodEnds(m.ids)),
+      ),
     };
   }, [wb.edgeData, cullWin, dragUnit, edgeEndsById]);
   const { worldById, gidById } = useMemo(() => {
@@ -1353,6 +1356,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           wb.edges,
           wb.byid,
           wb.edgeData,
+          wb.pairIndex,
         )
       : null;
 
@@ -1489,6 +1493,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             hopD={wb.hopD}
             unions={mountedEdges.unions}
             customs={mountedEdges.customs}
+            secrets={mountedEdges.secrets}
             endsById={edgeEndsById}
             worldById={worldById}
             gidById={gidById}

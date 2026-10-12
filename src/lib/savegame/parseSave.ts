@@ -1,4 +1,5 @@
 import { AGES_H } from '../constants.ts';
+import type { PairTag } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
@@ -22,6 +23,15 @@ export type ParsedSaveRel = {
   a: string;
   b: string;
   type: SaveRelType;
+  /** Secret parent (parent rels) or secret lovers (romance rels). */
+  secret?: true;
+};
+
+/** Relationship status between two save sims; only pairs with a known status. */
+export type ParsedSavePair = {
+  a: string;
+  b: string;
+  tags: PairTag[];
 };
 
 export type ParsedSave = {
@@ -31,6 +41,8 @@ export type ParsedSave = {
   householdWorld?: Record<string, string>;
   /** World name strings present in the save (installed worlds), from the file. */
   worlds?: string[];
+  /** Friendship and romance statuses from the save's relationship records. */
+  pairs?: ParsedSavePair[];
 };
 
 /** SimInfo protobuf field numbers as stored in Save Game Data. */
@@ -52,6 +64,67 @@ const TREE = {
   relMarriage: 4n,
   relRomance: 16n,
 } as const;
+
+/**
+ * Relationship bit tuning ids (RelationshipBit instance ids, the same in
+ * every game version). Checked against the game's own tuning names:
+ * romantic-Married, romantic-Engaged, romantic-Significant_Other,
+ * romantic-SecretLover (Royalty & Legacy), romantic-Divorced,
+ * romantic-Broken_Up / Despised_Ex / Frustrated_Ex, friendship-bff /
+ * good_friends / friend / disliked / despised / nemesis, SpecialBits_Enemy,
+ * and relationshipBit_SecretChild (Royalty & Legacy, one-way: held by the
+ * parent about the child).
+ */
+const REL_BIT = {
+  married: 15822n,
+  engaged: 15816n,
+  partners: 15825n,
+  secretLover: 491011n,
+  divorced: 15815n,
+  brokenUp: 15811n,
+  despisedEx: 15814n,
+  frustratedEx: 15817n,
+  bff: 15794n,
+  goodFriends: 15799n,
+  friend: 15797n,
+  disliked: 15802n,
+  despised: 15796n,
+  nemesis: 15801n,
+  enemy: 26560n,
+  secretChild: 487507n,
+} as const;
+
+/** Bits that map to a tag, strongest first within each kind. */
+const TAG_RULES: { kind: string; tag: PairTag; bits: bigint[] }[] = [
+  { kind: 'romance', tag: 'married', bits: [REL_BIT.married] },
+  { kind: 'romance', tag: 'engaged', bits: [REL_BIT.engaged] },
+  { kind: 'romance', tag: 'partners', bits: [REL_BIT.partners] },
+  { kind: 'romance', tag: 'secretLovers', bits: [REL_BIT.secretLover] },
+  { kind: 'past', tag: 'divorced', bits: [REL_BIT.divorced] },
+  {
+    kind: 'past',
+    tag: 'exes',
+    bits: [REL_BIT.brokenUp, REL_BIT.despisedEx, REL_BIT.frustratedEx],
+  },
+  { kind: 'friend', tag: 'bestFriends', bits: [REL_BIT.bff] },
+  { kind: 'friend', tag: 'goodFriends', bits: [REL_BIT.goodFriends] },
+  { kind: 'friend', tag: 'friends', bits: [REL_BIT.friend] },
+  { kind: 'foe', tag: 'enemies', bits: [REL_BIT.nemesis, REL_BIT.enemy] },
+  { kind: 'foe', tag: 'despised', bits: [REL_BIT.despised] },
+  { kind: 'foe', tag: 'disliked', bits: [REL_BIT.disliked] },
+];
+
+/** Strongest tag of each kind present in `bits`. */
+export function pairTagsFromBits(bits: ReadonlySet<bigint>): PairTag[] {
+  const kinds = new Set<string>();
+  const out: PairTag[] = [];
+  for (const rule of TAG_RULES) {
+    if (kinds.has(rule.kind) || !rule.bits.some((b) => bits.has(b))) continue;
+    kinds.add(rule.kind);
+    out.push(rule.tag);
+  }
+  return out;
+}
 
 /** Age bit flags on SimInfo.age. */
 const AGE_BITS: { bit: number; age: (typeof AGES_H)[number] }[] = [
@@ -163,6 +236,68 @@ function parseTreeRels(graph: Uint8Array): ParsedSaveRel[] {
   return rels;
 }
 
+/** Varints of a repeated field, packed (bytes) or one per field. */
+function varints(fields: { field: number; wire: number; int: bigint; bytes: Uint8Array | null }[], n: number): bigint[] {
+  const out: bigint[] = [];
+  for (const f of fields) {
+    if (f.field !== n) continue;
+    if (f.wire === 0) {
+      out.push(f.int);
+      continue;
+    }
+    if (!f.bytes) continue;
+    let x = 0n;
+    let shift = 0n;
+    for (const byte of f.bytes) {
+      x |= BigInt(byte & 0x7f) << shift;
+      if (byte & 0x80) {
+        shift += 7n;
+      } else {
+        out.push(x);
+        x = 0n;
+        shift = 0n;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Relationship records: slot field 2 → gameplay field 8 → field 13, one
+ * repeated field 1 per sim pair. Each has the two sim ids (1, 2), the
+ * shared data (3, whose field 1 lists the shared relationship bits) and
+ * each side's one-way data (4 for a about b, 5 for b about a; field 1 again
+ * lists bits). Shared bits give the pair's status; the one-way secret-child
+ * bit, held by the parent, gives secret parents the family tree leaves out.
+ */
+function parseRelationships(rels: Uint8Array): {
+  pairs: ParsedSavePair[];
+  secretParents: { parent: string; child: string }[];
+} {
+  const pairs: ParsedSavePair[] = [];
+  const secretParents: { parent: string; child: string }[] = [];
+  for (const rec of decodeFields(rels)) {
+    if (rec.field !== 1 || !rec.bytes) continue;
+    const fs = decodeFields(rec.bytes);
+    const a = fs.find((f) => f.field === 1 && f.wire === 0)?.int;
+    const b = fs.find((f) => f.field === 2 && f.wire === 0)?.int;
+    if (!a || !b || a === b) continue;
+    const bitsOf = (n: number) => {
+      const part = fs.find((f) => f.field === n)?.bytes;
+      return new Set(part ? varints(decodeFields(part), 1) : []);
+    };
+    const tags = pairTagsFromBits(bitsOf(3));
+    if (tags.length) pairs.push({ a: idStr(a), b: idStr(b), tags });
+    if (bitsOf(4).has(REL_BIT.secretChild)) {
+      secretParents.push({ parent: idStr(a), child: idStr(b) });
+    }
+    if (bitsOf(5).has(REL_BIT.secretChild)) {
+      secretParents.push({ parent: idStr(b), child: idStr(a) });
+    }
+  }
+  return { pairs, secretParents };
+}
+
 /**
  * Lot records live under SaveGameData field 4 (world). Field 3 is the world
  * name string; each nested field 5 is a lot whose field 2 is the occupying
@@ -196,14 +331,41 @@ function parseWorldIndex(saveGame: Uint8Array): {
   return { householdWorld, worlds: [...worlds].sort((a, b) => a.localeCompare(b)) };
 }
 
-function familyTreeGraph(saveGame: Uint8Array): Uint8Array | null {
+function gameplayData(saveGame: Uint8Array): Uint8Array | null {
   const slot = firstBytes(saveGame, 2);
-  if (!slot) return null;
-  const gameplay = firstBytes(slot, 8);
-  if (!gameplay) return null;
-  const tree = firstBytes(gameplay, 62);
-  if (!tree) return null;
-  return firstBytes(tree, 1);
+  return slot ? firstBytes(slot, 8) : null;
+}
+
+function familyTreeGraph(gameplay: Uint8Array | null): Uint8Array | null {
+  const tree = gameplay ? firstBytes(gameplay, 62) : null;
+  return tree ? firstBytes(tree, 1) : null;
+}
+
+/**
+ * Add secret parents and secret lovers to the family-tree rels. A secret
+ * parent the tree already lists (a revealed secret is dropped by the game,
+ * but be safe) is marked secret rather than added twice.
+ */
+function withSecrets(
+  rels: ParsedSaveRel[],
+  pairs: ParsedSavePair[],
+  secretParents: { parent: string; child: string }[],
+): ParsedSaveRel[] {
+  const out = rels.map((r) => ({ ...r }));
+  for (const { parent, child } of secretParents) {
+    const known = out.find((r) => r.type === 'parent' && r.a === parent && r.b === child);
+    if (known) known.secret = true;
+    else out.push({ a: parent, b: child, type: 'parent', secret: true });
+  }
+  for (const p of pairs) {
+    if (!p.tags.includes('secretLovers')) continue;
+    const same = (r: ParsedSaveRel) =>
+      r.type !== 'parent' && ((r.a === p.a && r.b === p.b) || (r.a === p.b && r.b === p.a));
+    const known = out.find(same);
+    if (known?.type === 'romance') known.secret = true;
+    else if (!known) out.push({ a: p.a, b: p.b, type: 'romance', secret: true });
+  }
+  return out;
 }
 
 export function parseSaveGame(buf: Uint8Array): ParsedSave {
@@ -226,7 +388,13 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     const world = householdWorld[sim.householdId];
     if (world) sim.world = world;
   }
-  const graph = familyTreeGraph(data);
-  const rels = graph ? parseTreeRels(graph) : [];
-  return { sims, rels, householdWorld, worlds };
+  const gameplay = gameplayData(data);
+  const graph = familyTreeGraph(gameplay);
+  const treeRels = graph ? parseTreeRels(graph) : [];
+  const relData = gameplay ? firstBytes(gameplay, 13) : null;
+  const { pairs, secretParents } = relData
+    ? parseRelationships(relData)
+    : { pairs: [], secretParents: [] };
+  const rels = withSecrets(treeRels, pairs, secretParents);
+  return { sims, rels, householdWorld, worlds, pairs };
 }

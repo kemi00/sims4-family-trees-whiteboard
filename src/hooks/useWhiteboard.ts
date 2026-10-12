@@ -65,6 +65,7 @@ import type {
   Group,
   HouseholdAgeUp,
   HouseholdMove,
+  PairStatus,
   Selection,
   ShowToggles,
   SimAgeUp,
@@ -73,6 +74,7 @@ import type {
   WhiteboardData,
   World,
 } from '../types/whiteboard.ts';
+import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 
 const INITIAL_VIEW: Viewport = { tx: 40, ty: 40, k: 0.72 };
 
@@ -114,6 +116,7 @@ type BoardSnap = {
   householdAgeUps: HouseholdAgeUp[];
   deceasedMarks: DeceasedMark[];
   simAgeUps: SimAgeUp[];
+  pairStatus: PairStatus[];
   /** Set only by actions that change filters, so only their undo restores them. */
   filters?: BoardFilters;
 };
@@ -225,6 +228,11 @@ export function useWhiteboard() {
   const [simAgeUps, setSimAgeUps] = useState<SimAgeUp[]>(
     () => boot.simAgeUps ?? [],
   );
+  /** Relationship statuses from the last save import, for link labels. */
+  const [pairStatus, setPairStatus] = useState<PairStatus[]>(
+    () => boot.pairStatus ?? [],
+  );
+  const pairIndex = useMemo(() => indexPairStatus(pairStatus), [pairStatus]);
   const [saveImport, setSaveImport] = useState<{
     merge: SaveMergeResult;
     parsed: ParsedSave;
@@ -430,6 +438,7 @@ export function useWhiteboard() {
         householdAgeUps,
         deceasedMarks,
         simAgeUps,
+        pairStatus,
         connectionLog,
         sourceFileName,
       }),
@@ -446,6 +455,7 @@ export function useWhiteboard() {
       householdAgeUps,
       deceasedMarks,
       simAgeUps,
+      pairStatus,
       connectionLog,
       sourceFileName,
     ],
@@ -491,6 +501,7 @@ export function useWhiteboard() {
       householdAgeUps: householdAgeUps.map((a) => ({ ...a })),
       deceasedMarks: deceasedMarks.map((d) => ({ ...d })),
       simAgeUps: simAgeUps.map((a) => ({ ...a })),
+      pairStatus,
       filters: opts?.filters
         ? {
             hiddenPacks: [...hiddenPacks],
@@ -501,7 +512,7 @@ export function useWhiteboard() {
         : undefined,
     });
     setCanUndo(true);
-  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, hiddenPacks, hiddenPlay, hiAges, hiSingle]);
+  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, hiddenPacks, hiddenPlay, hiAges, hiSingle]);
 
   const undo = useCallback(() => {
     const prev = undoRef.current.pop();
@@ -513,6 +524,7 @@ export function useWhiteboard() {
     setHouseholdAgeUps(prev.householdAgeUps);
     setDeceasedMarks(prev.deceasedMarks);
     setSimAgeUps(prev.simAgeUps);
+    setPairStatus(prev.pairStatus);
     if (prev.filters) {
       setHiddenPacks(new Set(prev.filters.hiddenPacks));
       setHiddenPlay(new Set(prev.filters.hiddenPlay));
@@ -1375,6 +1387,7 @@ export function useWhiteboard() {
       setHouseholdAgeUps([]);
       setDeceasedMarks([]);
       setSimAgeUps([]);
+      setPairStatus([]);
       setSourceFileName(null);
       setFromBrowserDraft(false);
       undoRef.current = [];
@@ -1446,6 +1459,7 @@ export function useWhiteboard() {
         setHouseholdAgeUps(loadedAgeUps);
         setDeceasedMarks(loadedDeaths);
         setSimAgeUps(loadedSimAgeUps);
+        setPairStatus(d.pairStatus ?? []);
         eidcRef.current = nextEidc(
           loadedEdges,
           eidcRef.current,
@@ -1650,6 +1664,9 @@ export function useWhiteboard() {
         setEdges(merged.edges);
         setGroups(merged.groups);
         eidcRef.current = nextEidc(merged.edges, eidcRef.current);
+        if (d.pairStatus?.length) {
+          setPairStatus((prev) => mergePairStatus(prev, d.pairStatus!));
+        }
         if (d.householdMoves?.length) {
           setHouseholdMoves((prev) => {
             const seen = new Set(prev.map((m) => m.id));
@@ -1733,6 +1750,7 @@ export function useWhiteboard() {
       }
       setEdges(result.edges);
       setGroups(result.groups);
+      setPairStatus(result.pairStatus);
       const coreNodes =
         mode === 'replace'
           ? result.nodes.map(toCore)
@@ -1799,6 +1817,7 @@ export function useWhiteboard() {
           edges,
           groups,
           worlds,
+          pairStatus,
           parsed,
           seedNameKeys: seedNameKeysFromNodes(seed.nodes),
           now: new Date().toISOString(),
@@ -1811,7 +1830,7 @@ export function useWhiteboard() {
       }
     };
     rd.readAsArrayBuffer(file);
-  }, [nodesCore, edges, groups, worlds, seed.nodes]);
+  }, [nodesCore, edges, groups, worlds, pairStatus, seed.nodes]);
 
   const confirmSaveImport = useCallback(
     (svgWidth: number, svgHeight: number) => {
@@ -2151,6 +2170,7 @@ export function useWhiteboard() {
     nodeVis,
     nodeBuckets,
     edgeData,
+    pairIndex,
     bloodVerts: bloodVertsMemo,
     hopD,
     visibleNodes,

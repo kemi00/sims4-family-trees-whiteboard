@@ -180,10 +180,22 @@ function unionParts(
   ];
 }
 
-function parentParts(parent: SimNode, child: SimNode): LogPart[] {
+/** `{a} and {b} are ❤ secret lovers.` */
+function secretLoversParts(a: SimNode, b: SimNode): LogPart[] {
+  return [
+    ...mention(a),
+    { kind: 'text', value: ' and ' },
+    ...mention(b),
+    { kind: 'text', value: ' are ' },
+    { kind: 'rel', mark: LINK_MARK.romance, label: 'secret lovers' },
+    { kind: 'text', value: '.' },
+  ];
+}
+
+function parentParts(parent: SimNode, child: SimNode, secret = false): LogPart[] {
   return [
     ...mention(parent),
-    { kind: 'text', value: ' had a ' },
+    { kind: 'text', value: secret ? ' had a secret ' : ' had a ' },
     rel('parent'),
     { kind: 'text', value: ', ' },
     { kind: 'sim', id: child.id, name: simName(child) },
@@ -191,10 +203,14 @@ function parentParts(parent: SimNode, child: SimNode): LogPart[] {
   ];
 }
 
-function parentsChildParts(parents: SimNode[], child: SimNode): LogPart[] {
+function parentsChildParts(
+  parents: SimNode[],
+  child: SimNode,
+  secretIds: ReadonlySet<string> = new Set(),
+): LogPart[] {
   const [first, ...rest] = parents;
   if (!first) return [];
-  if (!rest.length) return parentParts(first, child);
+  if (!rest.length) return parentParts(first, child, secretIds.has(first.id));
   const withClause: LogPart[] = [];
   rest.forEach((p, i) => {
     if (i === 0) {
@@ -205,6 +221,7 @@ function parentsChildParts(parents: SimNode[], child: SimNode): LogPart[] {
       withClause.push({ kind: 'text', value: ', ' });
     }
     withClause.push(...mention(p));
+    if (secretIds.has(p.id)) withClause.push({ kind: 'text', value: ' (secret parent)' });
   });
   return [
     ...mention(first),
@@ -285,9 +302,10 @@ function moveParts(sim: SimNode, move: HouseholdMove): LogPart[] {
   ];
 }
 
-function sentenceParts(type: Edge['type'], a: SimNode, b: SimNode): LogPart[] {
-  if (type === 'parent') return parentParts(a, b);
-  return unionParts(type, a, b);
+function sentenceParts(e: Edge, a: SimNode, b: SimNode): LogPart[] {
+  if (e.type === 'parent') return parentParts(a, b, !!e.secret);
+  if (e.type === 'romance' && e.secret) return secretLoversParts(a, b);
+  return unionParts(e.type, a, b);
 }
 
 function makeEntry(
@@ -345,17 +363,20 @@ export function buildConnectionLog(
   for (const [childId, parents] of parentsByChild) {
     if (parents.length < 2) continue;
     const child = byid[childId];
-    const parentNodes = parents
+    // Secret parents last, so the sentence names the known parent first.
+    const ordered = [...parents].sort((x, y) => Number(!!x.secret) - Number(!!y.secret));
+    const parentNodes = ordered
       .map((e) => byid[e.a])
       .filter((n): n is SimNode => !!n);
     if (!child || parentNodes.length < 2) continue;
+    const secretIds = new Set(parents.filter((e) => e.secret).map((e) => e.a));
     parents.forEach((e) => used.add(e.id));
     entries.push(
       makeEntry(
         `child:${childId}`,
         parents.map((e) => e.id),
         earliestCreatedAt(parents),
-        parentsChildParts(parentNodes, child),
+        parentsChildParts(parentNodes, child, secretIds),
         undefined,
         parents.every((e) => edgeSourceOf(e) === 'save') ? 'save' : 'planned',
       ),
@@ -372,7 +393,7 @@ export function buildConnectionLog(
         e.id,
         [e.id],
         e.createdAt,
-        sentenceParts(e.type, a, b),
+        sentenceParts(e, a, b),
         undefined,
         edgeSourceOf(e) === 'save' ? 'save' : 'planned',
       ),
