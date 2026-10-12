@@ -233,6 +233,49 @@ function alignPartnerGenerationsFromGraph(
   }
 }
 
+/**
+ * Strongly connected component per sim over in-block parent links (Tarjan).
+ * Sims sharing a component sit on a parent cycle — bad save data, or a link
+ * drawn the wrong way — so no generation order exists between them.
+ */
+function parentCycleGroups(
+  mem: SimNode[],
+  parents: Map<string, Set<string>>,
+): Map<string, number> {
+  const ids = new Set(mem.map((n) => n.id));
+  const order = new Map<string, number>();
+  const low = new Map<string, number>();
+  const group = new Map<string, number>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  let groups = 0;
+  const visit = (id: string) => {
+    order.set(id, order.size);
+    low.set(id, order.get(id)!);
+    stack.push(id);
+    onStack.add(id);
+    for (const p of parents.get(id) ?? []) {
+      if (!ids.has(p)) continue;
+      if (!order.has(p)) {
+        visit(p);
+        low.set(id, Math.min(low.get(id)!, low.get(p)!));
+      } else if (onStack.has(p)) {
+        low.set(id, Math.min(low.get(id)!, order.get(p)!));
+      }
+    }
+    if (low.get(id) !== order.get(id)) return;
+    let x: string;
+    do {
+      x = stack.pop()!;
+      onStack.delete(x);
+      group.set(x, groups);
+    } while (x !== id);
+    groups++;
+  };
+  for (const n of mem) if (!order.has(n.id)) visit(n.id);
+  return group;
+}
+
 /** Partner alignment can pull a parent down — re-seat their children on lower rows. */
 function propagateGenerationsFromParents(
   mem: SimNode[],
@@ -240,11 +283,15 @@ function propagateGenerationsFromParents(
   parents: Map<string, Set<string>>,
 ): void {
   const ids = new Set(mem.map((n) => n.id));
+  const group = parentCycleGroups(mem, parents);
   let changed = true;
   while (changed) {
     changed = false;
     for (const n of mem) {
-      const ps = [...(parents.get(n.id) ?? [])].filter((p) => ids.has(p));
+      /** A parent on a cycle with this sim would push both down forever. */
+      const ps = [...(parents.get(n.id) ?? [])].filter(
+        (p) => ids.has(p) && group.get(p) !== group.get(n.id),
+      );
       if (!ps.length) continue;
       const need = Math.max(...ps.map((p) => (gen.get(p) ?? 0) + 1));
       const cur = gen.get(n.id) ?? 0;

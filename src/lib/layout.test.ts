@@ -281,3 +281,63 @@ describe('layoutBases cache', () => {
     assert.equal(bella.y, base.y + 48);
   });
 });
+
+describe('parent-link cycles', () => {
+  const placedAll = (nodes: SimNode[], edges: Edge[], ws = worlds) => {
+    const laid = computeLayout(nodes, ws, edges);
+    for (const n of laid) {
+      assert.ok(Number.isFinite(n.x) && Number.isFinite(n.y), `${n.id} unplaced`);
+    }
+    return new Map(laid.map((n) => [n.id, n]));
+  };
+  const goth = 'Willow Creek||Goth';
+
+  it('lays out a sim drawn as its own parent', () => {
+    placedAll(
+      [sim({ id: 'Bella Goth', first: 'Bella', hh: 'Goth', gid: goth })],
+      [edge('Bella Goth', 'Bella Goth', 'parent')],
+    );
+  });
+
+  it('lays out two sims who are each other’s parent, kids still a row below', () => {
+    const nodes = [
+      sim({ id: 'Bella Goth', first: 'Bella', hh: 'Goth', gid: goth }),
+      sim({ id: 'Mortimer Goth', first: 'Mortimer', hh: 'Goth', gid: goth }),
+      sim({ id: 'Cassandra Goth', first: 'Cassandra', hh: 'Goth', gid: goth, age: 'Child' }),
+    ];
+    const byId = placedAll(nodes, [
+      edge('Bella Goth', 'Mortimer Goth', 'parent'),
+      edge('Mortimer Goth', 'Bella Goth', 'parent'),
+      edge('Bella Goth', 'Cassandra Goth', 'parent'),
+    ]);
+    assert.ok(byId.get('Cassandra Goth')!.y > byId.get('Bella Goth')!.y);
+  });
+
+  it('lays out a three-sim cycle spanning linked households', () => {
+    const nodes = ['Goth', 'Pancakes', 'Landgraab'].map((hh) =>
+      sim({ id: `${hh} Sim`, first: hh, hh, gid: `Willow Creek||${hh}` }),
+    );
+    placedAll(nodes, [
+      edge('Goth Sim', 'Pancakes Sim', 'parent'),
+      edge('Pancakes Sim', 'Landgraab Sim', 'parent'),
+      edge('Landgraab Sim', 'Goth Sim', 'parent'),
+    ]);
+  });
+
+  it('lays out a cycle in the Other world', () => {
+    const nodes = ['Bonehilda', 'Clement'].map((first) =>
+      sim({
+        id: first,
+        first,
+        hh: first,
+        gid: `${OTHER_WORLD}||${first}`,
+        world: OTHER_WORLD,
+        oworld: OTHER_WORLD,
+      }),
+    );
+    placedAll(nodes, [
+      edge('Bonehilda', 'Clement', 'parent'),
+      edge('Clement', 'Bonehilda', 'parent'),
+    ]);
+  });
+});
