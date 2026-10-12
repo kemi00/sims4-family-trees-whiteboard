@@ -1,6 +1,21 @@
 {
  "entries": [
   {
+   "sha": "48ffaa2",
+   "date": "2026-10-12",
+   "text": "When you merge a JSON file, cards no longer jump around: they stay where they are, or go exactly where the file shows them."
+  },
+  {
+   "sha": "5052d54",
+   "date": "2026-10-12",
+   "text": "Opening a filter panel now dims the board and moves the worlds list out of the way. Tap outside the panel to close it."
+  },
+  {
+   "sha": "6df65d0",
+   "date": "2026-10-12",
+   "text": "Quick tips is tidier and only opens when you ask for it, and filter panels slide up from the bottom on tablets and small laptops too."
+  },
+  {
    "sha": "bd87d02",
    "date": "2026-10-12",
    "text": "Connect now refuses a link that would make a sim their own ancestor, and tells you why."
