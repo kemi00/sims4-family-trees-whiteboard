@@ -7,7 +7,8 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { border, unionAtPoint, unionGeom, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
+import { flushSync } from 'react-dom';
+import { border, unionAtPoint, unionGeom, viewportWorldRect, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
 import { householdChrome, tileSnapOrigin } from '../lib/tiles.ts';
 import {
   CARD_H,
@@ -41,7 +42,15 @@ import {
   multiSelContainsWorld,
   normalizeRect,
   resolveMarqueeSelection,
+  type WorldRect,
 } from '../lib/marquee.ts';
+import {
+  cullWindow,
+  cullWindowStale,
+  nodeInCull,
+  parsePointList,
+  pathInCull,
+} from '../lib/viewportCull.ts';
 import {
   describeLinkSelection,
   type ChipObstacle,
@@ -90,6 +99,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     b: number;
   } | null>(null);
   const [stageSize, setStageSize] = useState({ w: 800, h: 600 });
+  const stageSizeRef = useRef(stageSize);
+  stageSizeRef.current = stageSize;
+  /** Render window (see viewportCull). Moves with the live camera, not only on commit. */
+  const [cullWin, setCullWin] = useState<WorldRect | null>(null);
+  const cullWinRef = useRef<WorldRect | null>(null);
+  /** Sims and households a live drag is moving — kept mounted wherever they are. */
+  const [dragUnit, setDragUnit] = useState<{
+    ids: ReadonlySet<string>;
+    gids: ReadonlySet<string>;
+  } | null>(null);
   const [viewFitted, setViewFitted] = useState(false);
   const [editorPos, setEditorPos] = useState({ left: 0, top: 0 });
   const editorRef = useRef<HTMLDivElement>(null);
@@ -220,10 +239,39 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
    */
   const labels = viewFitted && k >= LABEL_MIN_K;
 
-  const applyVp = useCallback((vp: { tx: number; ty: number; k: number }) => {
-    applySceneTransform(sceneRef.current, vp);
-    viewportLiveRef.current = vp;
-  }, []);
+  /**
+   * Re-centre the render window once the (live) view nears its edge. A jump
+   * past the overscan (minimap click, hard fling) mounts the new cards before
+   * the browser paints, so the board never flashes empty.
+   */
+  const refreshCull = useCallback(
+    (vp: { tx: number; ty: number; k: number }, inCommit: boolean) => {
+      const { w, h } = stageSizeRef.current;
+      const cur = cullWinRef.current;
+      if (cur && !cullWindowStale(cur, vp, w, h)) return;
+      const next = cullWindow(vp, w, h);
+      cullWinRef.current = next;
+      const v = viewportWorldRect(vp, w, h);
+      const uncovered =
+        !!cur && (v.l < cur.l || v.t < cur.t || v.r > cur.r || v.b > cur.b);
+      if (uncovered && !inCommit) flushSync(() => setCullWin(next));
+      else setCullWin(next);
+    },
+    [],
+  );
+
+  const applyVp = useCallback(
+    (vp: { tx: number; ty: number; k: number }, inCommit = false) => {
+      applySceneTransform(sceneRef.current, vp);
+      viewportLiveRef.current = vp;
+      refreshCull(vp, inCommit);
+    },
+    [refreshCull],
+  );
+
+  useEffect(() => {
+    refreshCull(viewportLiveRef.current, false);
+  }, [stageSize, refreshCull]);
 
   const setNavigating = useCallback((active: boolean) => {
     const stage = stageRef.current;
@@ -293,7 +341,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
 
   useLayoutEffect(() => {
     if (viewportGestureRef.current) return;
-    applyVp(wb.viewport);
+    applyVp(wb.viewport, true);
   }, [wb.viewport, applyVp]);
 
   /* Only select-mode is React-owned. Navigating/dragging stay on classList in
@@ -537,6 +585,28 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     for (const e of wb.edges) m.set(e.id, [e.a, e.b]);
     return m;
   }, [wb.edges]);
+  /** Links inside the render window, plus any a live drag is carrying. */
+  const mountedEdges = useMemo(() => {
+    const ed = wb.edgeData;
+    if (!cullWin) return ed;
+    const moving = dragUnit?.ids;
+    const carried = (ends: readonly string[]) =>
+      !!moving && ends.length > 0 && ends.every((id) => moving.has(id));
+    const bloodEnds = (ids: string[] | undefined) =>
+      (ids ?? []).flatMap((id) => edgeEndsById.get(id) ?? []);
+    return {
+      ...ed,
+      blood: ed.blood.filter(
+        (p) => pathInCull(p.pts, cullWin) || carried(bloodEnds(p.ids)),
+      ),
+      unions: ed.unions.filter(
+        (u) => pathInCull(parsePointList(u.pts), cullWin) || carried([u.a, u.b]),
+      ),
+      customs: ed.customs.filter(
+        (c) => pathInCull(c.pts, cullWin) || carried([c.a, c.b]),
+      ),
+    };
+  }, [wb.edgeData, cullWin, dragUnit, edgeEndsById]);
   const { worldById, gidById } = useMemo(() => {
     const worldById = new Map<string, string>();
     const gidById = new Map<string, string>();
@@ -632,8 +702,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       dx: 0,
       dy: 0,
     };
+    setDragUnit({
+      ids: new Set(ids),
+      gids: new Set([...(chrome?.gids ?? []), ...gidsForIds(ids)]),
+    });
     setDragging(true);
-  }, [setDragging]);
+  }, [setDragging, gidsForIds]);
 
   const endDragPreview = useCallback(() => {
     if (dragFrameRef.current) {
@@ -649,6 +723,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     }
     dragPreviewRef.current = null;
     clearDragChrome(guidesHostRef.current);
+    setDragUnit(null);
     setDragging(false);
   }, [setDragging]);
 
@@ -1236,7 +1311,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     if (pointersRef.current.size >= 2) beginPinch();
   };
 
-  const sortedNodes = [...wb.visibleNodes];
+  const keepIds = new Set<string>(dragUnit?.ids ?? []);
+  if (wb.sel?.type === 'node') keepIds.add(wb.sel.id);
+  if (wb.multiSel?.kind === 'nodes') wb.multiSel.ids.forEach((id) => keepIds.add(id));
+  if (wb.editNodeId) keepIds.add(wb.editNodeId);
+  if (typeof wb.connSrc === 'string') keepIds.add(wb.connSrc);
+  else if (wb.connSrc) wb.connSrc.union.forEach((id) => keepIds.add(id));
+  const searchCurrentId = wb.searchHits[wb.searchHitIndex];
+  if (searchCurrentId) keepIds.add(searchCurrentId);
+  const sortedNodes = cullWin
+    ? wb.visibleNodes.filter((n) => keepIds.has(n.id) || nodeInCull(n, cullWin))
+    : [...wb.visibleNodes];
   if (wb.sel?.type === 'node') {
     const selId = wb.sel.id;
     const idx = sortedNodes.findIndex((n) => n.id === selId);
@@ -1387,15 +1472,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             packVis={wb.nodeVis}
             selectedGids={selectedGids}
             buckets={wb.nodeBuckets}
+            cull={cullWin}
+            keepGids={dragUnit?.gids}
             onHouseholdDragStart={onHouseholdDragStart}
             onAgeUp={onAgeUp}
           />
           <EdgeLayer
-            blood={wb.edgeData.blood}
+            blood={mountedEdges.blood}
             bloodVerts={wb.bloodVerts}
             hopD={wb.hopD}
-            unions={wb.edgeData.unions}
-            customs={wb.edgeData.customs}
+            unions={mountedEdges.unions}
+            customs={mountedEdges.customs}
             endsById={edgeEndsById}
             worldById={worldById}
             gidById={gidById}
@@ -1507,6 +1594,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             packVis={wb.nodeVis}
             selectedGids={selectedGids}
             buckets={wb.nodeBuckets}
+            cull={cullWin}
+            keepGids={dragUnit?.gids}
             onHouseholdDragStart={onHouseholdDragStart}
             onAgeUp={onAgeUp}
           />

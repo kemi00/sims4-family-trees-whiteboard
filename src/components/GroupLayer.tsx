@@ -1,5 +1,6 @@
 import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Group, SimNode } from '../types/whiteboard.ts';
+import { rectsIntersect, type WorldRect } from '../lib/marquee.ts';
 import { nodesForGid, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { householdChrome } from '../lib/tiles.ts';
 
@@ -14,6 +15,10 @@ type Props = {
   labels: boolean;
   selectedGids?: ReadonlySet<string>;
   buckets?: NodeBuckets;
+  /** Render window — households outside it are not mounted (see viewportCull). */
+  cull?: WorldRect | null;
+  /** Households that stay mounted wherever they are (e.g. being dragged). */
+  keepGids?: ReadonlySet<string>;
   onHouseholdDragStart: (
     gid: string,
     wx: number,
@@ -33,6 +38,8 @@ export const GroupLayer = memo(function GroupLayer({
   labels,
   selectedGids,
   buckets,
+  cull,
+  keepGids,
   onHouseholdDragStart,
   onAgeUp,
 }: Props) {
@@ -61,6 +68,14 @@ export const GroupLayer = memo(function GroupLayer({
         } = chrome;
         const textY = (pillY: number) => pillY + pillH / 2;
         const selected = !!selectedGids?.has(g0.gid);
+        if (
+          cull &&
+          !selected &&
+          !keepGids?.has(g0.gid) &&
+          !rectsIntersect({ l: boxL, t: boxT, r: boxR, b: boxB }, cull)
+        ) {
+          return null;
+        }
 
         if (mode === 'frames') {
           return (
