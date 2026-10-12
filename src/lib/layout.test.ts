@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CARD_H, CARD_MIN_W, HH_TAG_BAND, HH_TAG_INSET, HH_TAG_PILL_H, HH_TAG_STACK_GAP, TILE } from './constants.ts';
 import { computeLayout, layoutBases, packingSignature, LAYOUT, OTHER_WORLD, rowPitch, spawnChildOrigin } from './layout.ts';
+import { hhBoxDraw } from './geometry.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
-import type { Edge, SimNode } from '../types/whiteboard.ts';
+import { migrateWhiteboardData } from './utils.ts';
+import type { Edge, Group, SimNode, WhiteboardData } from '../types/whiteboard.ts';
+import seedRoster from '../data/whiteboard.json' with { type: 'json' };
 
 const worlds = [{ name: 'Willow Creek', color: '#4e79a7' }];
 
@@ -279,6 +282,61 @@ describe('layoutBases cache', () => {
     const base = first.get('Bella Goth')!;
     assert.equal(bella.x, base.x + 96);
     assert.equal(bella.y, base.y + 48);
+  });
+});
+
+describe('household name tags', () => {
+  const groupsOf = (nodes: SimNode[]): Group[] =>
+    [...new Map(nodes.map((n) => [n.gid, n])).values()].map((n) => ({
+      gid: n.gid,
+      hh: n.hh,
+      world: n.world,
+      nb: n.nb,
+      color: n.color,
+      x: 0,
+      y: 0,
+      w: 0,
+      h: 0,
+    }));
+
+  function overlappingHouseholds(laid: SimNode[], groups: Group[]): string[] {
+    const gids = [...new Set(laid.map((n) => n.gid))];
+    const boxes = gids.map((gid) => [gid, hhBoxDraw(gid, laid, groups, () => true)!] as const);
+    const out: string[] = [];
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const [ga, a] = boxes[i]!;
+        const [gb, b] = boxes[j]!;
+        if (a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t) out.push(`${ga} / ${gb}`);
+      }
+    }
+    return out;
+  }
+
+  it('keeps a household out from under the long name tag beside it', () => {
+    // One card is narrower than "Aster  ·  Sixteen Saltwater Shores  ·  Willow Creek".
+    const nodes = [
+      sim({ id: 'a', first: 'Ana', hh: 'Aster', gid: 'Willow Creek||Aster', nb: 'Sixteen Saltwater Shores' }),
+      sim({ id: 'b', first: 'Bo', hh: 'Birch', gid: 'Willow Creek||Birch' }),
+      sim({ id: 'c', first: 'Cy', hh: 'Cedar', gid: 'Willow Creek||Cedar' }),
+    ];
+    const laid = snapNodesToTiles(computeLayout(nodes, worlds, []));
+    const groups = groupsOf(nodes);
+    const aster = hhBoxDraw('Willow Creek||Aster', laid, groups, () => true)!;
+    assert.ok(aster.r > laid.find((n) => n.id === 'a')!.x + CARD_MIN_W, 'fixture: the tag overhangs');
+    assert.deepEqual(overlappingHouseholds(laid, groups), []);
+  });
+
+  it('packs the built-in board with no household boxes overlapping', () => {
+    const seed = migrateWhiteboardData(seedRoster as unknown as WhiteboardData);
+    const laid = snapNodesToTiles(computeLayout(seed.nodes, seed.worlds!, seed.edges));
+    assert.deepEqual(overlappingHouseholds(laid, seed.groups!), []);
+  });
+
+  it('repacks when a neighbourhood name changes the tag', () => {
+    const nodes = [sim({ id: 'a', first: 'Ana', hh: 'Aster', gid: 'Willow Creek||Aster' })];
+    const renamed = [{ ...nodes[0]!, nb: 'Sixteen Saltwater Shores' }];
+    assert.notEqual(packingSignature(nodes, worlds, []), packingSignature(renamed, worlds, []));
   });
 });
 

@@ -1,4 +1,4 @@
-import { LAYOUT_EPOCH } from './constants.ts';
+import { LAYOUT_EPOCH, OLDEST_PINNABLE_EPOCH } from './constants.ts';
 import {
   coreOffsetsAfterImportSeparation,
   coreOffsetsAfterWorldSeparation,
@@ -17,11 +17,12 @@ import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
  * True when saved drag offsets should be cleared and the board re-packed.
  *
  * `ox`/`oy` are offsets from a packed base position, so they only mean
- * anything against the packing rules that produced them. Only a file stamped
- * with this exact {@link LAYOUT_EPOCH} can be trusted to restore placements.
+ * anything against the packing rules that produced them. A file stamped with
+ * {@link LAYOUT_EPOCH}, or an older epoch whose rules are still implemented
+ * (back to {@link OLDEST_PINNABLE_EPOCH}), restores every placement.
  *
  * Files with no stamp at all predate the epoch (downloaded before 2026-08-27)
- * and are re-packed too. They used to be let through whenever their offsets
+ * and are re-packed. They used to be let through whenever their offsets
  * looked like ordinary nudges, which was wrong in the quiet way: tile packing
  * had already moved every base position under them, so the board loaded with
  * no warning and every hand-placed card in the wrong spot.
@@ -29,7 +30,11 @@ import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 export function shouldRepackOffsets(
   layoutEpoch: number | null | undefined,
 ): boolean {
-  return layoutEpoch !== LAYOUT_EPOCH;
+  return !(
+    typeof layoutEpoch === 'number' &&
+    layoutEpoch >= OLDEST_PINNABLE_EPOCH &&
+    layoutEpoch <= LAYOUT_EPOCH
+  );
 }
 
 function asCore(n: SimNode, ox: number, oy: number): SimNode {
@@ -44,22 +49,28 @@ export function nodesWithClearedOffsets(nodes: SimNode[]): SimNode[] {
 
 /**
  * Prepare loaded nodes for the current layout engine.
- * Matching {@link LAYOUT_EPOCH} preserves ox/oy. Anything else, including a
+ * Matching {@link LAYOUT_EPOCH} preserves ox/oy. A board saved under an
+ * older, still-implemented epoch is laid out by that epoch's rules and every
+ * card pinned to where it sat, so a packing change never moves a saved board;
+ * only new and reset boards get the new packing. Anything older, including a
  * file with no stamp, gets a fresh auto-pack.
+ *
+ * `worlds` and `edges` must be the ones the board is laid out with, or the
+ * old positions are computed against a different packing.
  */
 export function prepareLoadedNodes(
   nodes: SimNode[],
   layoutEpoch: number | null | undefined,
-  _worlds: World[] = [],
-  _edges: Edge[] = [],
+  worlds: World[] = [],
+  edges: Edge[] = [],
 ): { nodes: SimNode[]; repacked: boolean } {
-  if (!shouldRepackOffsets(layoutEpoch)) {
-    return {
-      nodes: nodes.map((n) => asCore(n, n.ox ?? 0, n.oy ?? 0)),
-      repacked: false,
-    };
+  if (shouldRepackOffsets(layoutEpoch)) {
+    return { nodes: nodesWithClearedOffsets(nodes), repacked: true };
   }
-  return { nodes: nodesWithClearedOffsets(nodes), repacked: true };
+  const core = nodes.map((n) => asCore(n, n.ox ?? 0, n.oy ?? 0));
+  if (layoutEpoch === LAYOUT_EPOCH) return { nodes: core, repacked: false };
+  const wasOnScreen = visualPositionsFromCore(core, worlds, edges, layoutEpoch!);
+  return { nodes: pinCoreToTargets(wasOnScreen, core, worlds, edges), repacked: false };
 }
 
 type Point = { x: number; y: number };
@@ -69,9 +80,10 @@ export function visualPositionsFromCore(
   core: SimNode[],
   worlds: World[],
   edges: Edge[],
+  epoch: number = LAYOUT_EPOCH,
 ): Map<string, Point> {
   const m = new Map<string, Point>();
-  for (const n of computeLayout(core, worlds, edges)) m.set(n.id, { x: n.x, y: n.y });
+  for (const n of computeLayout(core, worlds, edges, epoch)) m.set(n.id, { x: n.x, y: n.y });
   return m;
 }
 

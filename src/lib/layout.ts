@@ -1,5 +1,13 @@
-import { AGES_H, CARD_H, CARD_MIN_W, HH_TAG_BAND, TILE } from './constants.ts';
-import { tileSnapOrigin } from './tiles.ts';
+import {
+  AGES_H,
+  CARD_H,
+  CARD_MIN_W,
+  HH_TAG_BAND,
+  HH_TAG_INSET,
+  LAYOUT_EPOCH,
+  TILE,
+} from './constants.ts';
+import { householdLabel, tagPillWidth, tileSnapOrigin } from './tiles.ts';
 import type { Edge, SimNode, World } from '../types/whiteboard.ts';
 
 /**
@@ -1402,9 +1410,90 @@ function layoutHousehold(
 
 type WorldBlock = { world: string; w: number; h: number; placed: PlacedCard[] };
 
+type TitleBox = { gid: string; l: number; t: number; r: number; b: number; cardsR: number };
+
+/**
+ * First layout epoch whose packing moves households out from under a
+ * neighbour's name tag. Older epochs are still packed without it, so a board
+ * saved under them can be pinned to where it was (see prepareLoadedNodes).
+ */
+export const TITLE_OVERHANG_EPOCH = 2;
+
+/**
+ * Move households out from under a neighbour's name tag, inside one world.
+ *
+ * A household's drawn box widens to fit its "Name · Neighbourhood · World"
+ * tag (householdChrome), so a narrow household with a long title reaches past
+ * its cards into the next column. Columns are sized by cards, which let a
+ * neighbour sit under that overhang. Going top to bottom, a household whose
+ * box meets an earlier one's only because of a title moves straight down
+ * below it. Nothing else in the world moves, and a world without such a clash
+ * packs exactly as before; one that grows taller can still shift the worlds
+ * packed after it. Returns the new content height.
+ */
+function clearTitleOverhangs(
+  placed: PlacedCard[],
+  households: [string, SimNode[]][],
+  contentH: number,
+): number {
+  const gidOf = new Map<string, string>();
+  const label = new Map<string, number>();
+  for (const [gid, mem] of households) {
+    for (const n of mem) gidOf.set(n.id, gid);
+    if (mem[0]) {
+      label.set(gid, HH_TAG_INSET * 2 + tagPillWidth(householdLabel(mem[0]), 30));
+    }
+  }
+  const cards = new Map<string, PlacedCard[]>();
+  for (const p of placed) {
+    const gid = gidOf.get(p.id);
+    if (!gid) continue;
+    cards.set(gid, [...(cards.get(gid) ?? []), p]);
+  }
+  const boxes: TitleBox[] = [];
+  for (const [gid, mem] of cards) {
+    const l = Math.min(...mem.map((p) => p.x));
+    const cardsR = Math.max(...mem.map((p) => p.x + p.w));
+    boxes.push({
+      gid,
+      l,
+      t: Math.min(...mem.map((p) => p.y)) - LAYOUT.hhHeader,
+      r: Math.max(cardsR, l + (label.get(gid) ?? 0)),
+      b: Math.max(...mem.map((p) => p.y + p.h)),
+      cardsR,
+    });
+  }
+  if (!boxes.some((b) => b.r > b.cardsR)) return contentH;
+
+  const meet = (a: TitleBox, b: TitleBox, ar: number, br: number) =>
+    a.l < br && ar > b.l && a.t < b.b && a.b > b.t;
+  boxes.sort((a, b) => a.t - b.t || a.l - b.l);
+  const settled: TitleBox[] = [];
+  let bottom = contentH;
+  for (const box of boxes) {
+    let dy = 0;
+    for (;;) {
+      const over = settled.find(
+        (s) => meet(box, s, box.r, s.r) && !meet(box, s, box.cardsR, s.cardsR),
+      );
+      if (!over) break;
+      const step = Math.ceil((over.b + LAYOUT.hhGap - box.t) / TILE) * TILE;
+      box.t += step;
+      box.b += step;
+      dy += step;
+    }
+    if (dy) {
+      for (const p of cards.get(box.gid)!) p.y += dy;
+      bottom = Math.max(bottom, box.b);
+    }
+    settled.push(box);
+  }
+  return bottom;
+}
+
 export const OTHER_WORLD = 'Other';
 
-function layoutOtherWorld(mem: SimNode[], edges: Edge[]): WorldBlock {
+function layoutOtherWorld(mem: SimNode[], edges: Edge[], epoch: number): WorldBlock {
   const byGid = new Map<string, SimNode[]>();
   for (const n of mem) {
     if (!byGid.has(n.gid)) byGid.set(n.gid, []);
@@ -1415,10 +1504,12 @@ function layoutOtherWorld(mem: SimNode[], edges: Edge[]): WorldBlock {
     (a[1][0]?.hh ?? a[0]).localeCompare(b[1][0]?.hh ?? b[0]),
   );
 
-  const { placed, w: contentW, h: contentH } = placeOtherWorldGrid(
+  const { placed, w: contentW, h: gridH } = placeOtherWorldGrid(
     households,
     edges,
   );
+  const contentH =
+    epoch >= TITLE_OVERHANG_EPOCH ? clearTitleOverhangs(placed, households, gridH) : gridH;
 
   return {
     world: OTHER_WORLD,
@@ -1429,8 +1520,13 @@ function layoutOtherWorld(mem: SimNode[], edges: Edge[]): WorldBlock {
 }
 
 /** Households in a fixed 3-column grid inside the world. */
-function layoutWorld(mem: SimNode[], edges: Edge[], world: string): WorldBlock {
-  if (world === OTHER_WORLD) return layoutOtherWorld(mem, edges);
+function layoutWorld(
+  mem: SimNode[],
+  edges: Edge[],
+  world: string,
+  epoch: number,
+): WorldBlock {
+  if (world === OTHER_WORLD) return layoutOtherWorld(mem, edges, epoch);
   const hhLinks = buildHouseholdLinks(mem, edges);
   const byGid = new Map<string, SimNode[]>();
   for (const n of mem) {
@@ -1446,11 +1542,13 @@ function layoutWorld(mem: SimNode[], edges: Edge[], world: string): WorldBlock {
     minGen,
   );
 
-  const { placed, w: contentW, h: contentH } = placeHouseholdBento(
+  const { placed, w: contentW, h: bentoH } = placeHouseholdBento(
     households,
     edges,
     hhLinks,
   );
+  const contentH =
+    epoch >= TITLE_OVERHANG_EPOCH ? clearTitleOverhangs(placed, households, bentoH) : bentoH;
 
   return {
     world: mem[0]?.world ?? '',
@@ -1461,7 +1559,7 @@ function layoutWorld(mem: SimNode[], edges: Edge[], world: string): WorldBlock {
 }
 
 /**
- * Packing identity — membership, names, ages, and edges. Visual `ox`/`oy`
+ * Packing identity — membership, names, neighbourhoods, ages, and edges. Visual `ox`/`oy`
  * (and derived x/y/w/h) do not change packed bases.
  */
 export function packingSignature(
@@ -1477,6 +1575,8 @@ export function packingSignature(
       n.gid,
       n.world || '',
       n.hh,
+      // Part of the household's name tag, which packing leaves room for.
+      n.nb,
       n.age,
       n.first,
       n.sur,
@@ -1496,6 +1596,7 @@ function computeLayoutBases(
   nodes: SimNode[],
   worlds: World[],
   edges: Edge[],
+  epoch: number,
 ): Map<string, LayoutBase> {
   buildLinkIndex(edges);
   const byWorld = new Map<string, SimNode[]>();
@@ -1513,7 +1614,7 @@ function computeLayoutBases(
   const worldBlocks = worldOrder
     .map((world) => {
       const mem = byWorld.get(world);
-      return mem?.length ? layoutWorld(mem, edges, world) : null;
+      return mem?.length ? layoutWorld(mem, edges, world, epoch) : null;
     })
     .filter((b): b is WorldBlock => b !== null);
 
@@ -1522,14 +1623,20 @@ function computeLayoutBases(
   return bases;
 }
 
+/**
+ * Packed base position of every card. `epoch` picks the packing rules; only
+ * loading a board saved under an older {@link LAYOUT_EPOCH} asks for anything
+ * but the current ones.
+ */
 export function layoutBases(
   nodes: SimNode[],
   worlds: World[],
   edges: Edge[],
+  epoch: number = LAYOUT_EPOCH,
 ): Map<string, { x: number; y: number; w: number; h: number }> {
-  const signature = packingSignature(nodes, worlds, edges);
+  const signature = `${epoch}\0${packingSignature(nodes, worlds, edges)}`;
   if (layoutBasesCache?.signature === signature) return layoutBasesCache.bases;
-  const bases = computeLayoutBases(nodes, worlds, edges);
+  const bases = computeLayoutBases(nodes, worlds, edges, epoch);
   layoutBasesCache = { signature, bases };
   return bases;
 }
@@ -1667,8 +1774,9 @@ export function computeLayout(
   nodes: SimNode[],
   worlds: World[],
   edges: Edge[],
+  epoch: number = LAYOUT_EPOCH,
 ): SimNode[] {
-  const bases = layoutBases(nodes, worlds, edges);
+  const bases = layoutBases(nodes, worlds, edges, epoch);
   return nodes.map((n) => {
     const base = bases.get(n.id);
     const size = measureCard(n);

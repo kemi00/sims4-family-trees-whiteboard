@@ -125,10 +125,18 @@ export const WORLD_TAG_MIN_SCREEN_PX = 22;
  */
 export const WORLD_TAG_HIT_PAD_SCREEN_PX = 10;
 /**
- * Bumped when packing rules change under saved ox/oy.
- * Downloads without a matching epoch may be re-packed on load.
+ * Bumped when packing rules change under saved ox/oy. Boards saved under an
+ * older epoch back to {@link OLDEST_PINNABLE_EPOCH} are pinned in place on
+ * load; unstamped ones are re-packed.
  */
-export const LAYOUT_EPOCH = 1;
+export const LAYOUT_EPOCH = 2;
+/**
+ * Oldest epoch whose packing rules are still implemented. Boards saved under
+ * it or later are pinned to where they were on screen, not re-packed.
+ * 1: original tile packing. 2: households moved out from under a
+ * neighbour's long name tag.
+ */
+export const OLDEST_PINNABLE_EPOCH = 1;
 export const ALIGN_TH = 13;
 /** Extra stickiness so snap targets do not flip while dragging. */
 export const SNAP_HYST = 10;

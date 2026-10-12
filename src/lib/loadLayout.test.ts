@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { CARD_H, CARD_MIN_W, LAYOUT_EPOCH } from './constants.ts';
+import { CARD_H, CARD_MIN_W, LAYOUT_EPOCH, OLDEST_PINNABLE_EPOCH } from './constants.ts';
 import { hhBoxDraw, worldFrame } from './geometry.ts';
-import { computeLayout } from './layout.ts';
+import { computeLayout, TITLE_OVERHANG_EPOCH } from './layout.ts';
 import {
   jsonLoadTargets,
   pinCoreToTargets,
@@ -13,7 +13,9 @@ import {
 } from './loadLayout.ts';
 import { mergeJsonIntoBoard } from './mergeJson.ts';
 import { snapNodesToTiles, snapToTile } from './tiles.ts';
-import type { Edge, Group, HhBoxDraw, SimNode, World } from '../types/whiteboard.ts';
+import { migrateWhiteboardData, sanitizeEdges } from './utils.ts';
+import type { Edge, Group, HhBoxDraw, SimNode, WhiteboardData, World } from '../types/whiteboard.ts';
+import seedRoster from '../data/whiteboard.json' with { type: 'json' };
 
 function node(ox: number, oy = 0): SimNode {
   return {
@@ -79,12 +81,51 @@ describe('prepareLoadedNodes', () => {
     assert.equal(shouldRepackOffsets(null), true);
   });
 
-  it('repacks when layoutEpoch is from an older generation', () => {
-    assert.equal(shouldRepackOffsets(LAYOUT_EPOCH - 1), true);
+  it('repacks when layoutEpoch is older than any packing still implemented', () => {
+    assert.equal(shouldRepackOffsets(OLDEST_PINNABLE_EPOCH - 1), true);
+  });
+
+  it('keeps an older board whose packing is still implemented', () => {
+    assert.equal(shouldRepackOffsets(OLDEST_PINNABLE_EPOCH), false);
+    assert.equal(prepareLoadedNodes([node(100)], OLDEST_PINNABLE_EPOCH).repacked, false);
   });
 
   it('repacks when layoutEpoch is from a newer generation', () => {
     assert.equal(shouldRepackOffsets(LAYOUT_EPOCH + 1), true);
+  });
+});
+
+describe('opening a board saved under an older layout epoch', () => {
+  // The built-in board, dragged about a little, as an epoch-1 save holds it.
+  const seed = migrateWhiteboardData(seedRoster as unknown as WhiteboardData);
+  const worlds = seed.worlds!;
+  const edges = sanitizeEdges(seed.edges);
+  const saved = seed.nodes.map((n, i) => ({
+    ...n,
+    ox: i % 7 === 0 ? 300 : 0,
+    oy: i % 11 === 0 ? -200 : 0,
+  }));
+  const at = (laid: SimNode[]) => new Map(laid.map((n) => [n.id, `${n.x},${n.y}`]));
+  const before = at(computeLayout(saved, worlds, edges, TITLE_OVERHANG_EPOCH - 1));
+
+  it('lays the board out differently under the new packing (so the test means something)', () => {
+    const naive = at(computeLayout(saved, worlds, edges));
+    assert.ok([...before].filter(([id, p]) => naive.get(id) !== p).length > 100);
+  });
+
+  it('opens with every card exactly where it was', () => {
+    const { nodes, repacked } = prepareLoadedNodes(saved, TITLE_OVERHANG_EPOCH - 1, worlds, edges);
+    assert.equal(repacked, false);
+    const after = at(computeLayout(nodes, worlds, edges));
+    assert.deepEqual([...before].filter(([id, p]) => after.get(id) !== p), []);
+  });
+
+  it('leaves a board saved under the current epoch untouched', () => {
+    const { nodes } = prepareLoadedNodes(saved, LAYOUT_EPOCH, worlds, edges);
+    assert.deepEqual(
+      nodes.map((n) => [n.ox, n.oy]),
+      saved.map((n) => [n.ox, n.oy]),
+    );
   });
 });
 

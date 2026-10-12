@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { LAYOUT_EPOCH } from './constants.ts';
 import {
   AUTOSAVE_KEY,
   boardMatchesBuiltIn,
@@ -122,7 +123,7 @@ describe('autosave', () => {
     assert.equal(draft.hiddenPacks[0], 'Spa Day');
     assert.equal(draft.bloodlineId, 'Bob');
     assert.equal(draft.connectionLog[0], 'Linked Bob and Eliza');
-    assert.equal(draft.layoutEpoch, 1);
+    assert.equal(draft.layoutEpoch, LAYOUT_EPOCH);
     assert.equal(draft.sourceFileName, 'my-board.json');
     assert.ok(store.getItem(AUTOSAVE_KEY));
     clearDraft(store);

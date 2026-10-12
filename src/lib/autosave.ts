@@ -11,7 +11,7 @@ import type {
 } from '../types/whiteboard.ts';
 import { LAYOUT_EPOCH } from './constants.ts';
 import { prepareLoadedNodes } from './loadLayout.ts';
-import { migrateWhiteboardData } from './utils.ts';
+import { migrateWhiteboardData, sanitizeEdges } from './utils.ts';
 
 /** localStorage key for the browser draft board. */
 export const AUTOSAVE_KEY = 'sims4-family-trees:draft:v1';
@@ -279,7 +279,14 @@ export function bootWhiteboardData(
   if (boardMatchesBuiltIn(draft, seed)) {
     return { fromDraft: false, data: seed, repacked: false };
   }
-  const prepared = prepareLoadedNodes(draft.nodes, draft.layoutEpoch, seed.worlds, draft.edges);
+  // Same edges the board is laid out with, so an older epoch's pinning
+  // reproduces exactly what was on screen.
+  const prepared = prepareLoadedNodes(
+    draft.nodes,
+    draft.layoutEpoch,
+    seed.worlds,
+    sanitizeEdges(draft.edges),
+  );
   return {
     fromDraft: true,
     repacked: prepared.repacked,
