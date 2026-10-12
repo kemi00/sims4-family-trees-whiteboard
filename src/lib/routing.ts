@@ -231,9 +231,14 @@ export function orthPath(
   );
 }
 
-/** Child sits in a lower generation row (top at or below the anchor). */
-function childBelowAnchor(ay: number, child: SimNode): boolean {
-  return child.y >= ay - STUB;
+/**
+ * Child sits low enough to hang from a fork under the parents: its top-stem
+ * junction is at or below the lowest point the fork may start (past the
+ * parents' card bottoms). A child level with a parent is routed from the side
+ * instead; forking under the parents would leave its top stem in mid-air.
+ */
+function childBelowFork(ay: number, child: SimNode, tagsBottom?: number): boolean {
+  return childStemJunctionY(child.y) >= unionStemJunctionY(ay, tagsBottom) - 0.5;
 }
 
 /** Y where the horizontal fork must meet before the mandatory top stem. */
@@ -490,14 +495,18 @@ function drawPedigreeFork(
     const cxs = cluster.map((n) => n.x + n.w / 2);
     const minx = Math.min(...cxs);
     const maxx = Math.max(...cxs);
-    const busSeg: Point[] = [];
-    if (ax < minx - 0.5) busSeg.push([ax, forkY], [minx, forkY]);
-    else if (ax > maxx + 0.5) busSeg.push([ax, forkY], [maxx, forkY]);
-    if (maxx - minx > 0.5) busSeg.push([minx, forkY], [maxx, forkY]);
-    if (busSeg.length) {
+    // One straight bus from the trunk across every kid. Building it from
+    // pieces that doubled back let simplify() drop the far end, which left
+    // the outermost kid's stem hanging in the air.
+    const busL = Math.min(ax, minx);
+    const busR = Math.max(ax, maxx);
+    if (busR - busL > 0.5) {
       blood.push({
         ids: edgeIdsForKids(cluster, pEB),
-        pts: simplify(busSeg),
+        pts: [
+          [busL, forkY],
+          [busR, forkY],
+        ],
       });
     }
 
@@ -510,6 +519,34 @@ function drawPedigreeFork(
       });
     }
   }
+}
+
+/** Height of the co-parent join: one stub below the lower parent's card. */
+function coParentJoinY(p0: SimNode, p1: SimNode): number {
+  return Math.max(p0.y + p0.h, p1.y + p1.h) + STUB;
+}
+
+/**
+ * Two parents with no partner link between them have no union pill for the
+ * child to hang from. Drop a stem from each parent's bottom and join them in
+ * the gap below the lower card, so the line visibly starts on both parents.
+ * Returns each parent's leg and the point the children's trunk hangs from.
+ */
+export function coParentJoin(
+  p0: SimNode,
+  p1: SimNode,
+  ctx: RoutingContext,
+): { legs: Point[][]; ax: number; ay: number } {
+  const ax = (p0.x + p0.w / 2 + p1.x + p1.w / 2) / 2;
+  const ay = coParentJoinY(p0, p1);
+  // One leg per parent. Joined into a single polyline, the two legs could
+  // double back at the join, and simplify() would drop part of one.
+  const leg = (p: SimNode): Point[] => {
+    const cx = p.x + p.w / 2;
+    const bottom = p.y + p.h;
+    return simplify([[cx, bottom], ...orthPath([cx, bottom + STUB], [ax, ay], [p.id], ctx)]);
+  };
+  return { legs: [leg(p0), leg(p1)], ax, ay };
 }
 
 /** Pedigree T: trunk → horizontal bus at stem junction → mandatory stem. */
@@ -545,7 +582,7 @@ export function childRoute(
   ctx: RoutingContext,
   tagsBottom?: number,
 ): Point[] {
-  if (childBelowAnchor(ay, child)) {
+  if (childBelowFork(ay, child, tagsBottom)) {
     return pedigreeDrop(ax, ay, child, tagsBottom);
   }
 
@@ -894,11 +931,16 @@ export function computeEdgeRenderData(
       tagsBottom = Math.max(p0.y + p0.h, p1.y + p1.h);
       exBase = [ps[0]!, ps[1]!].concat(mObs[uKey(ps[0]!, ps[1]!)] || []);
     } else if (ps.length === 2 && byid[ps[0]!] && byid[ps[1]!]) {
+      // Co-parents with no partner link: join them, then hang the kids from
+      // the join. Starting at the bare midpoint left a line to nowhere.
       const p0 = byid[ps[0]!]!;
       const p1 = byid[ps[1]!]!;
-      ax = (p0.x + p0.w / 2 + p1.x + p1.w / 2) / 2;
+      const join = coParentJoin(p0, p1, ctx);
+      const ids = edgeIdsForKids(kids.map((c) => byid[c]!), pEB);
+      for (const pts of join.legs) BLOOD.push({ ids, pts });
+      ax = join.ax;
+      ay = join.ay;
       tagsBottom = Math.max(p0.y + p0.h, p1.y + p1.h);
-      ay = tagsBottom;
       exBase = [ps[0]!, ps[1]!];
     } else if (ps.length === 1 && byid[ps[0]!]) {
       const p = byid[ps[0]!]!;
@@ -930,8 +972,8 @@ export function computeEdgeRenderData(
     }
     const kn = kids.map((c) => byid[c]!);
     if (!kn.length) return;
-    const belowK = kn.filter((n) => childBelowAnchor(ay, n));
-    const sideK = kn.filter((n) => !childBelowAnchor(ay, n));
+    const belowK = kn.filter((n) => childBelowFork(ay, n, tagsBottom));
+    const sideK = kn.filter((n) => !childBelowFork(ay, n, tagsBottom));
     /** Cross-household kids get their own drop — no shared horizontal bus. */
     const inHHBelow = belowK.filter((n) => !crossHouseholdChild(n, ps, byid));
     const crossHHBelow = belowK.filter((n) => crossHouseholdChild(n, ps, byid));
