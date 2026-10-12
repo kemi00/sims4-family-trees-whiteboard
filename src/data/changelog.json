@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "c46d7a1",
+   "date": "2026-10-13",
+   "text": "On new boards, a household with a long name tag no longer covers the one beside it: the neighbour moves down to make room. Boards you already have keep every card exactly where it is."
+  },
+  {
    "sha": "bff9d34",
    "date": "2026-10-13",
    "text": "When you load a file and keep your board positions, sims new to your board now fit in beside their family or world instead of landing on top of other households."
