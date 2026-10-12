@@ -70,6 +70,8 @@ export type BoardFilters = {
   hiddenPlay: string[];
   hiAges: string[];
   hiSingle: boolean;
+  /** Absent means shown, as in files saved before the filter existed. */
+  hideSecrets?: boolean;
 };
 
 /**
@@ -81,12 +83,14 @@ export function fileFilters(d: {
   hiddenPlay?: unknown;
   hiAges?: unknown;
   hiSingle?: unknown;
+  hideSecrets?: unknown;
 }): BoardFilters | null {
   if (
     d.hiddenPacks === undefined &&
     d.hiddenPlay === undefined &&
     d.hiAges === undefined &&
-    d.hiSingle === undefined
+    d.hiSingle === undefined &&
+    d.hideSecrets === undefined
   ) {
     return null;
   }
@@ -97,6 +101,7 @@ export function fileFilters(d: {
     hiddenPlay: list(d.hiddenPlay),
     hiAges: list(d.hiAges),
     hiSingle: d.hiSingle === true,
+    hideSecrets: d.hideSecrets === true,
   };
 }
 
@@ -119,7 +124,8 @@ export function filterChangeNote(
     (sameSet(board.hiddenPacks, file.hiddenPacks) &&
       sameSet(board.hiddenPlay, file.hiddenPlay) &&
       sameSet(board.hiAges, file.hiAges) &&
-      board.hiSingle === file.hiSingle)
+      board.hiSingle === file.hiSingle &&
+      !!board.hideSecrets === !!file.hideSecrets)
   ) {
     return null;
   }
@@ -127,6 +133,7 @@ export function filterChangeNote(
     file.hiddenPacks.length && count(file.hiddenPacks.length, 'game', 'games'),
     file.hiddenPlay.length &&
       count(file.hiddenPlay.length, 'playability type', 'playability types'),
+    file.hideSecrets && 'secrets',
   ].filter(Boolean);
   const highlights = [
     file.hiAges.length && count(file.hiAges.length, 'age', 'ages'),
@@ -135,6 +142,7 @@ export function filterChangeNote(
   const parts = [
     hides.length ? `hides ${hides.join(' and ')}` : 'shows every game',
     highlights.length ? `highlights ${highlights.join(' and ')}` : null,
+    board.hideSecrets && !file.hideSecrets ? 'shows secrets' : null,
   ].filter(Boolean);
   return `Your filters switch to the file's: it ${parts.join(', ')}.`;
 }

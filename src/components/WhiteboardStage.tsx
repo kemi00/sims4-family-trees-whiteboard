@@ -1353,7 +1353,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     wb.sel?.type === 'link'
       ? describeLinkSelection(
           wb.sel.ids,
-          wb.edges,
+          wb.shownEdges,
           wb.byid,
           wb.edgeData,
           wb.pairIndex,
@@ -1513,7 +1513,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
               if (wb.connectMode) wb.handleConnectUnion(a, b);
               else
                 wb.selectLink([
-                  wb.edges.find(
+                  wb.shownEdges.find(
                     (e) =>
                       (e.a === a && e.b === b) || (e.a === b && e.b === a),
                   )?.id ?? '',

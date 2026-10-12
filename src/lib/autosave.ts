@@ -31,6 +31,8 @@ export type PersistPayload = {
   hiddenPlay: string[];
   hiAges: string[];
   hiSingle: boolean;
+  /** Hide secrets filter (absent on older files). */
+  hideSecrets?: boolean;
   bloodlineId: string | null;
   householdMoves: HouseholdMove[];
   householdAgeUps: HouseholdAgeUp[];
@@ -59,6 +61,7 @@ export function buildPersistPayload(input: {
   hiddenPlay: Iterable<string>;
   hiAges: Iterable<string>;
   hiSingle: boolean;
+  hideSecrets?: boolean;
   bloodlineId: string | null;
   householdMoves: HouseholdMove[];
   householdAgeUps: HouseholdAgeUp[];
@@ -78,6 +81,7 @@ export function buildPersistPayload(input: {
     hiddenPlay: [...input.hiddenPlay],
     hiAges: [...input.hiAges],
     hiSingle: input.hiSingle,
+    hideSecrets: !!input.hideSecrets,
     bloodlineId: input.bloodlineId,
     householdMoves: input.householdMoves,
     householdAgeUps: input.householdAgeUps,
@@ -149,6 +153,7 @@ export function boardIdentity(payload: PersistPayload): string {
     hiddenPlay: [...(payload.hiddenPlay ?? [])].sort(),
     hiAges: [...(payload.hiAges ?? [])].sort(),
     hiSingle: !!payload.hiSingle,
+    hideSecrets: !!payload.hideSecrets,
     bloodlineId: payload.bloodlineId ?? null,
     householdMoves: payload.householdMoves ?? [],
     householdAgeUps: payload.householdAgeUps ?? [],
@@ -169,6 +174,7 @@ export function persistPayloadFromSeed(seed: WhiteboardData): PersistPayload {
     hiddenPlay: migrated.hiddenPlay ?? [],
     hiAges: migrated.hiAges ?? [],
     hiSingle: !!migrated.hiSingle,
+    hideSecrets: !!migrated.hideSecrets,
     bloodlineId: migrated.bloodlineId ?? null,
     householdMoves: migrated.householdMoves ?? [],
     householdAgeUps: migrated.householdAgeUps ?? [],
@@ -288,6 +294,7 @@ export function bootWhiteboardData(
       hiddenPlay: draft.hiddenPlay,
       hiAges: draft.hiAges,
       hiSingle: draft.hiSingle,
+      hideSecrets: draft.hideSecrets,
       bloodlineId: draft.bloodlineId,
       householdMoves: draft.householdMoves,
       householdAgeUps: draft.householdAgeUps,

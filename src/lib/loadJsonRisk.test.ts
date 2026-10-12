@@ -133,4 +133,21 @@ describe('JSON merge filters', () => {
       "Your filters switch to the file's: it shows every game.",
     );
   });
+
+  it('reads and describes the Hide secrets filter', () => {
+    assert.deepEqual(fileFilters({ hideSecrets: true }), {
+      ...none,
+      hideSecrets: true,
+    });
+    assert.equal(fileFilters({ hiddenPacks: [] })?.hideSecrets, false);
+    assert.equal(
+      filterChangeNote(none, fileFilters({ hiddenPacks: [], hideSecrets: true })),
+      "Your filters switch to the file's: it hides secrets.",
+    );
+    assert.equal(
+      filterChangeNote({ ...none, hideSecrets: true }, fileFilters({ hiddenPacks: [] })),
+      "Your filters switch to the file's: it shows every game, shows secrets.",
+    );
+    assert.equal(filterChangeNote(none, fileFilters({ hiddenPacks: [] })), null);
+  });
 });

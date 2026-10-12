@@ -6,6 +6,7 @@ import {
   House,
   IdentificationBadge,
   LinkSimple,
+  LockSimple,
   MagnifyingGlass,
   CaretDown,
   CaretUp,
@@ -69,7 +70,11 @@ export function AppBar({
   const playHidden = wb.hiddenPlay.size;
   const ageCount = wb.hiAges.size + (wb.hiSingle ? 1 : 0);
   const filterCount =
-    hiddenCount + playHidden + ageCount + (wb.bloodlineId ? 1 : 0);
+    hiddenCount +
+    playHidden +
+    ageCount +
+    (wb.bloodlineId ? 1 : 0) +
+    (wb.hideSecrets ? 1 : 0);
   const filterPanelOpen = wb.gamesOpen || wb.playOpen || wb.agesOpen;
 
   const svgSize = () => {
@@ -169,6 +174,10 @@ export function AppBar({
     wb.toggleBloodline();
     setFiltersOpen(false);
   };
+  const onHideSecrets = () => {
+    wb.toggleHideSecrets();
+    setFiltersOpen(false);
+  };
 
   return (
     <header
@@ -266,7 +275,7 @@ export function AppBar({
           label={
             filterCount
               ? `Filters. ${filterCount} active.`
-              : 'Filters: bloodline, games, playability, and ages'
+              : 'Filters: bloodline, secrets, games, playability, and ages'
           }
           pressed={filterCount > 0 || filterPanelOpen || filtersOpen}
           count={filterCount}
@@ -293,6 +302,21 @@ export function AppBar({
             >
               <UsersThree aria-hidden="true" />
               Bloodline
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              aria-pressed={wb.hideSecrets}
+              disabled={!wb.hasSecrets && !wb.hideSecrets}
+              title={
+                wb.hasSecrets || wb.hideSecrets
+                  ? 'Hide secret lovers and secret parents, for screenshots without spoilers. They stay in your file.'
+                  : 'No secrets on this board. Secret lovers and secret parents come from a save import.'
+              }
+              onClick={onHideSecrets}
+            >
+              <LockSimple aria-hidden="true" />
+              Hide secrets
             </button>
             <span className="pop__rule" aria-hidden="true" />
             <button type="button" role="menuitem" onClick={openGames}>

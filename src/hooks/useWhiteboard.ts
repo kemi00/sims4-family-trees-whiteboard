@@ -75,6 +75,7 @@ import type {
   World,
 } from '../types/whiteboard.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
+import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 
 const INITIAL_VIEW: Viewport = { tx: 40, ty: 40, k: 0.72 };
 
@@ -196,6 +197,8 @@ export function useWhiteboard() {
     () => new Set(boot.hiAges || []),
   );
   const [hiSingle, setHiSingle] = useState(() => !!boot.hiSingle);
+  /** Hide secrets filter: secret lovers and secret parents stay off the board. */
+  const [hideSecrets, setHideSecrets] = useState(() => !!boot.hideSecrets);
   const [bloodlineId, setBloodlineId] = useState<string | null>(() => {
     if (boot.bloodlineId && boot.nodes.some((n) => n.id === boot.bloodlineId)) {
       return boot.bloodlineId;
@@ -232,7 +235,10 @@ export function useWhiteboard() {
   const [pairStatus, setPairStatus] = useState<PairStatus[]>(
     () => boot.pairStatus ?? [],
   );
-  const pairIndex = useMemo(() => indexPairStatus(pairStatus), [pairStatus]);
+  const pairIndex = useMemo(
+    () => indexPairStatus(hideSecrets ? withoutSecretStatus(pairStatus) : pairStatus),
+    [pairStatus, hideSecrets],
+  );
   const [saveImport, setSaveImport] = useState<{
     merge: SaveMergeResult;
     parsed: ParsedSave;
@@ -347,6 +353,17 @@ export function useWhiteboard() {
     [packVis, playVis],
   );
 
+  /**
+   * Links as the board shows them. Hide secrets drops secret ones here, for
+   * drawing, labels, the log and bloodline — but layout still uses every
+   * link, so turning the filter on or off never moves a card.
+   */
+  const shownEdges = useMemo(
+    () => (hideSecrets ? withoutSecretLinks(edges) : edges),
+    [edges, hideSecrets],
+  );
+  const hasSecrets = useMemo(() => edges.some((e) => e.secret), [edges]);
+
   // Routes from the last pass; an edit re-routes only the links it can reach.
   const [routeCache] = useState(() => new RouteCache());
   const edgeData = useMemo(
@@ -355,14 +372,14 @@ export function useWhiteboard() {
         ? EMPTY_EDGE_DATA
         : computeEdgeRenderData({
             nodes,
-            edges,
+            edges: shownEdges,
             groups,
             show,
             packVis: nodeVis,
             fastRoute,
             cache: routeCache,
           }),
-    [nodes, edges, groups, show, nodeVis, fastRoute, skipRoute, routeCache],
+    [nodes, shownEdges, groups, show, nodeVis, fastRoute, skipRoute, routeCache],
   );
 
   const nodeBuckets = useMemo(() => bucketNodes(nodes), [nodes]);
@@ -382,24 +399,24 @@ export function useWhiteboard() {
     [visibleNodes],
   );
 
-  const partneredIds = useMemo(() => partneredIdSet(edges), [edges]);
+  const partneredIds = useMemo(() => partneredIdSet(shownEdges), [shownEdges]);
 
   const connectionLog = useMemo(
     () =>
       buildConnectionLog(
-        edges,
+        shownEdges,
         byid,
         householdMoves,
         householdAgeUps,
         deceasedMarks,
         simAgeUps,
       ),
-    [edges, byid, householdMoves, householdAgeUps, deceasedMarks, simAgeUps],
+    [shownEdges, byid, householdMoves, householdAgeUps, deceasedMarks, simAgeUps],
   );
 
   const bloodlineIds = useMemo(
-    () => (bloodlineId ? lineageIds(bloodlineId, edges) : null),
-    [bloodlineId, edges],
+    () => (bloodlineId ? lineageIds(bloodlineId, shownEdges) : null),
+    [bloodlineId, shownEdges],
   );
 
   const flashStatus = useCallback((msg: string) => {
@@ -433,6 +450,7 @@ export function useWhiteboard() {
         hiddenPlay,
         hiAges,
         hiSingle,
+        hideSecrets,
         bloodlineId,
         householdMoves,
         householdAgeUps,
@@ -450,6 +468,7 @@ export function useWhiteboard() {
       hiddenPlay,
       hiAges,
       hiSingle,
+      hideSecrets,
       bloodlineId,
       householdMoves,
       householdAgeUps,
@@ -508,11 +527,12 @@ export function useWhiteboard() {
             hiddenPlay: [...hiddenPlay],
             hiAges: [...hiAges],
             hiSingle,
+            hideSecrets,
           }
         : undefined,
     });
     setCanUndo(true);
-  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, hiddenPacks, hiddenPlay, hiAges, hiSingle]);
+  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets]);
 
   const undo = useCallback(() => {
     const prev = undoRef.current.pop();
@@ -530,6 +550,7 @@ export function useWhiteboard() {
       setHiddenPlay(new Set(prev.filters.hiddenPlay));
       setHiAges(new Set(prev.filters.hiAges));
       setHiSingle(prev.filters.hiSingle);
+      setHideSecrets(!!prev.filters.hideSecrets);
     }
     setCanUndo(undoRef.current.length > 0);
     setSel(null);
@@ -1382,6 +1403,7 @@ export function useWhiteboard() {
       setHiddenPlay(new Set());
       setHiAges(new Set());
       setHiSingle(false);
+      setHideSecrets(false);
       setBloodlineId(null);
       setHouseholdMoves([]);
       setHouseholdAgeUps([]);
@@ -1477,6 +1499,7 @@ export function useWhiteboard() {
         setHiddenPlay(new Set(d.hiddenPlay || []));
         setHiAges(new Set(d.hiAges || []));
         setHiSingle(!!d.hiSingle);
+        setHideSecrets(!!d.hideSecrets);
         const loadedIds = new Set((d.nodes as SimNode[]).map((n) => n.id));
         setBloodlineId(
           d.bloodlineId && loadedIds.has(d.bloodlineId)
@@ -1565,6 +1588,7 @@ export function useWhiteboard() {
               hiddenPlay: [...hiddenPlay],
               hiAges: [...hiAges],
               hiSingle,
+              hideSecrets,
             },
             fileFilters(parsed),
           );
@@ -1602,6 +1626,7 @@ export function useWhiteboard() {
       hiddenPlay,
       hiAges,
       hiSingle,
+      hideSecrets,
       applyLoadedJson,
     ],
   );
@@ -1680,6 +1705,7 @@ export function useWhiteboard() {
           setHiddenPlay(new Set(incomingFilters.hiddenPlay));
           setHiAges(new Set(incomingFilters.hiAges));
           setHiSingle(incomingFilters.hiSingle);
+          setHideSecrets(!!incomingFilters.hideSecrets);
         }
         setSourceFileName(pending.file.name);
         setFromBrowserDraft(false);
@@ -1742,6 +1768,7 @@ export function useWhiteboard() {
         setHiddenPlay(new Set());
         setHiAges(new Set());
         setHiSingle(false);
+      setHideSecrets(false);
         setBloodlineId(null);
         setFromBrowserDraft(false);
         setSourceFileName(null);
@@ -2088,6 +2115,21 @@ export function useWhiteboard() {
     flashStatus('Select a sim first, then Bloodline.');
   }, [sel, bloodlineId, flashStatus]);
 
+  const toggleHideSecrets = useCallback(() => {
+    const on = !hideSecrets;
+    setHideSecrets(on);
+    // A selected secret link would leave a label pointing at nothing.
+    if (on && sel?.type === 'link' && edges.some((e) => e.secret && sel.ids.includes(e.id))) {
+      setSel(null);
+    }
+    if (on) trackAction('/action/hide-secrets');
+    flashStatus(
+      on
+        ? 'Secrets hidden — secret lovers and secret parents are off the board. They stay in your file.'
+        : 'Secrets shown',
+    );
+  }, [hideSecrets, sel, edges, flashStatus]);
+
   const togglePlay = useCallback((oplay: string, visible: boolean) => {
     setHiddenPlay((s) => {
       const next = new Set(s);
@@ -2170,6 +2212,10 @@ export function useWhiteboard() {
     nodeVis,
     nodeBuckets,
     edgeData,
+    shownEdges,
+    hideSecrets,
+    hasSecrets,
+    toggleHideSecrets,
     pairIndex,
     bloodVerts: bloodVertsMemo,
     hopD,

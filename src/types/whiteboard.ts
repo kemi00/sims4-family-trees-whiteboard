@@ -185,6 +185,8 @@ export interface WhiteboardData {
   hiAges?: string[];
   /** Single-sims chip from the Ages filter. */
   hiSingle?: boolean;
+  /** Hide secrets filter: secret lovers and secret parents stay off the board. */
+  hideSecrets?: boolean;
   /** Sim whose ancestors and descendants stay undimmed. */
   bloodlineId?: string | null;
 }

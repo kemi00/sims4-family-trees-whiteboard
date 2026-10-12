@@ -5,6 +5,7 @@ import { STUB } from './constants.ts';
 import { describeLinkSelection } from './linkLabel.ts';
 import { coParentNote, indexPairStatus, mergePairStatus } from './pairStatus.ts';
 import { computeEdgeRenderData } from './routing.ts';
+import { withoutSecretLinks, withoutSecretStatus } from './secrets.ts';
 import type { Edge, PairStatus, SimNode } from '../types/whiteboard.ts';
 
 function card(id: string, x: number, y: number): SimNode {
@@ -136,5 +137,57 @@ describe('pair status helpers', () => {
     assert.equal(coParentNote(undefined), 'Not a couple');
     assert.equal(coParentNote(['exes', 'disliked']), 'Not a couple · Exes · Dislike each other');
     assert.equal(coParentNote(['partners', 'goodFriends']), 'Partners in your save · Good friends');
+  });
+});
+
+describe('hide secrets', () => {
+  const shown = withoutSecretLinks(edges);
+  const hiddenPairs = withoutSecretStatus([
+    ...pairs,
+    { a: 'Ann', b: 'Dee', tags: ['secretLovers', 'goodFriends'] },
+  ]);
+  const hiddenData = computeEdgeRenderData({
+    nodes,
+    edges: shown,
+    groups: [],
+    show: { seed: true, groups: true, worlds: true },
+    packVis: () => true,
+    fastRoute: true,
+  });
+
+  it('drops the lock and the secret lovers line, and nothing else', () => {
+    assert.equal(hiddenData.secrets, undefined);
+    assert.deepEqual(
+      hiddenData.unions.map((u) => u.edgeId),
+      ['m'],
+    );
+    assert.deepEqual(
+      shown.map((e) => e.id),
+      ['m', 'pa', 'pe', 'pf'],
+    );
+  });
+
+  it('leaves the known parent on the child\'s line', () => {
+    const chip = describeLinkSelection(['pa'], shown, byid, hiddenData, indexPairStatus(hiddenPairs));
+    assert.equal(chip?.nameFrom, 'Ann Ames');
+    assert.equal(chip?.note, undefined);
+  });
+
+  it('keeps the secret out of a co-parent label', () => {
+    assert.deepEqual(
+      hiddenPairs.find((p) => p.b === 'Dee')?.tags,
+      ['goodFriends'],
+    );
+    assert.equal(coParentNote(['goodFriends']), 'Not a couple · Good friends');
+  });
+
+  it('keeps secrets out of the log', () => {
+    const text = buildConnectionLog(shown, byid).map((e) => e.text).join('\n');
+    assert.ok(!/secret/i.test(text), text);
+  });
+
+  it('returns the same list when there is nothing to hide', () => {
+    const plain = edges.filter((e) => !e.secret);
+    assert.equal(withoutSecretLinks(plain), plain);
   });
 });

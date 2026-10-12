@@ -198,7 +198,7 @@ export default function App() {
           <div ref={agesPanelRef}>
             <AgesPanel
               nodes={wb.nodes}
-              edges={wb.edges}
+              edges={wb.shownEdges}
               hiAges={wb.hiAges}
               hiSingle={wb.hiSingle}
               packVis={wb.nodeVis}
