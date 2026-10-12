@@ -43,6 +43,7 @@ export function GamesPanel({
           <button onClick={onNone}>None</button>
         </span>
       </div>
+      {!packs.length && <p className="gpanel__empty">No games on this board yet.</p>}
       {packs.map((p) => {
         const on = !hiddenPacks.has(p);
         return (

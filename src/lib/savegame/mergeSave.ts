@@ -39,6 +39,11 @@ export type SaveMergeInput = {
   pairStatus?: PairStatus[];
   parsed: ParsedSave;
   seedNameKeys: Set<string>;
+  /**
+   * Sims whose world → game pairing to fall back on (the built-in roster)
+   * when the board has no sims in a world yet — always the case on Replace.
+   */
+  packReference?: SimNode[];
   now: string;
   nextEdgeId: () => string;
 };
@@ -158,6 +163,7 @@ function homeKey(householdId: string, household: string, world: string): string 
   return `${householdId}::${hh}`;
 }
 
+/** Most common game among `nodes` in `world`, or '' when none is known. */
 function packForWorld(world: string, nodes: SimNode[]): string {
   const counts = new Map<string, number>();
   for (const n of nodes) {
@@ -222,6 +228,31 @@ function saveWorldSummary(
   const board = new Set(boardWorlds.map((w) => foldName(w.name)));
   const extra = saveWorlds.filter((name) => !board.has(foldName(name)));
   return { saveWorlds: matched, extraWorlds: extra };
+}
+
+/**
+ * Game for a sim the save brings: the board's own pairing for its world,
+ * else the reference roster's. Without the fallback, Replace (which starts
+ * from an empty board) left every sim with no game and the Games filter
+ * with nothing to list.
+ */
+function packForSaveSim(world: string, board: SimNode[], reference: SimNode[]): string {
+  return packForWorld(world, board) || packForWorld(world, reference);
+}
+
+/**
+ * Give save-imported sims that have no game one from their world, the same
+ * way an import now does. Repairs boards replaced from a save before the
+ * fallback existed. Sims added in the editor keep no game on purpose (hiding
+ * a game never hides your own sims), so only save sims are touched.
+ */
+export function fillMissingSavePacks(nodes: SimNode[], reference: SimNode[]): SimNode[] {
+  if (!nodes.some((n) => !n.pack && n.saveSimId)) return nodes;
+  return nodes.map((n) => {
+    if (n.pack || !n.saveSimId) return n;
+    const pack = packForSaveSim(n.world, nodes, reference);
+    return pack ? { ...n, pack } : n;
+  });
 }
 
 function newSaveNode(
@@ -391,7 +422,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       sim,
       isOriginal,
       home,
-      packForWorld(home.world, nodes),
+      packForSaveSim(home.world, nodes, input.packReference ?? []),
     );
     nodes.push(created);
     claimed.add(created.id);

@@ -52,6 +52,7 @@ import {
 import { fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
+  fillMissingSavePacks,
   mergeSaveIntoBoard,
   seedNameKeysFromNodes,
   type SaveMergeResult,
@@ -146,6 +147,7 @@ export function useWhiteboard() {
       repacked: raw.repacked,
       data: {
         ...migrated,
+        nodes: fillMissingSavePacks(migrated.nodes, seed.nodes),
         groups: migrated.groups ?? seed.groups,
         worlds: migrated.worlds ?? seed.worlds,
       },
@@ -1451,7 +1453,7 @@ export function useWhiteboard() {
         const d = migrateWhiteboardData(parsed);
         const loadedEdges = sanitizeEdges(d.edges);
         const prepared = prepareLoadedNodes(
-          d.nodes as SimNode[],
+          fillMissingSavePacks(d.nodes as SimNode[], seed.nodes),
           parsed.layoutEpoch,
           worlds,
           loadedEdges,
@@ -1552,7 +1554,7 @@ export function useWhiteboard() {
         setPendingLoadJson(null);
       }
     },
-    [fit, snap, worlds, groups, byid, flashStatus],
+    [fit, snap, worlds, groups, byid, flashStatus, seed.nodes],
   );
 
   /**
@@ -1645,7 +1647,7 @@ export function useWhiteboard() {
         const d = migrateWhiteboardData(parsed);
         const incomingEdges = sanitizeEdges(d.edges);
         const prepared = prepareLoadedNodes(
-          d.nodes as SimNode[],
+          fillMissingSavePacks(d.nodes as SimNode[], seed.nodes),
           parsed.layoutEpoch,
           worlds,
           incomingEdges,
@@ -1751,6 +1753,7 @@ export function useWhiteboard() {
     pushUndo,
     flashStatus,
     fit,
+    seed.nodes,
   ]);
 
   const applySaveBoard = useCallback(
@@ -1833,6 +1836,7 @@ export function useWhiteboard() {
           pairStatus,
           parsed,
           seedNameKeys: seedNameKeysFromNodes(seed.nodes),
+          packReference: seed.nodes,
           now: new Date().toISOString(),
           nextEdgeId: () => 'v' + n++,
         });
@@ -1864,6 +1868,7 @@ export function useWhiteboard() {
         worlds,
         parsed: saveImport.parsed,
         seedNameKeys: seedNameKeysFromNodes(seed.nodes),
+        packReference: seed.nodes,
         now: new Date().toISOString(),
         nextEdgeId: () => 'v' + n++,
       });
@@ -1871,15 +1876,18 @@ export function useWhiteboard() {
        * Replace builds from an empty board, and hidePacks is worked out by
        * mapping packs to the worlds their cards sit in — with no cards there
        * is no mapping, so it always came back empty and Filters ended up
-       * claiming nothing was hidden. Keep the preview's list, which was
-       * measured against the real board and is what the dialog promised.
+       * claiming nothing was hidden. Use the preview's list, measured against
+       * the real board, but only the games some sim on the new board has: a
+       * hidden game with no sims left a phantom "1" on Filters that the Games
+       * panel could not show or switch back on.
        */
+      const replacedPacks = new Set(replaced.nodes.map((n) => n.pack).filter(Boolean));
       applySaveBoard(
         {
           ...replaced,
           summary: {
             ...replaced.summary,
-            hidePacks: saveImport.merge.summary.hidePacks,
+            hidePacks: saveImport.merge.summary.hidePacks.filter((p) => replacedPacks.has(p)),
           },
         },
         svgWidth,
@@ -2125,12 +2133,14 @@ export function useWhiteboard() {
     });
   }, []);
 
+  // Hidden games stay listed even with no sims, so a hidden one can always
+  // be seen and switched back on (otherwise Filters counts it invisibly).
   const packs = useMemo(
     () =>
-      [...new Set(nodes.map((n) => n.pack).filter(Boolean))].sort((a, b) =>
-        a === 'Base Game' ? -1 : b === 'Base Game' ? 1 : a.localeCompare(b),
+      [...new Set([...nodes.map((n) => n.pack), ...hiddenPacks].filter(Boolean))].sort(
+        (a, b) => (a === 'Base Game' ? -1 : b === 'Base Game' ? 1 : a.localeCompare(b)),
       ),
-    [nodes],
+    [nodes, hiddenPacks],
   );
 
   const playabilities = useMemo(

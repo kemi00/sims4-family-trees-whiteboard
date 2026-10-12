@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../../types/whiteboard.ts';
-import { mergeSaveIntoBoard, nameKey, seedNameKeysFromNodes } from './mergeSave.ts';
+import {
+  fillMissingSavePacks,
+  mergeSaveIntoBoard,
+  nameKey,
+  seedNameKeysFromNodes,
+} from './mergeSave.ts';
 import type { ParsedSave } from './parseSave.ts';
 
 const world = [{ name: 'Other', color: '#9aa0a6' }];
@@ -603,5 +608,64 @@ describe('mergeSaveIntoBoard secrets and statuses', () => {
     });
     assert.equal(again.edges.filter((e) => e.secret).length, 0);
     assert.equal(again.summary.newLinks, 0);
+  });
+});
+
+describe('games for save sims', () => {
+  const worlds = [
+    { name: 'Willow Creek', color: '#4e79a7' },
+    { name: 'San Myshuno', color: '#e15759' },
+    { name: 'Other', color: '#9aa0a6' },
+  ];
+  const roster = [
+    sim({ id: 'r1', first: 'Bella', sur: 'Goth', world: 'Willow Creek', pack: 'Base Game' }),
+    sim({ id: 'r2', first: 'Miko', sur: 'Ojo', world: 'San Myshuno', pack: 'City Living' }),
+  ];
+  const parsed: ParsedSave = {
+    sims: [
+      { saveSimId: '1', householdId: '7', first: 'Ann', last: 'Ames', household: 'Ames', age: 'Adult', gender: 'Female', world: 'San Myshuno' },
+      { saveSimId: '2', householdId: '8', first: 'Bo', last: 'Bly', household: 'Bly', age: 'Adult', gender: 'Male', world: 'Willow Creek' },
+    ],
+    rels: [],
+  };
+  const replace = (packReference?: SimNode[]) =>
+    mergeSaveIntoBoard({
+      nodes: [],
+      edges: [],
+      groups: [],
+      worlds,
+      parsed,
+      seedNameKeys: new Set(),
+      packReference,
+      now: 'x',
+      nextEdgeId: () => 'v',
+    });
+
+  it('gives a replaced board the built-in roster\'s game for each world', () => {
+    const packs = Object.fromEntries(replace(roster).nodes.map((n) => [n.first, n.pack]));
+    assert.deepEqual(packs, { Ann: 'City Living', Bo: 'Base Game' });
+  });
+
+  it('left every sim without a game when there was nothing to go on', () => {
+    assert.deepEqual(replace().nodes.map((n) => n.pack), ['', '']);
+  });
+
+  it('repairs save sims with no game, and leaves sims added in the editor alone', () => {
+    const board = [
+      sim({ id: 's1', first: 'Ann', sur: 'Ames', world: 'San Myshuno', pack: '', saveSimId: '1' }),
+      sim({ id: 'u1', first: 'New', sur: 'Sim', world: 'San Myshuno', pack: '', added: true }),
+      sim({ id: 's2', first: 'Bo', sur: 'Bly', world: 'Willow Creek', pack: 'Base Game', saveSimId: '2' }),
+    ];
+    const fixed = fillMissingSavePacks(board, roster);
+    assert.deepEqual(
+      fixed.map((n) => [n.id, n.pack]),
+      [
+        ['s1', 'City Living'],
+        ['u1', ''],
+        ['s2', 'Base Game'],
+      ],
+    );
+    const whole = [board[2]!];
+    assert.equal(fillMissingSavePacks(whole, roster), whole);
   });
 });
