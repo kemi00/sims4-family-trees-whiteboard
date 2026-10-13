@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "09bdcdd",
+   "date": "2026-10-13",
+   "text": "Unhoused sims boxes now keep each family together, parents above children, and put sims with relatives elsewhere on the side facing them, so family lines no longer cross the box. A box you already have is rearranged in place; nothing else moves."
+  },
+  {
    "sha": "6770757",
    "date": "2026-10-13",
    "text": "Unhoused sims (no home lot in the game) now share one \"Unhoused sims\" box per world, marked with a crossed-out house, instead of a box each. Merge your save to group them; those who only stood in a world when you saved move to Other."
