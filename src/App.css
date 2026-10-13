@@ -448,6 +448,11 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .autosave-cue__reset:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
 .bloodline-banner{position:absolute;left:50%;top:48px;transform:translateX(-50%);z-index:7;pointer-events:auto;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;max-width:min(520px, calc(100% - 24px));padding:8px 10px 8px 13px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;box-shadow:var(--lift)}
 .bloodline-banner p{margin:0;flex:1 1 12em;min-width:0}
+.tab-banner{border-color:#e0a03a;background:#fff8ec}
+.tab-banner p{font-weight:500}
+.tab-banner .tab-banner__save{background:transparent;color:var(--accent-strong);border-color:var(--line)}
+.tab-banner .tab-banner__save:hover{background:var(--hover)}
+.tab-banner .tab-banner__save + button{margin-left:0}
 .bloodline-banner button{flex:0 0 auto;height:28px;padding:0 11px;margin-left:auto;border:1px solid transparent;border-radius:var(--r-control);background:var(--accent);color:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .bloodline-banner button:hover{background:var(--accent-strong)}
 .bloodline-banner button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}

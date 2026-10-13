@@ -43,7 +43,11 @@ export type PersistPayload = {
   connectionLog: string[];
 };
 
-export type AutosaveDraft = PersistPayload & { savedAt: string };
+export type AutosaveDraft = PersistPayload & {
+  savedAt: string;
+  /** The tab that wrote it (see createDraftGuard); absent on older drafts. */
+  writer?: string;
+};
 
 export type WriteDraftResult = 'ok' | 'quota' | 'error';
 
@@ -235,9 +239,10 @@ export function writeDraft(
   payload: PersistPayload,
   store: Storage | null = storage(),
   now: () => string = () => new Date().toISOString(),
+  writer?: string,
 ): WriteDraftResult {
   if (!store) return 'error';
-  const draft: AutosaveDraft = { ...payload, savedAt: now() };
+  const draft: AutosaveDraft = { ...payload, savedAt: now(), ...(writer ? { writer } : {}) };
   try {
     store.setItem(AUTOSAVE_KEY, JSON.stringify(draft));
     return 'ok';
@@ -263,6 +268,74 @@ export function clearDraft(store: Storage | null = storage()): void {
 }
 
 /**
+ * Which write a stored draft came from: when and by which tab. Every write
+ * makes a new one; null when there is no draft. Parsing the draft for it
+ * takes about a millisecond, fine at autosave's pace.
+ */
+export function draftStamp(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(raw) as Partial<AutosaveDraft>;
+    return `${d.savedAt ?? ''}|${d.writer ?? ''}`;
+  } catch {
+    return 'unreadable';
+  }
+}
+
+function storedStamp(store: Storage | null): string | null {
+  if (!store) return null;
+  try {
+    return draftStamp(store.getItem(AUTOSAVE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export type GuardedWrite = WriteDraftResult | 'stale';
+
+/**
+ * Keeps two open tabs from overwriting each other's board. The browser
+ * draft is shared by every tab, and each used to autosave over it blindly,
+ * so a tab still showing an old board could undo what another tab had just
+ * done (a save Merge, say). A tab now remembers the draft it loaded or last
+ * wrote, and only writes or clears it while the stored draft is still that
+ * one; once another tab has written, this tab is stale and stops saving.
+ */
+export function createDraftGuard(
+  writer: string,
+  /** Stamp of the draft this tab booted from (see draftStamp). */
+  loaded: string | null,
+  store: () => Storage | null = storage,
+) {
+  let seen = loaded;
+  return {
+    /** Autosave, unless another tab has written since. */
+    write(payload: PersistPayload, now: () => string = () => new Date().toISOString()): GuardedWrite {
+      const s = store();
+      if (storedStamp(s) !== seen) return 'stale';
+      const at = now();
+      const result = writeDraft(payload, s, () => at, writer);
+      if (result === 'ok') seen = `${at}|${writer}`;
+      return result;
+    },
+    /** Clear the draft, unless another tab has written since. */
+    clear(): boolean {
+      const s = store();
+      if (storedStamp(s) !== seen) return false;
+      clearDraft(s);
+      seen = null;
+      return true;
+    },
+    /** A `storage` event's new value: true when another tab changed the draft. */
+    changedElsewhere(newValue: string | null): boolean {
+      return draftStamp(newValue) !== seen;
+    },
+  };
+}
+
+export type DraftGuard = ReturnType<typeof createDraftGuard>;
+
+/**
  * Prefer the browser draft when present; otherwise the bundled seed.
  * Worlds always come from the seed (downloads do not carry the world palette).
  * Skewed pre-epoch drafts are re-packed so a broken Load does not stick forever.
@@ -270,14 +343,15 @@ export function clearDraft(store: Storage | null = storage()): void {
 export function bootWhiteboardData(
   seed: WhiteboardData,
   store: Storage | null = storage(),
-): { fromDraft: boolean; data: WhiteboardData; repacked: boolean } {
+): { fromDraft: boolean; data: WhiteboardData; repacked: boolean; stamp: string | null } {
+  const stamp = storedStamp(store);
   const draft = readDraft(store);
   if (!draft) {
-    return { fromDraft: false, data: seed, repacked: false };
+    return { fromDraft: false, data: seed, repacked: false, stamp };
   }
   // An autosave of the unaltered fodder board is not a user draft.
   if (boardMatchesBuiltIn(draft, seed)) {
-    return { fromDraft: false, data: seed, repacked: false };
+    return { fromDraft: false, data: seed, repacked: false, stamp };
   }
   // Same edges the board is laid out with, so an older epoch's pinning
   // reproduces exactly what was on screen.
@@ -290,6 +364,7 @@ export function bootWhiteboardData(
   return {
     fromDraft: true,
     repacked: prepared.repacked,
+    stamp,
     data: {
       ...seed,
       layoutEpoch: LAYOUT_EPOCH,

@@ -3,12 +3,13 @@ import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT } from '../lib/constants.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
+  AUTOSAVE_KEY,
   boardMatchesBuiltIn,
   bootWhiteboardData,
   buildPersistPayload,
-  clearDraft,
+  createDraftGuard,
   toCore,
-  writeDraft,
+  type DraftGuard,
 } from '../lib/autosave.ts';
 import { trackAction } from '../lib/analytics.ts';
 import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, separateLoadOverlaps, shouldRepackOffsets, withReadableHouseholdNames } from '../lib/loadLayout.ts';
@@ -138,6 +139,7 @@ export function useWhiteboard() {
     fromDraft: boolean;
     repacked: boolean;
     data: WhiteboardData;
+    stamp: string | null;
   } | null>(null);
   if (!bootRef.current) {
     const raw = bootWhiteboardData(seed);
@@ -152,6 +154,7 @@ export function useWhiteboard() {
     bootRef.current = {
       fromDraft: raw.fromDraft,
       repacked: raw.repacked,
+      stamp: raw.stamp,
       data: {
         ...migrated,
         nodes: named.core,
@@ -168,6 +171,14 @@ export function useWhiteboard() {
   );
   /** True when the session started from (or still represents) a browser draft without a file name. */
   const [fromBrowserDraft, setFromBrowserDraft] = useState(bootFromDraft);
+  /** Every write to the shared browser draft goes through this (see createDraftGuard). */
+  const draftGuardRef = useRef<DraftGuard | null>(null);
+  if (!draftGuardRef.current) {
+    const tab = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    draftGuardRef.current = createDraftGuard(tab, bootRef.current.stamp);
+  }
+  /** Another tab saved the board since this one loaded it, so this tab stopped saving. */
+  const [staleTab, setStaleTab] = useState(false);
   const [nodesCore, setNodesCore] = useState<SimNode[]>(() =>
     boot.nodes.map((n) => toCore(n)),
   );
@@ -493,6 +504,18 @@ export function useWhiteboard() {
     [persistPayload, seed],
   );
 
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      // A null key is another tab clearing all of storage.
+      if (e.key !== null && e.key !== AUTOSAVE_KEY) return;
+      if (e.key === null || draftGuardRef.current!.changedElsewhere(e.newValue)) {
+        setStaleTab(true);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   /** Skip the immediate post-hydrate write; debounce later board edits. */
   const skipAutosaveRef = useRef(true);
   useEffect(() => {
@@ -500,15 +523,20 @@ export function useWhiteboard() {
       skipAutosaveRef.current = false;
       return;
     }
+    if (staleTab) return;
     const t = setTimeout(() => {
+      const guard = draftGuardRef.current!;
       const payload = persistPayload();
       if (boardMatchesBuiltIn(payload, seed)) {
-        clearDraft();
-        setFromBrowserDraft(false);
+        if (guard.clear()) setFromBrowserDraft(false);
+        else setStaleTab(true);
         return;
       }
-      setStatus('Autosaving…');
-      const result = writeDraft(payload);
+      const result = guard.write(payload);
+      if (result === 'stale') {
+        setStaleTab(true);
+        return;
+      }
       if (result === 'ok') {
         if (!payload.sourceFileName) setFromBrowserDraft(true);
         flashStatus('Autosaved');
@@ -517,7 +545,9 @@ export function useWhiteboard() {
       else flashStatus('Autosave failed');
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [persistPayload, flashStatus, seed]);
+  }, [persistPayload, flashStatus, seed, staleTab]);
+
+  const reloadBoard = useCallback(() => window.location.reload(), []);
 
   const pushUndo = useCallback((opts?: { filters?: boolean }) => {
     undoRef.current.push({
@@ -1395,7 +1425,7 @@ export function useWhiteboard() {
 
   const resetToBuiltInBoard = useCallback(
     (svgWidth: number, svgHeight: number) => {
-      clearDraft();
+      if (!draftGuardRef.current!.clear()) setStaleTab(true);
       const migrated = migrateWhiteboardData(seed);
       const seedEdges = sanitizeEdges(
         migrated.edges.map((e) => ({
@@ -2283,6 +2313,8 @@ export function useWhiteboard() {
     sourceFileName,
     boardSourceLabel,
     canResetBoard,
+    staleTab,
+    reloadBoard,
     resetToBuiltInBoard,
     saveJson,
     loadJson,

@@ -8,6 +8,7 @@ import {
   bootWhiteboardData,
   buildPersistPayload,
   clearDraft,
+  createDraftGuard,
   readDraft,
   toCore,
   writeDraft,
@@ -240,5 +241,67 @@ describe('autosave', () => {
     const seed = seedRoster as WhiteboardData;
     assert.equal(boardMatchesBuiltIn(persistPayloadFromSeed(seed), seed), true);
     assert.equal(boardMatchesBuiltIn(persistPayloadFromSeed(seed), seed), true);
+  });
+});
+
+describe('two open tabs', () => {
+  const seed = seedRoster as WhiteboardData;
+  const board = (who: string) =>
+    buildPersistPayload({
+      nodesCore: [node(who)].map(toCore),
+      edges: [],
+      groups,
+      hiddenPacks: [],
+      hiddenPlay: [],
+      hiAges: [],
+      hiSingle: false,
+      bloodlineId: null,
+      householdMoves: [],
+      householdAgeUps: [],
+      deceasedMarks: [],
+      simAgeUps: [],
+      connectionLog: [],
+      sourceFileName: null,
+    });
+  let tick = 0;
+  const now = () => `2026-10-13T18:00:${String(tick++).padStart(2, '0')}.000Z`;
+
+  it('lets a tab keep saving over its own draft', () => {
+    const store = memoryStore();
+    const tab = createDraftGuard('a', bootWhiteboardData(seed, store).stamp, () => store);
+    assert.equal(tab.write(board('First'), now), 'ok');
+    assert.equal(tab.write(board('Second'), now), 'ok');
+    assert.equal(readDraft(store)!.nodes[0]!.id, 'Second');
+    assert.equal(readDraft(store)!.writer, 'a');
+  });
+
+  it('stops a tab from saving over a newer board from another tab', () => {
+    const store = memoryStore();
+    // Both tabs open the same board.
+    const a = createDraftGuard('a', bootWhiteboardData(seed, store).stamp, () => store);
+    const b = createDraftGuard('b', bootWhiteboardData(seed, store).stamp, () => store);
+    assert.equal(a.write(board('Merged'), now), 'ok');
+    // Tab b still shows the old board; its next autosave must not land.
+    assert.equal(b.write(board('Old'), now), 'stale');
+    assert.equal(b.clear(), false, 'nor may it clear the draft');
+    assert.equal(readDraft(store)!.nodes[0]!.id, 'Merged');
+  });
+
+  it('tells a tab when a storage event means another tab saved', () => {
+    const store = memoryStore();
+    const a = createDraftGuard('a', null, () => store);
+    a.write(board('Mine'), now);
+    const mine = store.getItem(AUTOSAVE_KEY);
+    assert.equal(a.changedElsewhere(mine), false);
+    const b = createDraftGuard('b', null, () => store);
+    assert.equal(b.changedElsewhere(mine), true);
+    assert.equal(a.changedElsewhere(null), true, 'another tab cleared it');
+  });
+
+  it('picks up a draft from before tabs were stamped', () => {
+    const store = memoryStore();
+    writeDraft(board('Old'), store, () => '2026-10-01T00:00:00.000Z');
+    const tab = createDraftGuard('a', bootWhiteboardData(seed, store).stamp, () => store);
+    assert.equal(tab.write(board('New'), now), 'ok');
   });
 });

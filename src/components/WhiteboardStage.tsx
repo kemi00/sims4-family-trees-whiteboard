@@ -61,6 +61,7 @@ import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
+import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
 import { EdgeLayer } from './EdgeLayer.tsx';
 import { GroupLayer } from './GroupLayer.tsx';
@@ -1665,7 +1666,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         />
       )}
       <div id="autosave-cue">
-        <span className="autosave-cue__label">Autosave on</span>
+        <span className="autosave-cue__label">
+          {wb.staleTab ? 'Autosave paused' : 'Autosave on'}
+        </span>
         <span className="autosave-cue__sep" aria-hidden="true">
           ·
         </span>
@@ -1704,7 +1707,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           Reset the board
         </button>
       </div>
-      {wb.bloodlineId && (
+      {/* One banner at a time; a stale tab matters more than the bloodline view. */}
+      {wb.staleTab ? (
+        <StaleTabBanner onReload={wb.reloadBoard} onSaveJson={wb.saveJson} />
+      ) : wb.bloodlineId && (
         <BloodlineBanner
           node={wb.byid[wb.bloodlineId]}
           onShowEveryone={() => wb.setBloodlineId(null)}
