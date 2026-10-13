@@ -129,12 +129,13 @@ export const WORLD_TAG_HIT_PAD_SCREEN_PX = 10;
  * older epoch back to {@link OLDEST_PINNABLE_EPOCH} are pinned in place on
  * load; unstamped ones are re-packed.
  */
-export const LAYOUT_EPOCH = 4;
+export const LAYOUT_EPOCH = 5;
 /**
  * Oldest epoch whose packing rules are still implemented. Boards saved under
  * it or later are pinned to where they were on screen, not re-packed.
  * 1: original tile packing. 2: households moved out from under a
- * neighbour's long name tag.
+ * neighbour's long name tag. 3: Unhoused sims in families. 4: Other renamed
+ * Not in any world. 5: worlds in columns by household count.
  */
 export const OLDEST_PINNABLE_EPOCH = 1;
 export const ALIGN_TH = 13;

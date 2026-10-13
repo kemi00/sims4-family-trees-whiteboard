@@ -11,6 +11,7 @@ import {
 } from './constants.ts';
 import { householdTagWidth, tileSnapOrigin } from './tiles.ts';
 import { isUnhousedGid } from './unhoused.ts';
+import { worldCounts, worldTagReserve } from './worldTag.ts';
 import type { Edge, SimNode, World } from '../types/whiteboard.ts';
 
 /**
@@ -1267,6 +1268,8 @@ type OtherTile = {
   external?: boolean;
   /** The Unhoused sims box. */
   unhoused?: boolean;
+  /** Households in the tile, for their name tags. */
+  households: [string, SimNode[]][];
 };
 
 /**
@@ -1280,7 +1283,17 @@ function placeOtherWorldGrid(
   /** Side the households with family elsewhere start from (see unhousedEdgeSide). */
   side: 'left' | 'right' = 'left',
 ): { placed: PlacedCard[]; w: number; h: number } {
-  const gridCols = LAYOUT.otherHhCols;
+  const tiles = otherWorldTiles(households, edges, epoch);
+  const { placed, h } = packOtherTiles(tiles, LAYOUT.otherHhCols, side);
+  return { placed, w: otherGridWidth(), h };
+}
+
+/** Not in any world's households as tiles, in packing order. */
+function otherWorldTiles(
+  households: [string, SimNode[]][],
+  edges: Edge[],
+  epoch: number,
+): OtherTile[] {
   const hhLinks = buildHouseholdLinks(
     households.flatMap(([, mem]) => mem),
     edges,
@@ -1308,6 +1321,7 @@ function placeOtherWorldGrid(
         isCluster: false,
         unhoused,
         external: !unhoused && mem.some((n) => linkedOut.has(n.id)),
+        households: comp,
       });
     } else {
       const cluster = layoutClusterTile(comp, edges, hhLinks);
@@ -1318,6 +1332,7 @@ function placeOtherWorldGrid(
         colSpan: otherTileColSpan(cluster.placed, cluster.w),
         sortKey: cluster.sortKey,
         isCluster: true,
+        households: comp,
       });
     }
   }
@@ -1331,7 +1346,15 @@ function placeOtherWorldGrid(
     if (a.isCluster !== b.isCluster) return a.isCluster ? -1 : 1;
     return rank(a) - rank(b) || a.sortKey.localeCompare(b.sortKey);
   });
+  return tiles;
+}
 
+/** Shortest-column masonry of tiles over `gridCols` tag columns. */
+function packOtherTiles(
+  tiles: OtherTile[],
+  gridCols: number,
+  side: 'left' | 'right' = 'left',
+): { placed: PlacedCard[]; h: number } {
   const colHeights = new Array<number>(gridCols).fill(0);
   const placed: PlacedCard[] = [];
 
@@ -1357,11 +1380,7 @@ function placeOtherWorldGrid(
     for (let c = bestCol; c < bestCol + span; c++) colHeights[c] = nextY;
   }
 
-  return {
-    placed,
-    w: otherGridWidth(),
-    h: Math.max(...colHeights, 0),
-  };
+  return { placed, h: Math.max(...colHeights, 0) };
 }
 
 /**
@@ -1880,6 +1899,278 @@ function layoutWorld(
 }
 
 /**
+ * First layout epoch that lines worlds up in columns by how many households
+ * they have (see placeWorldsInColumns). Older epochs pack worlds in the
+ * shortest-column masonry, so boards saved under them pin to where they were.
+ */
+export const WORLD_COLUMNS_EPOCH = 5;
+
+/** A column holds at most this many worlds; a longer run splits evenly. */
+const COLUMN_MAX_WORLDS = 6;
+/** Air between world columns, wider than between worlds stacked in one. */
+const COLUMN_GAP = 3 * TILE;
+/** From one stacked world's content to the next one's (frame gap ~1.5 tiles). */
+const COLUMN_STACK_GAP = 2 * TILE;
+/** Not in any world tag columns a world column may widen to (see packNotInWorldColumns). */
+const NOT_IN_WORLD_MAX_COLS = 12;
+
+/** Cards of a block from their own top-left, with the room their tags take. */
+type Extent = { minX: number; minY: number; w: number; h: number };
+
+function tileCeil(v: number): number {
+  return Math.ceil(v / TILE) * TILE;
+}
+
+/**
+ * Where a block's cards start and how far its boxes reach, name tags
+ * included: a tag can run past the cards, and the next column must clear it.
+ * `h` runs from the top of the tag band over the first card row.
+ */
+function blockExtent(placed: PlacedCard[], households: [string, SimNode[]][]): Extent {
+  if (!placed.length) return { minX: 0, minY: 0, w: 0, h: 0 };
+  const minX = Math.min(...placed.map((p) => p.x));
+  const minY = Math.min(...placed.map((p) => p.y));
+  let r = Math.max(...placed.map((p) => p.x + p.w));
+  const b = Math.max(...placed.map((p) => p.y + p.h));
+  const at = new Map(placed.map((p) => [p.id, p]));
+  for (const [, mem] of households) {
+    const cards = mem.map((n) => at.get(n.id)).filter((p): p is PlacedCard => !!p);
+    if (!cards.length) continue;
+    const l = Math.min(...cards.map((p) => p.x));
+    r = Math.max(r, l + HH_TAG_INSET * 2 + householdTagWidth(mem[0]));
+  }
+  return { minX, minY, w: r - minX, h: b - minY + HH_TAG_BAND };
+}
+
+/** Most common non-empty value of `key` among `nodes`; ties go to the name first in order. */
+function mostCommon(nodes: SimNode[], key: (n: SimNode) => string): string {
+  const counts = new Map<string, number>();
+  for (const n of nodes) {
+    const v = key(n);
+    if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  let best = '';
+  let nBest = 0;
+  for (const [v, c] of counts) {
+    if (c > nBest || (c === nBest && v.localeCompare(best) < 0)) {
+      best = v;
+      nBest = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * The world each game introduced, read off the board: a world's game is the
+ * one most of its cards come from, and a game with two worlds (the base game)
+ * goes with the one holding more of its cards.
+ */
+function worldOfPack(byWorld: Map<string, SimNode[]>): Map<string, string> {
+  const best = new Map<string, { world: string; n: number }>();
+  for (const [world, mem] of byWorld) {
+    if (world === OTHER_WORLD) continue;
+    const pack = mostCommon(mem, (n) => n.pack);
+    if (!pack) continue;
+    const n = mem.filter((m) => m.pack === pack).length;
+    const prev = best.get(pack);
+    if (!prev || n > prev.n || (n === prev.n && world.localeCompare(prev.world) < 0)) {
+      best.set(pack, { world, n });
+    }
+  }
+  return new Map([...best].map(([pack, { world }]) => [pack, world]));
+}
+
+type ColumnWorld = {
+  block: WorldBlock;
+  extent: Extent;
+  households: number;
+  sims: number;
+};
+
+/**
+ * Worlds left to right by how many households they have, and top to bottom
+ * by how many sims, as the world tags count them. Each household count gets
+ * its own column; more than {@link COLUMN_MAX_WORLDS} worlds with the same
+ * count split into even columns, fewest sims first.
+ */
+function worldColumns(worlds: ColumnWorld[]): ColumnWorld[][] {
+  const sorted = [...worlds].sort(
+    (a, b) =>
+      a.households - b.households ||
+      a.sims - b.sims ||
+      a.block.world.localeCompare(b.block.world),
+  );
+  const cols: ColumnWorld[][] = [];
+  for (let i = 0; i < sorted.length; ) {
+    let j = i;
+    while (j < sorted.length && sorted[j]!.households === sorted[i]!.households) j++;
+    const run = sorted.slice(i, j);
+    const size = Math.ceil(run.length / Math.ceil(run.length / COLUMN_MAX_WORLDS));
+    for (let k = 0; k < run.length; k += size) cols.push(run.slice(k, k + size));
+    i = j;
+  }
+  return cols;
+}
+
+/** One world column's share of Not in any world, packed and measured. */
+type NotInWorldPart = { placed: PlacedCard[]; extent: Extent };
+
+function packNotInWorldPart(
+  tiles: OtherTile[],
+  gridCols: number,
+  epoch: number,
+): NotInWorldPart {
+  const { placed } = packOtherTiles(tiles, gridCols);
+  const households = tiles.flatMap((t) => t.households);
+  clearTitleOverhangs(placed, households, 0, epoch);
+  return { placed, extent: blockExtent(placed, households) };
+}
+
+/**
+ * Not in any world, spread over the world columns: each household sits over
+ * the column of the world its game brought (Fia Acosta, from Royalty &
+ * Legacy, over Ondarion's). Households whose game has no world, and the
+ * Unhoused sims box, take one more column at the end. A column's share
+ * starts as wide as its worlds; a crowded one widens until it is about as
+ * tall as the shares would be spread evenly, so one game cannot tower over
+ * the rest.
+ */
+function packNotInWorldColumns(
+  mem: SimNode[],
+  edges: Edge[],
+  epoch: number,
+  columnOfPack: (pack: string) => number | undefined,
+  colWidths: number[],
+): NotInWorldPart[] {
+  const byGid = new Map<string, SimNode[]>();
+  for (const n of mem) {
+    if (!byGid.has(n.gid)) byGid.set(n.gid, []);
+    byGid.get(n.gid)!.push(n);
+  }
+  const households = [...byGid.entries()].sort((a, b) =>
+    (a[1][0]?.hh ?? a[0]).localeCompare(b[1][0]?.hh ?? b[0]),
+  );
+  const tiles = otherWorldTiles(households, edges, epoch);
+  const extra = colWidths.length;
+  const byCol: OtherTile[][] = Array.from({ length: extra + 1 }, () => []);
+  for (const tile of tiles) {
+    const col = tile.unhoused
+      ? undefined
+      : columnOfPack(mostCommon(tile.households.flatMap(([, m]) => m), (n) => n.pack));
+    byCol[col ?? extra]!.push(tile);
+  }
+
+  const pitch = CARD_MIN_W + LAYOUT.gapX;
+  const minCols = byCol.map((col, c) =>
+    Math.max(
+      1,
+      ...col.map((t) => t.colSpan),
+      c < extra ? Math.floor((colWidths[c]! + LAYOUT.gapX) / pitch) : 1,
+    ),
+  );
+  const area = tiles.reduce((s, t) => s + t.colSpan * (t.h + LAYOUT.hhGap), 0);
+  const usedCols = minCols.reduce((s, k, c) => s + (byCol[c]!.length ? k : 0), 0);
+  const target = Math.max(
+    ...tiles.map((t) => t.h),
+    usedCols ? area / usedCols : 0,
+  );
+  return byCol.map((col, c) => {
+    if (!col.length) return { placed: [], extent: { minX: 0, minY: 0, w: 0, h: 0 } };
+    let k = minCols[c]!;
+    let part = packNotInWorldPart(col, k, epoch);
+    while (part.extent.h - HH_TAG_BAND > target && k < NOT_IN_WORLD_MAX_COLS) {
+      k += 1;
+      part = packNotInWorldPart(col, k, epoch);
+    }
+    return part;
+  });
+}
+
+/**
+ * Worlds in columns by household count (see worldColumns), left-aligned and
+ * evenly spaced, under one band of Not in any world whose households sit
+ * over their game's world (see packNotInWorldColumns). Null when there is no
+ * world but Not in any world to line up.
+ */
+function placeWorldsInColumns(
+  byWorld: Map<string, SimNode[]>,
+  worldOrder: string[],
+  edges: Edge[],
+  epoch: number,
+): Map<string, LayoutBase> | null {
+  const named: ColumnWorld[] = [];
+  for (const world of worldOrder) {
+    const mem = byWorld.get(world);
+    if (world === OTHER_WORLD || !mem?.length) continue;
+    const block = layoutWorld(mem, edges, world, epoch);
+    const byGid = new Map<string, SimNode[]>();
+    for (const n of mem) byGid.set(n.gid, [...(byGid.get(n.gid) ?? []), n]);
+    const counts = worldCounts(mem, () => true);
+    named.push({
+      block,
+      extent: blockExtent(block.placed, [...byGid.entries()]),
+      households: counts.households,
+      sims: counts.sims,
+    });
+  }
+  if (!named.length) return null;
+
+  const cols = worldColumns(named);
+  const colOfWorld = new Map<string, number>();
+  cols.forEach((col, c) => col.forEach((w) => colOfWorld.set(w.block.world, c)));
+  const packWorld = worldOfPack(byWorld);
+  const worldWidths = cols.map((col) => Math.max(...col.map((w) => w.extent.w)));
+  const other = byWorld.get(OTHER_WORLD) ?? [];
+  const parts = other.length
+    ? packNotInWorldColumns(
+        other,
+        edges,
+        epoch,
+        (pack) => colOfWorld.get(packWorld.get(pack) ?? ''),
+        worldWidths,
+      )
+    : [];
+
+  const bases = new Map<string, LayoutBase>();
+  const put = (placed: PlacedCard[], extent: Extent, x: number, top: number) => {
+    for (const p of placed) {
+      bases.set(p.id, {
+        x: x + p.x - extent.minX,
+        y: top + HH_TAG_BAND + p.y - extent.minY,
+        w: p.w,
+        h: p.h,
+      });
+    }
+  };
+
+  const left = tileCeil(LAYOUT.originX + LAYOUT.worldMargin);
+  const bandTop = tileCeil(LAYOUT.originY + LAYOUT.worldTitle);
+  const bandH = Math.max(0, ...parts.map((p) => p.extent.h));
+  const worldsTop = bandH ? tileCeil(bandTop + bandH + COLUMN_GAP) : bandTop;
+  let x = left;
+  for (let c = 0; c < Math.max(cols.length, parts.length); c++) {
+    const col = cols[c] ?? [];
+    const part = parts[c];
+    if (!col.length && !part?.placed.length) continue;
+    if (part?.placed.length) {
+      put(part.placed, part.extent, x, bandTop + bandH - part.extent.h);
+    }
+    let top = worldsTop;
+    for (const w of col) {
+      put(w.block.placed, w.extent, x, top);
+      top = tileCeil(top + w.extent.h + COLUMN_STACK_GAP);
+    }
+    // Room for the column's world tags as they grow zoomed out, too.
+    const width = Math.max(
+      part?.extent.w ?? 0,
+      ...col.map((w) => Math.max(w.extent.w, worldTagReserve(w.block.world) + TILE - COLUMN_GAP)),
+    );
+    x = tileCeil(x + width + COLUMN_GAP);
+  }
+  return bases;
+}
+
+/**
  * Packing identity — membership, names, neighbourhoods, ages, and edges. Visual `ox`/`oy`
  * (and derived x/y/w/h) do not change packed bases.
  */
@@ -1899,6 +2190,8 @@ export function packingSignature(
       // Part of the household's name tag, which packing leaves room for.
       n.nb,
       n.age,
+      // Living sims are counted to order the world columns.
+      n.state,
       n.first,
       n.sur,
       n.gender,
@@ -1931,6 +2224,14 @@ function computeLayoutBases(
     ...worlds.map((w) => w.name).filter((w) => byWorld.has(w)),
     ...[...byWorld.keys()].filter((w) => !worlds.some((o) => o.name === w)),
   ];
+
+  if (epoch >= WORLD_COLUMNS_EPOCH) {
+    const bases = placeWorldsInColumns(byWorld, worldOrder, edges, epoch);
+    if (bases) {
+      resolveHouseholdBoxOverlaps(nodes, bases, edges);
+      return bases;
+    }
+  }
 
   const worldBlocks = worldOrder
     .map((world) => {

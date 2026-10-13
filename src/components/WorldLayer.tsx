@@ -186,12 +186,24 @@ export const WorldLayer = memo(function WorldLayer({
     );
   }
 
+  const frames = new Map(
+    worldNames.map((w) => [w, worldFrame(w, nodes, groups, packVis, buckets)] as const),
+  );
   const chips: ChipHit[] = [];
   for (const w of worldNames) {
-    const frame = worldFrame(w, nodes, groups, packVis, buckets);
+    const frame = frames.get(w);
     if (!frame) continue;
     const counts = worldCounts(nodesForWorld(w, nodes, buckets), packVis);
-    const pill = worldTagLayout(w, counts, zoom);
+    const grown = worldTagLayout(w, counts, zoom);
+    // The nearest world to the right level with the tag: a narrow world's
+    // tag, grown for a far zoom, would cover that one's.
+    let room = Infinity;
+    for (const [other, f] of frames) {
+      if (other === w || !f || f.l <= frame.l) continue;
+      if (f.t >= frame.t + grown.h || f.b <= frame.t) continue;
+      room = Math.min(room, f.l - frame.l - (zoom > 0 ? 12 / zoom : 0));
+    }
+    const pill = room < grown.w ? worldTagLayout(w, counts, zoom, room) : grown;
     const bw = frame.r - frame.l;
     const bh = frame.b - frame.t;
     chips.push({

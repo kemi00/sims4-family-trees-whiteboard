@@ -132,6 +132,8 @@ const LAYOUT_PIN_KEYS: (keyof SimNode)[] = [
   'age',
   'breed',
   'oplay',
+  // Living sims are counted to order the world columns.
+  'state',
 ];
 
 export function useWhiteboard() {

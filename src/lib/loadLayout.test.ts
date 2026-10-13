@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CARD_H, CARD_MIN_W, LAYOUT_EPOCH, OLDEST_PINNABLE_EPOCH } from './constants.ts';
 import { hhBoxDraw, worldFrame } from './geometry.ts';
-import { computeLayout, NOT_IN_WORLD_EPOCH, TITLE_OVERHANG_EPOCH, UNHOUSED_FAMILY_EPOCH } from './layout.ts';
+import { computeLayout, NOT_IN_WORLD_EPOCH, TITLE_OVERHANG_EPOCH, UNHOUSED_FAMILY_EPOCH, WORLD_COLUMNS_EPOCH } from './layout.ts';
 import {
   jsonLoadTargets,
   pinCoreToTargets,
@@ -134,6 +134,16 @@ describe('opening a board saved under an older layout epoch', () => {
     assert.ok([...was].some(([id, p]) => naive.get(id) !== p), 'fixture: the packing changed');
     const { nodes } = prepareLoadedNodes(board, old, worlds, links);
     const after = at(computeLayout(nodes, worlds, links));
+    assert.deepEqual([...was].filter(([id, p]) => after.get(id) !== p), []);
+  });
+
+  it('opens a board saved before world columns with every card where it was', () => {
+    const old = WORLD_COLUMNS_EPOCH - 1;
+    const was = at(computeLayout(saved, worlds, edges, old));
+    const naive = at(computeLayout(saved, worlds, edges));
+    assert.ok([...was].filter(([id, p]) => naive.get(id) !== p).length > 100, 'fixture: worlds moved');
+    const { nodes } = prepareLoadedNodes(saved, old, worlds, edges);
+    const after = at(computeLayout(nodes, worlds, edges));
     assert.deepEqual([...was].filter(([id, p]) => after.get(id) !== p), []);
   });
 
@@ -406,6 +416,25 @@ describe('save import placement', () => {
     ];
   }
 
+  /**
+   * A, E and I have one household each and one, two and three sims, so they
+   * stack in that order in the one-household column; B and C have two each.
+   */
+  function columnBoard(): SimNode[] {
+    return [
+      sim('a1', 'A', 'Alpha'),
+      sim('e1', 'E', 'Epsilon'),
+      sim('e2', 'E', 'Epsilon'),
+      sim('i1', 'I', 'Iota'),
+      sim('i2', 'I', 'Iota'),
+      sim('i3', 'I', 'Iota'),
+      sim('b1', 'B', 'Beta'),
+      sim('b2', 'B', 'Bet'),
+      sim('c1', 'C', 'Gamma'),
+      sim('c2', 'C', 'Gam'),
+    ];
+  }
+
   function importInto(board: SimNode[], added: SimNode[], edges: Edge[] = []) {
     const shown = laidOut(board);
     const nodes = [...board, ...added];
@@ -475,14 +504,7 @@ describe('save import placement', () => {
   });
 
   it('moves the worlds under a grown one straight down, keeping their order', () => {
-    // Nine worlds in four columns: A, E, I share the first column.
-    const board = [
-      ...starterBoard(),
-      sim('f1', 'F', 'Phi'),
-      sim('g1', 'G', 'Gee'),
-      sim('h1', 'H', 'Eta'),
-      sim('i1', 'I', 'Iota'),
-    ];
+    const board = columnBoard();
     const added = Array.from({ length: 12 }, (_, i) => ({
       ...sim(`n${i}`, 'A', `New ${i}`),
       saveSimId: `n${i}`,
@@ -505,7 +527,7 @@ describe('save import placement', () => {
 
   it('fits a JSON merge that keeps board positions around the board too', () => {
     // The file is this board after a save grew world A, which pushed E down.
-    const board = starterBoard();
+    const board = columnBoard();
     const added = Array.from({ length: 6 }, (_, i) => ({
       ...sim(`n${i}`, 'A', `New ${i}`),
       saveSimId: `n${i}`,
@@ -550,7 +572,7 @@ describe('save import placement', () => {
     assert.deepEqual(worldOverlaps(after, merged.groups), []);
     assert.deepEqual(householdOverlaps(after, merged.groups), []);
     for (const n of shown) {
-      if (n.world === 'E') continue;
+      if (n.world === 'E' || n.world === 'I') continue;
       assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
     }
   });
@@ -563,7 +585,8 @@ describe('save import placement', () => {
     const dragged = board.map((n) =>
       n.id === 'e1' ? { ...n, ox: a.x - e.x + 100, oy: a.y - e.y + 100 } : n,
     );
-    const added = [{ ...sim('c2', 'C', 'Gamma'), saveSimId: 'c2' }];
+    // D grows into the room E left when it was dragged away.
+    const added = [{ ...sim('d2', 'D', 'Delta'), saveSimId: 'd2' }];
     const { shown, groups, after } = importInto(dragged, added);
     assert.ok(
       worldOverlaps(shown, groupsOf(dragged)).includes('A / E'),

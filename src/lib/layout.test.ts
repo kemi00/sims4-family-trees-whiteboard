@@ -12,6 +12,7 @@ import {
   UNHOUSED_FAMILY_EPOCH,
   unhousedArrangement,
   unhousedEdgeSide,
+  WORLD_COLUMNS_EPOCH,
 } from './layout.ts';
 import { hhBoxDraw } from './geometry.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
@@ -185,7 +186,7 @@ describe('tile-native household packing', () => {
     for (const gap of stacked) assert.equal(gap, TILE);
   });
 
-  it('parks Other in its own column to the right, top-aligned with named worlds', () => {
+  it('parked Other in its own column to the right before world columns', () => {
     const allWorlds = [
       { name: 'Willow Creek', color: '#4e79a7' },
       { name: 'Oasis Springs', color: '#a55194' },
@@ -239,7 +240,9 @@ describe('tile-native household packing', () => {
         gender: 'Male',
       }),
     ];
-    const snapped = snapNodesToTiles(computeLayout(nodes, allWorlds, []));
+    const snapped = snapNodesToTiles(
+      computeLayout(nodes, allWorlds, [], WORLD_COLUMNS_EPOCH - 1),
+    );
     const named = snapped.filter((n) => n.world !== OTHER_WORLD);
     const other = snapped.filter((n) => n.world === OTHER_WORLD);
     const namedRight = Math.max(...named.map((n) => n.x + n.w));
@@ -455,7 +458,7 @@ describe('Unhoused sims box', () => {
     assert.equal(unhousedEdgeSide(inBox, edges, (id) => at(id)), 'left');
   });
 
-  it('packs Not in any world with outside family first and Unhoused sims last', () => {
+  it('packed Not in any world with outside family first and Unhoused sims last', () => {
     const N = OTHER_WORLD;
     const home = (id: string, hh: string, extra: Partial<SimNode> = {}) =>
       sim({ id, first: id, hh, gid: `${N}||${hh}`, world: N, ...extra });
@@ -466,7 +469,12 @@ describe('Unhoused sims box', () => {
       home('dustin', 'Zed'),
       { ...home('t1', 'Unhoused sims'), gid: `${N}||Unhoused sims` },
     ];
-    const laid2 = computeLayout(nodes2, worlds, [edge('skip', 'dustin', 'parent')]);
+    const laid2 = computeLayout(
+      nodes2,
+      worlds,
+      [edge('skip', 'dustin', 'parent')],
+      WORLD_COLUMNS_EPOCH - 1,
+    );
     const spot = (id: string) => laid2.find((n) => n.id === id)!;
     // Packed in that order, one tag column each: Zed before Abbot and Baker.
     assert.ok(spot('dustin').x < spot('abe').x, 'his father lives in another world');
@@ -478,5 +486,77 @@ describe('Unhoused sims box', () => {
     const old = computeLayout(nodes, worlds, edges, UNHOUSED_FAMILY_EPOCH - 1);
     const y = (id: string) => old.find((n) => n.id === id)!.y;
     assert.equal(y('kristin'), y('myra'), 'one flat row');
+  });
+});
+
+describe('world columns', () => {
+  const allWorlds = ['Willow Creek', 'Oasis Springs', 'Ondarion', 'Sulani', OTHER_WORLD].map(
+    (name) => ({ name, color: '#000' }),
+  );
+  /** `count` one-sim households in `world`, its sims from `pack`. */
+  const town = (world: string, count: number, pack: string, sims = 1) =>
+    Array.from({ length: count }, (_, h) =>
+      Array.from({ length: sims }, (_, i) =>
+        sim({
+          id: `${world} ${h} ${i}`,
+          first: `${world[0]}${h}${i}`,
+          hh: `${world} House ${h}`,
+          gid: `${world}||${world} House ${h}`,
+          world,
+          oworld: world,
+          pack,
+        }),
+      ),
+    ).flat();
+  const nowhere = (id: string, hh: string, pack: string) =>
+    sim({ id, first: id, hh, gid: `${OTHER_WORLD}||${hh}`, world: OTHER_WORLD, pack });
+  const nodes = [
+    ...town('Willow Creek', 2, 'Base Game'),
+    ...town('Oasis Springs', 1, 'Base Game', 2),
+    ...town('Ondarion', 3, 'Royalty & Legacy'),
+    ...town('Sulani', 1, 'Island Living'),
+    nowhere('fia', 'Acosta', 'Royalty & Legacy'),
+    nowhere('lone', 'Seasonal', 'Seasons'),
+    { ...nowhere('t1', 'Unhoused sims', 'Base Game'), gid: `${OTHER_WORLD}||Unhoused sims` },
+  ];
+  const laid = snapNodesToTiles(computeLayout(nodes, allWorlds, []));
+  const cards = (world: string) => laid.filter((n) => n.world === world);
+  const left = (world: string) => Math.min(...cards(world).map((n) => n.x));
+  const right = (world: string) => Math.max(...cards(world).map((n) => n.x + n.w));
+  const top = (world: string) => Math.min(...cards(world).map((n) => n.y));
+  const at = (id: string) => laid.find((n) => n.id === id)!;
+
+  it('goes left to right by households, top to bottom by sims', () => {
+    // One household: Sulani (1 sim) over Oasis Springs (2), left-aligned.
+    assert.equal(left('Sulani'), left('Oasis Springs'));
+    assert.ok(top('Sulani') < top('Oasis Springs'));
+    assert.ok(left('Willow Creek') > right('Oasis Springs'), 'two households, next column');
+    assert.ok(left('Ondarion') > right('Willow Creek'), 'three households, next column');
+    assert.equal(top('Willow Creek'), top('Sulani'), 'columns start level');
+  });
+
+  it('splits a long run of same-size worlds into even columns', () => {
+    const many = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((name) => ({ name, color: '#000' }));
+    const run = many.flatMap((w) => town(w.name, 1, ''));
+    const out = computeLayout(run, many, []);
+    const xs = [...new Set(many.map((w) => out.find((n) => n.world === w.name)!.x))];
+    assert.equal(xs.length, 2);
+    const inFirst = many.filter((w) => out.find((n) => n.world === w.name)!.x === Math.min(...xs));
+    assert.equal(inFirst.length, 4);
+  });
+
+  it("puts Not in any world over its game's world, the rest at the end", () => {
+    const fia = at('fia');
+    assert.ok(fia.x >= left('Ondarion') && fia.x + fia.w <= right('Ondarion') + TILE * 3);
+    assert.ok(at('lone').x > right('Ondarion'), 'a game with no world goes after the worlds');
+    assert.ok(at('t1').x > right('Ondarion'), 'so does Unhoused sims');
+    const worldsTop = Math.min(...laid.filter((n) => n.world !== OTHER_WORLD).map((n) => n.y));
+    for (const n of cards(OTHER_WORLD)) assert.ok(n.y + n.h < worldsTop, n.id);
+  });
+
+  it('sits each share of Not in any world right on its column', () => {
+    // Shares are bottom-aligned, so the band's lowest row is the same for all.
+    const bottoms = new Set([at('fia'), at('lone')].map((n) => n.y + n.h));
+    assert.equal(bottoms.size, 1);
   });
 });

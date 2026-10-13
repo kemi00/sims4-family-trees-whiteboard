@@ -162,12 +162,45 @@ export type WorldTagLayout = {
   } | null;
 };
 
+/**
+ * `maxW`: world width the tag may take before it reaches the next world
+ * along. A tag grown for a far zoom shrinks to fit it, though never below
+ * its normal size, rather than covering its neighbour's.
+ */
 export function worldTagLayout(
   name: string,
   counts: WorldCounts | null,
   zoom: number,
+  maxW = Infinity,
 ): WorldTagLayout {
   const s = worldTagZoomScale(zoom);
+  const full = tagAtScale(name, counts, zoom, s);
+  if (full.w <= maxW || s <= 1) return full;
+  return tagAtScale(name, counts, zoom, Math.max(1, (s * maxW) / full.w));
+}
+
+/** Stacked tag width at this zoom (see worldTagReserve). */
+const RESERVE_ZOOM = 0.07;
+
+/**
+ * World width a world's tag takes zoomed out to {@link RESERVE_ZOOM}, where
+ * a big board is seen whole. Packing keeps a world column at least this
+ * wide, so neighbouring tags clear each other there. Measured with a fixed
+ * per-character estimate, never the browser's fonts, so a board packs the
+ * same on every machine.
+ */
+export function worldTagReserve(name: string): number {
+  const nameW = name.length * WORLD_TAG_FONT * 0.586;
+  const countsW = ICON + 3 + 3 * COUNT_FONT * 0.6 + 8 + ICON + 3 + 2 * COUNT_FONT * 0.6;
+  return (NAME_X + Math.max(nameW, countsW) + PAD_R) * worldTagZoomScale(RESERVE_ZOOM);
+}
+
+function tagAtScale(
+  name: string,
+  counts: WorldCounts | null,
+  zoom: number,
+  s: number,
+): WorldTagLayout {
   const nameW = textWidth(name, WORLD_TAG_FONT, 800);
   const nameEnd = NAME_X + nameW;
   const base = {
