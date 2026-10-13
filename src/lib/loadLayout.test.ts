@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CARD_H, CARD_MIN_W, LAYOUT_EPOCH, OLDEST_PINNABLE_EPOCH } from './constants.ts';
 import { hhBoxDraw, worldFrame } from './geometry.ts';
-import { computeLayout, TITLE_OVERHANG_EPOCH } from './layout.ts';
+import { computeLayout, NOT_IN_WORLD_EPOCH, TITLE_OVERHANG_EPOCH, UNHOUSED_FAMILY_EPOCH } from './layout.ts';
 import {
   jsonLoadTargets,
   pinCoreToTargets,
@@ -119,6 +119,22 @@ describe('opening a board saved under an older layout epoch', () => {
     assert.equal(repacked, false);
     const after = at(computeLayout(nodes, worlds, edges));
     assert.deepEqual([...before].filter(([id, p]) => after.get(id) !== p), []);
+  });
+
+  it('opens a board saved before Not in any world was renamed with every card where it was', () => {
+    // Packing there changed with the rename: a household whose parent lives
+    // in another world no longer starts a row down, among other things.
+    const parent = saved.find((n) => n.world !== 'Not in any world')!;
+    const kid = { ...saved.find((n) => n.world === 'Not in any world')!, id: 'kid', gid: 'Not in any world||Aaa Kid', hh: 'Aaa Kid' };
+    const board = [...saved, kid];
+    const links = [...edges, { id: 'pk', a: parent.id, b: 'kid', type: 'parent' as const, source: 'seed' as const }];
+    const old = NOT_IN_WORLD_EPOCH - 1;
+    const was = at(computeLayout(board, worlds, links, old));
+    const naive = at(computeLayout(board, worlds, links));
+    assert.ok([...was].some(([id, p]) => naive.get(id) !== p), 'fixture: the packing changed');
+    const { nodes } = prepareLoadedNodes(board, old, worlds, links);
+    const after = at(computeLayout(nodes, worlds, links));
+    assert.deepEqual([...was].filter(([id, p]) => after.get(id) !== p), []);
   });
 
   it('leaves a board saved under the current epoch untouched', () => {
@@ -613,21 +629,58 @@ describe('save import placement', () => {
   });
 
   it('gathers a world\'s unhoused sims into one grid box where they were', () => {
-    // Other packs nine single-sim boxes; gathering them keeps the corner.
-    const loose = Array.from({ length: 9 }, (_, i) => sim(`u${i}`, 'Other', `Townie ${i}`));
+    // Not in any world packs nine single-sim boxes; gathering them all keeps the corner.
+    const loose = Array.from({ length: 9 }, (_, i) => sim(`u${i}`, 'Not in any world', `Townie ${i}`));
     const board = [...starterBoard(), ...loose];
     const moves = Object.fromEntries(
-      loose.map((n) => [n.id, { ...n, hh: 'Unhoused sims', gid: 'Other||Unhoused sims' }]),
+      loose.map((n) => [n.id, { ...n, hh: 'Unhoused sims', gid: 'Not in any world||Unhoused sims' }]),
     );
     const { shown, groups, after } = rejoin(board, moves);
     const was = loose.map((n) => at(shown, n.id));
     const now = loose.map((n) => at(after, n.id));
     assert.equal(Math.min(...now.map((n) => n.x)), Math.min(...was.map((n) => n.x)));
     assert.equal(Math.min(...now.map((n) => n.y)), Math.min(...was.map((n) => n.y)));
-    assert.equal(new Set(now.map((n) => n.y)).size, 2, 'a grid seven wide: two rows');
+    assert.equal(new Set(now.map((n) => n.y)).size, 3, 'about square: three rows of three');
     assert.deepEqual(householdOverlaps(after, groups), []);
     for (const n of shown) {
-      if (n.world === 'Other') continue;
+      if (n.world === 'Not in any world') continue;
+      assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
+    }
+  });
+
+  it('packs the cards an emptied Unhoused sims box held again, where it was', () => {
+    // An earlier import put premade sims in the box; now they get households.
+    const N = 'Not in any world';
+    const box = `${N}||Unhoused sims`;
+    const held = Array.from({ length: 8 }, (_, i) => ({
+      ...sim(`p${i}`, N, 'Unhoused sims'),
+      gid: box,
+      ohh: `Family ${i}`,
+    }));
+    const board = [...starterBoard(), ...held];
+    const moves = Object.fromEntries(
+      held.slice(0, 6).map((n) => [n.id, { ...n, hh: n.ohh, gid: `${N}||${n.ohh}` }]),
+    );
+    const { shown, groups, after } = rejoin(board, moves);
+    const corner = (list: SimNode[]) => [
+      Math.min(...list.map((n) => n.x)),
+      Math.min(...list.map((n) => n.y)),
+    ];
+    const ids = held.map((n) => n.id);
+    assert.deepEqual(
+      corner(after.filter((n) => ids.includes(n.id))),
+      corner(shown.filter((n) => ids.includes(n.id))),
+      'the region keeps the box\'s corner',
+    );
+    const left = after.filter((n) => n.gid === box);
+    assert.equal(left.length, 2);
+    assert.ok(
+      Math.max(...left.map((n) => n.y)) >= Math.max(...after.filter((n) => moves[n.id]).map((n) => n.y)),
+      'what is left of the box sits under the new households',
+    );
+    assert.deepEqual(householdOverlaps(after, groups), []);
+    for (const n of shown) {
+      if (n.world === N) continue;
       assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
     }
   });
@@ -664,16 +717,16 @@ describe('opening a board saved before Unhoused boxes held families', () => {
     oworld: world,
     gid,
   });
-  const box = 'Other||Unhoused sims';
+  const box = 'Not in any world||Unhoused sims';
   const saved = [
     card('a1', 'A', 'Alpha', 'A||Alpha'),
     card('a2', 'A', 'Alpha', 'A||Alpha'),
-    card('mum', 'Other', 'Durham', box, 'Adult'),
-    card('kid', 'Other', 'Durham', box, 'Child'),
-    ...['p', 'q', 'r', 's'].map((id) => card(id, 'Other', `Single ${id}`, box)),
+    card('mum', 'Not in any world', 'Durham', box, 'Adult'),
+    card('kid', 'Not in any world', 'Durham', box, 'Child'),
+    ...['p', 'q', 'r', 's'].map((id) => card(id, 'Not in any world', `Single ${id}`, box)),
   ];
   const edges: Edge[] = [{ id: 'pk', a: 'mum', b: 'kid', type: 'parent', source: 'save' }];
-  const oldEpoch = LAYOUT_EPOCH - 1;
+  const oldEpoch = UNHOUSED_FAMILY_EPOCH - 1;
   const before = computeLayout(saved, worlds, edges, oldEpoch);
   const { nodes } = prepareLoadedNodes(saved, oldEpoch, worlds, edges);
   const after = computeLayout(nodes, worlds, edges);
@@ -703,15 +756,15 @@ describe('readable names for premade template households', () => {
   const core: SimNode[] = tpl.map((t, i) => ({
     ...node(i * 100, i * 50),
     id: `s${i}`,
-    world: 'Other',
+    world: 'Not in any world',
     hh: `premadeHouseholdTemplate_${t}`,
     ohh: `premadeHouseholdTemplate_${t}`,
-    gid: `Other||premadeHouseholdTemplate_${t}`,
+    gid: `Not in any world||premadeHouseholdTemplate_${t}`,
   }));
   const groups: Group[] = core.map((n) => ({
     gid: n.gid, hh: n.hh, world: n.world, nb: n.nb, color: n.color, x: 0, y: 0, w: 0, h: 0,
   }));
-  const worlds: World[] = [{ name: 'Other', color: '#9aa0a6' }];
+  const worlds: World[] = [{ name: 'Not in any world', color: '#9aa0a6' }];
   const at = (ns: SimNode[]) => computeLayout(ns, worlds, []).map((n) => `${n.id}@${n.x},${n.y}`);
 
   it('renames households and their groups, keeping each gid', () => {

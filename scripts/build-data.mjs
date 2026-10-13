@@ -104,8 +104,8 @@ const cleanSur = (s) => {
   return t === '-' || t === '' || /^\d+(\.\d+)?$/.test(t) ? '' : t;
 };
 
-/** The board files sims with no world of their own under a catch-all bucket. */
-const TOWNIE_WORLD = 'Other';
+/** Sims with no world of their own: the game's "Currently Not in World". */
+const TOWNIE_WORLD = 'Not in any world';
 const cleanWorld = (s) => {
   const t = String(s).trim();
   return t === '-' || t === '' ? TOWNIE_WORLD : t;

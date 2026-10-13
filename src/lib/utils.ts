@@ -1,4 +1,4 @@
-import { AGES_H, DECEASED_STATE, NEW_SIM_GENDERS } from './constants.ts';
+import { AGES_H, DECEASED_STATE, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD } from './constants.ts';
 import type {
   DeceasedMark,
   Edge,
@@ -90,8 +90,21 @@ export const simplify = (pts: Point[]): Point[] => {
   return o;
 };
 
+/** A world name as the board uses it now; older names of Not in any world map onto it. */
+export function currentWorldName(w: string): string {
+  return (LEGACY_NOT_IN_WORLD as readonly string[]).includes(w) ? NOT_IN_WORLD : w;
+}
+
+/** A household id with an older name of Not in any world as its world part, renamed. */
+export function currentGid(g: string): string {
+  for (const old of LEGACY_NOT_IN_WORLD) {
+    if (g.startsWith(`${old}||`)) return `${NOT_IN_WORLD}||${g.slice(old.length + 2)}`;
+  }
+  return g;
+}
+
 export const worldColor = (w: string, worlds: World[]): string => {
-  const name = w === 'Other / Townie' ? 'Other' : w;
+  const name = currentWorldName(w);
   const x = worlds.find((o) => o.name === name);
   return x ? x.color : '#9aa0a6';
 };
@@ -201,8 +214,8 @@ export function migrateWhiteboardData(d: {
   simAgeUps?: SimAgeUp[];
   pairStatus?: PairStatus[];
 }): typeof d {
-  const world = (w: string) => (w === 'Other / Townie' ? 'Other' : w);
-  const gid = (g: string) => g.replace(/^Other \/ Townie\|\|/, 'Other||');
+  const world = currentWorldName;
+  const gid = currentGid;
   return {
     ...d,
     nodes: d.nodes.map((n) => ({

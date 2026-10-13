@@ -5,6 +5,7 @@ import {
   HH_TAG_INSET,
   HH_TAG_PILL_H,
   HH_TAG_STACK_GAP,
+  NOT_IN_WORLD,
   TILE,
   UNHOUSED_HH,
 } from './constants.ts';
@@ -55,7 +56,10 @@ export type HouseholdLabel = Pick<Group, 'hh' | 'nb' | 'world'>;
 
 export function householdLabel(g: HouseholdLabel | undefined | null): string {
   if (!g) return '';
-  return [g.hh, g.nb && g.nb !== '-' && g.nb !== g.world ? g.nb : null, g.world]
+  // Not in any world names no world: the world's own tag says so, and the
+  // long name would run every tag there past its cards.
+  const world = g.world === NOT_IN_WORLD ? null : g.world;
+  return [g.hh, g.nb && g.nb !== '-' && g.nb !== g.world ? g.nb : null, world]
     .filter(Boolean)
     .join('  ·  ');
 }

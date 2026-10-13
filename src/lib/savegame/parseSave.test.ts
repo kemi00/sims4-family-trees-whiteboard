@@ -115,6 +115,8 @@ function simBlob(opts: {
   householdId: number;
   /** Lot the sim stood on when the game saved; home unless given. */
   zone?: number;
+  /** Creation source, as the game writes it ("filter: filter_Walkby_Scout"). */
+  source?: string;
   first: string;
   last: string;
   household: string;
@@ -130,6 +132,7 @@ function simBlob(opts: {
     encodeVarintField(7, opts.gender),
     encodeVarintField(8, opts.age),
     encodeString(22, opts.household),
+    ...(opts.source ? [encodeBytes(47, encodeString(17, opts.source))] : []),
   );
 }
 
@@ -345,7 +348,7 @@ function visitorsSave(): Uint8Array {
     sim(1, 'Sara', 'Scott', 10, 100),
     sim(2, 'Simon', 'Scott', 10, 200),
     sim(3, 'Imran', 'Watson', 20, 200),
-    sim(4, 'Rae', 'Durham', 30, 300),
+    encodeBytes(6, simBlob({ id: 4, householdId: 30, zone: 300, first: 'Rae', last: 'Durham', household: 'Durham', gender: 4096, age: 16, source: 'filter: filter_Walkby_Scout' })),
     encodeBytes(6, simBlob({ id: 5, householdId: 20, zone: 200, first: 'Maira', last: 'Watson', household: '', gender: 8192, age: 16 })),
   );
   return wrapDbpf(refpackCompress(data));
@@ -370,6 +373,11 @@ describe('households', () => {
     assert.equal(sim('Rae').unhoused, true);
     assert.equal(sim('Simon').unhoused, undefined);
     assert.equal(parsed.householdWorld?.['30'], undefined);
+  });
+
+  it('tells sims the game generated from premade and player-made ones', () => {
+    assert.equal(sim('Rae').generated, true);
+    assert.equal(sim('Sara').generated, undefined);
   });
 
   it('takes the household name from the household when a sim\'s copy is blank', () => {

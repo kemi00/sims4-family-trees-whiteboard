@@ -139,7 +139,12 @@ export const GroupLayer = memo(function GroupLayer({
                 onHouseholdDragStart(g0.gid, wx, wy, base, ev);
               }}
             >
-              {unhoused && <title>Unhoused sims: they have no home lot in the game</title>}
+              {unhoused && (
+                <title>
+                  Unhoused sims: townies the game made as you played. Premade sims
+                  with no home keep their own households.
+                </title>
+              )}
               <rect
                 x={headerX}
                 y={headerY}

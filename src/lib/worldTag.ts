@@ -52,7 +52,7 @@ export type WorldCounts = {
   sims: number;
   /** Household boxes with a card shown; the Unhoused sims box is not one. */
   households: number;
-  /** Of `sims`, those in the world's Unhoused sims box. */
+  /** Of `sims`, those in the Unhoused sims box: sims the game generated. */
   unhoused: number;
   pets: number;
   deceased: number;
@@ -204,8 +204,8 @@ export function worldCountsText(name: string, c: WorldCounts): string {
   let text = !c.unhoused
     ? `${name}: ${plural(c.sims, 'sim', 'sims')} in ${homes}`
     : c.unhoused === c.sims
-      ? `${name}: ${plural(c.sims, 'unhoused sim', 'unhoused sims')}`
-      : `${name}: ${plural(c.sims, 'sim', 'sims')} — ${c.sims - c.unhoused} in ${homes}, ${c.unhoused} unhoused`;
+      ? `${name}: ${plural(c.sims, 'sim', 'sims')} in Unhoused sims`
+      : `${name}: ${plural(c.sims, 'sim', 'sims')} — ${c.sims - c.unhoused} in ${homes}, ${c.unhoused} in Unhoused sims`;
   const extra = [
     c.pets ? plural(c.pets, 'pet', 'pets') : '',
     c.deceased ? `${c.deceased} deceased` : '',

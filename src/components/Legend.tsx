@@ -82,7 +82,7 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
           <svg viewBox="-7 -7 14 14" aria-hidden="true">
             <UnhousedGlyph x={0} y={0} color="#8a7f63" />
           </svg>{' '}
-          Unhoused sims: no home lot in the game, one box per world
+          Unhoused sims: townies the game made as you played
         </p>
         <div className="legend-card__body">
           {worlds.map((w) => {

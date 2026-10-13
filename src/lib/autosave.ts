@@ -345,7 +345,9 @@ export function bootWhiteboardData(
   store: Storage | null = storage(),
 ): { fromDraft: boolean; data: WhiteboardData; repacked: boolean; stamp: string | null } {
   const stamp = storedStamp(store);
-  const draft = readDraft(store);
+  const stored = readDraft(store);
+  // Older world names first: layout and the built-in check both need today's.
+  const draft = stored && { ...stored, ...migrateWhiteboardData(stored) };
   if (!draft) {
     return { fromDraft: false, data: seed, repacked: false, stamp };
   }

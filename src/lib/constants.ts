@@ -129,7 +129,7 @@ export const WORLD_TAG_HIT_PAD_SCREEN_PX = 10;
  * older epoch back to {@link OLDEST_PINNABLE_EPOCH} are pinned in place on
  * load; unstamped ones are re-packed.
  */
-export const LAYOUT_EPOCH = 3;
+export const LAYOUT_EPOCH = 4;
 /**
  * Oldest epoch whose packing rules are still implemented. Boards saved under
  * it or later are pinned to where they were on screen, not re-packed.
@@ -218,6 +218,14 @@ export const UNION_MIN_GAP = (PILL_HALF_W + PILL_CLEAR) * 2;
 
 /** Placeholder household name for a sim created with Add Sim, before they join a house. */
 export const ADDED_HOUSEHOLD = '(added)';
+
+/**
+ * The board's place for sims with no home lot — the game's "Currently Not
+ * in World" — and for anyone else whose world is not on the board.
+ */
+export const NOT_IN_WORLD = 'Not in any world';
+/** Earlier names of {@link NOT_IN_WORLD}, renamed when a board loads. */
+export const LEGACY_NOT_IN_WORLD = ['Other', 'Other / Townie'] as const;
 
 /**
  * The box each world keeps for its unhoused sims — sims whose household has

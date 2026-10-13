@@ -1,6 +1,6 @@
 /**
  * A house struck through, centred on (x, y), about `size` px across — marks
- * a world's Unhoused sims box (sims with no home lot in the game).
+ * the Unhoused sims box (townies the game generated, with no home lot).
  */
 export function UnhousedGlyph({
   x,

@@ -8,6 +8,10 @@ type Props = {
   onCancel: () => void;
 };
 
+/** "1 sim … rejoins" / "3 sims … rejoin". */
+const sims = (n: number) => (n === 1 ? 'sim' : 'sims');
+const verb = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
 function listPreview(items: string[], max = 6): string {
   if (!items.length) return '';
   if (items.length <= max) return items.join(', ');
@@ -28,7 +32,7 @@ export function SaveImportDialog({
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
   const hasDetails =
     summary.rejoined.length > 0 ||
-    summary.unhousedToOther.length > 0 ||
+    summary.toNotInWorld.length > 0 ||
     summary.skipped.length > 0 ||
     summary.saveWorlds.length > 0 ||
     summary.hidePacks.length > 0;
@@ -74,19 +78,21 @@ export function SaveImportDialog({
                 </li>
                 {summary.rejoined.length > 0 && (
                   <li>
-                    <b>{summary.rejoined.length}</b> sims rejoin their household
+                    <b>{summary.rejoined.length}</b> {sims(summary.rejoined.length)}{' '}
+                    {verb(summary.rejoined.length, 'rejoins', 'rejoin')} their household
                   </li>
                 )}
                 {summary.unhoused.length > 0 && (
                   <li>
-                    <b>{summary.unhoused.length}</b> unhoused sims go in their
-                    world's Unhoused sims box
-                    {summary.unhousedToOther.length > 0 && (
-                      <>
-                        {' '}
-                        · <b>{summary.unhousedToOther.length}</b> move to Other
-                      </>
-                    )}
+                    <b>{summary.unhoused.length}</b> {sims(summary.unhoused.length)} the
+                    game made {verb(summary.unhoused.length, 'goes', 'go')} in Unhoused sims
+                  </li>
+                )}
+                {summary.toNotInWorld.length > 0 && (
+                  <li>
+                    <b>{summary.toNotInWorld.length}</b> {sims(summary.toNotInWorld.length)}{' '}
+                    with no home {verb(summary.toNotInWorld.length, 'moves', 'move')} to Not
+                    in any world
                   </li>
                 )}
                 {(summary.secretParents > 0 || summary.secretLovers > 0) && (
@@ -125,12 +131,12 @@ export function SaveImportDialog({
                 </span>
               </div>
             )}
-            {summary.unhousedToOther.length > 0 && (
+            {summary.toNotInWorld.length > 0 && (
               <div className="save-import__meta">
-                <span className="save-import__meta-label">Unhoused, move to Other</span>
+                <span className="save-import__meta-label">Move to Not in any world</span>
                 <span className="save-import__meta-value">
-                  {listPreview(summary.unhousedToOther, 8)}. They only sat in a
-                  world because they stood on a lot there when you saved.
+                  {listPreview(summary.toNotInWorld, 8)}. The game has them
+                  Currently Not in World.
                 </span>
               </div>
             )}

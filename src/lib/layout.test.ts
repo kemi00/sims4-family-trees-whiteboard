@@ -218,7 +218,7 @@ describe('tile-native household packing', () => {
         id: 'Father Winter',
         first: 'Father',
         hh: 'Father Winter',
-        gid: 'Other||Father Winter',
+        gid: 'Not in any world||Father Winter',
         world: OTHER_WORLD,
         gender: 'Male',
       }),
@@ -226,7 +226,7 @@ describe('tile-native household packing', () => {
         id: 'Grim Reaper',
         first: 'Grim',
         hh: 'Grim Reaper',
-        gid: 'Other||Grim Reaper',
+        gid: 'Not in any world||Grim Reaper',
         world: OTHER_WORLD,
         gender: 'Male',
       }),
@@ -234,7 +234,7 @@ describe('tile-native household packing', () => {
         id: 'Guidry',
         first: 'Guidry',
         hh: 'Guidry',
-        gid: 'Other||Guidry',
+        gid: 'Not in any world||Guidry',
         world: OTHER_WORLD,
         gender: 'Male',
       }),
@@ -412,7 +412,7 @@ describe('parent-link cycles', () => {
 });
 
 describe('Unhoused sims box', () => {
-  const box = 'Other||Unhoused sims';
+  const box = 'Not in any world||Unhoused sims';
   const loose = (id: string, ohh: string, age = 'Adult') =>
     sim({ id, first: id, hh: 'Unhoused sims', ohh, gid: box, world: OTHER_WORLD, age });
   const nodes = [
@@ -453,6 +453,25 @@ describe('Unhoused sims box', () => {
     const spot = (id: string) => (id === 'skip' ? { x: 99999, y: 0 } : at(id));
     assert.equal(unhousedEdgeSide(inBox, edges, spot), 'right');
     assert.equal(unhousedEdgeSide(inBox, edges, (id) => at(id)), 'left');
+  });
+
+  it('packs Not in any world with outside family first and Unhoused sims last', () => {
+    const N = OTHER_WORLD;
+    const home = (id: string, hh: string, extra: Partial<SimNode> = {}) =>
+      sim({ id, first: id, hh, gid: `${N}||${hh}`, world: N, ...extra });
+    const nodes2 = [
+      sim({ id: 'skip', first: 'Skip', hh: 'Broke', gid: 'Willow Creek||Broke' }),
+      home('abe', 'Abbot'),
+      home('bea', 'Baker'),
+      home('dustin', 'Zed'),
+      { ...home('t1', 'Unhoused sims'), gid: `${N}||Unhoused sims` },
+    ];
+    const laid2 = computeLayout(nodes2, worlds, [edge('skip', 'dustin', 'parent')]);
+    const spot = (id: string) => laid2.find((n) => n.id === id)!;
+    // Packed in that order, one tag column each: Zed before Abbot and Baker.
+    assert.ok(spot('dustin').x < spot('abe').x, 'his father lives in another world');
+    assert.ok(spot('abe').x < spot('bea').x);
+    assert.ok(spot('t1').x > spot('bea').x, 'Unhoused sims after every household');
   });
 
   it('keeps the old flat grid for boards saved before family blocks', () => {

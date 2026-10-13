@@ -56,11 +56,11 @@ describe('world tag counts', () => {
   it('spells the counts out, with what the numbers leave out', () => {
     assert.equal(
       worldCountsText('Willow Creek', worldCounts(members, shown)),
-      'Willow Creek: 4 sims — 3 in 2 households, 1 unhoused, plus 1 pet and 1 deceased. Filters hide 1 more.',
+      'Willow Creek: 4 sims — 3 in 2 households, 1 in Unhoused sims, plus 1 pet and 1 deceased. Filters hide 1 more.',
     );
     assert.equal(
-      worldCountsText('Other', worldCounts([card('u1', 'Other||Unhoused sims'), card('u2', 'Other||Unhoused sims')], () => true)),
-      'Other: 2 unhoused sims.',
+      worldCountsText('Not in any world', worldCounts([card('u1', 'Not in any world||Unhoused sims'), card('u2', 'Not in any world||Unhoused sims')], () => true)),
+      'Not in any world: 2 sims in Unhoused sims.',
     );
     assert.equal(
       worldCountsText('Tartosa', worldCounts([card('a', 'g1')], () => true)),

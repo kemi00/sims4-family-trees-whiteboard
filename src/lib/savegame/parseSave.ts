@@ -17,8 +17,15 @@ export type ParsedSaveSim = {
   species?: string;
   /** World name string from the save lot, if present. */
   world?: string;
-  /** The sim's household has no home lot: an unhoused townie. */
+  /** The sim's household has no home lot ("Currently Not in World"). */
   unhoused?: true;
+  /**
+   * The game generated this sim while the player played (a walk-by, an
+   * NPC, a townie for a role): its creation source is one of the game's
+   * sim filters. Premade sims, sims made in Create a Sim and babies have
+   * no such source.
+   */
+  generated?: true;
 };
 
 export type ParsedSaveRel = {
@@ -60,6 +67,8 @@ const SIM = {
   gender: 7,
   age: 8,
   householdName: 22,
+  /** Creation info; its field 17 names the source ("filter: …" when generated). */
+  creation: 47,
   species: 60,
 } as const;
 
@@ -210,6 +219,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
   let age = '';
   let gender = '';
   let species: string | undefined;
+  let generated = false;
   for (const f of fields) {
     if (f.field === SIM.id && (f.wire === 0 || f.wire === 1) && f.int > 0n) {
       saveSimId = idStr(f.int);
@@ -227,10 +237,23 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
       age = mapAge(f.int);
     } else if (f.field === SIM.species && f.wire === 0) {
       species = SPECIES[Number(f.int)];
+    } else if (f.field === SIM.creation && f.bytes) {
+      const source = decodeFields(f.bytes).find((g) => g.field === 17 && g.bytes);
+      generated = /^filter:/.test(utf8(source?.bytes ?? null) ?? '');
     }
   }
   if (!saveSimId || (!first && !last)) return null;
-  return { saveSimId, householdId, first, last, household, age, gender, species };
+  return {
+    saveSimId,
+    householdId,
+    first,
+    last,
+    household,
+    age,
+    gender,
+    species,
+    ...(generated ? { generated: true as const } : {}),
+  };
 }
 
 function parseTreeRels(graph: Uint8Array): ParsedSaveRel[] {

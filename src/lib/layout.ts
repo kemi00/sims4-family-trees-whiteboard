@@ -5,6 +5,8 @@ import {
   HH_TAG_BAND,
   HH_TAG_INSET,
   LAYOUT_EPOCH,
+  LEGACY_NOT_IN_WORLD,
+  NOT_IN_WORLD,
   TILE,
 } from './constants.ts';
 import { householdTagWidth, tileSnapOrigin } from './tiles.ts';
@@ -718,6 +720,17 @@ function layoutUnhousedGrid(mem: SimNode[], cols: number): PlacedCard[] {
 export const UNHOUSED_COLS = 4;
 
 /**
+ * Columns of the Unhoused sims box in Not in any world: about square, so a
+ * few sims make a compact block rather than a band across the whole world
+ * that every line from elsewhere has to cross. Before NOT_IN_WORLD_EPOCH it
+ * took the world's full width.
+ */
+function unhousedCols(count: number, epoch: number): number {
+  if (epoch < NOT_IN_WORLD_EPOCH) return LAYOUT.otherHhCols;
+  return Math.min(LAYOUT.otherHhCols, Math.max(1, Math.ceil(Math.sqrt(count))));
+}
+
+/**
  * First layout epoch that packs an Unhoused sims box as family blocks
  * ({@link layoutUnhousedFamilies}) instead of one flat grid.
  */
@@ -842,9 +855,27 @@ export function unhousedArrangement(
   const placed = layoutUnhousedFamilies(
     mem,
     edges,
-    world === OTHER_WORLD ? LAYOUT.otherHhCols : UNHOUSED_COLS,
+    world === OTHER_WORLD ? unhousedCols(mem.length, LAYOUT_EPOCH) : UNHOUSED_COLS,
     side,
   );
+  const x0 = Math.min(...placed.map((p) => p.x));
+  const y0 = Math.min(...placed.map((p) => p.y));
+  return new Map(placed.map((p) => [p.id, { x: p.x - x0, y: p.y - y0 }]));
+}
+
+/**
+ * Card spots for these Not in any world households (and Unhoused sims box),
+ * packed as that world packs, from the top-left card, with the households
+ * that have family elsewhere starting from `side`. Packing assumes the left
+ * (the world packs right of every other); this is for placing them where
+ * their relatives really are.
+ */
+export function notInWorldArrangement(
+  mem: SimNode[],
+  edges: Edge[],
+  side: 'left' | 'right',
+): Map<string, { x: number; y: number }> {
+  const { placed } = layoutOtherWorld(mem, edges, LAYOUT_EPOCH, side);
   const x0 = Math.min(...placed.map((p) => p.x));
   const y0 = Math.min(...placed.map((p) => p.y));
   return new Map(placed.map((p) => [p.id, { x: p.x - x0, y: p.y - y0 }]));
@@ -1121,11 +1152,11 @@ function layoutOtherHouseholdTile(
       const { placed, w, h } = finalizeHouseholdBlock(layoutUnhousedGrid(mem, cols), 0, 0);
       return { placed, w, h, colSpan: cols };
     }
-    const grid = layoutUnhousedFamilies(mem, edges, LAYOUT.otherHhCols);
+    const grid = layoutUnhousedFamilies(mem, edges, unhousedCols(mem.length, epoch));
     const { placed, w, h } = finalizeHouseholdBlock(grid, 0, 0);
     return { placed, w, h, colSpan: otherTileColSpan(placed, w) };
   }
-  return pedigreeTile(mem, edges);
+  return pedigreeTile(mem, edges, epoch);
 }
 
 /**
@@ -1135,6 +1166,7 @@ function layoutOtherHouseholdTile(
 function pedigreeTile(
   mem: SimNode[],
   edges: Edge[],
+  epoch: number = LAYOUT_EPOCH,
 ): { placed: PlacedCard[]; w: number; h: number; colSpan: number } {
   const g = buildHHGraph(mem, edges);
   const hhIds = new Set(mem.map((n) => n.id));
@@ -1178,9 +1210,16 @@ function pedigreeTile(
   }
 
   const span = colSpanFromPlaced(placed);
-  const pinned: PlacedCard[] = [];
+  let pinned: PlacedCard[] = [];
   for (const row of groupPlacedByRow(placed)) {
     pinned.push(...pinRowToColumn(row, rowX, span));
+  }
+  // A household whose parents live elsewhere starts a generation down, and
+  // the tile's height left that empty row out, so the tile under it in the
+  // column overlapped it. Its first row goes to the top instead.
+  if (epoch >= NOT_IN_WORLD_EPOCH && pinned.length) {
+    const lift = Math.min(...pinned.map((p) => p.y)) - (LAYOUT.hhHeader + LAYOUT.hhPad);
+    if (lift > 0) pinned = pinned.map((p) => ({ ...p, y: p.y - lift }));
   }
 
   const { placed: normalized, w, h } = finalizeHouseholdBlock(pinned, 0, 0);
@@ -1224,6 +1263,10 @@ type OtherTile = {
   colSpan: number;
   sortKey: string;
   isCluster: boolean;
+  /** Has family in another world (see placeOtherWorldGrid). */
+  external?: boolean;
+  /** The Unhoused sims box. */
+  unhoused?: boolean;
 };
 
 /**
@@ -1234,6 +1277,8 @@ function placeOtherWorldGrid(
   households: [string, SimNode[]][],
   edges: Edge[],
   epoch: number = LAYOUT_EPOCH,
+  /** Side the households with family elsewhere start from (see unhousedEdgeSide). */
+  side: 'left' | 'right' = 'left',
 ): { placed: PlacedCard[]; w: number; h: number } {
   const gridCols = LAYOUT.otherHhCols;
   const hhLinks = buildHouseholdLinks(
@@ -1241,12 +1286,19 @@ function placeOtherWorldGrid(
     edges,
   );
   const components = buildHouseholdComponents(households, hhLinks);
+  const here = new Set(households.flatMap(([, mem]) => mem.map((n) => n.id)));
+  const linkedOut = new Set<string>();
+  for (const e of edges) {
+    if (!FAMILY_LINKS.has(e.type) || here.has(e.a) === here.has(e.b)) continue;
+    linkedOut.add(here.has(e.a) ? e.a : e.b);
+  }
 
   const tiles: OtherTile[] = [];
   for (const comp of components) {
     if (comp.length === 1) {
       const [gid, mem] = comp[0]!;
       const block = layoutOtherHouseholdTile(mem, edges, epoch);
+      const unhoused = isUnhousedGid(gid);
       tiles.push({
         placed: block.placed,
         w: block.w,
@@ -1254,6 +1306,8 @@ function placeOtherWorldGrid(
         colSpan: block.colSpan,
         sortKey: mem[0]?.hh ?? gid,
         isCluster: false,
+        unhoused,
+        external: !unhoused && mem.some((n) => linkedOut.has(n.id)),
       });
     } else {
       const cluster = layoutClusterTile(comp, edges, hhLinks);
@@ -1268,9 +1322,14 @@ function placeOtherWorldGrid(
     }
   }
 
+  // From NOT_IN_WORLD_EPOCH, households with family in another world go
+  // first, so their lines meet the world at its near corner instead of
+  // crossing it, and the Unhoused sims box goes last, under the households.
+  const rank = (t: OtherTile) =>
+    epoch < NOT_IN_WORLD_EPOCH ? 0 : t.unhoused ? 2 : t.external ? -1 : 0;
   tiles.sort((a, b) => {
     if (a.isCluster !== b.isCluster) return a.isCluster ? -1 : 1;
-    return a.sortKey.localeCompare(b.sortKey);
+    return rank(a) - rank(b) || a.sortKey.localeCompare(b.sortKey);
   });
 
   const colHeights = new Array<number>(gridCols).fill(0);
@@ -1278,9 +1337,11 @@ function placeOtherWorldGrid(
 
   for (const tile of tiles) {
     const span = Math.min(tile.colSpan, gridCols);
+    const fromRight = side === 'right' && tile.external;
     let bestCol = 0;
     let bestY = Infinity;
-    for (let c = 0; c <= gridCols - span; c++) {
+    for (let i = 0; i <= gridCols - span; i++) {
+      const c = fromRight ? gridCols - span - i : i;
       const y = Math.max(...colHeights.slice(c, c + span));
       if (y < bestY) {
         bestY = y;
@@ -1664,13 +1725,19 @@ function clearTitleOverhangs(
   placed: PlacedCard[],
   households: [string, SimNode[]][],
   contentH: number,
+  epoch: number,
 ): number {
   const gidOf = new Map<string, string>();
   const label = new Map<string, number>();
   for (const [gid, mem] of households) {
     for (const n of mem) gidOf.set(n.id, gid);
-    if (mem[0]) {
-      label.set(gid, HH_TAG_INSET * 2 + householdTagWidth(mem[0]));
+    const first = mem[0];
+    if (first) {
+      const tag =
+        epoch < NOT_IN_WORLD_EPOCH && first.world === OTHER_WORLD
+          ? { ...first, world: LEGACY_NOT_IN_WORLD[0] }
+          : first;
+      label.set(gid, HH_TAG_INSET * 2 + householdTagWidth(tag));
     }
   }
   const cards = new Map<string, PlacedCard[]>();
@@ -1698,12 +1765,19 @@ function clearTitleOverhangs(
     a.l < br && ar > b.l && a.t < b.b && a.b > b.t;
   boxes.sort((a, b) => a.t - b.t || a.l - b.l);
   const settled: TitleBox[] = [];
+  /** Boxes this pass pushed down; their cards may now land on others'. */
+  const pushed = new Set<string>();
   let bottom = contentH;
   for (const box of boxes) {
     let dy = 0;
     for (;;) {
       const over = settled.find(
-        (s) => meet(box, s, box.r, s.r) && !meet(box, s, box.cardsR, s.cardsR),
+        (s) =>
+          meet(box, s, box.r, s.r) &&
+          (!meet(box, s, box.cardsR, s.cardsR) ||
+            // Before NOT_IN_WORLD_EPOCH a pushed box could settle on another's
+            // cards; kept so older boards still pin to where they were.
+            (epoch >= NOT_IN_WORLD_EPOCH && (dy > 0 || pushed.has(s.gid)))),
       );
       if (!over) break;
       const step = Math.ceil((over.b + LAYOUT.hhGap - box.t) / TILE) * TILE;
@@ -1714,15 +1788,29 @@ function clearTitleOverhangs(
     if (dy) {
       for (const p of cards.get(box.gid)!) p.y += dy;
       bottom = Math.max(bottom, box.b);
+      pushed.add(box.gid);
     }
     settled.push(box);
   }
   return bottom;
 }
 
-export const OTHER_WORLD = 'Other';
+/** Not in any world (see NOT_IN_WORLD); packed as its own grid, right of the rest. */
+export const OTHER_WORLD = NOT_IN_WORLD;
 
-function layoutOtherWorld(mem: SimNode[], edges: Edge[], epoch: number): WorldBlock {
+/**
+ * First layout epoch with Other renamed Not in any world. The name is part
+ * of each household tag there, and packing leaves room for tags, so older
+ * epochs measure those tags with the old, shorter name.
+ */
+export const NOT_IN_WORLD_EPOCH = 4;
+
+function layoutOtherWorld(
+  mem: SimNode[],
+  edges: Edge[],
+  epoch: number,
+  side: 'left' | 'right' = 'left',
+): WorldBlock {
   const byGid = new Map<string, SimNode[]>();
   for (const n of mem) {
     if (!byGid.has(n.gid)) byGid.set(n.gid, []);
@@ -1737,9 +1825,10 @@ function layoutOtherWorld(mem: SimNode[], edges: Edge[], epoch: number): WorldBl
     households,
     edges,
     epoch,
+    side,
   );
   const contentH =
-    epoch >= TITLE_OVERHANG_EPOCH ? clearTitleOverhangs(placed, households, gridH) : gridH;
+    epoch >= TITLE_OVERHANG_EPOCH ? clearTitleOverhangs(placed, households, gridH, epoch) : gridH;
 
   return {
     world: OTHER_WORLD,
@@ -1780,7 +1869,7 @@ function layoutWorld(
     epoch,
   );
   const contentH =
-    epoch >= TITLE_OVERHANG_EPOCH ? clearTitleOverhangs(placed, households, bentoH) : bentoH;
+    epoch >= TITLE_OVERHANG_EPOCH ? clearTitleOverhangs(placed, households, bentoH, epoch) : bentoH;
 
   return {
     world: mem[0]?.world ?? '',
