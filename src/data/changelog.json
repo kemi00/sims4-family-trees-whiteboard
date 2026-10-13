@@ -1,6 +1,16 @@
 {
  "entries": [
   {
+   "sha": "2e5ab53",
+   "date": "2026-10-13",
+   "text": "Sim names and details now appear from 30% zoom instead of 35%."
+  },
+  {
+   "sha": "7e44b08",
+   "date": "2026-10-13",
+   "text": "Premade households from a save now show a readable name, like \"Mysterious Rancher\", instead of an internal game ID. Boards that already had them are renamed without moving any card."
+  },
+  {
    "sha": "fc63588",
    "date": "2026-10-13",
    "text": "Fix the Games filter being empty after replacing the board from a save: every sim now gets its game, and a hidden game always shows in the list so you can switch it back on."
