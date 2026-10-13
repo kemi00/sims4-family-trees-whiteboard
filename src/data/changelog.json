@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "22e3958",
+   "date": "2026-10-13",
+   "text": "Sims who were out visiting when you saved no longer get a household box of their own. Merge your save again to bring them back to their family; everyone else stays where you put them."
+  },
+  {
    "sha": "2e5ab53",
    "date": "2026-10-13",
    "text": "Sim names and details now appear from 30% zoom instead of 35%."
