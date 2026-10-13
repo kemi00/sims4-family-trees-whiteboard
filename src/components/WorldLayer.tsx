@@ -1,7 +1,15 @@
 import { memo, type PointerEvent as ReactPointerEvent } from 'react';
+import { House, User } from '../icons.ts';
 import { worldFrame, worldTagMetrics } from '../lib/geometry.ts';
 import { nodesForWorld, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { worldColor } from '../lib/utils.ts';
+import {
+  worldCounts,
+  worldCountsText,
+  worldTagLayout,
+  type WorldCounts,
+  type WorldTagLayout,
+} from '../lib/worldTag.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 
 type Props = {
@@ -32,7 +40,8 @@ type ChipHit = {
   y: number;
   hw: number;
   hh: number;
-  pillW: number;
+  pill: WorldTagLayout;
+  counts: WorldCounts;
   paintX: number;
   paintY: number;
   col: string;
@@ -181,7 +190,8 @@ export const WorldLayer = memo(function WorldLayer({
   for (const w of worldNames) {
     const frame = worldFrame(w, nodes, groups, packVis, buckets);
     if (!frame) continue;
-    const pillW = (w.length * 8.2 + 46) * tag.scale;
+    const counts = worldCounts(nodesForWorld(w, nodes, buckets), packVis);
+    const pill = worldTagLayout(w, counts, zoom);
     const bw = frame.r - frame.l;
     const bh = frame.b - frame.t;
     chips.push({
@@ -189,9 +199,10 @@ export const WorldLayer = memo(function WorldLayer({
       // Hit expands around the painted chip; paint stays at frame top-left.
       x: frame.l - tag.hitPad,
       y: frame.t - tag.hitPad,
-      hw: Math.min(bw + tag.hitPad, pillW + 2 * tag.hitPad),
-      hh: Math.min(bh + tag.hitPad, tag.hitH),
-      pillW,
+      hw: Math.min(bw + tag.hitPad, pill.w + 2 * tag.hitPad),
+      hh: Math.min(bh + tag.hitPad, pill.h + 2 * tag.hitPad),
+      pill,
+      counts,
       paintX: frame.l,
       paintY: frame.t,
       col: worldColor(w, worlds),
@@ -216,6 +227,9 @@ export const WorldLayer = memo(function WorldLayer({
     <g id="lWorldHandles">
       {chips.map((c) => {
         const selected = !!selectedWorlds?.has(c.w);
+        const { pill } = c;
+        const n = pill.counts;
+        const s = pill.scale;
         return (
           <g
             key={c.w}
@@ -224,6 +238,7 @@ export const WorldLayer = memo(function WorldLayer({
             style={{ cursor: 'grab' }}
             onPointerDown={beginDrag}
           >
+            <title>{worldCountsText(c.w, c.counts)}</title>
             {/* Hit target = chip + modest pad only (never a full-frame strip). */}
             <rect
               x={c.x}
@@ -236,9 +251,9 @@ export const WorldLayer = memo(function WorldLayer({
             <rect
               x={c.paintX}
               y={c.paintY}
-              width={c.pillW}
-              height={tag.pillH}
-              rx={13 * tag.scale}
+              width={pill.w}
+              height={pill.h}
+              rx={13 * s}
               fill={c.col}
               stroke={selected ? '#ffffff' : c.col}
               strokeWidth={selected ? 2.5 : 1}
@@ -247,11 +262,11 @@ export const WorldLayer = memo(function WorldLayer({
             />
             {selected && (
               <rect
-                x={c.paintX - 3 * tag.scale}
-                y={c.paintY - 3 * tag.scale}
-                width={c.pillW + 6 * tag.scale}
-                height={tag.pillH + 6 * tag.scale}
-                rx={15 * tag.scale}
+                x={c.paintX - 3 * s}
+                y={c.paintY - 3 * s}
+                width={pill.w + 6 * s}
+                height={pill.h + 6 * s}
+                rx={15 * s}
                 fill="none"
                 stroke="#1b6cd6"
                 strokeWidth={3}
@@ -260,8 +275,8 @@ export const WorldLayer = memo(function WorldLayer({
               />
             )}
             <text
-              x={c.paintX + 14 * tag.scale}
-              y={c.paintY + tag.pillH / 2}
+              x={c.paintX + pill.handleX}
+              y={c.paintY + pill.nameY}
               dominantBaseline="middle"
               fontSize={tag.handleSize}
               fill="#ffffffbb"
@@ -270,16 +285,68 @@ export const WorldLayer = memo(function WorldLayer({
               ⠿
             </text>
             <text
-              x={c.paintX + 31 * tag.scale}
-              y={c.paintY + tag.pillH / 2}
+              x={c.paintX + pill.nameX}
+              y={c.paintY + pill.nameY}
               dominantBaseline="middle"
-              fontSize={tag.fontSize}
+              fontSize={pill.fontSize}
               fontWeight={800}
               fill="#fff"
               style={{ pointerEvents: 'none' }}
             >
               {c.w}
             </text>
+            {n && (
+              <g
+                className="whandle__counts"
+                fill="#fff"
+                aria-hidden="true"
+                style={{ pointerEvents: 'none' }}
+              >
+                {n.dividerX !== null && (
+                  <line
+                    x1={c.paintX + n.dividerX}
+                    x2={c.paintX + n.dividerX}
+                    y1={c.paintY + n.y - 6 * s}
+                    y2={c.paintY + n.y + 6 * s}
+                    stroke="#ffffff"
+                    strokeOpacity={0.45}
+                    strokeWidth={1.2 * s}
+                  />
+                )}
+                <User
+                  x={c.paintX + n.simIconX}
+                  y={c.paintY + n.y - n.iconSize / 2}
+                  size={n.iconSize}
+                  weight="fill"
+                  color="#fff"
+                />
+                <text
+                  x={c.paintX + n.simTextX}
+                  y={c.paintY + n.y}
+                  dominantBaseline="middle"
+                  fontSize={n.fontSize}
+                  fontWeight={600}
+                >
+                  {c.counts.sims}
+                </text>
+                <House
+                  x={c.paintX + n.homeIconX}
+                  y={c.paintY + n.y - n.iconSize / 2}
+                  size={n.iconSize}
+                  weight="fill"
+                  color="#fff"
+                />
+                <text
+                  x={c.paintX + n.homeTextX}
+                  y={c.paintY + n.y}
+                  dominantBaseline="middle"
+                  fontSize={n.fontSize}
+                  fontWeight={600}
+                >
+                  {c.counts.households}
+                </text>
+              </g>
+            )}
           </g>
         );
       })}

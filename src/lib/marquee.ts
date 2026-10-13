@@ -1,4 +1,5 @@
 import { worldFrame, worldTagMetrics } from './geometry.ts';
+import { worldCounts, worldTagLayout, type WorldCounts } from './worldTag.ts';
 import { householdChrome } from './tiles.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 import type { BoardMultiSel } from '../types/whiteboard.ts';
@@ -28,15 +29,16 @@ export function worldChipHitRect(
   world: string,
   frame: WorldRect,
   zoom: number,
+  counts: WorldCounts | null = null,
 ): WorldRect {
   const tag = worldTagMetrics(zoom);
-  const pillW = (world.length * 8.2 + 46) * tag.scale;
+  const pill = worldTagLayout(world, counts, zoom);
   const bw = frame.r - frame.l;
   const bh = frame.b - frame.t;
   const l = frame.l - tag.hitPad;
   const t = frame.t - tag.hitPad;
-  const hw = Math.min(bw + tag.hitPad, pillW + 2 * tag.hitPad);
-  const hh = Math.min(bh + tag.hitPad, tag.hitH);
+  const hw = Math.min(bw + tag.hitPad, pill.w + 2 * tag.hitPad);
+  const hh = Math.min(bh + tag.hitPad, pill.h + 2 * tag.hitPad);
   return { l, t, r: l + hw, b: t + hh };
 }
 
@@ -116,7 +118,11 @@ export function resolveMarqueeSelection(
   // Explicit single-world grab via the name chip only.
   if (showWorlds && frameHits.length === 1) {
     const only = frameHits[0]!;
-    const chip = worldChipHitRect(only.world, only.frame, zoom);
+    const counts = worldCounts(
+      nodes.filter((n) => n.world === only.world),
+      packVis,
+    );
+    const chip = worldChipHitRect(only.world, only.frame, zoom, counts);
     if (rectsIntersect(marquee, chip)) {
       return { kind: 'worlds', worlds: [only.world] };
     }

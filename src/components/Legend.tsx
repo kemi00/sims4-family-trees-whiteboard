@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Ref } from 'react';
 import type { World } from '../types/whiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import { House, User } from '../icons.ts';
 import { COL } from '../lib/constants.ts';
 import { LockGlyph } from './LockGlyph.tsx';
 
@@ -72,6 +73,10 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
         aria-labelledby="legend-worlds-h"
       >
         <h3 id="legend-worlds-h">Worlds</h3>
+        <p className="lg-key">
+          Tags count <User weight="fill" aria-hidden="true" /> sims and{' '}
+          <House weight="fill" aria-hidden="true" /> households
+        </p>
         <div className="legend-card__body">
           {worlds.map((w) => {
             const live = liveWorlds.has(w.name);

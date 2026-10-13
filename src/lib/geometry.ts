@@ -11,12 +11,6 @@ import {
   STUB,
   TILE,
   UNION_MIN_GAP,
-  WORLD_TAG_FONT,
-  WORLD_TAG_HIT_PAD_SCREEN_PX,
-  WORLD_TAG_MIN_SCREEN_PX,
-  WORLD_TAG_NORMAL_ZOOM,
-  WORLD_TAG_PILL_H,
-  WORLD_TAG_ZOOM_OUT_MAX,
   ZOOM_MAX,
   ZOOM_MIN,
 } from './constants.ts';
@@ -27,6 +21,9 @@ import {
   type NodeBuckets,
 } from './nodeIndex.ts';
 import { LAYOUT } from './layout.ts';
+import { worldTagLayout, worldCounts } from './worldTag.ts';
+
+export { worldTagMetrics, worldTagZoomScale } from './worldTag.ts';
 import type {
   BuildRectsResult,
   Edge,
@@ -254,41 +251,6 @@ function framesOverlap(a: HhBoxDraw, b: HhBoxDraw): boolean {
 function tileCeil(v: number): number {
   if (v <= 0) return 0;
   return Math.ceil(v / TILE) * TILE;
-}
-
-/**
- * World-name pill scale for the current board zoom. Zoomed out → grow in
- * world space so the painted chip stays ~{@link WORLD_TAG_MIN_SCREEN_PX}
- * tall on screen. Zoomed in (≥ {@link WORLD_TAG_NORMAL_ZOOM}) → scale 1.
- */
-export function worldTagZoomScale(k: number): number {
-  if (!(k > 0)) return 1;
-  if (k >= WORLD_TAG_NORMAL_ZOOM) return 1;
-  const forScreen = WORLD_TAG_MIN_SCREEN_PX / (WORLD_TAG_PILL_H * k);
-  return Math.min(WORLD_TAG_ZOOM_OUT_MAX, Math.max(1, forScreen));
-}
-
-export function worldTagMetrics(k: number): {
-  scale: number;
-  pillH: number;
-  fontSize: number;
-  handleSize: number;
-  /** World-space hit height = pill + screen pad (not a full-frame strip). */
-  hitH: number;
-  /** World-space pad added beyond the painted pill on each side. */
-  hitPad: number;
-} {
-  const scale = worldTagZoomScale(k);
-  const pillH = WORLD_TAG_PILL_H * scale;
-  const hitPad = k > 0 ? WORLD_TAG_HIT_PAD_SCREEN_PX / k : 0;
-  return {
-    scale,
-    pillH,
-    fontSize: WORLD_TAG_FONT * scale,
-    handleSize: 12 * scale,
-    hitH: pillH + 2 * hitPad,
-    hitPad,
-  };
 }
 
 /** World names on `next` that no node in `prev` lived in. */
@@ -858,12 +820,12 @@ export function buildRects(
       seen.add(w);
       const frame = worldFrame(w, nodes, groups, packVis, buckets);
       if (!frame) continue;
-      const lw = w.length * 8.2 + 46;
+      const tag = worldTagLayout(w, worldCounts(nodesForWorld(w, nodes, buckets), packVis), 1);
       R.push({
         l: frame.l - RGAP,
         t: frame.t - RGAP,
-        r: frame.l + lw + RGAP,
-        b: frame.t + WORLD_TAG_PILL_H + RGAP,
+        r: frame.l + tag.w + RGAP,
+        b: frame.t + tag.h + RGAP,
         id: `__w_${w}`,
       });
     }
