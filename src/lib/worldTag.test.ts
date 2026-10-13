@@ -31,6 +31,7 @@ function card(id: string, gid: string, state = 'Sim', pack = 'Base Game'): SimNo
 }
 
 const members = [
+  card('u1', 'W||Unhoused sims'),
   card('a', 'g1'),
   card('b', 'g1'),
   card('cat', 'g1', 'Pet'),
@@ -43,8 +44,9 @@ const shown = (n: SimNode) => n.pack !== 'Hidden Pack';
 describe('world tag counts', () => {
   it('counts living sims and the households shown', () => {
     assert.deepEqual(worldCounts(members, shown), {
-      sims: 3,
+      sims: 4,
       households: 2,
+      unhoused: 1,
       pets: 1,
       deceased: 1,
       hidden: 1,
@@ -54,7 +56,11 @@ describe('world tag counts', () => {
   it('spells the counts out, with what the numbers leave out', () => {
     assert.equal(
       worldCountsText('Willow Creek', worldCounts(members, shown)),
-      'Willow Creek: 3 sims in 2 households, plus 1 pet and 1 deceased. Filters hide 1 more.',
+      'Willow Creek: 4 sims — 3 in 2 households, 1 unhoused, plus 1 pet and 1 deceased. Filters hide 1 more.',
+    );
+    assert.equal(
+      worldCountsText('Other', worldCounts([card('u1', 'Other||Unhoused sims'), card('u2', 'Other||Unhoused sims')], () => true)),
+      'Other: 2 unhoused sims.',
     );
     assert.equal(
       worldCountsText('Tartosa', worldCounts([card('a', 'g1')], () => true)),

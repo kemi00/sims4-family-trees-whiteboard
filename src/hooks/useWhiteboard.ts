@@ -1813,7 +1813,7 @@ export function useWhiteboard() {
           groups: result.groups,
           worlds,
           snap,
-          rejoined: new Set(result.rejoined),
+          rehomed: new Set(result.rehomed),
         }),
       );
       eidcRef.current = nextEidc(result.edges, eidcRef.current);

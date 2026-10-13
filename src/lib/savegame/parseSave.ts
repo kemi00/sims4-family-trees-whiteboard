@@ -17,6 +17,8 @@ export type ParsedSaveSim = {
   species?: string;
   /** World name string from the save lot, if present. */
   world?: string;
+  /** The sim's household has no home lot: an unhoused townie. */
+  unhoused?: true;
 };
 
 export type ParsedSaveRel = {
@@ -346,12 +348,15 @@ function idField(fields: ReturnType<typeof decodeFields>, n: number): string {
 function parseWorldIndex(saveGame: Uint8Array): {
   householdWorld: Record<string, string>;
   householdName: Record<string, string>;
+  /** Households the save lists with no home lot. */
+  unhoused: Set<string>;
   worlds: string[];
 } {
   const zoneWorld = new Map<string, string>();
   const ownerWorld = new Map<string, string>();
   const homeZone = new Map<string, string>();
   const householdName: Record<string, string> = {};
+  const listed = new Set<string>();
   const worlds = new Set<string>();
   for (const rec of decodeFields(saveGame)) {
     if (!rec.bytes) continue;
@@ -359,6 +364,7 @@ function parseWorldIndex(saveGame: Uint8Array): {
       const fields = decodeFields(rec.bytes);
       const id = idField(fields, HOUSEHOLD.id);
       if (!id) continue;
+      listed.add(id);
       const home = idField(fields, HOUSEHOLD.homeZone);
       if (home) homeZone.set(id, home);
       const name = utf8(fields.find((f) => f.field === HOUSEHOLD.name && f.bytes)?.bytes ?? null);
@@ -389,9 +395,11 @@ function parseWorldIndex(saveGame: Uint8Array): {
     const world = zoneWorld.get(zone);
     if (world) householdWorld[id] = world;
   }
+  const unhoused = new Set([...listed].filter((id) => !homeZone.has(id) && !ownerWorld.has(id)));
   return {
     householdWorld,
     householdName,
+    unhoused,
     worlds: [...worlds].sort((a, b) => a.localeCompare(b)),
   };
 }
@@ -448,10 +456,11 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     sims.push(sim);
   }
   if (!sims.length) throw new Error('No sims found in this save');
-  const { householdWorld, householdName, worlds } = parseWorldIndex(data);
+  const { householdWorld, householdName, unhoused, worlds } = parseWorldIndex(data);
   for (const sim of sims) {
     const world = householdWorld[sim.householdId];
     if (world) sim.world = world;
+    if (unhoused.has(sim.householdId)) sim.unhoused = true;
     // The household record's name is the game's; a sim's copy can be blank.
     const name = householdName[sim.householdId];
     if (name) sim.household = name;

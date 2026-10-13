@@ -550,8 +550,15 @@ describe('households split across boxes', () => {
     gender: 'Female',
     world: w,
   });
+  const unhousedSim = (id: string, householdId: string, household: string) => ({
+    ...saveSim(id, householdId, household),
+    unhoused: true as const,
+  });
+  /** The built-in roster gives Waylon to Ravenwood. */
+  const roster = [card('Waylon', 'Ravenwood', 'Warez')];
   const merge = (nodes: SimNode[], sims: ParsedSave['sims'], movedByHand?: Set<string>) =>
     mergeSaveIntoBoard({
+      packReference: roster,
       nodes,
       edges: [],
       groups: [...new Set(nodes.map((n) => n.gid))].map((gid) => {
@@ -575,7 +582,7 @@ describe('households split across boxes', () => {
       [saveSim('Sara', '10', 'Scott', H), saveSim('Simon', '10', 'Scott', H)],
     );
     assert.equal(gidOf(r, 'Simon'), `${H}||Scott`);
-    assert.deepEqual(r.rejoined, ['Simon']);
+    assert.deepEqual(r.rehomed, ['Simon']);
     assert.deepEqual(r.summary.rejoined, ['Simon Scott']);
     assert.ok(!r.groups.some((g) => g.gid === `${H}||Scott::77`), 'the empty box goes');
   });
@@ -590,10 +597,10 @@ describe('households split across boxes', () => {
       ['Bella', 'Cassandra', 'Mortimer'].map((id) => saveSim(id, '20', 'Goth', H)),
     );
     assert.equal(gidOf(r, 'Mortimer'), `${H}||Goth::5`);
-    assert.deepEqual(r.rejoined, ['Mortimer']);
+    assert.deepEqual(r.rehomed, ['Mortimer']);
   });
 
-  it('settles a tie in the household\'s home world; a household with no home lot is Other', () => {
+  it('settles a tie in the household\'s home world (Other when it is not on the board)', () => {
     const r = merge(
       [card('Mariah', 'Ravenwood', 'Camacho'), card('Judith', 'Other', 'Camacho')],
       [saveSim('Mariah', '30', 'Camacho'), saveSim('Judith', '30', 'Camacho')],
@@ -611,7 +618,7 @@ describe('households split across boxes', () => {
       new Set(['Simon']),
     );
     assert.equal(gidOf(r, 'Simon'), `${H}||Watson`);
-    assert.deepEqual(r.rejoined, []);
+    assert.deepEqual(r.rehomed, []);
   });
 
   it('never splits a box that holds two households', () => {
@@ -620,7 +627,7 @@ describe('households split across boxes', () => {
       [saveSim('Laxmi', '40', 'Kunal'), saveSim('Raheel', '41', 'Kunal')],
     );
     assert.equal(gidOf(r, 'Raheel'), 'Other||Kunal');
-    assert.deepEqual(r.rejoined, []);
+    assert.deepEqual(r.rehomed, []);
   });
 
   it('puts a new member in the box the household was gathered into', () => {
@@ -635,6 +642,63 @@ describe('households split across boxes', () => {
     );
     assert.equal(gidOf(r, 'Sara'), `${H}||Scott`);
     assert.equal(r.nodes.find((n) => n.first === 'Maisie')!.gid, `${H}||Scott`);
+  });
+
+  it('gathers unhoused sims into one Unhoused sims box per world', () => {
+    const r = merge(
+      [
+        { ...card('Judith', 'Other', 'Camacho'), pack: 'Base Game' },
+        { ...card('Mariah', 'Ravenwood', 'Camacho'), pack: 'Life & Death' },
+        card('Laxmi', 'Other', 'Kunal'),
+        card('Waylon', 'Ravenwood', 'Warez'),
+      ],
+      [
+        unhousedSim('Judith', '30', 'Camacho'),
+        unhousedSim('Mariah', '30', 'Camacho'),
+        unhousedSim('Laxmi', '40', 'Kunal'),
+        unhousedSim('Waylon', '50', 'Warez'),
+      ],
+    );
+    assert.equal(gidOf(r, 'Judith'), 'Other||Unhoused sims');
+    assert.equal(gidOf(r, 'Laxmi'), 'Other||Unhoused sims');
+    const mariah = r.nodes.find((n) => n.id === 'Mariah')!;
+    assert.equal(mariah.gid, 'Other||Unhoused sims', 'she only stood in Ravenwood');
+    assert.equal(mariah.hh, 'Unhoused sims');
+    assert.equal(mariah.ohh, 'Camacho', 'her family name stays as her origin');
+    assert.equal(mariah.pack, 'Base Game', 'her game came from Ravenwood; she takes Other\'s');
+    assert.equal(gidOf(r, 'Waylon'), 'Ravenwood||Unhoused sims', 'the roster\'s own Ravenwood townie stays');
+    assert.deepEqual(r.summary.unhousedToOther, ['Mariah Camacho']);
+    assert.equal(r.summary.unhoused.length, 4);
+    assert.deepEqual(
+      r.groups.filter((g) => g.hh === 'Unhoused sims').map((g) => g.gid).sort(),
+      ['Other||Unhoused sims', 'Ravenwood||Unhoused sims'],
+    );
+    assert.ok(!r.groups.some((g) => g.gid === 'Other||Camacho'), 'emptied boxes go');
+  });
+
+  it('puts unhoused sims new to the board in Other\'s Unhoused sims box', () => {
+    const r = merge([], [unhousedSim('Rae', '30', 'Durham'), unhousedSim('Kim', '31', 'Novac')]);
+    assert.deepEqual(r.nodes.map((n) => n.gid), ['Other||Unhoused sims', 'Other||Unhoused sims']);
+  });
+
+  it('gives a sim the game has housed since a box of its own', () => {
+    const r = merge(
+      [card('Kai', 'Other', 'Unhoused sims', 'Other||Unhoused sims'), card('Rae', 'Other', 'Unhoused sims', 'Other||Unhoused sims')],
+      [saveSim('Kai', '60', 'Aether', 'Ravenwood'), unhousedSim('Rae', '30', 'Durham')],
+    );
+    assert.equal(gidOf(r, 'Kai'), 'Ravenwood||Aether');
+    assert.equal(gidOf(r, 'Rae'), 'Other||Unhoused sims');
+    assert.deepEqual(r.summary.rejoined, ['Kai Aether']);
+  });
+
+  it('leaves an unhoused sim the player moved by hand', () => {
+    const r = merge(
+      [card('Mariah', 'Ravenwood', 'Gomes')],
+      [unhousedSim('Mariah', '30', 'Camacho')],
+      new Set(['Mariah']),
+    );
+    assert.equal(gidOf(r, 'Mariah'), 'Ravenwood||Gomes');
+    assert.deepEqual(r.summary.unhoused, []);
   });
 });
 

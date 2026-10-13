@@ -365,8 +365,10 @@ describe('households', () => {
     assert.equal(parsed.householdWorld?.['10'], 'Henford-on-Bagley');
   });
 
-  it('gives a household with no home lot no world', () => {
+  it('marks a household with no home lot unhoused, with no world', () => {
     assert.equal(sim('Rae').world, undefined);
+    assert.equal(sim('Rae').unhoused, true);
+    assert.equal(sim('Simon').unhoused, undefined);
     assert.equal(parsed.householdWorld?.['30'], undefined);
   });
 

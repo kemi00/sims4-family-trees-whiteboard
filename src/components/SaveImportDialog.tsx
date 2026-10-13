@@ -28,6 +28,7 @@ export function SaveImportDialog({
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
   const hasDetails =
     summary.rejoined.length > 0 ||
+    summary.unhousedToOther.length > 0 ||
     summary.skipped.length > 0 ||
     summary.saveWorlds.length > 0 ||
     summary.hidePacks.length > 0;
@@ -76,6 +77,18 @@ export function SaveImportDialog({
                     <b>{summary.rejoined.length}</b> sims rejoin their household
                   </li>
                 )}
+                {summary.unhoused.length > 0 && (
+                  <li>
+                    <b>{summary.unhoused.length}</b> unhoused sims go in their
+                    world's Unhoused sims box
+                    {summary.unhousedToOther.length > 0 && (
+                      <>
+                        {' '}
+                        · <b>{summary.unhousedToOther.length}</b> move to Other
+                      </>
+                    )}
+                  </li>
+                )}
                 {(summary.secretParents > 0 || summary.secretLovers > 0) && (
                   <li>
                     <b>{summary.secretParents}</b> secret parents ·{' '}
@@ -109,6 +122,15 @@ export function SaveImportDialog({
                 <span className="save-import__meta-label">Rejoin their household</span>
                 <span className="save-import__meta-value">
                   {listPreview(summary.rejoined, 8)}
+                </span>
+              </div>
+            )}
+            {summary.unhousedToOther.length > 0 && (
+              <div className="save-import__meta">
+                <span className="save-import__meta-label">Unhoused, move to Other</span>
+                <span className="save-import__meta-value">
+                  {listPreview(summary.unhousedToOther, 8)}. They only sat in a
+                  world because they stood on a lot there when you saved.
                 </span>
               </div>
             )}

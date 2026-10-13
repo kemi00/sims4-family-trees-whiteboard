@@ -219,6 +219,13 @@ export const UNION_MIN_GAP = (PILL_HALF_W + PILL_CLEAR) * 2;
 /** Placeholder household name for a sim created with Add Sim, before they join a house. */
 export const ADDED_HOUSEHOLD = '(added)';
 
+/**
+ * The box each world keeps for its unhoused sims — sims whose household has
+ * no home lot in the save. They are not a family, so they share one box per
+ * world instead of a box each (see isUnhousedGid).
+ */
+export const UNHOUSED_HH = 'Unhoused sims';
+
 /** Phone chrome / bottom sheets. Keep the CSS `@media` in App.css in sync. */
 export const CHROME_COMPACT_MAX_PX = 640;
 

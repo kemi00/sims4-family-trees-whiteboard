@@ -5,6 +5,7 @@ import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { House, User } from '../icons.ts';
 import { COL } from '../lib/constants.ts';
 import { LockGlyph } from './LockGlyph.tsx';
+import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
 /** Inline padlock for legend rows (the board's secret marker). */
 function LegendLock({ color }: { color: string }) {
@@ -76,6 +77,12 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
         <p className="lg-key">
           Tags count <User weight="fill" aria-hidden="true" /> sims and{' '}
           <House weight="fill" aria-hidden="true" /> households
+        </p>
+        <p className="lg-key">
+          <svg viewBox="-7 -7 14 14" aria-hidden="true">
+            <UnhousedGlyph x={0} y={0} color="#8a7f63" />
+          </svg>{' '}
+          Unhoused sims: no home lot in the game, one box per world
         </p>
         <div className="legend-card__body">
           {worlds.map((w) => {

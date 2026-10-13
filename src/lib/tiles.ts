@@ -6,6 +6,7 @@ import {
   HH_TAG_PILL_H,
   HH_TAG_STACK_GAP,
   TILE,
+  UNHOUSED_HH,
 } from './constants.ts';
 import type { Group, SimNode } from '../types/whiteboard.ts';
 
@@ -64,6 +65,14 @@ export function tagPillWidth(label: string, extra: number): number {
   return label.length * 6.6 + extra;
 }
 
+/** Room the Unhoused sims mark takes in a household tag, after the grip. */
+export const UNHOUSED_MARK_W = 16;
+
+/** A household's name tag width; an Unhoused sims tag also fits its mark. */
+export function householdTagWidth(g: HouseholdLabel | undefined | null): number {
+  return tagPillWidth(householdLabel(g), 30) + (g?.hh === UNHOUSED_HH ? UNHOUSED_MARK_W : 0);
+}
+
 export type HouseholdChrome = {
   x0: number;
   y0: number;
@@ -105,7 +114,7 @@ export function householdChrome(
     y1 = Math.max(y1, n.y + n.h);
   }
   const label = householdLabel(g);
-  const labelW = tagPillWidth(label, 30);
+  const labelW = householdTagWidth(g);
   const ageLabel = 'Age up';
   const ageW = tagPillWidth(ageLabel, 16);
   const originX = tileFloor(x0);

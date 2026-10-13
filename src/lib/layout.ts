@@ -7,7 +7,8 @@ import {
   LAYOUT_EPOCH,
   TILE,
 } from './constants.ts';
-import { householdLabel, tagPillWidth, tileSnapOrigin } from './tiles.ts';
+import { householdTagWidth, tileSnapOrigin } from './tiles.ts';
+import { isUnhousedGid } from './unhoused.ts';
 import type { Edge, SimNode, World } from '../types/whiteboard.ts';
 
 /**
@@ -688,11 +689,45 @@ function layoutCardsRow(
 type HHBlock = { gid: string; w: number; h: number; placed: PlacedCard[] };
 
 /** Cross-household adjacency from any relationship edge in this world. */
+/**
+ * A world's unhoused sims are not a family, so their box is a grid `cols`
+ * wide instead of generation rows, which would run them all into one line.
+ * Sims from the same game household (`ohh`) stay side by side, eldest first.
+ */
+function layoutUnhousedGrid(mem: SimNode[], cols: number): PlacedCard[] {
+  const order = [...mem].sort(
+    (a, b) =>
+      (a.ohh || '').localeCompare(b.ohh || '') ||
+      ageRank(b.age) - ageRank(a.age) ||
+      byName(a, b),
+  );
+  const pitchX = CARD_MIN_W + LAYOUT.gapX;
+  return order.map((n, i) => {
+    const { w, h } = measureCard(n);
+    return {
+      id: n.id,
+      x: LAYOUT.hhPad + (i % cols) * pitchX,
+      y: LAYOUT.hhHeader + LAYOUT.hhPad + Math.floor(i / cols) * rowPitch(),
+      w,
+      h,
+    };
+  });
+}
+
+/** Columns of a world's Unhoused sims grid (see layoutUnhousedGrid). */
+export const UNHOUSED_COLS = 4;
+
+/**
+ * Households linked by an edge, for clustering. An Unhoused sims box is not
+ * a household, so it is never clustered with the families its sims belong to.
+ */
 function buildHouseholdLinks(
   mem: SimNode[],
   edges: Edge[],
 ): Map<string, Set<string>> {
-  const idToGid = new Map(mem.map((n) => [n.id, n.gid]));
+  const idToGid = new Map(
+    mem.filter((n) => !isUnhousedGid(n.gid)).map((n) => [n.id, n.gid]),
+  );
   const links = new Map<string, Set<string>>();
   const link = (a: string, b: string) => {
     if (a === b) return;
@@ -923,6 +958,11 @@ function layoutOtherHouseholdTile(
   mem: SimNode[],
   edges: Edge[],
 ): { placed: PlacedCard[]; w: number; h: number; colSpan: number } {
+  if (isUnhousedGid(mem[0]!.gid)) {
+    const cols = Math.min(mem.length, LAYOUT.otherHhCols);
+    const { placed, w, h } = finalizeHouseholdBlock(layoutUnhousedGrid(mem, cols), 0, 0);
+    return { placed, w, h, colSpan: cols };
+  }
   const g = buildHHGraph(mem, edges);
   const hhIds = new Set(mem.map((n) => n.id));
   for (const e of parentEdgesInto(edges, hhIds)) {
@@ -1363,6 +1403,15 @@ function layoutHousehold(
   originX: number,
   originY: number,
 ): HHBlock {
+  if (isUnhousedGid(mem[0]!.gid)) {
+    const grid = layoutUnhousedGrid(mem, UNHOUSED_COLS);
+    const { placed, w, h } = finalizeHouseholdBlock(
+      grid.map((p) => ({ ...p, x: p.x + originX, y: p.y + originY })),
+      originX,
+      originY,
+    );
+    return { gid: mem[0]!.gid, w, h, placed };
+  }
   const g = buildHHGraph(mem, edges);
   const hhIds = new Set(mem.map((n) => n.id));
   /** Parents in linked households still set generation rows for children here. */
@@ -1441,7 +1490,7 @@ function clearTitleOverhangs(
   for (const [gid, mem] of households) {
     for (const n of mem) gidOf.set(n.id, gid);
     if (mem[0]) {
-      label.set(gid, HH_TAG_INSET * 2 + tagPillWidth(householdLabel(mem[0]), 30));
+      label.set(gid, HH_TAG_INSET * 2 + householdTagWidth(mem[0]));
     }
   }
   const cards = new Map<string, PlacedCard[]>();
@@ -1842,9 +1891,22 @@ export function offsetsForNewGids(
   nextCore: SimNode[],
   worlds: World[],
   edges: Edge[],
+  /** Top-left card spot for a new box, kept in the layout's own arrangement. */
+  anchors: ReadonlyMap<string, { x: number; y: number }> = new Map(),
 ): SimNode[] {
   const bases = layoutBases(nextCore, worlds, edges);
   const newcomers = nextCore.filter((n) => !prevById[n.id]);
+  /** Each card's spot inside its box as the layout packs it, from the box's top-left card. */
+  const inBox = (members: SimNode[]) => {
+    const at = members.map((m) => bases.get(m.id) ?? { x: 0, y: 0, w: CARD_MIN_W, h: CARD_H });
+    const x0 = Math.min(...at.map((b) => b.x));
+    const y0 = Math.min(...at.map((b) => b.y));
+    return {
+      rel: new Map(members.map((m, i) => [m.id, { x: at[i]!.x - x0, y: at[i]!.y - y0 }])),
+      w: Math.max(...at.map((b) => b.x + b.w)) - x0,
+      h: Math.max(...at.map((b) => b.y + b.h)) - y0,
+    };
+  };
   const prevByGid = new Map<string, SimNode[]>();
   for (const n of Object.values(prevById)) {
     const list = prevByGid.get(n.gid) ?? [];
@@ -1872,6 +1934,13 @@ export function offsetsForNewGids(
       continue;
     }
     if (seenGid.has(n.gid)) continue;
+    const anchor = anchors.get(n.gid);
+    if (anchor) {
+      seenGid.add(n.gid);
+      const box = inBox(newcomers.filter((m) => m.gid === n.gid));
+      for (const [id, d] of box.rel) pack.set(id, tileSnapOrigin(anchor.x + d.x, anchor.y + d.y));
+      continue;
+    }
     seenGid.add(n.gid);
     const world = n.world || OTHER_WORLD;
     const list = gidsByWorld.get(world) ?? [];
@@ -1905,6 +1974,22 @@ export function offsetsForNewGids(
     let rowH = 0;
     for (const gid of gids) {
       const members = newcomers.filter((n) => n.gid === gid);
+      if (isUnhousedGid(gid)) {
+        // A grid, not a row: keep the layout's arrangement of the box.
+        const box = inBox(members);
+        const blockH = LAYOUT.hhHeader + box.h;
+        if (x > originX && x + box.w > originX + rowMax) {
+          x = originX;
+          y += rowH + LAYOUT.hhGap;
+          rowH = 0;
+        }
+        for (const [id, d] of box.rel) {
+          pack.set(id, tileSnapOrigin(x + d.x, y + LAYOUT.hhHeader + d.y));
+        }
+        x += box.w + LAYOUT.householdGap;
+        rowH = Math.max(rowH, blockH);
+        continue;
+      }
       const sizes = members.map((m) => measureCard(m));
       const blockW =
         sizes.reduce((s, z) => s + z.w, 0) +

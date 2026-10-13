@@ -574,7 +574,7 @@ describe('save import placement', () => {
       groups,
       worlds,
       snap: true,
-      rejoined: new Set(Object.keys(moves)),
+      rehomed: new Set(Object.keys(moves)),
     });
     return { shown, groups, after: laidOut(core) };
   }
@@ -608,6 +608,26 @@ describe('save import placement', () => {
     assert.deepEqual(householdOverlaps(after, groups), []);
     for (const n of shown) {
       if (n.id === 's2' || n.world === 'E') continue;
+      assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
+    }
+  });
+
+  it('gathers a world\'s unhoused sims into one grid box where they were', () => {
+    // Other packs nine single-sim boxes; gathering them keeps the corner.
+    const loose = Array.from({ length: 9 }, (_, i) => sim(`u${i}`, 'Other', `Townie ${i}`));
+    const board = [...starterBoard(), ...loose];
+    const moves = Object.fromEntries(
+      loose.map((n) => [n.id, { ...n, hh: 'Unhoused sims', gid: 'Other||Unhoused sims' }]),
+    );
+    const { shown, groups, after } = rejoin(board, moves);
+    const was = loose.map((n) => at(shown, n.id));
+    const now = loose.map((n) => at(after, n.id));
+    assert.equal(Math.min(...now.map((n) => n.x)), Math.min(...was.map((n) => n.x)));
+    assert.equal(Math.min(...now.map((n) => n.y)), Math.min(...was.map((n) => n.y)));
+    assert.equal(new Set(now.map((n) => n.y)).size, 2, 'a grid seven wide: two rows');
+    assert.deepEqual(householdOverlaps(after, groups), []);
+    for (const n of shown) {
+      if (n.world === 'Other') continue;
       assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
     }
   });

@@ -8,6 +8,7 @@ import {
   WORLD_TAG_PILL_H,
   WORLD_TAG_ZOOM_OUT_MAX,
 } from './constants.ts';
+import { isUnhousedGid } from './unhoused.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -47,10 +48,12 @@ export function worldTagMetrics(k: number): {
 
 /** What a world's tag counts, over the cards its frame shows. */
 export type WorldCounts = {
-  /** Living sims: not pets, not marked deceased. */
+  /** Living sims: not pets, not marked deceased. Unhoused ones included. */
   sims: number;
-  /** Household boxes with a card shown in the world. */
+  /** Household boxes with a card shown; the Unhoused sims box is not one. */
   households: number;
+  /** Of `sims`, those in the world's Unhoused sims box. */
+  unhoused: number;
   pets: number;
   deceased: number;
   /** Cards in the world that filters hide. */
@@ -62,16 +65,20 @@ export function worldCounts(
   vis: (n: SimNode) => boolean,
 ): WorldCounts {
   const gids = new Set<string>();
-  const c: WorldCounts = { sims: 0, households: 0, pets: 0, deceased: 0, hidden: 0 };
+  const c: WorldCounts = { sims: 0, households: 0, unhoused: 0, pets: 0, deceased: 0, hidden: 0 };
   for (const n of members) {
     if (!vis(n)) {
       c.hidden += 1;
       continue;
     }
-    gids.add(n.gid);
+    const unhoused = isUnhousedGid(n.gid);
+    if (!unhoused) gids.add(n.gid);
     if (n.state === 'Pet') c.pets += 1;
     else if (n.state === DECEASED_STATE) c.deceased += 1;
-    else c.sims += 1;
+    else {
+      c.sims += 1;
+      if (unhoused) c.unhoused += 1;
+    }
   }
   c.households = gids.size;
   return c;
@@ -193,7 +200,12 @@ function plural(n: number, one: string, many: string): string {
 
 /** The tag's counts in words, for its tooltip and screen readers. */
 export function worldCountsText(name: string, c: WorldCounts): string {
-  let text = `${name}: ${plural(c.sims, 'sim', 'sims')} in ${plural(c.households, 'household', 'households')}`;
+  const homes = plural(c.households, 'household', 'households');
+  let text = !c.unhoused
+    ? `${name}: ${plural(c.sims, 'sim', 'sims')} in ${homes}`
+    : c.unhoused === c.sims
+      ? `${name}: ${plural(c.sims, 'unhoused sim', 'unhoused sims')}`
+      : `${name}: ${plural(c.sims, 'sim', 'sims')} — ${c.sims - c.unhoused} in ${homes}, ${c.unhoused} unhoused`;
   const extra = [
     c.pets ? plural(c.pets, 'pet', 'pets') : '',
     c.deceased ? `${c.deceased} deceased` : '',

@@ -1,4 +1,6 @@
+import { UNHOUSED_HH } from '../constants.ts';
 import { OTHER_WORLD } from '../layout.ts';
+import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
 import { edgeSourceOf, sanitizeEdges, uKey, worldColor } from '../utils.ts';
 import type {
   Edge,
@@ -35,6 +37,10 @@ export type SaveMergeSummary = {
   secretLovers: number;
   /** Sims moved into the box that holds the rest of their save household. */
   rejoined: string[];
+  /** Sims put in their world's Unhoused sims box. */
+  unhoused: string[];
+  /** Of those, the ones moved to Other: they only sat in a world by mistake. */
+  unhousedToOther: string[];
 };
 
 export type SaveMergeInput = {
@@ -47,8 +53,9 @@ export type SaveMergeInput = {
   parsed: ParsedSave;
   seedNameKeys: Set<string>;
   /**
-   * Sims whose world → game pairing to fall back on (the built-in roster)
-   * when the board has no sims in a world yet — always the case on Replace.
+   * The built-in roster: its world → game pairing is the fallback when the
+   * board has no sims in a world yet (always the case on Replace), and the
+   * world it gives a premade townie is one an unhoused sim may stay in.
    */
   packReference?: SimNode[];
   /** Sims the player moved to another household by hand; Merge keeps them there. */
@@ -62,8 +69,8 @@ export type SaveMergeResult = {
   edges: Edge[];
   groups: Group[];
   pairStatus: PairStatus[];
-  /** Board ids of the sims in {@link SaveMergeSummary.rejoined}. */
-  rejoined: string[];
+  /** Board ids of sims this import moved to another box (rejoined or unhoused). */
+  rehomed: string[];
   summary: SaveMergeSummary;
 };
 
@@ -395,6 +402,30 @@ function homeForNew(
   return home;
 }
 
+/** `world`'s Unhoused sims box. */
+function unhousedHome(world: string, worlds: World[]): BoardHome {
+  return {
+    gid: unhousedGid(world),
+    world,
+    hh: UNHOUSED_HH,
+    nb: '-',
+    color: worldColor(world, worlds),
+  };
+}
+
+/**
+ * `n` moved into an Unhoused sims box. Its origin household keeps the game's
+ * name for the sim's family, so the editor can still say where it is from.
+ */
+function moveIntoUnhoused(n: SimNode, home: BoardHome): SimNode {
+  const next: SimNode = { ...n, ...home };
+  if (n.ohh === n.hh && n.oworld === n.world) {
+    next.oworld = home.world;
+    next.onb = home.nb;
+  }
+  return next;
+}
+
 function homeOf(n: SimNode): BoardHome {
   return { gid: n.gid, world: n.world, nb: n.nb, hh: n.hh, color: n.color };
 }
@@ -425,6 +456,8 @@ function gatherHouseholds(
   byHousehold: Map<string, { sim: ParsedSaveSim; id: string }[]>,
   worlds: World[],
   movedByHand: ReadonlySet<string>,
+  /** A new box, for a household whose sims all sit in Unhoused sims boxes. */
+  newHome: (sim: ParsedSaveSim) => BoardHome,
 ): { moved: string[]; homes: Map<string, BoardHome> } {
   const at = new Map(nodes.map((n, i) => [n.id, i]));
   const moved: string[] = [];
@@ -438,6 +471,8 @@ function gatherHouseholds(
     const boxes = new Map<string, { count: number; n: SimNode; order: number }>();
     for (const { id } of free) {
       const n = nodes[at.get(id)!]!;
+      // A sim the game has since housed leaves the Unhoused sims box.
+      if (isUnhousedGid(n.gid)) continue;
       const box = boxes.get(n.gid);
       if (box) box.count += 1;
       else boxes.set(n.gid, { count: 1, n, order: boxes.size });
@@ -454,8 +489,8 @@ function gatherHouseholds(
       const rb = rank(b);
       for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return rb[i]! - ra[i]!;
       return 0;
-    })[0]!.n;
-    const home = homeOf(target);
+    })[0]?.n;
+    const home = target ? homeOf(target) : newHome(sim);
     homes.set(sim.householdId, home);
     for (const { id } of free) {
       const i = at.get(id)!;
@@ -499,6 +534,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const unmatched: ParsedSaveSim[] = [];
   /** Save household id → its sims matched to board cards. */
   const byHousehold = new Map<string, { sim: ParsedSaveSim; id: string }[]>();
+  const unhousedMatched: string[] = [];
   let matched = 0;
   let added = 0;
   let fromSaveCount = 0;
@@ -520,7 +556,9 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       bySaveId.set(sim.saveSimId, patched);
       saveIdToBoard.set(sim.saveSimId, patched.id);
       rememberHome(hhHome, sim, patched);
-      if (sim.householdId && sim.householdId !== '0') {
+      if (sim.unhoused) {
+        unhousedMatched.push(patched.id);
+      } else if (sim.householdId && sim.householdId !== '0') {
         const list = byHousehold.get(sim.householdId) ?? [];
         list.push({ sim, id: patched.id });
         byHousehold.set(sim.householdId, list);
@@ -532,7 +570,40 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     unmatched.push(sim);
   }
 
-  const gathered = gatherHouseholds(nodes, byHousehold, worlds, input.movedByHand ?? new Set());
+  const movedByHand = input.movedByHand ?? new Set<string>();
+  const reference = input.packReference ?? [];
+  const rosterSim = new Map(reference.map((n) => [nameKey(n.first, n.sur), n]));
+  const atIndex = new Map(nodes.map((n, i) => [n.id, i]));
+  const unhousedIds: string[] = [];
+  const toOtherIds: string[] = [];
+  for (const id of unhousedMatched) {
+    if (movedByHand.has(id)) continue;
+    const i = atIndex.get(id)!;
+    const n = nodes[i]!;
+    // An unhoused sim lives in no world. It may stay in Other, or in the
+    // world the built-in roster gives it (a pack's own townie); anywhere else
+    // it only sat because it stood on a lot there when the game saved.
+    const premade = rosterSim.get(nameKey(n.first, n.sur));
+    const stays = n.world === OTHER_WORLD || premade?.world === n.world;
+    const world = stays ? n.world : OTHER_WORLD;
+    const home = unhousedHome(world, worlds);
+    if (n.gid === home.gid) continue;
+    const next = moveIntoUnhoused(n, home);
+    // Its game came from the world it left: take the roster's, else Other's.
+    if (!stays) next.pack = premade?.pack || packForSaveSim(world, nodes, reference);
+    nodes[i] = next;
+    existingGids.add(home.gid);
+    unhousedIds.push(id);
+    if (!stays) toOtherIds.push(id);
+  }
+
+  const gathered = gatherHouseholds(
+    nodes,
+    byHousehold,
+    worlds,
+    movedByHand,
+    (sim) => homeForNew(sim, worlds, existingGids, hhHome),
+  );
   for (const [householdId, home] of gathered.homes) {
     const sim = byHousehold.get(householdId)![0]!.sim;
     const hh = sim.household.trim() || sim.last.trim() || 'Household';
@@ -540,14 +611,17 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     if (foldName(home.hh) === foldName(hh)) hhHome.set(key, home);
     else hhHome.delete(key);
   }
+  const rehomed = [...gathered.moved, ...unhousedIds];
   const vacated = new Set(
-    gathered.moved.map((id) => input.nodes.find((n) => n.id === id)!.gid),
+    rehomed.map((id) => input.nodes.find((n) => n.id === id)!.gid),
   );
   for (const n of nodes) vacated.delete(n.gid);
 
   for (const sim of unmatched) {
     const isOriginal = !seedNameKeys.has(nameKey(sim.first, sim.last));
-    const home = homeForNew(sim, worlds, existingGids, hhHome);
+    const home = sim.unhoused
+      ? unhousedHome(OTHER_WORLD, worlds)
+      : homeForNew(sim, worlds, existingGids, hhHome);
     const created = newSaveNode(
       sim,
       isOriginal,
@@ -705,6 +779,10 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     });
   }
 
+  const nameOf = (id: string) => {
+    const n = nodes.find((x) => x.id === id)!;
+    return `${n.first} ${n.sur}`.trim();
+  };
   const worldReport = saveWorldSummary(worlds, worldsFromParsed(parsed));
   const hidePacks = packsNotInSaveWorlds(input.nodes, worldsFromParsed(parsed));
 
@@ -713,7 +791,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     edges: sanitizeEdges(edges),
     groups,
     pairStatus,
-    rejoined: gathered.moved,
+    rehomed,
     summary: {
       matched,
       added,
@@ -727,10 +805,9 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       hidePacks,
       secretParents,
       secretLovers,
-      rejoined: gathered.moved.map((id) => {
-        const n = nodes.find((x) => x.id === id)!;
-        return `${n.first} ${n.sur}`.trim();
-      }),
+      rejoined: gathered.moved.map(nameOf),
+      unhoused: unhousedIds.map(nameOf),
+      unhousedToOther: toOtherIds.map(nameOf),
     },
   };
 }

@@ -12,6 +12,7 @@ import {
 } from './layout.ts';
 import { renameTemplateHouseholds } from './savegame/mergeSave.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
+import { isUnhousedGid } from './unhoused.ts';
 import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 
 /**
@@ -289,6 +290,28 @@ function boardForRejoins(
 }
 
 /**
+ * Where a new Unhoused sims box goes: the top-left of the cards its sims had
+ * in that world, so a world whose unhoused sims are gathered keeps them where
+ * they were. A box whose sims all come from elsewhere gets no anchor and is
+ * packed under the world like any new household.
+ */
+function newBoxAnchors(
+  before: Record<string, SimNode>,
+  board: Record<string, SimNode>,
+  next: SimNode[],
+): Map<string, { x: number; y: number }> {
+  const onBoard = new Set(Object.values(board).map((n) => n.gid));
+  const out = new Map<string, { x: number; y: number }>();
+  for (const n of next) {
+    const was = before[n.id];
+    if (!isUnhousedGid(n.gid) || onBoard.has(n.gid) || !was || was.world !== n.world) continue;
+    const at = out.get(n.gid);
+    out.set(n.gid, at ? { x: Math.min(at.x, was.x), y: Math.min(at.y, was.y) } : { x: was.x, y: was.y });
+  }
+  return out;
+}
+
+/**
  * Core nodes after a .save import. Replace packs the save from scratch and
  * pushes worlds apart. Merge keeps every card already on the board where it
  * is on screen, finds room for the sims the save brings, then clears only the
@@ -303,8 +326,8 @@ export function saveImportCore(opts: {
   groups: Group[];
   worlds: World[];
   snap: boolean;
-  /** Sims the merge moved into another household's box. */
-  rejoined?: ReadonlySet<string>;
+  /** Sims the merge moved into another box (see SaveMergeResult.rehomed). */
+  rehomed?: ReadonlySet<string>;
 }): SimNode[] {
   const { mode, boardById, edges, groups, worlds, snap } = opts;
   const all = opts.nodes.map((n) => asCore(n, n.ox ?? 0, n.oy ?? 0));
@@ -314,9 +337,15 @@ export function saveImportCore(opts: {
       : computeLayout(all, worlds, edges);
     return coreOffsetsAfterWorldSeparation(all, laid, groups);
   }
-  const board = boardForRejoins(boardById, all, groups, opts.rejoined ?? new Set());
+  const rehomed = opts.rehomed ?? new Set<string>();
+  const board = boardForRejoins(boardById, all, groups, rehomed);
+  // Sims placed again start from their packed spot, not an offset that
+  // meant something only in the box they left.
+  const placed = all.map((n) =>
+    rehomed.has(n.id) && !board[n.id] ? { ...n, ox: 0, oy: 0 } : n,
+  );
   return separateLoadOverlaps({
-    core: offsetsForNewGids(board, all, worlds, edges),
+    core: offsetsForNewGids(board, placed, worlds, edges, newBoxAnchors(boardById, board, placed)),
     boardById,
     edges,
     groups,

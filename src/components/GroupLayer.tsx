@@ -2,7 +2,9 @@ import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Group, SimNode } from '../types/whiteboard.ts';
 import { rectsIntersect, type WorldRect } from '../lib/marquee.ts';
 import { nodesForGid, type NodeBuckets } from '../lib/nodeIndex.ts';
-import { householdChrome } from '../lib/tiles.ts';
+import { householdChrome, UNHOUSED_MARK_W } from '../lib/tiles.ts';
+import { isUnhousedGid } from '../lib/unhoused.ts';
+import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
 type Props = {
   groups: Group[];
@@ -68,6 +70,8 @@ export const GroupLayer = memo(function GroupLayer({
         } = chrome;
         const textY = (pillY: number) => pillY + pillH / 2;
         const selected = !!selectedGids?.has(g0.gid);
+        /** Unhoused sims: not a home, so a dotted box, an outlined tag and no Age up. */
+        const unhoused = isUnhousedGid(g0.gid);
         if (
           cull &&
           !selected &&
@@ -86,10 +90,11 @@ export const GroupLayer = memo(function GroupLayer({
                 width={boxR - boxL}
                 height={boxB - boxT}
                 rx={14}
-                fill={selected ? '#1b6cd622' : g0.color + '12'}
-                stroke={selected ? '#1b6cd6' : g0.color + '55'}
-                strokeWidth={selected ? 3 : 1.5}
-                strokeDasharray={selected ? undefined : '2 4'}
+                fill={selected ? '#1b6cd622' : g0.color + (unhoused ? '08' : '12')}
+                stroke={selected ? '#1b6cd6' : g0.color + (unhoused ? '88' : '55')}
+                strokeWidth={selected ? 3 : unhoused ? 2 : 1.5}
+                strokeDasharray={selected ? undefined : unhoused ? '0.1 7' : '2 4'}
+                strokeLinecap={unhoused && !selected ? 'round' : undefined}
                 vectorEffect={selected ? 'non-scaling-stroke' : undefined}
                 style={{ pointerEvents: 'none' }}
               />
@@ -134,15 +139,17 @@ export const GroupLayer = memo(function GroupLayer({
                 onHouseholdDragStart(g0.gid, wx, wy, base, ev);
               }}
             >
+              {unhoused && <title>Unhoused sims: they have no home lot in the game</title>}
               <rect
                 x={headerX}
                 y={headerY}
                 width={labelW}
                 height={pillH}
                 rx={8}
-                fill={selected ? '#1b6cd6' : g0.color + '22'}
-                stroke={selected ? '#ffffff' : g0.color + '55'}
-                strokeWidth={selected ? 2 : 1}
+                fill={selected ? '#1b6cd6' : unhoused ? '#fffdf8' : g0.color + '22'}
+                stroke={selected ? '#ffffff' : g0.color + (unhoused ? 'aa' : '55')}
+                strokeWidth={selected ? 2 : unhoused ? 1.5 : 1}
+                strokeDasharray={unhoused && !selected ? '4 3' : undefined}
                 vectorEffect={selected ? 'non-scaling-stroke' : undefined}
               />
               {labels && (
@@ -156,8 +163,15 @@ export const GroupLayer = memo(function GroupLayer({
                   >
                     ⠿
                   </text>
+                  {unhoused && (
+                    <UnhousedGlyph
+                      x={headerX + 24 + UNHOUSED_MARK_W / 2 - 2}
+                      y={textY(headerY)}
+                      color={selected ? '#fff' : g0.color}
+                    />
+                  )}
                   <text
-                    x={headerX + 24}
+                    x={headerX + 24 + (unhoused ? UNHOUSED_MARK_W : 0)}
                     y={textY(headerY)}
                     dominantBaseline="middle"
                     fontSize={12}
@@ -169,41 +183,43 @@ export const GroupLayer = memo(function GroupLayer({
                 </>
               )}
             </g>
-            <g
-              className="hh-ageup"
-              role="button"
-              aria-label={`Age up ${g0.hh}`}
-              style={{ cursor: 'pointer' }}
-              onPointerDown={(ev) => {
-                ev.stopPropagation();
-                onAgeUp(g0.gid);
-              }}
-            >
-              <title>Age up this household</title>
-              <rect
-                x={ageX}
-                y={ageY}
-                width={ageW}
-                height={pillH}
-                rx={8}
-                fill={g0.color}
-                stroke={g0.color}
-                strokeWidth={1}
-              />
-              {labels && (
-                <text
-                  x={ageX + ageW / 2}
-                  y={textY(ageY)}
-                  dominantBaseline="middle"
-                  fontSize={12}
-                  fontWeight={700}
-                  textAnchor="middle"
-                  fill="#fff"
-                >
-                  {ageLabel}
-                </text>
-              )}
-            </g>
+            {!unhoused && (
+              <g
+                className="hh-ageup"
+                role="button"
+                aria-label={`Age up ${g0.hh}`}
+                style={{ cursor: 'pointer' }}
+                onPointerDown={(ev) => {
+                  ev.stopPropagation();
+                  onAgeUp(g0.gid);
+                }}
+              >
+                <title>Age up this household</title>
+                <rect
+                  x={ageX}
+                  y={ageY}
+                  width={ageW}
+                  height={pillH}
+                  rx={8}
+                  fill={g0.color}
+                  stroke={g0.color}
+                  strokeWidth={1}
+                />
+                {labels && (
+                  <text
+                    x={ageX + ageW / 2}
+                    y={textY(ageY)}
+                    dominantBaseline="middle"
+                    fontSize={12}
+                    fontWeight={700}
+                    textAnchor="middle"
+                    fill="#fff"
+                  >
+                    {ageLabel}
+                  </text>
+                )}
+              </g>
+            )}
           </g>
         );
       })}
