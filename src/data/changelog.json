@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "ba6ebd2",
+   "date": "2026-10-13",
+   "text": "With the board open in two tabs, an older tab can no longer save over newer work from the other. It stops saving and shows a banner to reload, or to save its own version as a .json first."
+  },
+  {
    "sha": "09bdcdd",
    "date": "2026-10-13",
    "text": "Unhoused sims boxes now keep each family together, parents above children, and put sims with relatives elsewhere on the side facing them, so family lines no longer cross the box. A box you already have is rearranged in place; nothing else moves."
