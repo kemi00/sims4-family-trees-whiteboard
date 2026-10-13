@@ -551,6 +551,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .save-import__choice-row{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
 .save-import__choice-body{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--ink)}
 .save-import__choice-note{color:var(--ink-2);font-size:12px;line-height:1.45}
+.save-import__pick{color:var(--accent);font-weight:600}
 .save-import__choice .save-import__stats{margin:4px 0 0;font-size:12px;line-height:1.55;color:var(--ink-2)}
 .save-import__choice:has(.save-import__subchoice),
 .save-import__choice:has(.save-import__subchoice-note){flex-direction:column;gap:0;cursor:default}

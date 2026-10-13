@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../../types/whiteboard.ts';
 import {
   fillMissingSavePacks,
+  isStarterBoard,
   mergeSaveIntoBoard,
   nameKey,
   seedNameKeysFromNodes,
@@ -854,5 +855,159 @@ describe('games for save sims', () => {
     );
     const whole = [board[2]!];
     assert.equal(fillMissingSavePacks(whole, roster), whole);
+  });
+});
+
+describe('roster details for premades the board has no card for', () => {
+  const worlds = [
+    { name: 'Ondarion', color: '#c99700' },
+    { name: 'Not in any world', color: '#9aa0a6' },
+  ];
+  const roster = [
+    sim({
+      id: 'Fia Acosta',
+      first: 'Fia',
+      sur: 'Acosta',
+      world: 'Not in any world',
+      pack: 'Royalty & Legacy',
+      oplay: 'NPC',
+      state: 'Spellcaster',
+      townie: true,
+    }),
+    sim({
+      id: 'Ava Rose',
+      first: 'Ava',
+      sur: 'Rose',
+      world: 'Ondarion',
+      nb: 'Thornwick',
+      pack: 'Royalty & Legacy',
+    }),
+  ];
+  const r = mergeSaveIntoBoard({
+    nodes: [],
+    edges: [],
+    groups: [],
+    worlds,
+    parsed: {
+      sims: [
+        { saveSimId: '1', householdId: '7', first: 'Fia', last: 'Acosta', household: 'Acosta', age: 'Adult', gender: 'Female', unhoused: true },
+        { saveSimId: '2', householdId: '8', first: 'Ava', last: 'Rose', household: 'Rose', age: 'Adult', gender: 'Female', world: 'Ondarion' },
+      ],
+      rels: [],
+    },
+    seedNameKeys: seedNameKeysFromNodes(roster),
+    packReference: roster,
+    now: 'x',
+    nextEdgeId: () => 'v',
+  });
+  const card = (first: string) => r.nodes.find((n) => n.first === first)!;
+
+  it('takes the game, playability and life state the save does not record', () => {
+    const fia = card('Fia');
+    assert.equal(fia.world, 'Not in any world');
+    assert.deepEqual([fia.pack, fia.oplay, fia.state], ['Royalty & Legacy', 'NPC', 'Spellcaster']);
+  });
+
+  it('takes the neighbourhood when the sim still lives in that world', () => {
+    assert.equal(card('Ava').nb, 'Thornwick');
+    assert.equal(card('Fia').nb, '-');
+  });
+});
+
+describe('family-tree relatives with no sim', () => {
+  const N = 'Not in any world';
+  const worlds = [{ name: 'Nordhaven', color: '#7b6bd6' }, { name: N, color: '#9aa0a6' }];
+  const hoffman = (first: string, id: string) => ({
+    saveSimId: id,
+    householdId: '5',
+    first,
+    last: 'Hoffman',
+    household: 'Hoffman',
+    age: 'Elder',
+    gender: 'Male',
+    unhoused: true as const,
+  });
+  const parsed: ParsedSave = {
+    sims: [hoffman('Bruno', '1'), hoffman('Felix', '2')],
+    rels: [
+      { a: '1', b: 'g1', type: 'parent' },
+      { a: 'g1', b: '2', type: 'parent' },
+      // Bruno's own mother links him to nobody else.
+      { a: 'g2', b: '1', type: 'parent' },
+    ],
+    relatives: [
+      { treeId: 'g1', gender: 'Male' },
+      { treeId: 'g2', gender: 'Female', deceased: true },
+    ],
+  };
+  const merge = (nodes: SimNode[]) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges: [],
+      groups: [],
+      worlds,
+      parsed,
+      seedNameKeys: new Set(),
+      now: 'x',
+      nextEdgeId: (() => {
+        let n = 0;
+        return () => `v${n++}`;
+      })(),
+    });
+
+  it('adds a card for one who links two sims, in their family', () => {
+    const r = merge([]);
+    const felix = r.nodes.find((n) => n.first === 'Felix')!;
+    const unknown = r.nodes.find((n) => n.treeId === 'g1')!;
+    assert.deepEqual(
+      [unknown.first, unknown.sur, unknown.gender, unknown.gid],
+      ['Unknown', 'Hoffman', 'Male', felix.gid],
+    );
+    assert.ok(r.edges.some((e) => e.type === 'parent' && e.b === unknown.id));
+    assert.ok(r.edges.some((e) => e.type === 'parent' && e.a === unknown.id && e.b === felix.id));
+    assert.deepEqual(r.summary.relatives, ['Unknown Hoffman']);
+  });
+
+  it('leaves out one who links nobody else', () => {
+    assert.ok(!merge([]).nodes.some((n) => n.treeId === 'g2'));
+  });
+
+  it('adds nothing the second time', () => {
+    const once = merge([]);
+    const twice = merge(once.nodes);
+    assert.equal(twice.nodes.length, once.nodes.length);
+    assert.deepEqual(twice.summary.relatives, []);
+  });
+
+  it("turns the roster's placeholder into the relative and brings it home", () => {
+    const placeholder = sim({
+      id: 'Unknown Hoffman',
+      first: 'Unknown',
+      sur: 'Hoffman',
+      hh: 'Hoffman',
+      world: 'Nordhaven',
+      gid: 'Nordhaven||Hoffman',
+    });
+    const r = merge([placeholder]);
+    const card = r.nodes.find((n) => n.id === 'Unknown Hoffman')!;
+    const felix = r.nodes.find((n) => n.first === 'Felix')!;
+    assert.equal(card.treeId, 'g1');
+    assert.equal(card.gid, felix.gid);
+    assert.equal(r.nodes.filter((n) => n.first === 'Unknown').length, 1);
+    assert.deepEqual(r.rehomed, ['Unknown Hoffman']);
+    assert.ok(!r.groups.some((g) => g.gid === 'Nordhaven||Hoffman'), 'its old box goes');
+  });
+});
+
+describe('isStarterBoard', () => {
+  const roster = ['a', 'b', 'c', 'd'].map((id) => sim({ id, first: id, sur: 'X' }));
+
+  it('is the roster, wherever its cards were dragged', () => {
+    assert.ok(isStarterBoard(roster.map((n) => ({ ...n, ox: 500 })), roster));
+  });
+
+  it('is not once a save came in, or once most of the roster is gone', () => {
+    assert.ok(!isStarterBoard([...roster, sim({ id: 's', first: 's', sur: 'Y', saveSimId: '1' })], roster));
+    assert.ok(!isStarterBoard(roster.slice(0, 1), roster));
   });
 });

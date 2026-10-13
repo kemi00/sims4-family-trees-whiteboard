@@ -50,6 +50,11 @@ export function worldTagMetrics(k: number): {
 export type WorldCounts = {
   /** Living sims: not pets, not marked deceased. Unhoused ones included. */
   sims: number;
+  /**
+   * Unknown cards for family-tree relatives (see SimNode.treeId) not known
+   * to be dead: they are no sims in the game, so `sims` leaves them out.
+   */
+  relatives: number;
   /** Household boxes with a card shown; the Unhoused sims box is not one. */
   households: number;
   /** Of `sims`, those in the Unhoused sims box: sims the game generated. */
@@ -65,7 +70,15 @@ export function worldCounts(
   vis: (n: SimNode) => boolean,
 ): WorldCounts {
   const gids = new Set<string>();
-  const c: WorldCounts = { sims: 0, households: 0, unhoused: 0, pets: 0, deceased: 0, hidden: 0 };
+  const c: WorldCounts = {
+    sims: 0,
+    relatives: 0,
+    households: 0,
+    unhoused: 0,
+    pets: 0,
+    deceased: 0,
+    hidden: 0,
+  };
   for (const n of members) {
     if (!vis(n)) {
       c.hidden += 1;
@@ -75,6 +88,7 @@ export function worldCounts(
     if (!unhoused) gids.add(n.gid);
     if (n.state === 'Pet') c.pets += 1;
     else if (n.state === DECEASED_STATE) c.deceased += 1;
+    else if (n.treeId) c.relatives += 1;
     else {
       c.sims += 1;
       if (unhoused) c.unhoused += 1;
@@ -209,8 +223,12 @@ export function worldCountsText(name: string, c: WorldCounts): string {
   const extra = [
     c.pets ? plural(c.pets, 'pet', 'pets') : '',
     c.deceased ? `${c.deceased} deceased` : '',
+    c.relatives ? plural(c.relatives, 'unnamed relative', 'unnamed relatives') : '',
   ].filter(Boolean);
-  if (extra.length) text += `, plus ${extra.join(' and ')}`;
+  if (extra.length) {
+    const last = extra.pop()!;
+    text += `, plus ${extra.length ? `${extra.join(', ')} and ${last}` : last}`;
+  }
   text += '.';
   if (c.hidden) text += ` Filters hide ${c.hidden} more.`;
   return text;

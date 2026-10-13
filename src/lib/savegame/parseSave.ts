@@ -36,6 +36,20 @@ export type ParsedSaveRel = {
   secret?: true;
 };
 
+/**
+ * Someone in the game's family tree who is not a sim in the save: a premade's
+ * parent the game never made (Felix Hoffman's), or an ancestor the game has
+ * since culled. The tree keeps their gender and, for the dead, how they died,
+ * but their name only as a reference into the game's own text, which the
+ * file does not hold.
+ */
+export type ParsedTreeRelative = {
+  treeId: string;
+  gender: string;
+  /** The tree records how they died. */
+  deceased?: true;
+};
+
 /** Relationship status between two save sims; only pairs with a known status. */
 export type ParsedSavePair = {
   a: string;
@@ -52,6 +66,8 @@ export type ParsedSave = {
   worlds?: string[];
   /** Friendship and romance statuses from the save's relationship records. */
   pairs?: ParsedSavePair[];
+  /** Family-tree people with no sim; `rels` link them like sims. */
+  relatives?: ParsedTreeRelative[];
 };
 
 /**
@@ -77,6 +93,18 @@ const HOUSEHOLD = {
   id: 2,
   name: 3,
   homeZone: 4,
+} as const;
+
+/**
+ * Family-tree node fields: 1 id, 2 and 3 first and last name (sims only),
+ * 4 edges, 5 and 6 name references into the game's text, 7 the ghost trait
+ * of how they died (the same ids living ghosts carry), 8 gender.
+ */
+const TREE_NODE = {
+  id: 1,
+  edge: 4,
+  deathTrait: 7,
+  gender: 8,
 } as const;
 
 /** Family-tree node / edge types from the persistent graph. */
@@ -254,6 +282,25 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     species,
     ...(generated ? { generated: true as const } : {}),
   };
+}
+
+/** Tree nodes that are no sim in the save, with their gender and death. */
+function parseTreeRelatives(graph: Uint8Array, simIds: ReadonlySet<string>): ParsedTreeRelative[] {
+  const out: ParsedTreeRelative[] = [];
+  for (const node of decodeFields(graph)) {
+    if (node.field !== 1 || !node.bytes) continue;
+    const rec = decodeFields(node.bytes);
+    const id = rec.find((f) => f.field === TREE_NODE.id && f.wire === 0)?.int;
+    if (!id || simIds.has(idStr(id))) continue;
+    const gender = rec.find((f) => f.field === TREE_NODE.gender && f.wire === 0)?.int;
+    const died = rec.some((f) => f.field === TREE_NODE.deathTrait && f.wire === 0 && f.int > 0n);
+    out.push({
+      treeId: idStr(id),
+      gender: gender === undefined ? '' : mapGender(gender),
+      ...(died ? { deceased: true as const } : {}),
+    });
+  }
+  return out;
 }
 
 function parseTreeRels(graph: Uint8Array): ParsedSaveRel[] {
@@ -491,10 +538,11 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
   const gameplay = gameplayData(data);
   const graph = familyTreeGraph(gameplay);
   const treeRels = graph ? parseTreeRels(graph) : [];
+  const relatives = graph ? parseTreeRelatives(graph, seen) : [];
   const relData = gameplay ? firstBytes(gameplay, 13) : null;
   const { pairs, secretParents } = relData
     ? parseRelationships(relData)
     : { pairs: [], secretParents: [] };
   const rels = withSecrets(treeRels, pairs, secretParents);
-  return { sims, rels, householdWorld, worlds, pairs };
+  return { sims, rels, householdWorld, worlds, pairs, relatives };
 }

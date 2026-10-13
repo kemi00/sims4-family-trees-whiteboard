@@ -152,7 +152,7 @@ function treeNode(self: number, ...edges: Uint8Array[]): Uint8Array {
 }
 
 /** Tiny DBPF + RefPack + protobuf save: two spouses and one child. */
-function tinySave(compactGroup = false): Uint8Array {
+function tinySave(compactGroup = false, moreTree: Uint8Array[] = []): Uint8Array {
   const bob = simBlob({
     id: 1,
     householdId: 10,
@@ -184,6 +184,7 @@ function tinySave(compactGroup = false): Uint8Array {
     treeNode(1, treeEdge(1, 2, 4), treeEdge(1, 3, 1)),
     treeNode(2, treeEdge(2, 1, 4), treeEdge(2, 3, 1)),
     treeNode(3),
+    ...moreTree,
   );
   const tree = encodeBytes(62, encodeBytes(1, graph));
   const gameplay = encodeBytes(8, tree);
@@ -413,6 +414,22 @@ describe('parseSaveGame', () => {
     assert.ok(
       parsed.rels.some((r) => r.type === 'parent' && r.b === '3'),
     );
+  });
+
+  it('reads family-tree relatives who are no sim, with gender and death', () => {
+    // Bob's mother died of old age; his father the game never made.
+    const mother = encodeBytes(
+      1,
+      concat(encodeVarintField(1, 9), treeEdge(9, 1, 1), encodeVarintField(7, 101685), encodeVarintField(8, 8192)),
+    );
+    const father = encodeBytes(1, concat(encodeVarintField(1, 8), treeEdge(8, 1, 1), encodeVarintField(8, 4096)));
+    const parsed = parseSaveGame(tinySave(false, [mother, father]));
+    assert.deepEqual(parsed.relatives, [
+      { treeId: '9', gender: 'Female', deceased: true },
+      { treeId: '8', gender: 'Male' },
+    ]);
+    assert.ok(parsed.rels.some((r) => r.type === 'parent' && r.a === '9' && r.b === '1'));
+    assert.deepEqual(parseSaveGame(tinySave()).relatives, []);
   });
 
   it('reads a save whose index writes the shared group once (late-2026 saves)', () => {

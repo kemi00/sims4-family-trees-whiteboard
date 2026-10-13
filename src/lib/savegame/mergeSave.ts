@@ -1,4 +1,4 @@
-import { UNHOUSED_HH } from '../constants.ts';
+import { DECEASED_STATE, UNHOUSED_HH } from '../constants.ts';
 import { OTHER_WORLD } from '../layout.ts';
 import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
 import { edgeSourceOf, sanitizeEdges, uKey, worldColor } from '../utils.ts';
@@ -15,6 +15,7 @@ import {
   type ParsedSave,
   type ParsedSaveRel,
   type ParsedSaveSim,
+  type ParsedTreeRelative,
 } from './parseSave.ts';
 
 export type SaveMergeSummary = {
@@ -41,6 +42,10 @@ export type SaveMergeSummary = {
   unhoused: string[];
   /** Sims with no home lot moved out of a world into Not in any world. */
   toNotInWorld: string[];
+  /** Unknown cards added for family-tree relatives with no sim (see treeRelatives). */
+  relatives: string[];
+  /** Board cards this save has no sim or relative for; Merge leaves them as they are. */
+  notInSave: number;
 };
 
 export type SaveMergeInput = {
@@ -53,8 +58,11 @@ export type SaveMergeInput = {
   parsed: ParsedSave;
   seedNameKeys: Set<string>;
   /**
-   * The built-in roster: its world → game pairing is the fallback when the
-   * board has no sims in a world yet (always the case on Replace).
+   * The built-in roster. A premade the board has no card for takes its game,
+   * playability, life state and neighbourhood from its roster card, which the
+   * save does not record; otherwise the roster's world → game pairing is the
+   * fallback when the board has no sims in a world yet (always the case on
+   * Replace).
    */
   packReference?: SimNode[];
   /** Sims the player moved to another household by hand; Merge keeps them there. */
@@ -68,7 +76,10 @@ export type SaveMergeResult = {
   edges: Edge[];
   groups: Group[];
   pairStatus: PairStatus[];
-  /** Board ids of sims this import moved to another box (rejoined or unhoused). */
+  /**
+   * Board ids of cards this import moved to another box: sims rejoined or
+   * unhoused, and placeholders that now stand for a family-tree relative.
+   */
   rehomed: string[];
   summary: SaveMergeSummary;
 };
@@ -106,6 +117,17 @@ export function nameDistance(a: string, b: string): number {
     }
   }
   return Math.min(row[bl]!, 2);
+}
+
+/**
+ * The board is still the built-in starter roster: no card came from a save,
+ * and most of the roster's cards are on it, wherever they were dragged.
+ * Merging a save into it would keep every premade the game does not have.
+ */
+export function isStarterBoard(nodes: SimNode[], roster: SimNode[]): boolean {
+  if (!roster.length || nodes.some((n) => n.saveSimId || n.treeId)) return false;
+  const ids = new Set(nodes.map((n) => n.id));
+  return roster.filter((r) => ids.has(r.id)).length * 2 >= roster.length;
 }
 
 export function seedNameKeysFromNodes(nodes: SimNode[]): Set<string> {
@@ -304,6 +326,29 @@ function newSaveNode(
   fromSave: boolean,
   home: BoardHome,
   pack: string,
+  /** The premade's roster card: what the save leaves out comes from it. */
+  roster?: SimNode,
+): SimNode {
+  const made = plainSaveNode(sim, fromSave, home, pack);
+  if (!roster || !!roster.species !== !!sim.species) return made;
+  return {
+    ...made,
+    state: sim.species ? made.state : roster.state,
+    townie: roster.townie,
+    oworld: roster.oworld,
+    onb: roster.onb,
+    ohh: roster.ohh,
+    oplay: roster.oplay,
+    pack: roster.pack || pack,
+    ...(roster.breed ? { breed: roster.breed } : {}),
+  };
+}
+
+function plainSaveNode(
+  sim: ParsedSaveSim,
+  fromSave: boolean,
+  home: BoardHome,
+  pack: string,
 ): SimNode {
   return {
     id: `s${sim.saveSimId}`,
@@ -379,6 +424,8 @@ function homeForNew(
   worlds: World[],
   existingGids: Set<string>,
   hhHome: Map<string, BoardHome>,
+  /** The sim's roster card, whose neighbourhood a new box in its world takes. */
+  roster?: SimNode,
 ): BoardHome {
   const hh = sim.household.trim() || sim.last.trim() || 'Household';
   const world = boardWorldName(sim.world, worlds);
@@ -393,7 +440,7 @@ function homeForNew(
     gid,
     world,
     hh,
-    nb: '-',
+    nb: roster && roster.world === world && roster.nb ? roster.nb : '-',
     color: worldColor(world, worlds),
   };
   hhHome.set(key, home);
@@ -505,6 +552,115 @@ function gatherHouseholds(
   return { moved, homes };
 }
 
+/** A family-tree relative to show, and the sim whose household it joins. */
+type ShownRelative = ParsedTreeRelative & { kin: SimNode };
+
+/**
+ * Family-tree relatives with no sim (see ParsedTreeRelative) that link sims
+ * on the board: Felix Hoffman's father, between Felix and his grandfather
+ * Bruno, or an ancestor two royal houses share. One who reaches only one sim
+ * or relative adds nothing to see, so such relatives are dropped until every
+ * one left links at least two. Each joins its nearest sim — its children
+ * before its parents, its parents before its partners — whose household and
+ * surname it takes.
+ */
+function treeRelatives(
+  relatives: ParsedTreeRelative[],
+  rels: ParsedSaveRel[],
+  simOnBoard: (saveId: string) => SimNode | undefined,
+): ShownRelative[] {
+  if (!relatives.length) return [];
+  const children = new Map<string, string[]>();
+  const parents = new Map<string, string[]>();
+  const partners = new Map<string, string[]>();
+  const add = (m: Map<string, string[]>, k: string, v: string) => {
+    const list = m.get(k) ?? [];
+    if (!list.includes(v)) list.push(v);
+    m.set(k, list);
+  };
+  for (const r of rels) {
+    if (r.type === 'parent') {
+      add(children, r.a, r.b);
+      add(parents, r.b, r.a);
+    } else {
+      add(partners, r.a, r.b);
+      add(partners, r.b, r.a);
+    }
+  }
+  const near = (id: string) => [
+    ...(children.get(id) ?? []),
+    ...(parents.get(id) ?? []),
+    ...(partners.get(id) ?? []),
+  ];
+  const kept = new Set(relatives.map((r) => r.treeId));
+  const counts = (id: string) => simOnBoard(id) !== undefined || kept.has(id);
+  for (let dropped = true; dropped; ) {
+    dropped = false;
+    for (const id of kept) {
+      if (new Set(near(id).filter(counts)).size >= 2) continue;
+      kept.delete(id);
+      dropped = true;
+    }
+  }
+  const kinOf = (start: string): SimNode | undefined => {
+    const seen = new Set([start]);
+    for (let level = [start]; level.length; ) {
+      const next: string[] = [];
+      for (const id of level) {
+        for (const x of near(id)) {
+          const sim = simOnBoard(x);
+          if (sim) return sim;
+          if (kept.has(x) && !seen.has(x)) {
+            seen.add(x);
+            next.push(x);
+          }
+        }
+      }
+      level = next;
+    }
+    return undefined;
+  };
+  const out: ShownRelative[] = [];
+  for (const r of relatives) {
+    if (!kept.has(r.treeId)) continue;
+    const kin = kinOf(r.treeId);
+    if (kin) out.push({ ...r, kin });
+  }
+  return out;
+}
+
+/** First name on a relative's card: the save holds no name for them. */
+export const UNKNOWN_FIRST = 'Unknown';
+
+function relativeNode(r: ShownRelative, home: BoardHome): SimNode {
+  return {
+    id: `t${r.treeId}`,
+    gid: home.gid,
+    first: UNKNOWN_FIRST,
+    sur: r.kin.sur,
+    age: 'Unknown',
+    state: r.deceased ? DECEASED_STATE : 'Sim',
+    gender: r.gender,
+    hh: home.hh,
+    world: home.world,
+    nb: home.nb,
+    color: home.color,
+    townie: true,
+    oworld: home.world,
+    onb: home.nb,
+    ohh: home.hh,
+    oplay: 'Townie',
+    pack: r.kin.pack,
+    ox: 0,
+    oy: 0,
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0,
+    treeId: r.treeId,
+  };
+}
+
 export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const { parsed, seedNameKeys, now, nextEdgeId, worlds } = input;
   const nodes = input.nodes.map((n) => ({ ...n }));
@@ -528,6 +684,14 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     byLast.set(last, lasts);
   };
   nodes.forEach(index);
+
+  const rosterByName = new Map<string, SimNode | null>();
+  for (const n of input.packReference ?? []) {
+    const k = nameKey(n.first, n.sur);
+    rosterByName.set(k, rosterByName.has(k) ? null : n);
+  }
+  const rosterOf = (sim: ParsedSaveSim) =>
+    rosterByName.get(nameKey(sim.first, sim.last)) ?? undefined;
 
   const saveIdToBoard = new Map<string, string>();
   const claimed = new Set<string>();
@@ -601,7 +765,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     byHousehold,
     worlds,
     movedByHand,
-    (sim) => homeForNew(sim, worlds, existingGids, hhHome),
+    (sim) => homeForNew(sim, worlds, existingGids, hhHome, rosterOf(sim)),
   );
   // New members join the box their household was gathered into, whatever the
   // box is called ("Grove" on the roster, "The Grove Family" in the save), so
@@ -611,23 +775,21 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     const hh = sim.household.trim() || sim.last.trim() || 'Household';
     hhHome.set(homeKey(householdId, hh, boardWorldName(sim.world, worlds)), home);
   }
-  const rehomed = [...gathered.moved, ...unhousedIds];
-  const vacated = new Set(
-    rehomed.map((id) => input.nodes.find((n) => n.id === id)!.gid),
-  );
-  for (const n of nodes) vacated.delete(n.gid);
+  const rehomedSims = [...gathered.moved, ...unhousedIds];
 
   for (const sim of unmatched) {
     const isOriginal = !seedNameKeys.has(nameKey(sim.first, sim.last));
+    const roster = rosterOf(sim);
     const home =
       sim.unhoused && sim.generated
         ? unhousedHome(OTHER_WORLD, worlds)
-        : homeForNew(sim, worlds, existingGids, hhHome);
+        : homeForNew(sim, worlds, existingGids, hhHome, roster);
     const made = newSaveNode(
       sim,
       isOriginal,
       home,
       packForSaveSim(home.world, nodes, input.packReference ?? []),
+      roster,
     );
     const created = sim.generated ? { ...made, oplay: 'Townie' } : made;
     nodes.push(created);
@@ -638,6 +800,55 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     added += 1;
     if (created.fromSave) fromSaveCount += 1;
   }
+
+  // Relatives the family tree keeps with no sim. A card already standing for
+  // one keeps its place; so does a roster placeholder of the same name
+  // ("Unknown Hoffman"), which moves into its family's box if it sat apart.
+  const relativesAdded: string[] = [];
+  const relativesMoved: string[] = [];
+  const cardAt = new Map(nodes.map((n, i) => [n.id, i]));
+  const simOnBoard = (saveId: string) => {
+    const id = saveIdToBoard.get(saveId);
+    return id === undefined ? undefined : nodes[cardAt.get(id)!];
+  };
+  const shown = treeRelatives(parsed.relatives ?? [], parsed.rels, simOnBoard);
+  const byTreeId = new Map(nodes.filter((n) => n.treeId).map((n) => [n.treeId!, n.id]));
+  for (const r of shown) {
+    const home = homeOf(r.kin);
+    let id = byTreeId.get(r.treeId);
+    if (!id) {
+      const placeholders = (byName.get(nameKey(UNKNOWN_FIRST, r.kin.sur)) ?? []).filter(
+        (n) => !claimed.has(n.id) && !n.saveSimId && !n.treeId,
+      );
+      if (placeholders.length === 1) {
+        const i = cardAt.get(placeholders[0]!.id)!;
+        let card: SimNode = { ...nodes[i]!, treeId: r.treeId };
+        if (r.gender) card.gender = r.gender;
+        if (r.deceased) card.state = DECEASED_STATE;
+        if (card.gid !== home.gid && !movedByHand.has(card.id)) {
+          card = moveInto(card, home);
+          relativesMoved.push(card.id);
+        }
+        nodes[i] = card;
+        id = card.id;
+      }
+    }
+    if (!id) {
+      const made = relativeNode(r, home);
+      cardAt.set(made.id, nodes.length);
+      nodes.push(made);
+      relativesAdded.push(made.id);
+      id = made.id;
+    }
+    claimed.add(id);
+    saveIdToBoard.set(r.treeId, id);
+  }
+
+  const rehomed = [...rehomedSims, ...relativesMoved];
+  const vacated = new Set(
+    rehomed.map((id) => input.nodes.find((n) => n.id === id)!.gid),
+  );
+  for (const n of nodes) vacated.delete(n.gid);
 
   const edges: SourcedEdge[] = input.edges.map((e) => ({
     ...e,
@@ -787,7 +998,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   };
   const was = new Map(input.nodes.map((n) => [n.id, n]));
   const after = new Map(nodes.map((n) => [n.id, n]));
-  const toNotInWorld = rehomed.filter(
+  const toNotInWorld = rehomedSims.filter(
     (id) => was.get(id)!.world !== OTHER_WORLD && after.get(id)!.world === OTHER_WORLD,
   );
   const rejoined = gathered.moved.filter((id) => !toNotInWorld.includes(id));
@@ -816,6 +1027,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       rejoined: rejoined.map(nameOf),
       unhoused: unhousedIds.map(nameOf),
       toNotInWorld: toNotInWorld.map(nameOf),
+      relatives: relativesAdded.map(nameOf),
+      notInSave: input.nodes.filter((n) => !claimed.has(n.id)).length,
     },
   };
 }

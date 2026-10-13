@@ -254,6 +254,7 @@ export default function App() {
         {wb.saveImport && (
           <SaveImportDialog
             summary={wb.saveImport.merge.summary}
+            starter={wb.saveImport.starter}
             onCancel={wb.cancelSaveImport}
             onMerge={() => {
               const r = svgRef.current?.getBoundingClientRect();

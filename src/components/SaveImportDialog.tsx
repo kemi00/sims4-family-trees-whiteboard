@@ -3,6 +3,8 @@ import type { SaveMergeSummary } from '../lib/savegame/mergeSave.ts';
 
 type Props = {
   summary: SaveMergeSummary;
+  /** The board is still the starter roster (see isStarterBoard): Replace is picked. */
+  starter: boolean;
   onMerge: () => void;
   onReplace: () => void;
   onCancel: () => void;
@@ -10,6 +12,7 @@ type Props = {
 
 /** "1 sim … rejoins" / "3 sims … rejoin". */
 const sims = (n: number) => (n === 1 ? 'sim' : 'sims');
+const cards = (n: number) => (n === 1 ? 'card' : 'cards');
 const verb = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 function listPreview(items: string[], max = 6): string {
@@ -25,13 +28,15 @@ function listPreview(items: string[], max = 6): string {
  */
 export function SaveImportDialog({
   summary,
+  starter,
   onMerge,
   onReplace,
   onCancel,
 }: Props) {
-  const [mode, setMode] = useState<'merge' | 'replace'>('merge');
+  const [mode, setMode] = useState<'merge' | 'replace'>(starter ? 'replace' : 'merge');
   const hasDetails =
     summary.rejoined.length > 0 ||
+    summary.relatives.length > 0 ||
     summary.toNotInWorld.length > 0 ||
     summary.skipped.length > 0 ||
     summary.saveWorlds.length > 0 ||
@@ -95,6 +100,20 @@ export function SaveImportDialog({
                     in any world
                   </li>
                 )}
+                {summary.relatives.length > 0 && (
+                  <li>
+                    <b>{summary.relatives.length}</b> unnamed{' '}
+                    {verb(summary.relatives.length, 'relative', 'relatives')} from the family
+                    tree {verb(summary.relatives.length, 'joins', 'join')} their family
+                  </li>
+                )}
+                {summary.notInSave > 0 && (
+                  <li>
+                    <b>{summary.notInSave}</b> {cards(summary.notInSave)} not in this save{' '}
+                    {verb(summary.notInSave, 'stays', 'stay')} as{' '}
+                    {verb(summary.notInSave, 'it is', 'they are')}
+                  </li>
+                )}
                 {(summary.secretParents > 0 || summary.secretLovers > 0) && (
                   <li>
                     <b>{summary.secretParents}</b> secret parents ·{' '}
@@ -117,6 +136,14 @@ export function SaveImportDialog({
                 Discards the current board and builds a new one from the save
                 alone.
               </span>
+              {starter && (
+                <span className="save-import__choice-note save-import__pick">
+                  Picked for you: this board is still the starter roster.
+                  Merging would keep its {summary.notInSave} premade{' '}
+                  {sims(summary.notInSave)} your game doesn't have mixed in with
+                  yours.
+                </span>
+              )}
             </span>
           </label>
         </fieldset>
@@ -128,6 +155,15 @@ export function SaveImportDialog({
                 <span className="save-import__meta-label">Rejoin their household</span>
                 <span className="save-import__meta-value">
                   {listPreview(summary.rejoined, 8)}
+                </span>
+              </div>
+            )}
+            {summary.relatives.length > 0 && (
+              <div className="save-import__meta">
+                <span className="save-import__meta-label">Unnamed relatives</span>
+                <span className="save-import__meta-value">
+                  {listPreview(summary.relatives, 8)}. The game's family tree
+                  links them to your sims but keeps no sim or name for them.
                 </span>
               </div>
             )}

@@ -54,6 +54,7 @@ import { fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLate
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
+  isStarterBoard,
   mergeSaveIntoBoard,
   seedNameKeysFromNodes,
   type SaveMergeResult,
@@ -261,6 +262,8 @@ export function useWhiteboard() {
   const [saveImport, setSaveImport] = useState<{
     merge: SaveMergeResult;
     parsed: ParsedSave;
+    /** The board is still the starter roster, so Replace is picked. */
+    starter: boolean;
   } | null>(null);
   const [pendingLoadJson, setPendingLoadJson] = useState<{
     file: File;
@@ -1893,7 +1896,7 @@ export function useWhiteboard() {
           now: new Date().toISOString(),
           nextEdgeId: () => 'v' + n++,
         });
-        setSaveImport({ merge, parsed });
+        setSaveImport({ merge, parsed, starter: isStarterBoard(nodesCore, seed.nodes) });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not read that save';
         alert(msg);

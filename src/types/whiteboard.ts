@@ -34,6 +34,11 @@ export interface SimNode {
   saveSimId?: string;
   /** In the save and not on the shipped xlsx roster. */
   fromSave?: boolean;
+  /**
+   * Sims 4 family-tree id of a relative the save keeps only in its family
+   * tree, with no sim and no name (an "Unknown" card), as a decimal string.
+   */
+  treeId?: string;
 }
 
 export type EdgeType =
