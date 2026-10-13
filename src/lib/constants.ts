@@ -242,14 +242,16 @@ export const ZOOM_MIN = 0.06;
 export const ZOOM_MAX = 4;
 
 /**
- * Below this zoom, board labels are not drawn at all. The smallest card and
- * household type is 10.5px, so at k = 0.35 it lands under 4 screen pixels —
- * already an unreadable smudge. SVG `<text>` needs per-element font shaping
- * and dominates layout cost (~60% of it on the full board), so dropping the
- * labels at fit-all zoom is both faster and cleaner to look at. Hit targets
- * and dashed boxes stay, so nothing about interaction changes.
+ * Below this zoom, board labels are not drawn at all. At k = 0.3 a 13px sim
+ * name is about 4 CSS pixels tall — 8 device pixels on a high-density
+ * (Retina) screen, where it is still readable; 10.5px detail lines are
+ * smaller. Further out it is an unreadable smudge everywhere. SVG `<text>`
+ * needs per-element font shaping and dominates layout cost (~60% of it on the
+ * full board), so dropping the labels at fit-all zoom is both faster and
+ * cleaner to look at. Hit targets and dashed boxes stay, so nothing about
+ * interaction changes.
  */
-export const LABEL_MIN_K = 0.35;
+export const LABEL_MIN_K = 0.3;
 
 /** Padding inside the minimap so world blobs are not flush to the chrome. */
 export const MINIMAP_PAD = 8;
