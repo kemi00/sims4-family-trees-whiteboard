@@ -129,7 +129,7 @@ export const WORLD_TAG_HIT_PAD_SCREEN_PX = 10;
  * older epoch back to {@link OLDEST_PINNABLE_EPOCH} are pinned in place on
  * load; unstamped ones are re-packed.
  */
-export const LAYOUT_EPOCH = 2;
+export const LAYOUT_EPOCH = 3;
 /**
  * Oldest epoch whose packing rules are still implemented. Boards saved under
  * it or later are pinned to where they were on screen, not re-packed.

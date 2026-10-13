@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { PILL_DROP } from './constants.ts';
+import { PILL_DROP, STUB } from './constants.ts';
 import { computeEdgeRenderData } from './routing.ts';
 import type { Edge, EdgeRenderData, Point, SimNode } from '../types/whiteboard.ts';
 
@@ -243,4 +243,28 @@ describe('parent links reach every parent on random family layouts', () => {
       assertEveryParentReached([...parents, ...kids], edges, r() < 0.5);
     });
   }
+});
+
+describe('a parent off to one side of the child', () => {
+  // Skip sits below and right of Dustin; a card above Skip and one under
+  // Dustin block the two straight shapes. The line should climb Dustin's
+  // side facing Skip, not wind round the far side past the other cards.
+  const nodes = [
+    card({ id: 'dustin', x: 0, y: 0 }),
+    card({ id: 'skip', x: 500, y: 500, gid: 'g2' }),
+    card({ id: 'above', x: 450, y: 200, gid: 'g3' }),
+    card({ id: 'under', x: 0, y: 250, gid: 'g4' }),
+  ];
+  const data = route(nodes, parentEdges('dustin', 'skip'));
+  const legs = data.blood.flatMap((p) =>
+    p.pts.slice(1).flatMap((b, i) => {
+      const a = p.pts[i]!;
+      return near(a[0], b[0]) && !near(a[1], b[1]) ? [a[0]] : [];
+    }),
+  );
+
+  it('climbs the near side of the child', () => {
+    assert.ok(legs.some((x) => near(x, 200 + STUB)), `vertical legs at ${legs.join(', ')}`);
+    assert.ok(!legs.some((x) => near(x, -STUB)), 'not the far side');
+  });
 });

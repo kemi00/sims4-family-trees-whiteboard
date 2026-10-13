@@ -435,6 +435,9 @@ function routeToChildStemJunction(
     cx >= ax
       ? Math.max(ax, child.x + child.w) + STUB
       : Math.min(ax, child.x) - STUB;
+  // The child's side facing the parent, when the parent is clear of it.
+  const nearX =
+    ax > child.x + child.w ? child.x + child.w + STUB : ax < child.x ? child.x - STUB : null;
 
   // Cheapest first; the routed path (possibly an A* search) is only built
   // when none of the simple shapes is clear.
@@ -451,6 +454,18 @@ function routeToChildStemJunction(
       [cx, ay],
       [cx, jy],
     ],
+    // Up the child's near side, then in at junction height: from a parent
+    // off to one side, this keeps clear of the cards past the child.
+    ...(nearX === null
+      ? []
+      : [
+          (): Point[] => [
+            [ax, ay],
+            [nearX, ay],
+            [nearX, jy],
+            [cx, jy],
+          ],
+        ]),
     // Wing around the far side of the child, then in at junction height.
     () => [
       [ax, ay],

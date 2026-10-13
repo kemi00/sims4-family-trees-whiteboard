@@ -650,6 +650,52 @@ describe('save import placement', () => {
   });
 });
 
+describe('opening a board saved before Unhoused boxes held families', () => {
+  const worlds: World[] = [{ name: 'A', color: '#000' }];
+  const card = (id: string, world: string, hh: string, gid: string, age = 'Adult'): SimNode => ({
+    ...node(0),
+    id,
+    first: id,
+    sur: hh,
+    age,
+    hh,
+    ohh: hh,
+    world,
+    oworld: world,
+    gid,
+  });
+  const box = 'Other||Unhoused sims';
+  const saved = [
+    card('a1', 'A', 'Alpha', 'A||Alpha'),
+    card('a2', 'A', 'Alpha', 'A||Alpha'),
+    card('mum', 'Other', 'Durham', box, 'Adult'),
+    card('kid', 'Other', 'Durham', box, 'Child'),
+    ...['p', 'q', 'r', 's'].map((id) => card(id, 'Other', `Single ${id}`, box)),
+  ];
+  const edges: Edge[] = [{ id: 'pk', a: 'mum', b: 'kid', type: 'parent', source: 'save' }];
+  const oldEpoch = LAYOUT_EPOCH - 1;
+  const before = computeLayout(saved, worlds, edges, oldEpoch);
+  const { nodes } = prepareLoadedNodes(saved, oldEpoch, worlds, edges);
+  const after = computeLayout(nodes, worlds, edges);
+  const at = (list: SimNode[], id: string) => list.find((n) => n.id === id)!;
+  const corner = (list: SimNode[]) => {
+    const inBox = list.filter((n) => n.gid === box);
+    return [Math.min(...inBox.map((n) => n.x)), Math.min(...inBox.map((n) => n.y))];
+  };
+
+  it('lays the box out again as families, from the same corner', () => {
+    assert.equal(at(before, 'kid').y, at(before, 'mum').y, 'fixture: one flat row');
+    assert.ok(at(after, 'kid').y > at(after, 'mum').y, 'the child now sits under her mother');
+    assert.deepEqual(corner(after), corner(before));
+  });
+
+  it('moves nothing outside the box', () => {
+    for (const id of ['a1', 'a2']) {
+      assert.deepEqual([at(after, id).x, at(after, id).y], [at(before, id).x, at(before, id).y], id);
+    }
+  });
+});
+
 describe('readable names for premade template households', () => {
   // Other-world households named with template ids, as a save import made
   // them before names were cleaned up; the long tags shape the packing.

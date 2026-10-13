@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CARD_H, CARD_MIN_W, HH_TAG_BAND, HH_TAG_INSET, HH_TAG_PILL_H, HH_TAG_STACK_GAP, TILE } from './constants.ts';
-import { computeLayout, layoutBases, packingSignature, LAYOUT, OTHER_WORLD, rowPitch, spawnChildOrigin } from './layout.ts';
+import {
+  computeLayout,
+  layoutBases,
+  packingSignature,
+  LAYOUT,
+  OTHER_WORLD,
+  rowPitch,
+  spawnChildOrigin,
+  UNHOUSED_FAMILY_EPOCH,
+  unhousedArrangement,
+  unhousedEdgeSide,
+} from './layout.ts';
 import { hhBoxDraw } from './geometry.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
 import { migrateWhiteboardData } from './utils.ts';
@@ -397,5 +408,56 @@ describe('parent-link cycles', () => {
       edge('Bonehilda', 'Clement', 'parent'),
       edge('Clement', 'Bonehilda', 'parent'),
     ]);
+  });
+});
+
+describe('Unhoused sims box', () => {
+  const box = 'Other||Unhoused sims';
+  const loose = (id: string, ohh: string, age = 'Adult') =>
+    sim({ id, first: id, hh: 'Unhoused sims', ohh, gid: box, world: OTHER_WORLD, age });
+  const nodes = [
+    sim({ id: 'skip', first: 'Skip', hh: 'Broke', gid: 'Willow Creek||Broke' }),
+    loose('myra', 'Durham', 'Young Adult'),
+    loose('kristin', 'Durham', 'Teen'),
+    loose('jazlyn', 'Durham', 'Child'),
+    loose('dustin', 'Broke'),
+    ...['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => loose(id, `Single ${id}`)),
+  ];
+  const edges = [
+    edge('myra', 'kristin', 'parent'),
+    edge('myra', 'jazlyn', 'parent'),
+    edge('skip', 'dustin', 'parent'),
+  ];
+  const laid = computeLayout(nodes, worlds, edges);
+  const at = (id: string) => laid.find((n) => n.id === id)!;
+  const inBox = laid.filter((n) => n.gid === box);
+
+  it('stacks a family in generation rows, children under their parent', () => {
+    for (const kid of ['kristin', 'jazlyn']) {
+      assert.equal(at(kid).y, at('myra').y + rowPitch(), kid);
+    }
+  });
+
+  it('puts a sim with a relative outside the box on its edge', () => {
+    assert.equal(at('dustin').x, Math.min(...inBox.map((n) => n.x)));
+  });
+
+  it('can face that edge right instead, for relatives placed right of the box', () => {
+    const right = unhousedArrangement(inBox, edges, 'right');
+    const xs = [...right.values()].map((p) => p.x);
+    assert.equal(right.get('dustin')!.x, Math.max(...xs));
+    assert.ok(right.get('kristin')!.y > right.get('myra')!.y);
+  });
+
+  it('picks the side its relatives are on', () => {
+    const spot = (id: string) => (id === 'skip' ? { x: 99999, y: 0 } : at(id));
+    assert.equal(unhousedEdgeSide(inBox, edges, spot), 'right');
+    assert.equal(unhousedEdgeSide(inBox, edges, (id) => at(id)), 'left');
+  });
+
+  it('keeps the old flat grid for boards saved before family blocks', () => {
+    const old = computeLayout(nodes, worlds, edges, UNHOUSED_FAMILY_EPOCH - 1);
+    const y = (id: string) => old.find((n) => n.id === id)!.y;
+    assert.equal(y('kristin'), y('myra'), 'one flat row');
   });
 });

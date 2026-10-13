@@ -9,6 +9,9 @@ import {
   measureCard,
   offsetsForNewGids,
   rowsUnderHousehold,
+  UNHOUSED_FAMILY_EPOCH,
+  unhousedArrangement,
+  unhousedEdgeSide,
 } from './layout.ts';
 import { renameTemplateHouseholds } from './savegame/mergeSave.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
@@ -72,7 +75,40 @@ export function prepareLoadedNodes(
   const core = nodes.map((n) => asCore(n, n.ox ?? 0, n.oy ?? 0));
   if (layoutEpoch === LAYOUT_EPOCH) return { nodes: core, repacked: false };
   const wasOnScreen = visualPositionsFromCore(core, worlds, edges, layoutEpoch!);
-  return { nodes: pinCoreToTargets(wasOnScreen, core, worlds, edges), repacked: false };
+  const targets =
+    layoutEpoch! < UNHOUSED_FAMILY_EPOCH
+      ? withUnhousedBoxesRelaid(wasOnScreen, core, edges)
+      : wasOnScreen;
+  return { nodes: pinCoreToTargets(targets, core, worlds, edges), repacked: false };
+}
+
+/**
+ * Unhoused sims boxes saved as one flat grid, laid out again as family
+ * blocks from the same top-left card. Only cards inside those boxes move;
+ * the box was the import's own arrangement, not the player's.
+ */
+function withUnhousedBoxesRelaid(
+  wasOnScreen: Map<string, Point>,
+  core: SimNode[],
+  edges: Edge[],
+): Map<string, Point> {
+  const boxes = new Map<string, SimNode[]>();
+  for (const n of core) {
+    if (isUnhousedGid(n.gid)) boxes.set(n.gid, [...(boxes.get(n.gid) ?? []), n]);
+  }
+  if (!boxes.size) return wasOnScreen;
+  const out = new Map(wasOnScreen);
+  for (const members of boxes.values()) {
+    const was = members.map((n) => wasOnScreen.get(n.id)).filter((p): p is Point => !!p);
+    if (was.length !== members.length) continue;
+    const ax = Math.min(...was.map((p) => p.x));
+    const ay = Math.min(...was.map((p) => p.y));
+    const side = unhousedEdgeSide(members, edges, (id) => wasOnScreen.get(id));
+    for (const [id, d] of unhousedArrangement(members, edges, side)) {
+      out.set(id, { x: ax + d.x, y: ay + d.y });
+    }
+  }
+  return out;
 }
 
 type Point = { x: number; y: number };
@@ -292,21 +328,35 @@ function boardForRejoins(
 /**
  * Where a new Unhoused sims box goes: the top-left of the cards its sims had
  * in that world, so a world whose unhoused sims are gathered keeps them where
- * they were. A box whose sims all come from elsewhere gets no anchor and is
- * packed under the world like any new household.
+ * they were, with the side facing their relatives on screen (see
+ * unhousedEdgeSide). A box whose sims all come from elsewhere gets no anchor
+ * and is packed under the world like any new household.
  */
 function newBoxAnchors(
   before: Record<string, SimNode>,
   board: Record<string, SimNode>,
   next: SimNode[],
-): Map<string, { x: number; y: number }> {
+  edges: Edge[],
+): Map<string, { x: number; y: number; rel: Map<string, Point> }> {
   const onBoard = new Set(Object.values(board).map((n) => n.gid));
-  const out = new Map<string, { x: number; y: number }>();
+  const corner = new Map<string, Point>();
   for (const n of next) {
     const was = before[n.id];
     if (!isUnhousedGid(n.gid) || onBoard.has(n.gid) || !was || was.world !== n.world) continue;
-    const at = out.get(n.gid);
-    out.set(n.gid, at ? { x: Math.min(at.x, was.x), y: Math.min(at.y, was.y) } : { x: was.x, y: was.y });
+    const at = corner.get(n.gid);
+    corner.set(n.gid, at ? { x: Math.min(at.x, was.x), y: Math.min(at.y, was.y) } : { x: was.x, y: was.y });
+  }
+  const out = new Map<string, { x: number; y: number; rel: Map<string, Point> }>();
+  for (const [gid, at] of corner) {
+    const members = next.filter((n) => n.gid === gid);
+    // Where the box will be: its members' old spots in this world stand in.
+    const spot = (id: string): Point | undefined => {
+      const was = before[id];
+      if (!was) return undefined;
+      return members.some((m) => m.id === id) && was.world !== members[0]!.world ? at : was;
+    };
+    const side = unhousedEdgeSide(members, edges, spot);
+    out.set(gid, { ...at, rel: unhousedArrangement(members, edges, side) });
   }
   return out;
 }
@@ -345,7 +395,7 @@ export function saveImportCore(opts: {
     rehomed.has(n.id) && !board[n.id] ? { ...n, ox: 0, oy: 0 } : n,
   );
   return separateLoadOverlaps({
-    core: offsetsForNewGids(board, placed, worlds, edges, newBoxAnchors(boardById, board, placed)),
+    core: offsetsForNewGids(board, placed, worlds, edges, newBoxAnchors(boardById, board, placed, edges)),
     boardById,
     edges,
     groups,

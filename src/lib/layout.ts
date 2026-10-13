@@ -718,6 +718,162 @@ function layoutUnhousedGrid(mem: SimNode[], cols: number): PlacedCard[] {
 export const UNHOUSED_COLS = 4;
 
 /**
+ * First layout epoch that packs an Unhoused sims box as family blocks
+ * ({@link layoutUnhousedFamilies}) instead of one flat grid.
+ */
+export const UNHOUSED_FAMILY_EPOCH = 3;
+
+const FAMILY_LINKS = new Set(['parent', 'marriage', 'romance', 'divorced']);
+
+/**
+ * An Unhoused sims box as family blocks. Sims linked to each other in the
+ * box form a family laid out in generation rows like any household, parents
+ * above children and partners side by side, so its lines are short drops.
+ * Blocks with a relative outside the box line one side of it — the side
+ * facing those relatives — so their lines stop at the edge instead of
+ * crossing the box. Packing assumes the left (Other packs right of every
+ * world); placing a box on the board picks the side from where the relatives
+ * really are (see {@link unhousedArrangement}). The rest fill the shortest
+ * of up to `maxCols` columns, by family name.
+ */
+function layoutUnhousedFamilies(
+  mem: SimNode[],
+  edges: Edge[],
+  maxCols: number,
+  side: 'left' | 'right' = 'left',
+): PlacedCard[] {
+  const ids = new Set(mem.map((n) => n.id));
+  const root = new Map(mem.map((n) => [n.id, n.id]));
+  const find = (id: string): string => {
+    const r = root.get(id)!;
+    if (r === id) return id;
+    const top = find(r);
+    root.set(id, top);
+    return top;
+  };
+  const outside = new Set<string>();
+  for (const e of edges) {
+    if (!FAMILY_LINKS.has(e.type)) continue;
+    const a = ids.has(e.a);
+    const b = ids.has(e.b);
+    if (a && b) root.set(find(e.a), find(e.b));
+    else if (a) outside.add(e.a);
+    else if (b) outside.add(e.b);
+  }
+  const families = new Map<string, SimNode[]>();
+  for (const n of mem) {
+    const key = find(n.id);
+    families.set(key, [...(families.get(key) ?? []), n]);
+  }
+
+  const pitchX = CARD_MIN_W + LAYOUT.gapX;
+  const tiles = [...families.values()].map((fam) => {
+    const { placed } = pedigreeTile(fam, edges);
+    const x0 = Math.min(...placed.map((p) => p.x));
+    const y0 = Math.min(...placed.map((p) => p.y));
+    const w = Math.max(...placed.map((p) => p.x + p.w)) - x0;
+    const h = Math.max(...placed.map((p) => p.y + p.h)) - y0;
+    const eldest = [...fam].sort((a, b) => ageRank(b.age) - ageRank(a.age) || byName(a, b))[0]!;
+    return {
+      cards: placed.map((p) => ({ ...p, x: p.x - x0, y: p.y - y0 })),
+      h,
+      span: Math.max(1, Math.round((w + LAYOUT.gapX) / pitchX)),
+      edge: fam.some((n) => outside.has(n.id)),
+      key: `${eldest.ohh || eldest.sur} ${eldest.first}`,
+    };
+  });
+  // A family wider than the box widens it rather than spill out.
+  const cols = Math.max(Math.min(maxCols, mem.length), ...tiles.map((t) => t.span));
+  const byKey = (a: { key: string }, b: { key: string }) => a.key.localeCompare(b.key);
+  const edgeTiles = tiles.filter((t) => t.edge).sort(byKey);
+  const restTiles = tiles.filter((t) => !t.edge).sort(byKey);
+
+  const pitchY = rowPitch();
+  const colH = new Array<number>(cols).fill(0);
+  const fullH = Math.ceil(mem.length / cols) * pitchY;
+  const out: PlacedCard[] = [];
+  const put = (t: (typeof tiles)[number], c: number) => {
+    const span = Math.min(t.span, cols);
+    const y = Math.max(...colH.slice(c, c + span));
+    for (const p of t.cards) {
+      out.push({ ...p, x: LAYOUT.hhPad + c * pitchX + p.x, y: LAYOUT.hhHeader + LAYOUT.hhPad + y + p.y });
+    }
+    for (let i = c; i < c + span; i++) colH[i] = y + t.h + LAYOUT.gapYExtra;
+  };
+  // The edge first, a column at a time, moving inward once one is as tall
+  // as the box will be.
+  const right = side === 'right';
+  let edgeCol = 0;
+  for (const t of edgeTiles) {
+    const span = Math.min(t.span, cols);
+    const at = (k: number) => (right ? cols - span - k : k);
+    while (edgeCol + span < cols && colH[right ? cols - 1 - edgeCol : edgeCol]! >= fullH) {
+      edgeCol += 1;
+    }
+    put(t, Math.max(0, Math.min(at(edgeCol), cols - span)));
+  }
+  for (const t of restTiles) {
+    const span = Math.min(t.span, cols);
+    let best = 0;
+    let bestY = Infinity;
+    for (let c = 0; c + span <= cols; c++) {
+      const y = Math.max(...colH.slice(c, c + span));
+      if (y < bestY) {
+        bestY = y;
+        best = c;
+      }
+    }
+    put(t, best);
+  }
+  return out;
+}
+
+/**
+ * Card spots in a world's Unhoused sims box, from its top-left card, with
+ * its relatives' side of the box on `side`. Packing always lays the box out
+ * for the left; this is how a box is placed when its relatives sit right.
+ */
+export function unhousedArrangement(
+  mem: SimNode[],
+  edges: Edge[],
+  side: 'left' | 'right',
+): Map<string, { x: number; y: number }> {
+  const world = mem[0]?.world || OTHER_WORLD;
+  const placed = layoutUnhousedFamilies(
+    mem,
+    edges,
+    world === OTHER_WORLD ? LAYOUT.otherHhCols : UNHOUSED_COLS,
+    side,
+  );
+  const x0 = Math.min(...placed.map((p) => p.x));
+  const y0 = Math.min(...placed.map((p) => p.y));
+  return new Map(placed.map((p) => [p.id, { x: p.x - x0, y: p.y - y0 }]));
+}
+
+/**
+ * Which side of an Unhoused sims box faces its sims' relatives elsewhere on
+ * screen: the side more of those links lead to. `at` gives screen spots;
+ * relatives without one are not counted. Ties stay left.
+ */
+export function unhousedEdgeSide(
+  mem: SimNode[],
+  edges: Edge[],
+  at: (id: string) => { x: number; y: number } | undefined,
+): 'left' | 'right' {
+  const ids = new Set(mem.map((n) => n.id));
+  const xs = mem.map((n) => at(n.id)?.x).filter((x): x is number => x !== undefined);
+  if (!xs.length) return 'left';
+  const mid = (Math.min(...xs) + Math.max(...xs) + CARD_MIN_W) / 2;
+  let vote = 0;
+  for (const e of edges) {
+    if (!FAMILY_LINKS.has(e.type) || ids.has(e.a) === ids.has(e.b)) continue;
+    const other = at(ids.has(e.a) ? e.b : e.a);
+    if (other) vote += other.x + CARD_MIN_W / 2 > mid ? 1 : -1;
+  }
+  return vote > 0 ? 'right' : 'left';
+}
+
+/**
  * Households linked by an edge, for clustering. An Unhoused sims box is not
  * a household, so it is never clustered with the families its sims belong to.
  */
@@ -957,12 +1113,29 @@ function groupPlacedByRow(placed: PlacedCard[]): PlacedCard[][] {
 function layoutOtherHouseholdTile(
   mem: SimNode[],
   edges: Edge[],
+  epoch: number = LAYOUT_EPOCH,
 ): { placed: PlacedCard[]; w: number; h: number; colSpan: number } {
   if (isUnhousedGid(mem[0]!.gid)) {
-    const cols = Math.min(mem.length, LAYOUT.otherHhCols);
-    const { placed, w, h } = finalizeHouseholdBlock(layoutUnhousedGrid(mem, cols), 0, 0);
-    return { placed, w, h, colSpan: cols };
+    if (epoch < UNHOUSED_FAMILY_EPOCH) {
+      const cols = Math.min(mem.length, LAYOUT.otherHhCols);
+      const { placed, w, h } = finalizeHouseholdBlock(layoutUnhousedGrid(mem, cols), 0, 0);
+      return { placed, w, h, colSpan: cols };
+    }
+    const grid = layoutUnhousedFamilies(mem, edges, LAYOUT.otherHhCols);
+    const { placed, w, h } = finalizeHouseholdBlock(grid, 0, 0);
+    return { placed, w, h, colSpan: otherTileColSpan(placed, w) };
   }
+  return pedigreeTile(mem, edges);
+}
+
+/**
+ * One household (or family) in generation rows: column span from its widest
+ * row, rows pinned to that tag-column band.
+ */
+function pedigreeTile(
+  mem: SimNode[],
+  edges: Edge[],
+): { placed: PlacedCard[]; w: number; h: number; colSpan: number } {
   const g = buildHHGraph(mem, edges);
   const hhIds = new Set(mem.map((n) => n.id));
   for (const e of parentEdgesInto(edges, hhIds)) {
@@ -1060,6 +1233,7 @@ type OtherTile = {
 function placeOtherWorldGrid(
   households: [string, SimNode[]][],
   edges: Edge[],
+  epoch: number = LAYOUT_EPOCH,
 ): { placed: PlacedCard[]; w: number; h: number } {
   const gridCols = LAYOUT.otherHhCols;
   const hhLinks = buildHouseholdLinks(
@@ -1072,7 +1246,7 @@ function placeOtherWorldGrid(
   for (const comp of components) {
     if (comp.length === 1) {
       const [gid, mem] = comp[0]!;
-      const block = layoutOtherHouseholdTile(mem, edges);
+      const block = layoutOtherHouseholdTile(mem, edges, epoch);
       tiles.push({
         placed: block.placed,
         w: block.w,
@@ -1206,8 +1380,9 @@ function layoutSingleTile(
   gid: string,
   mem: SimNode[],
   edges: Edge[],
+  epoch: number = LAYOUT_EPOCH,
 ): HHTile {
-  const block = layoutHousehold(mem, edges, 0, 0);
+  const block = layoutHousehold(mem, edges, 0, 0, epoch);
   return {
     w: block.w,
     h: block.h,
@@ -1278,6 +1453,7 @@ function placeHouseholdBento(
   edges: Edge[],
   hhLinks: Map<string, Set<string>>,
   cols: number = LAYOUT.hhPerRow,
+  epoch: number = LAYOUT_EPOCH,
 ): { placed: PlacedCard[]; w: number; h: number } {
   const components = buildHouseholdComponents(households, hhLinks);
   const clusterTiles: HHTile[] = [];
@@ -1286,7 +1462,7 @@ function placeHouseholdBento(
   for (const comp of components) {
     if (comp.length === 1) {
       const [gid, mem] = comp[0]!;
-      singleTiles.push(layoutSingleTile(gid, mem, edges));
+      singleTiles.push(layoutSingleTile(gid, mem, edges, epoch));
     } else {
       clusterTiles.push(layoutClusterTile(comp, edges, hhLinks));
     }
@@ -1402,9 +1578,13 @@ function layoutHousehold(
   edges: Edge[],
   originX: number,
   originY: number,
+  epoch: number = LAYOUT_EPOCH,
 ): HHBlock {
   if (isUnhousedGid(mem[0]!.gid)) {
-    const grid = layoutUnhousedGrid(mem, UNHOUSED_COLS);
+    const grid =
+      epoch >= UNHOUSED_FAMILY_EPOCH
+        ? layoutUnhousedFamilies(mem, edges, UNHOUSED_COLS)
+        : layoutUnhousedGrid(mem, UNHOUSED_COLS);
     const { placed, w, h } = finalizeHouseholdBlock(
       grid.map((p) => ({ ...p, x: p.x + originX, y: p.y + originY })),
       originX,
@@ -1556,6 +1736,7 @@ function layoutOtherWorld(mem: SimNode[], edges: Edge[], epoch: number): WorldBl
   const { placed, w: contentW, h: gridH } = placeOtherWorldGrid(
     households,
     edges,
+    epoch,
   );
   const contentH =
     epoch >= TITLE_OVERHANG_EPOCH ? clearTitleOverhangs(placed, households, gridH) : gridH;
@@ -1595,6 +1776,8 @@ function layoutWorld(
     households,
     edges,
     hhLinks,
+    LAYOUT.hhPerRow,
+    epoch,
   );
   const contentH =
     epoch >= TITLE_OVERHANG_EPOCH ? clearTitleOverhangs(placed, households, bentoH) : bentoH;
@@ -1891,8 +2074,11 @@ export function offsetsForNewGids(
   nextCore: SimNode[],
   worlds: World[],
   edges: Edge[],
-  /** Top-left card spot for a new box, kept in the layout's own arrangement. */
-  anchors: ReadonlyMap<string, { x: number; y: number }> = new Map(),
+  /**
+   * Top-left card spot for a new box, and its cards' spots from there
+   * (`rel`); without `rel`, the layout's own arrangement of the box.
+   */
+  anchors: ReadonlyMap<string, { x: number; y: number; rel?: ReadonlyMap<string, { x: number; y: number }> }> = new Map(),
 ): SimNode[] {
   const bases = layoutBases(nextCore, worlds, edges);
   const newcomers = nextCore.filter((n) => !prevById[n.id]);
@@ -1937,8 +2123,8 @@ export function offsetsForNewGids(
     const anchor = anchors.get(n.gid);
     if (anchor) {
       seenGid.add(n.gid);
-      const box = inBox(newcomers.filter((m) => m.gid === n.gid));
-      for (const [id, d] of box.rel) pack.set(id, tileSnapOrigin(anchor.x + d.x, anchor.y + d.y));
+      const rel = anchor.rel ?? inBox(newcomers.filter((m) => m.gid === n.gid)).rel;
+      for (const [id, d] of rel) pack.set(id, tileSnapOrigin(anchor.x + d.x, anchor.y + d.y));
       continue;
     }
     seenGid.add(n.gid);
