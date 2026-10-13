@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "33f9443",
+   "date": "2026-10-13",
+   "text": "Other is now Not in any world, as the game says. Premade sims with no home keep their own households there, like Bell and the Sotos; only sims the game made as you played share Unhoused sims. Merge your save to sort them; your board opens with every card where it was."
+  },
+  {
    "sha": "ba6ebd2",
    "date": "2026-10-13",
    "text": "With the board open in two tabs, an older tab can no longer save over newer work from the other. It stops saving and shows a banner to reload, or to save its own version as a .json first."
