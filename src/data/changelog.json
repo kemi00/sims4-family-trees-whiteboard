@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "145beb2",
+   "date": "2026-10-13",
+   "text": "Each world's tag now shows how many sims and households it has, like \"👤 16 🏠 8\". Hover a tag to see pets, deceased sims and anyone hidden by filters."
+  },
+  {
    "sha": "22e3958",
    "date": "2026-10-13",
    "text": "Sims who were out visiting when you saved no longer get a household box of their own. Merge your save again to bring them back to their family; everyone else stays where you put them."
