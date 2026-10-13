@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
-import { pairTagsFromBits, parseSaveGame } from './parseSave.ts';
+import { pairTagsFromBits, parseSaveGame, readableHouseholdName } from './parseSave.ts';
 import { decodeFields, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
 
@@ -362,5 +362,20 @@ describe('parseSaveGame', () => {
     assert.ok(parsed.worlds?.includes('Willow Creek'));
     assert.ok(parsed.worlds?.includes('Ciudad Enamorada'));
     assert.ok(!parsed.worlds?.includes('Batuu'));
+  });
+});
+
+describe('readableHouseholdName', () => {
+  it('turns a premade template id into words', () => {
+    assert.equal(readableHouseholdName('premadeHouseholdTemplate_EP14_MysteriousRancher'), 'Mysterious Rancher');
+    assert.equal(readableHouseholdName('premadeHouseholdTemplate_EP17_RavendancerGoth'), 'Ravendancer Goth');
+    assert.equal(readableHouseholdName('premadeHouseholdTemplate_WolfTown_Greg'), 'Wolf Town Greg');
+    assert.equal(readableHouseholdName('premadeHouseholdTemplate_GP12_NPCHousehold'), 'NPC Household');
+  });
+
+  it('leaves ordinary names alone', () => {
+    for (const name of ['Goth', 'Caliente', 'Bro', 'Fixer_Upper', '']) {
+      assert.equal(readableHouseholdName(name), name);
+    }
   });
 });

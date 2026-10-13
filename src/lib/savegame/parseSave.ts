@@ -166,6 +166,27 @@ function mapGender(bits: bigint): string {
   return '';
 }
 
+/**
+ * A premade household the player never renamed keeps its template's internal
+ * id as its name in the save ("premadeHouseholdTemplate_EP14_MysteriousRancher");
+ * the game shows a translated name from its own files instead. Turn the id
+ * into words: drop the prefix and a leading pack code, split the rest at
+ * underscores and capitals ("Mysterious Rancher", "Wolf Town Greg"). Any
+ * other name comes back unchanged.
+ */
+export function readableHouseholdName(name: string): string {
+  const m = /^premadeHouseholdTemplate_(.+)$/i.exec(name.trim());
+  if (!m) return name;
+  const parts = m[1]!.split('_').filter(Boolean);
+  if (parts.length > 1 && /^(EP|GP|SP|FP|BG|PP)\d+$/i.test(parts[0]!)) parts.shift();
+  const words = parts
+    .join(' ')
+    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .trim();
+  return words || name;
+}
+
 function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
   const fields = decodeFields(blob);
   let saveSimId = '';
@@ -186,7 +207,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     } else if (f.field === SIM.last && f.bytes) {
       last = utf8(f.bytes) ?? '';
     } else if (f.field === SIM.householdName && f.bytes) {
-      household = utf8(f.bytes) ?? '';
+      household = readableHouseholdName(utf8(f.bytes) ?? '');
     } else if (f.field === SIM.gender && f.wire === 0) {
       gender = mapGender(f.int);
     } else if (f.field === SIM.age && f.wire === 0) {

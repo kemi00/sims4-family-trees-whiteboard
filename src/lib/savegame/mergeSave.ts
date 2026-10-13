@@ -8,7 +8,12 @@ import type {
   SimNode,
   World,
 } from '../../types/whiteboard.ts';
-import type { ParsedSave, ParsedSaveRel, ParsedSaveSim } from './parseSave.ts';
+import {
+  readableHouseholdName,
+  type ParsedSave,
+  type ParsedSaveRel,
+  type ParsedSaveSim,
+} from './parseSave.ts';
 
 export type SaveMergeSummary = {
   matched: number;
@@ -253,6 +258,33 @@ export function fillMissingSavePacks(nodes: SimNode[], reference: SimNode[]): Si
     const pack = packForSaveSim(n.world, nodes, reference);
     return pack ? { ...n, pack } : n;
   });
+}
+
+/**
+ * Readable names for households a save import named with a premade
+ * template's internal id (see {@link readableHouseholdName}). Only the names
+ * change — gid stays, so the household is the same one. Returns the same
+ * arrays when nothing needs renaming.
+ */
+export function renameTemplateHouseholds(
+  nodes: SimNode[],
+  groups: Group[],
+): { nodes: SimNode[]; groups: Group[] } {
+  const fix = <T extends { hh: string }>(x: T): T => {
+    const hh = readableHouseholdName(x.hh);
+    return hh === x.hh ? x : { ...x, hh };
+  };
+  const odd = (s: string) => readableHouseholdName(s) !== s;
+  return {
+    nodes: nodes.some((n) => odd(n.hh) || odd(n.ohh))
+      ? nodes.map((n) => {
+          const next = fix(n);
+          const ohh = readableHouseholdName(n.ohh);
+          return ohh === n.ohh ? next : { ...next, ohh };
+        })
+      : nodes,
+    groups: groups.some((g) => odd(g.hh)) ? groups.map(fix) : groups,
+  };
 }
 
 function newSaveNode(

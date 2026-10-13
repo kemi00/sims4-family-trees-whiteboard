@@ -10,6 +10,7 @@ import {
   saveImportCore,
   separateLoadOverlaps,
   shouldRepackOffsets,
+  withReadableHouseholdNames,
 } from './loadLayout.ts';
 import { mergeJsonIntoBoard } from './mergeJson.ts';
 import { snapNodesToTiles, snapToTile } from './tiles.ts';
@@ -558,5 +559,48 @@ describe('save import placement', () => {
       assert.deepEqual([now.x, now.y], [n.x, n.y], n.id);
     }
     assert.ok(worldOverlaps(after, groups).includes('A / E'));
+  });
+});
+
+describe('readable names for premade template households', () => {
+  // Other-world households named with template ids, as a save import made
+  // them before names were cleaned up; the long tags shape the packing.
+  const tpl = ['EP14_MysteriousRancher', 'EP17_RavendancerGoth', 'WolfTown_Greg', 'EP17_AliceBasu'];
+  const core: SimNode[] = tpl.map((t, i) => ({
+    ...node(i * 100, i * 50),
+    id: `s${i}`,
+    world: 'Other',
+    hh: `premadeHouseholdTemplate_${t}`,
+    ohh: `premadeHouseholdTemplate_${t}`,
+    gid: `Other||premadeHouseholdTemplate_${t}`,
+  }));
+  const groups: Group[] = core.map((n) => ({
+    gid: n.gid, hh: n.hh, world: n.world, nb: n.nb, color: n.color, x: 0, y: 0, w: 0, h: 0,
+  }));
+  const worlds: World[] = [{ name: 'Other', color: '#9aa0a6' }];
+  const at = (ns: SimNode[]) => computeLayout(ns, worlds, []).map((n) => `${n.id}@${n.x},${n.y}`);
+
+  it('renames households and their groups, keeping each gid', () => {
+    const named = withReadableHouseholdNames({ core, groups, worlds, edges: [] });
+    assert.deepEqual(
+      named.core.map((n) => [n.gid, n.hh, n.ohh]),
+      core.map((n) => [n.gid, ...[n.hh, n.ohh].map((h) => h.replace(/^premadeHouseholdTemplate_(EP\d+_)?/, ''))]).map(([gid, a]) => [
+        gid,
+        a!.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'),
+        a!.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'),
+      ]),
+    );
+    assert.deepEqual(named.groups.map((g) => g.hh), named.core.map((n) => n.hh));
+  });
+
+  it('moves no card', () => {
+    const named = withReadableHouseholdNames({ core, groups, worlds, edges: [] });
+    assert.deepEqual(at(named.core), at(core));
+  });
+
+  it('returns the board untouched when nothing has a template id', () => {
+    const plain = core.map((n) => ({ ...n, hh: 'Goth', ohh: 'Goth' }));
+    const named = withReadableHouseholdNames({ core: plain, groups, worlds, edges: [] });
+    assert.equal(named.core, plain);
   });
 });

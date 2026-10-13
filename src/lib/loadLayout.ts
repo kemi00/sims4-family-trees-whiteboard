@@ -10,6 +10,7 @@ import {
   offsetsForNewGids,
   rowsUnderHousehold,
 } from './layout.ts';
+import { renameTemplateHouseholds } from './savegame/mergeSave.ts';
 import { snapNodesToTiles } from './tiles.ts';
 import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 
@@ -193,6 +194,27 @@ export function jsonLoadTargets(opts: {
     : filePos;
   for (const [id, p] of extra) targets.set(id, p);
   return targets;
+}
+
+/**
+ * Give households named with a premade template id readable names, without
+ * moving anything: a household's name tag is part of packing (a long one
+ * pushes its neighbour down), so every card is pinned to where it was.
+ */
+export function withReadableHouseholdNames(opts: {
+  core: SimNode[];
+  groups: Group[];
+  worlds: World[];
+  edges: Edge[];
+}): { core: SimNode[]; groups: Group[] } {
+  const { core, groups, worlds, edges } = opts;
+  const renamed = renameTemplateHouseholds(core, groups);
+  if (renamed.nodes === core) return { core, groups: renamed.groups };
+  const wasOnScreen = visualPositionsFromCore(core, worlds, edges);
+  return {
+    core: pinCoreToTargets(wasOnScreen, renamed.nodes, worlds, edges),
+    groups: renamed.groups,
+  };
 }
 
 /**

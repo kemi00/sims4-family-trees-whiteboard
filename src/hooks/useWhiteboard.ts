@@ -11,7 +11,7 @@ import {
   writeDraft,
 } from '../lib/autosave.ts';
 import { trackAction } from '../lib/analytics.ts';
-import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, separateLoadOverlaps, shouldRepackOffsets } from '../lib/loadLayout.ts';
+import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, separateLoadOverlaps, shouldRepackOffsets, withReadableHouseholdNames } from '../lib/loadLayout.ts';
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import {
@@ -142,14 +142,21 @@ export function useWhiteboard() {
   if (!bootRef.current) {
     const raw = bootWhiteboardData(seed);
     const migrated = migrateWhiteboardData(raw.data);
+    const bootWorlds = migrated.worlds ?? seed.worlds;
+    const named = withReadableHouseholdNames({
+      core: fillMissingSavePacks(migrated.nodes, seed.nodes),
+      groups: migrated.groups ?? seed.groups,
+      worlds: bootWorlds,
+      edges: sanitizeEdges(migrated.edges),
+    });
     bootRef.current = {
       fromDraft: raw.fromDraft,
       repacked: raw.repacked,
       data: {
         ...migrated,
-        nodes: fillMissingSavePacks(migrated.nodes, seed.nodes),
-        groups: migrated.groups ?? seed.groups,
-        worlds: migrated.worlds ?? seed.worlds,
+        nodes: named.core,
+        groups: named.groups,
+        worlds: bootWorlds,
       },
     };
   }
@@ -1458,27 +1465,35 @@ export function useWhiteboard() {
           worlds,
           loadedEdges,
         );
+        // Premade template ids become readable household names, nothing moves.
+        const fileNamed = withReadableHouseholdNames({
+          core: prepared.nodes,
+          groups: (d.groups as Group[]) ?? groups,
+          worlds,
+          edges: loadedEdges,
+        });
+        const fileGroups = fileNamed.groups;
         const loadedCore = keepBoardPositions
           ? separateLoadOverlaps({
               core: pinCoreToTargets(
                 jsonLoadTargets({
                   keepBoardPositions: true,
                   boardVisualById: byid,
-                  fileCore: prepared.nodes,
+                  fileCore: fileNamed.core,
                   fileEdges: loadedEdges,
                   worlds,
                 }),
-                prepared.nodes,
+                fileNamed.core,
                 worlds,
                 loadedEdges,
               ),
               boardById: byid,
               edges: loadedEdges,
-              groups: (d.groups as Group[]) ?? groups,
+              groups: fileGroups,
               worlds,
               snap,
             })
-          : prepared.nodes;
+          : fileNamed.core;
         setNodesCore(loadedCore);
         setEdges(loadedEdges);
         const loadedMoves = d.householdMoves ?? [];
@@ -1502,7 +1517,7 @@ export function useWhiteboard() {
         );
         undoRef.current = [];
         setCanUndo(false);
-        if (d.groups) setGroups(d.groups);
+        if (d.groups) setGroups(fileGroups);
         setHiddenPacks(new Set(d.hiddenPacks || []));
         setHiddenPlay(new Set(d.hiddenPlay || []));
         setHiAges(new Set(d.hiAges || []));
@@ -1541,7 +1556,7 @@ export function useWhiteboard() {
               return coreOffsetsAfterWorldSeparation(
                 core,
                 laid,
-                (d.groups as Group[]) ?? groups,
+                fileGroups,
                 () => true,
               );
             });
@@ -1652,14 +1667,20 @@ export function useWhiteboard() {
           worlds,
           incomingEdges,
         );
+        const fileNamed = withReadableHouseholdNames({
+          core: prepared.nodes,
+          groups: (d.groups as Group[]) ?? [],
+          worlds,
+          edges: incomingEdges,
+        });
         pushUndo({ filters: true });
         const merged = mergeJsonIntoBoard({
           boardNodes: nodesCore,
           boardEdges: edges,
           boardGroups: groups,
-          incomingNodes: prepared.nodes,
+          incomingNodes: fileNamed.core,
           incomingEdges,
-          incomingGroups: (d.groups as Group[]) ?? [],
+          incomingGroups: fileNamed.groups,
           keepBoardPositions,
         });
         // New sims and links move layout bases, so pin cards to real screen
@@ -1668,7 +1689,7 @@ export function useWhiteboard() {
           jsonLoadTargets({
             keepBoardPositions,
             boardVisualById: byid,
-            fileCore: prepared.nodes,
+            fileCore: fileNamed.core,
             fileEdges: incomingEdges,
             worlds,
           }),
