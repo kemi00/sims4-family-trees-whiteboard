@@ -1,6 +1,21 @@
 {
  "entries": [
   {
+   "sha": "6d98220",
+   "date": "2026-10-14",
+   "text": "You can now zoom out until the whole board fits the screen, past the old 6% limit. Age up only shows when you are close enough to read it, so a click far out no longer ages a household by accident."
+  },
+  {
+   "sha": "259c6fa",
+   "date": "2026-10-14",
+   "text": "Worlds now line up in columns: left to right by how many households they have, top to bottom by how many sims. Not in any world runs along the top, each household over the world its game brought, like Fia Acosta over Ondarion. Boards you already have open exactly as you left them."
+  },
+  {
+   "sha": "9fb6e2c",
+   "date": "2026-10-14",
+   "text": "Loading a save now adds the relatives the game's family tree keeps with no sim, as \"Unknown\" cards in their family, like Felix Hoffman's father between him and Bruno. Over the starter roster, Load save now picks Replace, so premades your game doesn't have stay out of your board."
+  },
+  {
    "sha": "33f9443",
    "date": "2026-10-13",
    "text": "Other is now Not in any world, as the game says. Premade sims with no home keep their own households there, like Bell and the Sotos; only sims the game made as you played share Unhoused sims. Merge your save to sort them; your board opens with every card where it was."
