@@ -37,7 +37,7 @@ export type ParsedSavePair = {
 export type ParsedSave = {
   sims: ParsedSaveSim[];
   rels: ParsedSaveRel[];
-  /** Household id → world name, from lot occupancy in the save. */
+  /** Household id → world of its home lot. Households without one are left out. */
   householdWorld?: Record<string, string>;
   /** World name strings present in the save (installed worlds), from the file. */
   worlds?: string[];
@@ -45,16 +45,27 @@ export type ParsedSave = {
   pairs?: ParsedSavePair[];
 };
 
-/** SimInfo protobuf field numbers as stored in Save Game Data. */
+/**
+ * SimInfo protobuf field numbers as stored in Save Game Data. Field 2 is the
+ * zone (lot) the sim was on when the game saved, not its home: a sim visiting
+ * a neighbour or out at a park carries that lot's id there.
+ */
 const SIM = {
   id: 1,
-  householdId: 2,
+  householdId: 4,
   first: 5,
   last: 6,
   gender: 7,
   age: 8,
   householdName: 22,
   species: 60,
+} as const;
+
+/** Household records (Save Game Data field 5). */
+const HOUSEHOLD = {
+  id: 2,
+  name: 3,
+  homeZone: 4,
 } as const;
 
 /** Family-tree node / edge types from the persistent graph. */
@@ -319,19 +330,42 @@ function parseRelationships(rels: Uint8Array): {
   return { pairs, secretParents };
 }
 
+function idField(fields: ReturnType<typeof decodeFields>, n: number): string {
+  const f = fields.find((x) => x.field === n && (x.wire === 0 || x.wire === 1));
+  return f && f.int > 0n ? idStr(f.int) : '';
+}
+
 /**
- * Lot records live under SaveGameData field 4 (world). Field 3 is the world
- * name string; each nested field 5 is a lot whose field 2 is the occupying
- * household id. Only those strings from the file are used — no zone→world table.
+ * Where each household lives. Lot records sit under SaveGameData field 4
+ * (world): field 3 is the world name, each nested field 5 a lot with its zone
+ * id (2) and owner (4, whose field 3 is the household id). Household records
+ * (field 5) name their home zone. A household with no home lot (an unhoused
+ * townie) is left out. Only strings from the file are used — no zone→world
+ * table.
  */
 function parseWorldIndex(saveGame: Uint8Array): {
   householdWorld: Record<string, string>;
+  householdName: Record<string, string>;
   worlds: string[];
 } {
-  const householdWorld: Record<string, string> = {};
+  const zoneWorld = new Map<string, string>();
+  const ownerWorld = new Map<string, string>();
+  const homeZone = new Map<string, string>();
+  const householdName: Record<string, string> = {};
   const worlds = new Set<string>();
   for (const rec of decodeFields(saveGame)) {
-    if (rec.field !== 4 || !rec.bytes) continue;
+    if (!rec.bytes) continue;
+    if (rec.field === 5) {
+      const fields = decodeFields(rec.bytes);
+      const id = idField(fields, HOUSEHOLD.id);
+      if (!id) continue;
+      const home = idField(fields, HOUSEHOLD.homeZone);
+      if (home) homeZone.set(id, home);
+      const name = utf8(fields.find((f) => f.field === HOUSEHOLD.name && f.bytes)?.bytes ?? null);
+      if (name) householdName[id] = readableHouseholdName(name);
+      continue;
+    }
+    if (rec.field !== 4) continue;
     const fields = decodeFields(rec.bytes);
     let world = '';
     for (const f of fields) {
@@ -341,15 +375,25 @@ function parseWorldIndex(saveGame: Uint8Array): {
     worlds.add(world);
     for (const f of fields) {
       if (f.field !== 5 || !f.bytes) continue;
-      for (const lot of decodeFields(f.bytes)) {
-        if (lot.field !== 2 || (lot.wire !== 0 && lot.wire !== 1) || lot.int <= 0n) {
-          continue;
-        }
-        householdWorld[idStr(lot.int)] = world;
-      }
+      const lot = decodeFields(f.bytes);
+      const zone = idField(lot, 2);
+      if (zone) zoneWorld.set(zone, world);
+      const owner = lot.find((x) => x.field === 4 && x.bytes)?.bytes;
+      const household = owner ? idField(decodeFields(owner), 3) : '';
+      if (household) ownerWorld.set(household, world);
     }
   }
-  return { householdWorld, worlds: [...worlds].sort((a, b) => a.localeCompare(b)) };
+  const householdWorld: Record<string, string> = {};
+  for (const [id, world] of ownerWorld) householdWorld[id] = world;
+  for (const [id, zone] of homeZone) {
+    const world = zoneWorld.get(zone);
+    if (world) householdWorld[id] = world;
+  }
+  return {
+    householdWorld,
+    householdName,
+    worlds: [...worlds].sort((a, b) => a.localeCompare(b)),
+  };
 }
 
 function gameplayData(saveGame: Uint8Array): Uint8Array | null {
@@ -404,10 +448,13 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     sims.push(sim);
   }
   if (!sims.length) throw new Error('No sims found in this save');
-  const { householdWorld, worlds } = parseWorldIndex(data);
+  const { householdWorld, householdName, worlds } = parseWorldIndex(data);
   for (const sim of sims) {
     const world = householdWorld[sim.householdId];
     if (world) sim.world = world;
+    // The household record's name is the game's; a sim's copy can be blank.
+    const name = householdName[sim.householdId];
+    if (name) sim.household = name;
   }
   const gameplay = gameplayData(data);
   const graph = familyTreeGraph(gameplay);

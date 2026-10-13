@@ -33,6 +33,8 @@ export type SaveMergeSummary = {
   secretParents: number;
   /** Pairs the save calls secret lovers. */
   secretLovers: number;
+  /** Sims moved into the box that holds the rest of their save household. */
+  rejoined: string[];
 };
 
 export type SaveMergeInput = {
@@ -49,6 +51,8 @@ export type SaveMergeInput = {
    * when the board has no sims in a world yet — always the case on Replace.
    */
   packReference?: SimNode[];
+  /** Sims the player moved to another household by hand; Merge keeps them there. */
+  movedByHand?: ReadonlySet<string>;
   now: string;
   nextEdgeId: () => string;
 };
@@ -58,6 +62,8 @@ export type SaveMergeResult = {
   edges: Edge[];
   groups: Group[];
   pairStatus: PairStatus[];
+  /** Board ids of the sims in {@link SaveMergeSummary.rejoined}. */
+  rejoined: string[];
   summary: SaveMergeSummary;
 };
 
@@ -389,6 +395,78 @@ function homeForNew(
   return home;
 }
 
+function homeOf(n: SimNode): BoardHome {
+  return { gid: n.gid, world: n.world, nb: n.nb, hh: n.hh, color: n.color };
+}
+
+/** `n` moved into `home`'s box. A sim whose origin was its old box moves origin too. */
+function moveInto(n: SimNode, home: BoardHome): SimNode {
+  const next: SimNode = { ...n, ...home };
+  if (n.ohh === n.hh && n.oworld === n.world) {
+    next.ohh = home.hh;
+    next.oworld = home.world;
+    next.onb = home.nb;
+  }
+  return next;
+}
+
+/**
+ * Bring each save household's sims on the board into one box. Boards built
+ * before households were read by household id gave a sim who was out
+ * visiting when the game saved a box of its own; a move in the game since the
+ * last import splits a household too. Each stray joins the box that already
+ * holds most of its household — ties go to the box named like the household,
+ * then the one in its home world, then the one the import made first (no
+ * "::" suffix). Boxes are never split, and sims moved by hand stay put.
+ * Returns the board ids moved and each household's box.
+ */
+function gatherHouseholds(
+  nodes: SimNode[],
+  byHousehold: Map<string, { sim: ParsedSaveSim; id: string }[]>,
+  worlds: World[],
+  movedByHand: ReadonlySet<string>,
+): { moved: string[]; homes: Map<string, BoardHome> } {
+  const at = new Map(nodes.map((n, i) => [n.id, i]));
+  const moved: string[] = [];
+  const homes = new Map<string, BoardHome>();
+  for (const list of byHousehold.values()) {
+    const free = list.filter((m) => !movedByHand.has(m.id));
+    if (!free.length) continue;
+    const { sim } = free[0]!;
+    const homeWorld = boardWorldName(sim.world, worlds);
+    const name = foldName(sim.household);
+    const boxes = new Map<string, { count: number; n: SimNode; order: number }>();
+    for (const { id } of free) {
+      const n = nodes[at.get(id)!]!;
+      const box = boxes.get(n.gid);
+      if (box) box.count += 1;
+      else boxes.set(n.gid, { count: 1, n, order: boxes.size });
+    }
+    const rank = (b: { count: number; n: SimNode; order: number }) => [
+      b.count,
+      foldName(b.n.hh) === name ? 1 : 0,
+      b.n.world === homeWorld ? 1 : 0,
+      b.n.gid.includes('::') ? 0 : 1,
+      -b.order,
+    ];
+    const target = [...boxes.values()].sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return rb[i]! - ra[i]!;
+      return 0;
+    })[0]!.n;
+    const home = homeOf(target);
+    homes.set(sim.householdId, home);
+    for (const { id } of free) {
+      const i = at.get(id)!;
+      if (nodes[i]!.gid === home.gid) continue;
+      nodes[i] = moveInto(nodes[i]!, home);
+      moved.push(id);
+    }
+  }
+  return { moved, homes };
+}
+
 export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const { parsed, seedNameKeys, now, nextEdgeId, worlds } = input;
   const nodes = input.nodes.map((n) => ({ ...n }));
@@ -419,6 +497,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const existingGids = new Set(nodes.map((n) => n.gid));
   const skipped: string[] = [];
   const unmatched: ParsedSaveSim[] = [];
+  /** Save household id → its sims matched to board cards. */
+  const byHousehold = new Map<string, { sim: ParsedSaveSim; id: string }[]>();
   let matched = 0;
   let added = 0;
   let fromSaveCount = 0;
@@ -440,12 +520,30 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       bySaveId.set(sim.saveSimId, patched);
       saveIdToBoard.set(sim.saveSimId, patched.id);
       rememberHome(hhHome, sim, patched);
+      if (sim.householdId && sim.householdId !== '0') {
+        const list = byHousehold.get(sim.householdId) ?? [];
+        list.push({ sim, id: patched.id });
+        byHousehold.set(sim.householdId, list);
+      }
       matched += 1;
       if (patched.fromSave) fromSaveCount += 1;
       continue;
     }
     unmatched.push(sim);
   }
+
+  const gathered = gatherHouseholds(nodes, byHousehold, worlds, input.movedByHand ?? new Set());
+  for (const [householdId, home] of gathered.homes) {
+    const sim = byHousehold.get(householdId)![0]!.sim;
+    const hh = sim.household.trim() || sim.last.trim() || 'Household';
+    const key = homeKey(householdId, hh, boardWorldName(sim.world, worlds));
+    if (foldName(home.hh) === foldName(hh)) hhHome.set(key, home);
+    else hhHome.delete(key);
+  }
+  const vacated = new Set(
+    gathered.moved.map((id) => input.nodes.find((n) => n.id === id)!.gid),
+  );
+  for (const n of nodes) vacated.delete(n.gid);
 
   for (const sim of unmatched) {
     const isOriginal = !seedNameKeys.has(nameKey(sim.first, sim.last));
@@ -589,7 +687,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const stillPlanned = edges.filter((e) => edgeSourceOf(e) === 'planned').length;
   const secretParents = edges.filter((e) => e.secret && e.type === 'parent').length;
   const secretLovers = edges.filter((e) => e.secret && e.type === 'romance').length;
-  const groups = [...input.groups];
+  const groups = input.groups.filter((g) => !vacated.has(g.gid));
   const gids = new Set(groups.map((g) => g.gid));
   for (const n of nodes) {
     if (gids.has(n.gid)) continue;
@@ -615,6 +713,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     edges: sanitizeEdges(edges),
     groups,
     pairStatus,
+    rejoined: gathered.moved,
     summary: {
       matched,
       added,
@@ -628,6 +727,10 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       hidePacks,
       secretParents,
       secretLovers,
+      rejoined: gathered.moved.map((id) => {
+        const n = nodes.find((x) => x.id === id)!;
+        return `${n.first} ${n.sur}`.trim();
+      }),
     },
   };
 }

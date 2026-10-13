@@ -532,6 +532,112 @@ describe('mergeSaveIntoBoard', () => {
   });
 });
 
+describe('households split across boxes', () => {
+  const worlds = [
+    { name: 'Henford-on-Bagley', color: '#b6992d' },
+    { name: 'Ravenwood', color: '#6b5b95' },
+    ...world,
+  ];
+  const card = (id: string, w: string, hh: string, gid = `${w}||${hh}`) =>
+    sim({ id, first: id, sur: hh, hh, ohh: hh, world: w, oworld: w, gid, saveSimId: id });
+  const saveSim = (id: string, householdId: string, household: string, w?: string) => ({
+    saveSimId: id,
+    householdId,
+    first: id,
+    last: household,
+    household,
+    age: 'Adult',
+    gender: 'Female',
+    world: w,
+  });
+  const merge = (nodes: SimNode[], sims: ParsedSave['sims'], movedByHand?: Set<string>) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges: [],
+      groups: [...new Set(nodes.map((n) => n.gid))].map((gid) => {
+        const n = nodes.find((x) => x.gid === gid)!;
+        return { gid, hh: n.hh, world: n.world, nb: '-', color: n.color, x: 0, y: 0, w: 0, h: 0 };
+      }),
+      worlds,
+      parsed: { sims, rels: [] },
+      seedNameKeys: new Set(),
+      movedByHand,
+      now: '2026-10-13T12:00:00.000Z',
+      nextEdgeId: () => 'v1',
+    });
+  const gidOf = (r: ReturnType<typeof merge>, id: string) =>
+    r.nodes.find((n) => n.id === id)!.gid;
+  const H = 'Henford-on-Bagley';
+
+  it('brings a sim who was out visiting back into their household\'s box', () => {
+    const r = merge(
+      [card('Sara', H, 'Scott'), card('Simon', H, 'Scott', `${H}||Scott::77`)],
+      [saveSim('Sara', '10', 'Scott', H), saveSim('Simon', '10', 'Scott', H)],
+    );
+    assert.equal(gidOf(r, 'Simon'), `${H}||Scott`);
+    assert.deepEqual(r.rejoined, ['Simon']);
+    assert.deepEqual(r.summary.rejoined, ['Simon Scott']);
+    assert.ok(!r.groups.some((g) => g.gid === `${H}||Scott::77`), 'the empty box goes');
+  });
+
+  it('gathers a household where most of it already is', () => {
+    const r = merge(
+      [
+        card('Bella', H, 'Goth', `${H}||Goth::5`),
+        card('Cassandra', H, 'Goth', `${H}||Goth::5`),
+        card('Mortimer', H, 'Goth'),
+      ],
+      ['Bella', 'Cassandra', 'Mortimer'].map((id) => saveSim(id, '20', 'Goth', H)),
+    );
+    assert.equal(gidOf(r, 'Mortimer'), `${H}||Goth::5`);
+    assert.deepEqual(r.rejoined, ['Mortimer']);
+  });
+
+  it('settles a tie in the household\'s home world; a household with no home lot is Other', () => {
+    const r = merge(
+      [card('Mariah', 'Ravenwood', 'Camacho'), card('Judith', 'Other', 'Camacho')],
+      [saveSim('Mariah', '30', 'Camacho'), saveSim('Judith', '30', 'Camacho')],
+    );
+    const mariah = r.nodes.find((n) => n.id === 'Mariah')!;
+    assert.equal(mariah.gid, 'Other||Camacho');
+    assert.equal(mariah.world, 'Other');
+    assert.equal(mariah.oworld, 'Other', 'her origin was the box she left, so it follows');
+  });
+
+  it('leaves a sim the player moved to another household by hand', () => {
+    const r = merge(
+      [card('Sara', H, 'Scott'), card('Simon', H, 'Watson')],
+      [saveSim('Sara', '10', 'Scott', H), saveSim('Simon', '10', 'Scott', H)],
+      new Set(['Simon']),
+    );
+    assert.equal(gidOf(r, 'Simon'), `${H}||Watson`);
+    assert.deepEqual(r.rejoined, []);
+  });
+
+  it('never splits a box that holds two households', () => {
+    const r = merge(
+      [card('Laxmi', 'Other', 'Kunal'), card('Raheel', 'Other', 'Kunal')],
+      [saveSim('Laxmi', '40', 'Kunal'), saveSim('Raheel', '41', 'Kunal')],
+    );
+    assert.equal(gidOf(r, 'Raheel'), 'Other||Kunal');
+    assert.deepEqual(r.rejoined, []);
+  });
+
+  it('puts a new member in the box the household was gathered into', () => {
+    const r = merge(
+      [card('Sara', H, 'Scott', `${H}||Scott::77`), card('Simon', H, 'Scott'), card('Ann', H, 'Scott')],
+      [
+        saveSim('Sara', '10', 'Scott', H),
+        saveSim('Simon', '10', 'Scott', H),
+        saveSim('Ann', '10', 'Scott', H),
+        saveSim('Maisie', '10', 'Scott', H),
+      ],
+    );
+    assert.equal(gidOf(r, 'Sara'), `${H}||Scott`);
+    assert.equal(r.nodes.find((n) => n.first === 'Maisie')!.gid, `${H}||Scott`);
+  });
+});
+
 describe('mergeSaveIntoBoard secrets and statuses', () => {
   const saveSim = (saveSimId: string, first: string) => ({
     saveSimId,

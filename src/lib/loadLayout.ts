@@ -11,7 +11,7 @@ import {
   rowsUnderHousehold,
 } from './layout.ts';
 import { renameTemplateHouseholds } from './savegame/mergeSave.ts';
-import { snapNodesToTiles } from './tiles.ts';
+import { householdChrome, snapNodesToTiles } from './tiles.ts';
 import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 
 /**
@@ -239,6 +239,55 @@ export function separateLoadOverlaps(opts: {
   return coreOffsetsAfterImportSeparation(core, laid, groups, before);
 }
 
+function boxesOverlap(
+  a: { boxL: number; boxT: number; boxR: number; boxB: number },
+  b: { boxL: number; boxT: number; boxR: number; boxB: number },
+): boolean {
+  return a.boxL < b.boxR && a.boxR > b.boxL && a.boxT < b.boxB && a.boxB > b.boxT;
+}
+
+/**
+ * The board as {@link offsetsForNewGids} should see it when a merge moved
+ * sims into another household's box (see gatherHouseholds in mergeSave). A
+ * sim already beside that household — its box can take the card in without
+ * running into another box — keeps its spot. The rest leave the board list,
+ * so they are placed like newcomers: in rows under the household's cards.
+ */
+function boardForRejoins(
+  boardById: Record<string, SimNode>,
+  next: SimNode[],
+  groups: Group[],
+  rejoined: ReadonlySet<string>,
+): Record<string, SimNode> {
+  if (!rejoined.size) return boardById;
+  const out = { ...boardById };
+  const nextById = new Map(next.map((n) => [n.id, n]));
+  const byGid = new Map<string, SimNode[]>();
+  for (const n of Object.values(boardById)) {
+    if (rejoined.has(n.id)) continue;
+    byGid.set(n.gid, [...(byGid.get(n.gid) ?? []), n]);
+  }
+  const groupOf = (gid: string) => groups.find((g) => g.gid === gid);
+  for (const id of rejoined) {
+    const was = boardById[id];
+    const now = nextById.get(id);
+    const home = now ? byGid.get(now.gid) : undefined;
+    if (!was || !now || !home?.length || was.world !== now.world) {
+      delete out[id];
+      continue;
+    }
+    const grown = householdChrome([...home, was], groupOf(now.gid))!;
+    const clash = [...byGid].some(([gid, mem]) => {
+      if (gid === now.gid) return false;
+      const box = householdChrome(mem, groupOf(gid));
+      return !!box && boxesOverlap(grown, box);
+    });
+    if (clash) delete out[id];
+    else out[id] = { ...was, gid: now.gid };
+  }
+  return out;
+}
+
 /**
  * Core nodes after a .save import. Replace packs the save from scratch and
  * pushes worlds apart. Merge keeps every card already on the board where it
@@ -254,6 +303,8 @@ export function saveImportCore(opts: {
   groups: Group[];
   worlds: World[];
   snap: boolean;
+  /** Sims the merge moved into another household's box. */
+  rejoined?: ReadonlySet<string>;
 }): SimNode[] {
   const { mode, boardById, edges, groups, worlds, snap } = opts;
   const all = opts.nodes.map((n) => asCore(n, n.ox ?? 0, n.oy ?? 0));
@@ -263,8 +314,9 @@ export function saveImportCore(opts: {
       : computeLayout(all, worlds, edges);
     return coreOffsetsAfterWorldSeparation(all, laid, groups);
   }
+  const board = boardForRejoins(boardById, all, groups, opts.rejoined ?? new Set());
   return separateLoadOverlaps({
-    core: offsetsForNewGids(boardById, all, worlds, edges),
+    core: offsetsForNewGids(board, all, worlds, edges),
     boardById,
     edges,
     groups,

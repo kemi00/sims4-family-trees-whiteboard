@@ -1813,6 +1813,7 @@ export function useWhiteboard() {
           groups: result.groups,
           worlds,
           snap,
+          rejoined: new Set(result.rejoined),
         }),
       );
       eidcRef.current = nextEidc(result.edges, eidcRef.current);
@@ -1858,6 +1859,7 @@ export function useWhiteboard() {
           parsed,
           seedNameKeys: seedNameKeysFromNodes(seed.nodes),
           packReference: seed.nodes,
+          movedByHand: new Set(householdMoves.map((m) => m.simId)),
           now: new Date().toISOString(),
           nextEdgeId: () => 'v' + n++,
         });
@@ -1868,7 +1870,7 @@ export function useWhiteboard() {
       }
     };
     rd.readAsArrayBuffer(file);
-  }, [nodesCore, edges, groups, worlds, pairStatus, seed.nodes]);
+  }, [nodesCore, edges, groups, worlds, pairStatus, seed.nodes, householdMoves]);
 
   const confirmSaveImport = useCallback(
     (svgWidth: number, svgHeight: number) => {

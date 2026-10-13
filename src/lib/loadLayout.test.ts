@@ -560,6 +560,74 @@ describe('save import placement', () => {
     }
     assert.ok(worldOverlaps(after, groups).includes('A / E'));
   });
+
+  /** Lay `board` out, move `moves` into another box, import nothing new. */
+  function rejoin(board: SimNode[], moves: Record<string, SimNode>) {
+    const shown = laidOut(board);
+    const nodes = board.map((n) => moves[n.id] ?? n);
+    const groups = groupsOf(nodes);
+    const core = saveImportCore({
+      mode: 'merge',
+      boardById: byId(shown),
+      nodes,
+      edges: [],
+      groups,
+      worlds,
+      snap: true,
+      rejoined: new Set(Object.keys(moves)),
+    });
+    return { shown, groups, after: laidOut(core) };
+  }
+
+  it('keeps a sim who rejoins the box beside it where it is', () => {
+    // A save that took the lot Simon stood on for his home gave him a box
+    // of his own next to his wife's.
+    const simon = { ...sim('s2', 'A', 'Scott'), gid: 'A||Scott::9' };
+    const board = [sim('s1', 'A', 'Scott'), simon, sim('b1', 'B', 'Beta')];
+    const shown0 = laidOut(board);
+    assert.ok(
+      at(shown0, 's2').y === at(shown0, 's1').y && at(shown0, 's2').x > at(shown0, 's1').x,
+      'fixture: Simon\'s box sits right of Sara\'s',
+    );
+
+    const { shown, groups, after } = rejoin(board, { s2: { ...simon, gid: 'A||Scott' } });
+    for (const n of shown) assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
+    assert.deepEqual(householdOverlaps(after, groups), []);
+  });
+
+  it('moves a sim whose box is across other households in under its own', () => {
+    const simon = { ...sim('s2', 'A', 'Scott'), gid: 'A||Scott::9' };
+    const board = [...starterBoard(), sim('s1', 'A', 'Scott'), simon];
+    const shown0 = laidOut(board);
+    assert.ok(at(shown0, 's2').y > at(shown0, 's1').y + at(shown0, 's1').h, 'fixture: Simon packs a row down, under Alpha');
+
+    const { shown, groups, after } = rejoin(board, { s2: { ...simon, gid: 'A||Scott' } });
+    const sara = at(shown, 's1');
+    assert.equal(at(after, 's2').x, sara.x);
+    assert.ok(at(after, 's2').y > sara.y + sara.h, 'under Sara');
+    assert.deepEqual(householdOverlaps(after, groups), []);
+    for (const n of shown) {
+      if (n.id === 's2' || n.world === 'E') continue;
+      assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
+    }
+  });
+
+  it('puts a sim who rejoins from another world in rows under the household', () => {
+    const kristin = sim('k1', 'B', 'Durham');
+    const board = [...starterBoard(), sim('m1', 'A', 'Durham'), kristin];
+    const { shown, groups, after } = rejoin(board, {
+      k1: { ...kristin, world: 'A', oworld: 'A', gid: 'A||Durham' },
+    });
+    const myra = at(shown, 'm1');
+    assert.equal(at(after, 'k1').x, myra.x);
+    assert.ok(at(after, 'k1').y > myra.y + myra.h, 'under Myra');
+    assert.deepEqual(householdOverlaps(after, groups), []);
+    assert.deepEqual(worldOverlaps(after, groups), []);
+    for (const n of shown) {
+      if (n.id === 'k1' || n.world === 'E') continue;
+      assert.deepEqual([at(after, n.id).x, at(after, n.id).y], [n.x, n.y], n.id);
+    }
+  });
 });
 
 describe('readable names for premade template households', () => {

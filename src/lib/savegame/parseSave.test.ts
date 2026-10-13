@@ -113,6 +113,8 @@ function wrapDbpf(payload: Uint8Array, compactGroup = false): Uint8Array {
 function simBlob(opts: {
   id: number;
   householdId: number;
+  /** Lot the sim stood on when the game saved; home unless given. */
+  zone?: number;
   first: string;
   last: string;
   household: string;
@@ -121,7 +123,8 @@ function simBlob(opts: {
 }): Uint8Array {
   return concat(
     encodeVarintField(1, opts.id),
-    encodeVarintField(2, opts.householdId),
+    encodeVarintField(2, opts.zone ?? 0),
+    encodeVarintField(4, opts.householdId),
     encodeString(5, opts.first),
     encodeString(6, opts.last),
     encodeVarintField(7, opts.gender),
@@ -283,6 +286,92 @@ describe('save relationships', () => {
 
   it('ignores bits it does not know', () => {
     assert.deepEqual(pairTagsFromBits(new Set([1n, 34619n])), []);
+  });
+});
+
+/** A household record: id, name, home lot (0 for none). */
+function householdRecord(id: number, name: string, homeZone: number): Uint8Array {
+  return encodeBytes(
+    5,
+    concat(
+      encodeVarintField(1, 999),
+      encodeVarintField(2, id),
+      encodeString(3, name),
+      encodeVarintField(4, homeZone),
+    ),
+  );
+}
+
+/** A world record with lots: [zone id, owning household id]. */
+function worldRecord(name: string, lots: [number, number][]): Uint8Array {
+  return encodeBytes(
+    4,
+    concat(
+      encodeString(3, name),
+      ...lots.map(([zone, owner]) =>
+        encodeBytes(
+          5,
+          concat(
+            encodeVarintField(2, zone),
+            encodeBytes(4, encodeVarintField(3, owner)),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * The Scotts (household 10) live on lot 100 in Henford-on-Bagley; Simon was
+ * out on lot 200 (the Watsons' home) when the game saved. Rae (household 30)
+ * has no home lot and was visiting lot 300 in Ravenwood.
+ */
+function visitorsSave(): Uint8Array {
+  const sim = (id: number, first: string, last: string, householdId: number, zone: number) =>
+    encodeBytes(
+      6,
+      simBlob({ id, householdId, zone, first, last, household: last, gender: 4096, age: 16 }),
+    );
+  const data = concat(
+    worldRecord('Henford-on-Bagley', [
+      [100, 10],
+      [200, 20],
+    ]),
+    worldRecord('Ravenwood', [[300, 40]]),
+    householdRecord(10, 'Scott', 100),
+    householdRecord(20, 'Watson', 200),
+    householdRecord(30, 'Durham', 0),
+    householdRecord(40, 'Gomes', 300),
+    sim(1, 'Sara', 'Scott', 10, 100),
+    sim(2, 'Simon', 'Scott', 10, 200),
+    sim(3, 'Imran', 'Watson', 20, 200),
+    sim(4, 'Rae', 'Durham', 30, 300),
+    encodeBytes(6, simBlob({ id: 5, householdId: 20, zone: 200, first: 'Maira', last: 'Watson', household: '', gender: 8192, age: 16 })),
+  );
+  return wrapDbpf(refpackCompress(data));
+}
+
+describe('households', () => {
+  const parsed = parseSaveGame(visitorsSave());
+  const sim = (first: string) => parsed.sims.find((s) => s.first === first)!;
+
+  it('keeps a sim who was out visiting in their own household', () => {
+    assert.equal(sim('Simon').householdId, sim('Sara').householdId);
+    assert.notEqual(sim('Simon').householdId, sim('Imran').householdId);
+  });
+
+  it('puts a household in the world of its home lot, not where its sims stood', () => {
+    assert.equal(sim('Simon').world, 'Henford-on-Bagley');
+    assert.equal(parsed.householdWorld?.['10'], 'Henford-on-Bagley');
+  });
+
+  it('gives a household with no home lot no world', () => {
+    assert.equal(sim('Rae').world, undefined);
+    assert.equal(parsed.householdWorld?.['30'], undefined);
+  });
+
+  it('takes the household name from the household when a sim\'s copy is blank', () => {
+    assert.equal(sim('Maira').household, 'Watson');
   });
 });
 

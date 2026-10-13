@@ -27,6 +27,7 @@ export function SaveImportDialog({
 }: Props) {
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
   const hasDetails =
+    summary.rejoined.length > 0 ||
     summary.skipped.length > 0 ||
     summary.saveWorlds.length > 0 ||
     summary.hidePacks.length > 0;
@@ -70,6 +71,11 @@ export function SaveImportDialog({
                 <li>
                   <b>{summary.stillPlanned}</b> stay planned (violet)
                 </li>
+                {summary.rejoined.length > 0 && (
+                  <li>
+                    <b>{summary.rejoined.length}</b> sims rejoin their household
+                  </li>
+                )}
                 {(summary.secretParents > 0 || summary.secretLovers > 0) && (
                   <li>
                     <b>{summary.secretParents}</b> secret parents ·{' '}
@@ -97,7 +103,15 @@ export function SaveImportDialog({
         </fieldset>
         {hasDetails && (
           <details className="save-import__details">
-            <summary>Worlds, packs, and skipped names</summary>
+            <summary>Households, worlds, packs, and skipped names</summary>
+            {summary.rejoined.length > 0 && (
+              <div className="save-import__meta">
+                <span className="save-import__meta-label">Rejoin their household</span>
+                <span className="save-import__meta-value">
+                  {listPreview(summary.rejoined, 8)}
+                </span>
+              </div>
+            )}
             {summary.skipped.length > 0 && (
               <div className="save-import__meta">
                 <span className="save-import__meta-label">Skipped (ambiguous name)</span>
