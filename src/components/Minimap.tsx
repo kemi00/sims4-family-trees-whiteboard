@@ -75,6 +75,8 @@ export function Minimap({ wb, svgRef, camera }: Props) {
   cameraRef.current = camera;
   const mapSize = useElementSize(mapRef);
   const stageSize = useElementSize(svgRef);
+  const stageSizeRef = useRef(stageSize);
+  stageSizeRef.current = stageSize;
   const fitRef = useRef(minimapFit({ l: 0, t: 0, r: 1, b: 1 }, 1, 1, 0));
   const panRafRef = useRef(0);
   const panPendingRef = useRef<{ clientX: number; clientY: number } | null>(
@@ -197,8 +199,15 @@ export function Minimap({ wb, svgRef, camera }: Props) {
       dy = Math.max(-80, Math.min(80, dy));
       const live = cameraRef.current.read();
       cameraRef.current.beginNav();
+      const stage = stageSizeRef.current;
       cameraRef.current.apply(
-        zoomTowardWorld(live, local.x, local.y, Math.exp(-dy * step)),
+        zoomTowardWorld(
+          live,
+          local.x,
+          local.y,
+          Math.exp(-dy * step),
+          wbRef.current.minZoom(stage.w, stage.h),
+        ),
       );
       if (wheelIdleRef.current) clearTimeout(wheelIdleRef.current);
       wheelIdleRef.current = setTimeout(() => {

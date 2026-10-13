@@ -188,7 +188,8 @@ export const GroupLayer = memo(function GroupLayer({
                 </>
               )}
             </g>
-            {!unhoused && (
+            {/* Without its text, Age up is a blank pill a stray click hits. */}
+            {!unhoused && labels && (
               <g
                 className="hh-ageup"
                 role="button"
@@ -210,19 +211,17 @@ export const GroupLayer = memo(function GroupLayer({
                   stroke={g0.color}
                   strokeWidth={1}
                 />
-                {labels && (
-                  <text
-                    x={ageX + ageW / 2}
-                    y={textY(ageY)}
-                    dominantBaseline="middle"
-                    fontSize={12}
-                    fontWeight={700}
-                    textAnchor="middle"
-                    fill="#fff"
-                  >
-                    {ageLabel}
-                  </text>
-                )}
+                <text
+                  x={ageX + ageW / 2}
+                  y={textY(ageY)}
+                  dominantBaseline="middle"
+                  fontSize={12}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill="#fff"
+                >
+                  {ageLabel}
+                </text>
               </g>
             )}
           </g>

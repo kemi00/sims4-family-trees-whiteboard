@@ -23,6 +23,7 @@ import {
   dominantWorldInViewport,
   snapHouseholdDelta,
   snapPosition,
+  zoomFloor,
   zoomViewportAt,
   type SnapSticky,
 } from '../lib/geometry.ts';
@@ -1313,6 +1314,21 @@ export function useWhiteboard() {
   }, [nodes, nodeVis]);
 
   /**
+   * Fit once a board just set is laid out. A fit queued with setTimeout ran
+   * with the old board's cards, so a Replace framed the board it replaced.
+   */
+  const fitNextRef = useRef<{ w: number; h: number } | null>(null);
+  const fitWhenLaidOut = useCallback((svgWidth: number, svgHeight: number) => {
+    fitNextRef.current = { w: svgWidth, h: svgHeight };
+  }, []);
+  useEffect(() => {
+    const next = fitNextRef.current;
+    if (!next) return;
+    fitNextRef.current = null;
+    fit(next.w, next.h);
+  }, [fit]);
+
+  /**
    * Frame a single world. Two differences from `fit`: the zoom cap is above 1 so
    * picking a small world magnifies it rather than just recentring the board,
    * and `insetRight` keeps the result clear of the legend panel, which would
@@ -1348,11 +1364,19 @@ export function useWhiteboard() {
 
   const resetView = useCallback(() => setViewport(INITIAL_VIEW), []);
 
+  const boardBounds = useMemo(() => bbox(nodes, nodeVis), [nodes, nodeVis]);
+  /** Lowest zoom on a stage this size: low enough to show the whole board. */
+  const minZoom = useCallback(
+    (svgWidth: number, svgHeight: number) => zoomFloor(boardBounds, svgWidth, svgHeight),
+    [boardBounds],
+  );
+
   const zoomAt = useCallback(
     (f: number, cx: number, cy: number, svgRect: DOMRect) => {
-      setViewport((v) => zoomViewportAt(v, f, cx, cy, svgRect));
+      const floor = minZoom(svgRect.width, svgRect.height);
+      setViewport((v) => zoomViewportAt(v, f, cx, cy, svgRect, floor));
     },
-    [],
+    [minZoom],
   );
 
   const focusLogEntry = useCallback(
@@ -1463,9 +1487,9 @@ export function useWhiteboard() {
       skipAutosaveRef.current = true;
       trackAction('/action/reset-board');
       flashStatus('Reset the board');
-      setTimeout(() => fit(svgWidth, svgHeight), 0);
+      fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [seed, flashStatus, fit],
+    [seed, flashStatus, fitWhenLaidOut],
   );
 
   const saveJson = useCallback(() => {
@@ -1873,9 +1897,9 @@ export function useWhiteboard() {
             ? `Save merged — ${s.matched} updated, ${s.added} added. Hidden ${s.hidePacks.length} games. Download JSON to keep this merge.`
             : `Save merged — ${s.matched} updated, ${s.added} added. Download JSON to keep this merge.`,
       );
-      setTimeout(() => fit(svgWidth, svgHeight), 0);
+      fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [byid, worlds, pushUndo, flashStatus, fit, snap],
+    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap],
   );
 
   const previewSave = useCallback((file: File) => {
@@ -2309,6 +2333,7 @@ export function useWhiteboard() {
     zoomToWorld,
     resetView,
     zoomAt,
+    minZoom,
     focusLogEntry,
     focusSim,
     searchSim,

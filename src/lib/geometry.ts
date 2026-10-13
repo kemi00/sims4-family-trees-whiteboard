@@ -599,7 +599,8 @@ export function zoomViewportAt(
   zoomMin = ZOOM_MIN,
   zoomMax = ZOOM_MAX,
 ): Viewport {
-  const nk = Math.min(zoomMax, Math.max(zoomMin, v.k * f));
+  // A view already below the floor (a fit of a huge board) never zooms in to it.
+  const nk = Math.min(zoomMax, Math.max(Math.min(zoomMin, v.k), v.k * f));
   if (nk === v.k) return v;
   const mx = cx - svgRect.left;
   const my = cy - svgRect.top;
@@ -754,6 +755,23 @@ export function unionGeom(a: SimNode, b: SimNode): UnionGeom {
   const py = ry - above <= below - ry ? above : below;
   const pts = `${bx},${sy} ${outL},${sy} ${outL},${py} ${rx},${py} ${outR},${py} ${outR},${ey} ${bex},${ey}`;
   return { sx: bx, sy, ex: bex, ey, rx, ry: py, pts };
+}
+
+/**
+ * Lowest zoom for a board whose cards span `bounds`: {@link ZOOM_MIN}, or
+ * less when the board is too big to fit the stage at it, so zooming out can
+ * always show every object. The tenth to spare covers the world frames and
+ * tags around the cards.
+ */
+export function zoomFloor(
+  bounds: [number, number, number, number],
+  svgWidth: number,
+  svgHeight: number,
+): number {
+  if (!(svgWidth > 0 && svgHeight > 0)) return ZOOM_MIN;
+  const [x0, y0, x1, y1] = bounds;
+  const fits = Math.min(svgWidth / (x1 - x0 + 120), svgHeight / (y1 - y0 + 120));
+  return Math.min(ZOOM_MIN, fits * 0.9);
 }
 
 export function bbox(

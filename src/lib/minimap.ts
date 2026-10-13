@@ -71,7 +71,7 @@ export function zoomTowardWorld(
   minK = ZOOM_MIN,
   maxK = ZOOM_MAX,
 ): Viewport {
-  const nk = Math.min(maxK, Math.max(minK, v.k * factor));
+  const nk = Math.min(maxK, Math.max(Math.min(minK, v.k), v.k * factor));
   if (nk === v.k) return v;
   const sx = v.tx + wx * v.k;
   const sy = v.ty + wy * v.k;

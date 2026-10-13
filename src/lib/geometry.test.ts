@@ -6,12 +6,14 @@ import {
   WORLD_TAG_PILL_H,
   WORLD_TAG_MIN_SCREEN_PX,
   WORLD_TAG_ZOOM_OUT_MAX,
+  ZOOM_MIN,
 } from './constants.ts';
 import {
   separateOverlappingWorldFrames,
   introducedWorldNames,
   worldFrame,
   worldTagZoomScale,
+  zoomFloor,
   zoomViewportAt,
 } from './geometry.ts';
 import type { Group, SimNode } from '../types/whiteboard.ts';
@@ -179,5 +181,25 @@ describe('zoomViewportAt', () => {
     const worldY = (my - v.ty) / v.k;
     assert.equal((mx - next.tx) / next.k, worldX);
     assert.equal((my - next.ty) / next.k, worldY);
+  });
+});
+
+describe('zoomFloor', () => {
+  const svg = { left: 0, top: 0, width: 1000, height: 600 } as DOMRect;
+
+  it('keeps the usual floor for a board that fits at it', () => {
+    assert.equal(zoomFloor([0, 0, 5000, 3000], 1000, 600), ZOOM_MIN);
+  });
+
+  it('goes lower for a board too big to show whole at the usual floor', () => {
+    const floor = zoomFloor([0, 0, 40000, 6000], 1000, 600);
+    assert.ok(floor < ZOOM_MIN);
+    assert.ok(40000 * floor <= 1000, 'the whole board fits at the floor');
+  });
+
+  it('never zooms a view in when zooming out below the floor', () => {
+    const v = { tx: 0, ty: 0, k: ZOOM_MIN / 2 };
+    assert.equal(zoomViewportAt(v, 0.5, 0, 0, svg, ZOOM_MIN), v);
+    assert.equal(zoomViewportAt(v, 4, 0, 0, svg, ZOOM_MIN).k, ZOOM_MIN * 2);
   });
 });

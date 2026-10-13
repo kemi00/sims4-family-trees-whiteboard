@@ -20,7 +20,6 @@ import {
   LONG_PRESS_MS,
   TILE,
   ZOOM_MAX,
-  ZOOM_MIN,
 } from '../lib/constants.ts';
 import {
   applyChromeTranslates,
@@ -207,6 +206,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
   const sceneRef = useRef<SVGGElement>(null);
   const guidesHostRef = useRef<SVGGElement>(null);
   const viewportLiveRef = useRef(wb.viewport);
+  const minZoomRef = useRef(wb.minZoom);
+  minZoomRef.current = wb.minZoom;
   const viewportGestureRef = useRef(false);
   const navDepthRef = useRef(0);
   const panFrameRef = useRef(0);
@@ -491,6 +492,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         ev.clientX,
         ev.clientY,
         r,
+        minZoomRef.current(r.width, r.height),
       );
       scheduleWheelViewport(next);
     };
@@ -539,6 +541,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             gev.clientX,
             gev.clientY,
             r,
+            minZoomRef.current(r.width, r.height),
           );
           scheduleWheelViewport(next);
         }
@@ -810,8 +813,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     if (dist < 1) return;
     const midX = (a.x + b.x) / 2;
     const midY = (a.y + b.y) / 2;
-    const nk = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pinch.k * (dist / pinch.dist)));
     const r = svg.getBoundingClientRect();
+    const floor = Math.min(minZoomRef.current(r.width, r.height), pinch.k);
+    const nk = Math.min(ZOOM_MAX, Math.max(floor, pinch.k * (dist / pinch.dist)));
     applyVp({
       k: nk,
       tx: midX - r.left - pinch.worldX * nk,
