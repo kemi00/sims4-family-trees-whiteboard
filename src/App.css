@@ -215,11 +215,10 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 }
 #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#f4f1e8;--minimap-w:220px;--minimap-h:140px}
 #stage.stage--select svg{cursor:crosshair}
-/* Pan/zoom/drag: never hide relationship strokes. They live on #scene and
-   travel with the live camera; unit drags also live-translate intra-unit ink.
-   Hide only the tile pattern. Do not CSS-transform #scene (WebKit blanks SVG <g>). */
-#stage.stage--navigating .stage-tilegrid,
-#stage.stage--dragging .stage-tilegrid{visibility:hidden}
+/* Pan/zoom/drag: never hide relationship strokes or the tile grid. They live
+   on #scene and travel with the live camera; unit drags also live-translate
+   intra-unit ink. The grid stays put under a drag, so cards can be lined up
+   on it. Do not CSS-transform #scene (WebKit blanks SVG <g>). */
 #stage.stage--navigating .node,
 #stage.stage--dragging .node,
 #stage.stage--navigating .edge,
