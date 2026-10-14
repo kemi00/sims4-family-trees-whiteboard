@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AGES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
@@ -9,6 +9,18 @@ function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
     .slice()
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   return items.includes(pin) ? [pin, ...rest] : rest;
+}
+
+/**
+ * Why a card shows no sim ID: none of the board came from a save yet, or
+ * this card did not (a family-tree relative, a sim added here, a roster
+ * premade the save did not have).
+ */
+function noSimIdNote(n: SimNode, boardHasSave: boolean): string {
+  if (!boardHasSave) return 'Upload your save file to see the sim ID';
+  if (n.treeId) return "No sim ID: only in the game's family tree";
+  if (n.added) return 'No sim ID: added on the board';
+  return 'No sim ID: not in your save';
 }
 
 const LIFE_STATE_OPTIONS = pinnedAlpha(LIFE_STATES, 'Sim');
@@ -58,6 +70,28 @@ export function SimEditor({
   const [world, setWorld] = useState(n.oworld || n.world || worlds[0]?.name || '');
   const [house, setHouse] = useState('');
   const [newName, setNewName] = useState('');
+  const boardHasSave = useMemo(() => nodes.some((x) => x.saveSimId), [nodes]);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idRef = useRef<HTMLInputElement>(null);
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
+
+  const copySimId = async () => {
+    const id = n.saveSimId;
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(id);
+    } catch {
+      // No clipboard access (an http page, an old browser): copy the selection.
+      idRef.current?.select();
+      document.execCommand('copy');
+    }
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 1600);
+  };
 
   const mid =
     n.onb && n.onb !== '-'
@@ -182,6 +216,32 @@ export function SimEditor({
       <div className="ro">
         {n.oworld || '—'} · {mid} · {n.ohh || '—'}
       </div>
+      <label id="edSimIdLabel" htmlFor={n.saveSimId ? 'edSimId' : undefined}>
+        Sim ID
+      </label>
+      {/* The game's own id for the sim: shown, never edited. */}
+      {n.saveSimId ? (
+        <div className="idrow">
+          <input
+            id="edSimId"
+            ref={idRef}
+            className="ro ro--id"
+            readOnly
+            value={n.saveSimId}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <button type="button" className="copybtn" onClick={copySimId}>
+            {copied ? 'Copied ✓' : 'Copy ID'}
+          </button>
+          <span className="sr-only" role="status">
+            {copied ? 'Sim ID copied' : ''}
+          </span>
+        </div>
+      ) : (
+        <div className="ro ro--muted" aria-labelledby="edSimIdLabel" aria-disabled="true">
+          {noSimIdNote(n, boardHasSave)}
+        </div>
+      )}
       <button className="movebtn" onClick={() => setMoveOpen(!moveOpen)}>
         ↪ Move to a new household
       </button>

@@ -661,6 +661,14 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .row button{flex:1;padding:6px;border:1px solid #cdd3da;background:#fff;border-radius:7px;cursor:pointer}
 .editor .row button:hover{background:#f0f2f5}
 .editor .ro{font-size:11px;color:#33415a;background:#f2f4f7;border:1px solid #e4e7eb;border-radius:6px;padding:6px 8px;line-height:1.4}
+.editor .ro--muted{color:#7a8491;font-style:italic}
+.editor .idrow{display:flex;gap:6px;align-items:stretch}
+.editor input.ro--id{flex:1;min-width:0;width:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-variant-numeric:tabular-nums;cursor:text;-webkit-user-select:text;user-select:text}
+.editor input.ro--id:focus{outline:none;border-color:#9bb4d6;box-shadow:0 0 0 3px var(--accent-ring)}
+.editor .copybtn{flex:0 0 auto;padding:0 10px;border:1px solid #cdd3da;background:#fff;color:#1b6cd6;border-radius:6px;font-size:11px;font-weight:600;min-width:68px}
+.editor .copybtn:hover{background:#eef4fb}
+/* Read by screen readers, not shown. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .editor .movebtn{width:100%;margin-top:10px;padding:7px;border:1px dashed #9bb4d6;background:#eef4fb;color:#1b6cd6;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
 .editor .movebtn:hover{background:#e2edfb}
 .editor #edMove{margin-top:6px;padding:8px;border:1px solid #dbe6f5;border-radius:8px;background:#f7fafe}
