@@ -5,7 +5,7 @@ import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
 
-export type SaveRelType = 'parent' | 'marriage' | 'romance';
+export type SaveRelType = 'parent' | 'marriage' | 'romance' | 'divorced';
 
 export type ParsedSaveSim = {
   saveSimId: string;
@@ -446,6 +446,36 @@ function parseRelationships(rels: Uint8Array): {
   return { pairs, secretParents, familyParents };
 }
 
+/** The couple link a romantic status calls for (see withStatusCouples). */
+const STATUS_COUPLE: [PairTag, SaveRelType][] = [
+  ['married', 'marriage'],
+  ['engaged', 'romance'],
+  ['partners', 'romance'],
+  ['divorced', 'divorced'],
+];
+
+/**
+ * Couple links the relationship statuses have and the tree does not. The
+ * family tree records marriages and partners, but not engagements: Darrel
+ * Charm and Emilia Ernest, engaged when a game starts, had no link at all.
+ * A pair the tree already links keeps its link.
+ */
+function withStatusCouples(rels: ParsedSaveRel[], pairs: ParsedSavePair[]): ParsedSaveRel[] {
+  const linked = new Set(
+    rels.filter((r) => r.type !== 'parent').map((r) => [r.a, r.b].sort().join('|')),
+  );
+  const out = [...rels];
+  for (const p of pairs) {
+    const key = [p.a, p.b].sort().join('|');
+    if (linked.has(key)) continue;
+    const type = STATUS_COUPLE.find(([tag]) => p.tags.includes(tag))?.[1];
+    if (!type) continue;
+    linked.add(key);
+    out.push({ a: p.a, b: p.b, type });
+  }
+  return out;
+}
+
 /** Parent links the family bits have and the tree does not: adoptions. */
 function withAdoptions(
   rels: ParsedSaveRel[],
@@ -603,6 +633,10 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
   const { pairs, secretParents, familyParents } = relData
     ? parseRelationships(relData)
     : { pairs: [], secretParents: [], familyParents: [] };
-  const rels = withSecrets(withAdoptions(treeRels, familyParents), pairs, secretParents);
+  const rels = withSecrets(
+    withStatusCouples(withAdoptions(treeRels, familyParents), pairs),
+    pairs,
+    secretParents,
+  );
   return { sims, rels, householdWorld, worlds, pairs, relatives };
 }

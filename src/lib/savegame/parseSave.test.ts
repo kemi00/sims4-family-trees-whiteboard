@@ -313,6 +313,42 @@ describe('family bits and species', () => {
   });
 });
 
+/**
+ * Darrel (1) and Emilia (2) are engaged, which the family tree leaves out;
+ * Ann (3) and Ben (4) are married in the tree and in their status alike.
+ */
+function couplesSave(): Uint8Array {
+  const sims = [
+    [1, 'Darrel', 4096],
+    [2, 'Emilia', 8192],
+    [3, 'Ann', 8192],
+    [4, 'Ben', 4096],
+  ] as const;
+  const blobs = sims.map(([id, first, gender]) =>
+    encodeBytes(
+      6,
+      simBlob({ id, householdId: 10, first, last: 'Charm', household: 'Charm', gender, age: 16 }),
+    ),
+  );
+  const graph = concat(treeNode(3, treeEdge(3, 4, 4)), treeNode(4, treeEdge(4, 3, 4)));
+  const rels = concat(
+    relRecord(1, 2, [15816, 15799]), // engaged, good friends
+    relRecord(3, 4, [15822]), // married
+  );
+  const gameplay = encodeBytes(
+    8,
+    concat(encodeBytes(13, rels), encodeBytes(62, encodeBytes(1, graph))),
+  );
+  return wrapDbpf(refpackCompress(concat(...blobs, encodeBytes(2, gameplay))));
+}
+
+describe('couples the family tree leaves out', () => {
+  it('links an engaged couple from their status, once per couple', () => {
+    const couples = parseSaveGame(couplesSave()).rels.map((r) => `${r.type}:${[r.a, r.b].sort().join('|')}`);
+    assert.deepEqual(couples.sort(), ['marriage:3|4', 'romance:1|2']);
+  });
+});
+
 describe('save relationships', () => {
   const parsed = parseSaveGame(secretsSave());
   const tags = (a: string, b: string) =>
