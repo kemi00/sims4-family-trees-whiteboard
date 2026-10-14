@@ -1,5 +1,5 @@
-import { worldFrame, worldTagMetrics } from './geometry.ts';
-import { worldCounts, worldTagLayout, type WorldCounts } from './worldTag.ts';
+import { worldFrame } from './geometry.ts';
+import { worldCounts, worldTagBox, worldTagLayout, type WorldCounts } from './worldTag.ts';
 import { householdChrome } from './tiles.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 import type { BoardMultiSel } from '../types/whiteboard.ts';
@@ -31,15 +31,7 @@ export function worldChipHitRect(
   zoom: number,
   counts: WorldCounts | null = null,
 ): WorldRect {
-  const tag = worldTagMetrics(zoom);
-  const pill = worldTagLayout(world, counts, zoom);
-  const bw = frame.r - frame.l;
-  const bh = frame.b - frame.t;
-  const l = frame.l - tag.hitPad;
-  const t = frame.t - tag.hitPad;
-  const hw = Math.min(bw + tag.hitPad, pill.w + 2 * tag.hitPad);
-  const hh = Math.min(bh + tag.hitPad, pill.h + 2 * tag.hitPad);
-  return { l, t, r: l + hw, b: t + hh };
+  return worldTagBox(frame, worldTagLayout(world, counts, zoom), zoom).hit;
 }
 
 export function householdTagHitRect(

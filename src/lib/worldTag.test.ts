@@ -1,7 +1,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { LABEL_MIN_K, WORLD_TAG_PILL_H } from './constants.ts';
-import { worldCounts, worldCountsText, worldTagLayout } from './worldTag.ts';
+import {
+  HH_TAG_INSET,
+  LABEL_MIN_K,
+  TILE,
+  WORLD_TAG_PILL_H,
+  WORLD_TITLE_BAND,
+  ZOOM_MIN,
+} from './constants.ts';
+import {
+  worldCounts,
+  worldCountsText,
+  worldTagBox,
+  worldTagLayout,
+  worldTagLift,
+} from './worldTag.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 function card(id: string, gid: string, state = 'Sim', pack = 'Base Game'): SimNode {
@@ -98,5 +111,46 @@ describe('world tag layout', () => {
     const at1 = worldTagLayout('Sulani', counts, 1);
     assert.ok(near.scale > 1);
     assert.ok(Math.abs(near.w - at1.w * near.scale) < 1e-6);
+  });
+});
+
+describe('world tag placement', () => {
+  const counts = worldCounts(members, shown);
+  const frame = { l: 0, t: 0, r: 20 * TILE, b: 10 * TILE };
+  /** Where the top row's household name tags start. */
+  const householdTags = frame.t + WORLD_TITLE_BAND + HH_TAG_INSET;
+
+  it('sits in the frame at full size', () => {
+    const tag = worldTagLayout('Gibbi Point', counts, 1);
+    const box = worldTagBox(frame, tag, 1);
+    assert.equal(box.x, frame.l);
+    assert.equal(box.y, frame.t);
+  });
+
+  it("grows up, never over the top row's household tags while their text is drawn", () => {
+    for (const name of ['Sulani', 'Gibbi Point', 'Henford-on-Bagley']) {
+      for (const k of [LABEL_MIN_K, 0.375, 0.5, 0.75, 1]) {
+        const tag = worldTagLayout(name, counts, k);
+        const box = worldTagBox(frame, tag, k);
+        assert.ok(box.y + tag.h <= householdTags, `${name} at ${k} is drawn over them`);
+        assert.ok(box.hit.b <= householdTags, `${name} at ${k} picks up a press on them`);
+        assert.ok(box.hit.t < box.y && box.hit.r > box.x + tag.w, 'the pad still rounds the tag');
+      }
+    }
+  });
+
+  it('rises no more than a tile above the frame', () => {
+    for (const k of [ZOOM_MIN, 0.1, LABEL_MIN_K / 2]) {
+      const tag = worldTagLayout('Henford-on-Bagley', counts, k);
+      assert.ok(worldTagLift(tag) <= TILE);
+      assert.equal(worldTagBox(frame, tag, k).y, frame.t - worldTagLift(tag));
+    }
+    assert.equal(worldTagLift(worldTagLayout('Sulani', counts, 1)), 0);
+  });
+
+  it('stops rising at the world above', () => {
+    const tag = worldTagLayout('Sulani', counts, 0.1);
+    assert.equal(worldTagBox(frame, tag, 0.1, 30).y, frame.t - 30);
+    assert.equal(worldTagBox(frame, tag, 0.1, -5).y, frame.t);
   });
 });

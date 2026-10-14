@@ -99,8 +99,10 @@ export const HH_TAG_PILL_H = 32;
 export const HH_TAG_INSET = 8;
 /** Gap between the name pill and Age up stacked under it. */
 export const HH_TAG_STACK_GAP = 6;
-/** Drawn world-name pill height. The band above households is LAYOUT.worldTitle. */
+/** Drawn world-name pill height. The band above households is {@link WORLD_TITLE_BAND}. */
 export const WORLD_TAG_PILL_H = 26;
+/** Band a world frame keeps above its households for the name pill (LAYOUT.worldTitle). */
+export const WORLD_TITLE_BAND = 32;
 /** World-name type size at zoom 1 (and when zoomed in). */
 export const WORLD_TAG_FONT = 14;
 /**

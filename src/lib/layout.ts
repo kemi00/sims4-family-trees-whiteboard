@@ -8,6 +8,7 @@ import {
   LEGACY_NOT_IN_WORLD,
   NOT_IN_WORLD,
   TILE,
+  WORLD_TITLE_BAND,
 } from './constants.ts';
 import { householdTagWidth, tileSnapOrigin } from './tiles.ts';
 import { isUnhousedGid } from './unhoused.ts';
@@ -37,7 +38,7 @@ export const LAYOUT = {
   worldGapY: TILE,
   originX: 48,
   originY: 96,
-  worldTitle: 32,
+  worldTitle: WORLD_TITLE_BAND,
   worldMargin: 20,
 } as const;
 

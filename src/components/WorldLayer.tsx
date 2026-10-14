@@ -6,7 +6,9 @@ import { worldColor } from '../lib/utils.ts';
 import {
   worldCounts,
   worldCountsText,
+  worldTagBox,
   worldTagLayout,
+  worldTagLift,
   type WorldCounts,
   type WorldTagLayout,
 } from '../lib/worldTag.ts';
@@ -195,28 +197,35 @@ export const WorldLayer = memo(function WorldLayer({
     if (!frame) continue;
     const counts = worldCounts(nodesForWorld(w, nodes, buckets), packVis);
     const grown = worldTagLayout(w, counts, zoom);
+    // The nearest world above it: the tag grows up into the air between
+    // them (worldTagLift), but stops short of that world.
+    let above = Infinity;
+    for (const [other, f] of frames) {
+      if (other === w || !f || f.b > frame.t) continue;
+      if (f.r <= frame.l || f.l >= frame.l + grown.w) continue;
+      above = Math.min(above, frame.t - f.b - (zoom > 0 ? 4 / zoom : 0));
+    }
+    const top = frame.t - Math.min(worldTagLift(grown), Math.max(0, above));
     // The nearest world to the right level with the tag: a narrow world's
     // tag, grown for a far zoom, would cover that one's.
     let room = Infinity;
     for (const [other, f] of frames) {
       if (other === w || !f || f.l <= frame.l) continue;
-      if (f.t >= frame.t + grown.h || f.b <= frame.t) continue;
+      if (f.t >= top + grown.h || f.b <= top) continue;
       room = Math.min(room, f.l - frame.l - (zoom > 0 ? 12 / zoom : 0));
     }
     const pill = room < grown.w ? worldTagLayout(w, counts, zoom, room) : grown;
-    const bw = frame.r - frame.l;
-    const bh = frame.b - frame.t;
+    const { x, y, hit } = worldTagBox(frame, pill, zoom, above);
     chips.push({
       w,
-      // Hit expands around the painted chip; paint stays at frame top-left.
-      x: frame.l - tag.hitPad,
-      y: frame.t - tag.hitPad,
-      hw: Math.min(bw + tag.hitPad, pill.w + 2 * tag.hitPad),
-      hh: Math.min(bh + tag.hitPad, pill.h + 2 * tag.hitPad),
+      x: hit.l,
+      y: hit.t,
+      hw: hit.r - hit.l,
+      hh: hit.b - hit.t,
       pill,
       counts,
-      paintX: frame.l,
-      paintY: frame.t,
+      paintX: x,
+      paintY: y,
       col: worldColor(w, worlds),
     });
   }

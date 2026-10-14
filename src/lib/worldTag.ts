@@ -1,12 +1,15 @@
 import {
   DECEASED_STATE,
+  HH_TAG_INSET,
   LABEL_MIN_K,
+  TILE,
   WORLD_TAG_FONT,
   WORLD_TAG_HIT_PAD_SCREEN_PX,
   WORLD_TAG_MIN_SCREEN_PX,
   WORLD_TAG_NORMAL_ZOOM,
   WORLD_TAG_PILL_H,
   WORLD_TAG_ZOOM_OUT_MAX,
+  WORLD_TITLE_BAND,
 } from './constants.ts';
 import { textWidth } from './textWidth.ts';
 import { isUnhousedGid } from './unhoused.ts';
@@ -150,6 +153,52 @@ export function worldTagLayout(
   const full = tagAtScale(name, counts, zoom, s);
   if (full.w <= maxW || s <= 1) return full;
   return tagAtScale(name, counts, zoom, Math.max(1, (s * maxW) / full.w));
+}
+
+/**
+ * How far a world's tag rises above its frame. The tag sits at the frame's
+ * top-left, in the band left above the households ({@link WORLD_TITLE_BAND}).
+ * Grown for a far zoom it would reach down over the name tags of the
+ * households in the world's top row while their text is still drawn, so it
+ * grows up instead, into the air between worlds, its bottom edge staying
+ * where it is at full size. At most one tile: packing leaves more than that
+ * between stacked worlds. Past that, where household text is no longer
+ * drawn, the rest of it grows down.
+ */
+export function worldTagLift(tag: Pick<WorldTagLayout, 'h'>): number {
+  return Math.min(TILE, Math.max(0, tag.h - WORLD_TAG_PILL_H));
+}
+
+type Box = { l: number; t: number; r: number; b: number };
+
+/**
+ * Where a world's tag is drawn (`x`, `y`) and the box that picks it up: the
+ * tag with {@link WORLD_TAG_HIT_PAD_SCREEN_PX} round it, kept inside the
+ * frame's width. The pad under it stops at the top row's household tags, so
+ * a press on one grabs that household, not the whole world. `room`: air
+ * between the frame and the world above, which the tag rises no further than.
+ */
+export function worldTagBox(
+  frame: Box,
+  tag: WorldTagLayout,
+  zoom: number,
+  room = Infinity,
+): { x: number; y: number; hit: Box } {
+  const pad = worldTagMetrics(zoom).hitPad;
+  const x = frame.l;
+  const y = frame.t - Math.min(worldTagLift(tag), Math.max(0, room));
+  const bottom = y + tag.h;
+  const householdTags = frame.t + WORLD_TITLE_BAND + HH_TAG_INSET;
+  return {
+    x,
+    y,
+    hit: {
+      l: x - pad,
+      t: y - pad,
+      r: Math.min(frame.r, x + tag.w + pad),
+      b: Math.min(frame.b, Math.max(bottom, Math.min(bottom + pad, householdTags))),
+    },
+  };
 }
 
 /** Stacked tag width at this zoom (see worldTagReserve). */
