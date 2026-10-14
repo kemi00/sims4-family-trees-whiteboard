@@ -168,7 +168,8 @@ export default function App() {
             <GamesPanel
               packs={wb.packs}
               hiddenPacks={wb.hiddenPacks}
-              nodes={wb.nodes}
+              counts={wb.packCounts}
+              colors={wb.packColors}
               anchorRect={
                 filtersBtnRef.current?.getBoundingClientRect() ?? null
               }

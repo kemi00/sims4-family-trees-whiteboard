@@ -49,164 +49,167 @@ export function LoadJsonDialog({
         <p>
           Choose how <b>{pendingFileName}</b> meets the board.
         </p>
-        {willRepack && (
-          <p className="save-import__warn">
-            <Warning aria-hidden="true" />
-            <span>
-              <b>{pendingFileName}</b> was saved by an older version of the
-              board, before card positions could be restored reliably. Every
-              sim, household and link in it loads normally, but wherever you
-              dragged things will be tidied back into the automatic layout.
-            </span>
-          </p>
-        )}
-        <fieldset className="save-import__choices">
-          <legend className="save-import__lead">What to do</legend>
-          <div className="save-import__choice">
-            <label className="save-import__choice-row">
-              <input
-                type="radio"
-                name="load-json-mode"
-                checked={mode === 'merge'}
-                onChange={() => setMode('merge')}
-              />
-              <span className="save-import__choice-body">
-                <b>Merge into this board</b>
-                <span className="save-import__choice-note">
-                  Updates matching sims and links and keeps your layout. When the
-                  same pair disagrees, the JSON wins.
-                </span>
-                <ul className="save-import__stats">
-                  <li>
-                    <b>{risk.fromSaveCards}</b> cards from a save merge stay
-                  </li>
-                  <li>
-                    <b>{risk.saveLinks}</b> save links (gray) ·{' '}
-                    <b>{risk.plannedLinks}</b> planned (violet)
-                  </li>
-                  <li>
-                    <b>{risk.editorAdds}</b> editor-added sims stay
-                  </li>
-                  <li>
-                    {risk.hasUndo
-                      ? 'Undo history is kept'
-                      : 'No undo history on this board'}
-                  </li>
-                  {filtersNote && <li>{filtersNote}</li>}
-                </ul>
+        {/* Scrolls on its own, so the title and Proceed stay in view. */}
+        <div className="save-import__body">
+          {willRepack && (
+            <p className="save-import__warn">
+              <Warning aria-hidden="true" />
+              <span>
+                <b>{pendingFileName}</b> was saved by an older version of the
+                board, before card positions could be restored reliably. Every
+                sim, household and link in it loads normally, but wherever you
+                dragged things will be tidied back into the automatic layout.
               </span>
-            </label>
-            {mode === 'merge' &&
-              (willRepack ? (
-                <p className="save-import__subchoice-note">
-                  The file's positions cannot be used — see the note above.
-                </p>
-              ) : (
+            </p>
+          )}
+          <fieldset className="save-import__choices">
+            <legend className="save-import__lead">What to do</legend>
+            <div className="save-import__choice">
+              <label className="save-import__choice-row">
+                <input
+                  type="radio"
+                  name="load-json-mode"
+                  checked={mode === 'merge'}
+                  onChange={() => setMode('merge')}
+                />
+                <span className="save-import__choice-body">
+                  <b>Merge into this board</b>
+                  <span className="save-import__choice-note">
+                    Updates matching sims and links and keeps your layout. When the
+                    same pair disagrees, the JSON wins.
+                  </span>
+                  <ul className="save-import__stats">
+                    <li>
+                      <b>{risk.fromSaveCards}</b> cards from a save merge stay
+                    </li>
+                    <li>
+                      <b>{risk.saveLinks}</b> save links (gray) ·{' '}
+                      <b>{risk.plannedLinks}</b> planned (violet)
+                    </li>
+                    <li>
+                      <b>{risk.editorAdds}</b> editor-added sims stay
+                    </li>
+                    <li>
+                      {risk.hasUndo
+                        ? 'Undo history is kept'
+                        : 'No undo history on this board'}
+                    </li>
+                    {filtersNote && <li>{filtersNote}</li>}
+                  </ul>
+                </span>
+              </label>
+              {mode === 'merge' &&
+                (willRepack ? (
+                  <p className="save-import__subchoice-note">
+                    The file's positions cannot be used — see the note above.
+                  </p>
+                ) : (
+                  <fieldset className="save-import__subchoice">
+                    <legend className="save-import__lead">Card positions</legend>
+                    <label className="save-import__choice">
+                      <input
+                        type="radio"
+                        name="load-json-positions"
+                        checked={keepBoardPositions}
+                        onChange={() => setKeepBoardPositions(true)}
+                      />
+                      <span className="save-import__choice-body">
+                        <b>Keep the ones on this board</b>
+                        <span className="save-import__choice-note">
+                          Matched cards stay where you have them.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="save-import__choice">
+                      <input
+                        type="radio"
+                        name="load-json-positions"
+                        checked={!keepBoardPositions}
+                        onChange={() => setKeepBoardPositions(false)}
+                      />
+                      <span className="save-import__choice-body">
+                        <b>Use the ones in the file</b>
+                        <span className="save-import__choice-note">
+                          Matched cards move to the file's placements.
+                        </span>
+                      </span>
+                    </label>
+                  </fieldset>
+                ))}
+            </div>
+            <div className="save-import__choice">
+              <label className="save-import__choice-row">
+                <input
+                  type="radio"
+                  name="load-json-mode"
+                  checked={mode === 'replace'}
+                  onChange={() => setMode('replace')}
+                />
+                <span className="save-import__choice-body">
+                  <b>Replace this board</b>
+                  <span className="save-import__choice-note">
+                    Discards the current board (<b>{risk.sourceLabel}</b>) and
+                    loads the file on its own
+                    {risk.hasUndo ? ', clearing the undo history' : ''}.
+                  </span>
+                </span>
+              </label>
+              {mode === 'replace' && (
                 <fieldset className="save-import__subchoice">
                   <legend className="save-import__lead">Card positions</legend>
                   <label className="save-import__choice">
                     <input
                       type="radio"
-                      name="load-json-positions"
-                      checked={keepBoardPositions}
-                      onChange={() => setKeepBoardPositions(true)}
+                      name="load-json-replace-positions"
+                      checked={keepOnReplace}
+                      onChange={() => setKeepOnReplace(true)}
                     />
                     <span className="save-import__choice-body">
                       <b>Keep the ones on this board</b>
                       <span className="save-import__choice-note">
-                        Matched cards stay where you have them.
+                        Sims already on this board stay where you have them.
+                        {willRepack
+                          ? ' Everyone else is laid out automatically.'
+                          : ' Everyone else goes where the file puts them.'}
                       </span>
                     </span>
                   </label>
                   <label className="save-import__choice">
                     <input
                       type="radio"
-                      name="load-json-positions"
-                      checked={!keepBoardPositions}
-                      onChange={() => setKeepBoardPositions(false)}
+                      name="load-json-replace-positions"
+                      checked={!keepOnReplace}
+                      onChange={() => setKeepOnReplace(false)}
                     />
                     <span className="save-import__choice-body">
-                      <b>Use the ones in the file</b>
-                      <span className="save-import__choice-note">
-                        Matched cards move to the file's placements.
-                      </span>
+                      {willRepack ? (
+                        <>
+                          <b>Lay everything out automatically</b>
+                          <span className="save-import__choice-note">
+                            The file is too old to keep its positions — see the
+                            note above.
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <b>Use the ones in the file</b>
+                          <span className="save-import__choice-note">
+                            The board looks exactly like the file.
+                          </span>
+                        </>
+                      )}
                     </span>
                   </label>
                 </fieldset>
-              ))}
-          </div>
-          <div className="save-import__choice">
-            <label className="save-import__choice-row">
-              <input
-                type="radio"
-                name="load-json-mode"
-                checked={mode === 'replace'}
-                onChange={() => setMode('replace')}
-              />
-              <span className="save-import__choice-body">
-                <b>Replace this board</b>
-                <span className="save-import__choice-note">
-                  Discards the current board (<b>{risk.sourceLabel}</b>) and
-                  loads the file on its own
-                  {risk.hasUndo ? ', clearing the undo history' : ''}.
-                </span>
-              </span>
-            </label>
-            {mode === 'replace' && (
-              <fieldset className="save-import__subchoice">
-                <legend className="save-import__lead">Card positions</legend>
-                <label className="save-import__choice">
-                  <input
-                    type="radio"
-                    name="load-json-replace-positions"
-                    checked={keepOnReplace}
-                    onChange={() => setKeepOnReplace(true)}
-                  />
-                  <span className="save-import__choice-body">
-                    <b>Keep the ones on this board</b>
-                    <span className="save-import__choice-note">
-                      Sims already on this board stay where you have them.
-                      {willRepack
-                        ? ' Everyone else is laid out automatically.'
-                        : ' Everyone else goes where the file puts them.'}
-                    </span>
-                  </span>
-                </label>
-                <label className="save-import__choice">
-                  <input
-                    type="radio"
-                    name="load-json-replace-positions"
-                    checked={!keepOnReplace}
-                    onChange={() => setKeepOnReplace(false)}
-                  />
-                  <span className="save-import__choice-body">
-                    {willRepack ? (
-                      <>
-                        <b>Lay everything out automatically</b>
-                        <span className="save-import__choice-note">
-                          The file is too old to keep its positions — see the
-                          note above.
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <b>Use the ones in the file</b>
-                        <span className="save-import__choice-note">
-                          The board looks exactly like the file.
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </label>
-              </fieldset>
-            )}
-          </div>
-        </fieldset>
-        <p className="save-import__backup">
-          <button type="button" className="save-import__text-btn" onClick={onDownload}>
-            Download a backup of this board
-          </button>
-        </p>
+              )}
+            </div>
+          </fieldset>
+          <p className="save-import__backup">
+            <button type="button" className="save-import__text-btn" onClick={onDownload}>
+              Download a backup of this board
+            </button>
+          </p>
+        </div>
         <div className="save-import__actions">
           <button type="button" onClick={onCancel}>
             Cancel

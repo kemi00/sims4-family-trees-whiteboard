@@ -244,6 +244,26 @@ export function packsNotInSaveWorlds(
   return hide.sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * The Games filter after an import. Games the save shows you don't have
+ * (`hidePacks`) are switched off, on top of those already off (`hidden`;
+ * none on Replace, which starts the filters over). A game whose sims the
+ * import brought to a board that had none is switched on instead: the save
+ * has them, so you have the game now, and they should not arrive hidden.
+ */
+export function hiddenPacksAfterImport(opts: {
+  hidden: Iterable<string>;
+  hidePacks: string[];
+  /** Games of the board's cards before the import, and after it. */
+  before: Iterable<string>;
+  after: Iterable<string>;
+}): Set<string> {
+  const before = new Set(opts.before);
+  const next = new Set([...opts.hidden, ...opts.hidePacks]);
+  for (const p of opts.after) if (!before.has(p)) next.delete(p);
+  return next;
+}
+
 function worldsFromParsed(parsed: ParsedSave): string[] {
   if (parsed.worlds?.length) return parsed.worlds;
   const set = new Set<string>();
@@ -1003,7 +1023,12 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   );
   const rejoined = gathered.moved.filter((id) => !toNotInWorld.includes(id));
   const worldReport = saveWorldSummary(worlds, worldsFromParsed(parsed));
-  const hidePacks = packsNotInSaveWorlds(input.nodes, worldsFromParsed(parsed));
+  // The roster pairs every game with its world, so a game the board has no
+  // sims from (Journey to Batuu after a Replace) is still recognised.
+  const hidePacks = packsNotInSaveWorlds(
+    [...input.nodes, ...(input.packReference ?? [])],
+    worldsFromParsed(parsed),
+  );
 
   return {
     nodes,

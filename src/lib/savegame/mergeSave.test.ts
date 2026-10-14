@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../../types/whiteboard.ts';
 import {
   fillMissingSavePacks,
+  hiddenPacksAfterImport,
   isStarterBoard,
   mergeSaveIntoBoard,
   nameKey,
@@ -530,6 +531,44 @@ describe('mergeSaveIntoBoard', () => {
     assert.ok(result.summary.saveWorlds.includes('Willow Creek'));
     assert.ok(!result.summary.saveWorlds.includes('Batuu'));
     assert.deepEqual(result.summary.extraWorlds, ['Granite Falls']);
+  });
+
+  it('knows a game from the roster when the board has none of its sims', () => {
+    const kylo = sim({ id: 'Kylo Ren', first: 'Kylo', sur: 'Ren', pack: 'Journey to Batuu', world: 'Batuu' });
+    const result = mergeSaveIntoBoard({
+      nodes: [],
+      edges: [],
+      groups: [],
+      worlds: [{ name: 'Batuu', color: '#4e79a7' }, ...world],
+      parsed: { sims: [], rels: [], worlds: ['Willow Creek'] },
+      seedNameKeys: new Set(),
+      packReference: [kylo],
+      now: 'x',
+      nextEdgeId: () => 'v1',
+    });
+    assert.deepEqual(result.summary.hidePacks, ['Journey to Batuu']);
+  });
+});
+
+describe('hiddenPacksAfterImport', () => {
+  it('switches off the games the save shows you do not have, keeping yours', () => {
+    const next = hiddenPacksAfterImport({
+      hidden: ['Get Together'],
+      hidePacks: ['Journey to Batuu'],
+      before: ['Get Together', 'Base Game'],
+      after: ['Get Together', 'Base Game'],
+    });
+    assert.deepEqual([...next].sort(), ['Get Together', 'Journey to Batuu']);
+  });
+
+  it('switches a game back on when its sims first arrive', () => {
+    const next = hiddenPacksAfterImport({
+      hidden: ['Journey to Batuu', 'Get Together'],
+      hidePacks: [],
+      before: ['Base Game', 'Get Together'],
+      after: ['Base Game', 'Get Together', 'Journey to Batuu'],
+    });
+    assert.deepEqual([...next], ['Get Together']);
   });
 });
 

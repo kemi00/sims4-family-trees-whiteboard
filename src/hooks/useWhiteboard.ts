@@ -55,6 +55,7 @@ import { fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLate
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
+  hiddenPacksAfterImport,
   isStarterBoard,
   mergeSaveIntoBoard,
   seedNameKeysFromNodes,
@@ -1877,29 +1878,32 @@ export function useWhiteboard() {
       );
       eidcRef.current = nextEidc(result.edges, eidcRef.current);
       const s = result.summary;
-      if (mode === 'replace') {
-        setHiddenPacks(new Set(s.hidePacks));
-      } else if (s.hidePacks.length) {
-        setHiddenPacks((prev) => {
-          const next = new Set(prev);
-          for (const p of s.hidePacks) next.add(p);
-          return next;
-        });
-      }
+      const wasHidden = mode === 'replace' ? new Set<string>() : hiddenPacks;
+      const nextHidden = hiddenPacksAfterImport({
+        hidden: wasHidden,
+        hidePacks: s.hidePacks,
+        before: mode === 'replace' ? [] : nodesCore.map((n) => n.pack),
+        after: result.nodes.map((n) => n.pack),
+      });
+      setHiddenPacks(nextHidden);
+      const off = [...nextHidden].filter((p) => !wasHidden.has(p));
+      const on = [...wasHidden].filter((p) => !nextHidden.has(p));
+      const games = [
+        off.length ? ` Switched off in Filters, not in your save: ${off.join(', ')}.` : '',
+        on.length ? ` Switched back on: ${on.join(', ')}.` : '',
+      ].join('');
       setSaveImport(null);
       setSel(null);
       setEditNodeId(null);
       trackAction('/action/load-save');
       flashStatus(
         mode === 'replace'
-          ? `Board replaced from save — ${result.nodes.length} cards. Download JSON to keep it.`
-          : s.hidePacks.length
-            ? `Save merged — ${s.matched} updated, ${s.added} added. Hidden ${s.hidePacks.length} games. Download JSON to keep this merge.`
-            : `Save merged — ${s.matched} updated, ${s.added} added. Download JSON to keep this merge.`,
+          ? `Board replaced from save — ${result.nodes.length} cards.${games} Download JSON to keep it.`
+          : `Save merged — ${s.matched} updated, ${s.added} added.${games} Download JSON to keep this merge.`,
       );
       fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap],
+    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore],
   );
 
   const previewSave = useCallback((file: File) => {
@@ -1954,23 +1958,13 @@ export function useWhiteboard() {
         now: new Date().toISOString(),
         nextEdgeId: () => 'v' + n++,
       });
-      /*
-       * Replace builds from an empty board, and hidePacks is worked out by
-       * mapping packs to the worlds their cards sit in — with no cards there
-       * is no mapping, so it always came back empty and Filters ended up
-       * claiming nothing was hidden. Use the preview's list, measured against
-       * the real board, but only the games some sim on the new board has: a
-       * hidden game with no sims left a phantom "1" on Filters that the Games
-       * panel could not show or switch back on.
-       */
-      const replacedPacks = new Set(replaced.nodes.map((n) => n.pack).filter(Boolean));
+      // Switch off the games the dialog said it would: the preview's list,
+      // measured against the board as well as the roster. Games stay listed
+      // in Filters with no sims, so one you don't have shows there, off.
       applySaveBoard(
         {
           ...replaced,
-          summary: {
-            ...replaced.summary,
-            hidePacks: saveImport.merge.summary.hidePacks.filter((p) => replacedPacks.has(p)),
-          },
+          summary: { ...replaced.summary, hidePacks: saveImport.merge.summary.hidePacks },
         },
         svgWidth,
         svgHeight,
@@ -2215,15 +2209,32 @@ export function useWhiteboard() {
     });
   }, []);
 
-  // Hidden games stay listed even with no sims, so a hidden one can always
-  // be seen and switched back on (otherwise Filters counts it invisibly).
+  // Every game, the roster's too, so one with no sims on the board (one you
+  // don't have, switched off by a save import) stays listed and can be
+  // switched on, rather than vanishing.
   const packs = useMemo(
     () =>
-      [...new Set([...nodes.map((n) => n.pack), ...hiddenPacks].filter(Boolean))].sort(
-        (a, b) => (a === 'Base Game' ? -1 : b === 'Base Game' ? 1 : a.localeCompare(b)),
-      ),
-    [nodes, hiddenPacks],
+      [
+        ...new Set(
+          [...nodes.map((n) => n.pack), ...seed.nodes.map((n) => n.pack), ...hiddenPacks].filter(
+            Boolean,
+          ),
+        ),
+      ].sort((a, b) => (a === 'Base Game' ? -1 : b === 'Base Game' ? 1 : a.localeCompare(b))),
+    [nodes, hiddenPacks, seed.nodes],
   );
+  /** Cards on the board from each game. */
+  const packCounts = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const n of nodes) if (n.pack) out.set(n.pack, (out.get(n.pack) ?? 0) + 1);
+    return out;
+  }, [nodes]);
+  /** Each game's colour: its world's, from the board or else the roster. */
+  const packColors = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const n of [...nodes, ...seed.nodes]) if (n.pack && !out.has(n.pack)) out.set(n.pack, n.color);
+    return out;
+  }, [nodes, seed.nodes]);
 
   const playabilities = useMemo(
     () =>
@@ -2300,6 +2311,8 @@ export function useWhiteboard() {
     visibleNodes,
     liveWorlds,
     packs,
+    packCounts,
+    packColors,
     playabilities,
     UEDIT,
     AGES_H,

@@ -501,6 +501,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .gpanel .grow i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
 .gpanel .grow>span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gpanel .grow b{color:#8a7f63;font-weight:600;font-size:11px}
+.gpanel .grow--none>span,.gpanel .grow--none b{color:var(--ink-3)}
+.gpanel .grow--none i{opacity:.45}
 .gpanel input[type=checkbox]{width:15px;height:15px;accent-color:#1b6cd6;cursor:pointer;flex:0 0 auto}
 .chrome-backdrop{position:fixed;inset:0;z-index:55;background:#1b2b3a40}
 /* Keep in sync with CONNECTION_LOG_PANEL_W in src/lib/constants.ts */
@@ -536,7 +538,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .connection-log__tag--planned{background:#ede9fe;color:#7c3aed}
 .connection-log__tag--save{background:#eef1f4;color:#3f4756}
 .save-import{position:fixed;inset:0;z-index:40;background:#1b2b3a73;display:flex;align-items:center;justify-content:center;padding:16px}
-.save-import__card{width:min(480px,100%);background:var(--chrome);border-radius:var(--r-surface);box-shadow:var(--lift);padding:18px 18px 14px;color:var(--ink)}
+.save-import__card{display:flex;flex-direction:column;width:min(480px,100%);max-height:100%;min-height:0;background:var(--chrome);border-radius:var(--r-surface);box-shadow:var(--lift);padding:18px 18px 14px;color:var(--ink)}
+/* Title above and actions below stay put; only the middle scrolls. */
+.save-import__body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin:0 -18px;padding:3px 18px 4px}
 .save-import__card h2{margin:0 0 8px;font-size:16px}
 .save-import__card p{margin:0 0 10px;font-size:13px;line-height:1.45;color:var(--ink-2)}
 .save-import__stats{margin:0 0 12px;padding:0;list-style:none;font-size:13px;line-height:1.6}
@@ -576,7 +580,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .save-import__text-btn:hover{color:var(--ink)}
 .save-import__text-btn:active{color:var(--ink-2)}
 .save-import__text-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
-.save-import__actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:12px}
+.save-import__actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:8px -18px 0;padding:12px 18px 0;border-top:1px solid var(--line)}
 .save-import__actions button{
   min-height:36px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);
   background:#fff;color:var(--ink);cursor:pointer;font:inherit;font-size:13px;font-weight:600;

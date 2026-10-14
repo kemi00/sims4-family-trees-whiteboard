@@ -66,7 +66,9 @@ export function AppBar({
     filtersRef,
   );
 
-  const hiddenCount = wb.hiddenPacks.size;
+  // A game switched off with no sims on the board hides nothing, so it is
+  // not an active filter (Games lists it, off, all the same).
+  const hiddenCount = [...wb.hiddenPacks].filter((p) => wb.packCounts.get(p)).length;
   const playHidden = wb.hiddenPlay.size;
   const ageCount = wb.hiAges.size + (wb.hiSingle ? 1 : 0);
   const filterCount =

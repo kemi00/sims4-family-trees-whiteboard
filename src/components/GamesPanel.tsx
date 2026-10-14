@@ -1,11 +1,12 @@
 import { panelPosition } from '../lib/chrome.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
-import type { SimNode } from '../types/whiteboard.ts';
-
 type Props = {
+  /** Every game, including those with no sims on the board. */
   packs: string[];
   hiddenPacks: Set<string>;
-  nodes: SimNode[];
+  /** Cards on the board from each game. */
+  counts: ReadonlyMap<string, number>;
+  colors: ReadonlyMap<string, string>;
   anchorRect: DOMRect | null;
   onToggle: (pack: string, visible: boolean) => void;
   onAll: () => void;
@@ -16,7 +17,8 @@ type Props = {
 export function GamesPanel({
   packs,
   hiddenPacks,
-  nodes,
+  counts,
+  colors,
   anchorRect,
   onToggle,
   onAll,
@@ -26,9 +28,6 @@ export function GamesPanel({
   const pos = panelPosition(anchorRect, 266);
   if (!pos) return null;
 
-  const colorOf = (p: string) =>
-    nodes.find((x) => x.pack === p)?.color ?? '#9aa0a6';
-  const cnt = (p: string) => nodes.filter((n) => n.pack === p).length;
 
   return (
     <div
@@ -46,16 +45,23 @@ export function GamesPanel({
       {!packs.length && <p className="gpanel__empty">No games on this board yet.</p>}
       {packs.map((p) => {
         const on = !hiddenPacks.has(p);
+        const n = counts.get(p) ?? 0;
+        // A game with no sims here stays listed, quieter, so switching
+        // it off (one you don't have) or on again is always possible.
         return (
-          <label key={p} className="grow">
+          <label
+            key={p}
+            className={n ? 'grow' : 'grow grow--none'}
+            title={n ? undefined : 'No sims from this game on the board'}
+          >
             <input
               type="checkbox"
               checked={on}
               onChange={(e) => onToggle(p, e.target.checked)}
             />
-            <i style={{ background: colorOf(p) }} />
+            <i style={{ background: colors.get(p) ?? '#9aa0a6' }} />
             <span>{p}</span>
-            <b>{cnt(p)}</b>
+            <b>{n}</b>
           </label>
         );
       })}
