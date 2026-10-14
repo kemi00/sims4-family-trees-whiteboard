@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "aaeed5a",
+   "date": "2026-10-14",
+   "text": "The tile grid no longer stops partway across a big board; it now fills the screen wherever you pan."
+  },
+  {
    "sha": "0fa8d7b",
    "date": "2026-10-14",
    "text": "Horses from a save now come in as horses, not humans, and small dogs as dogs. Adopted children now get their adoptive parents, which the game's family tree leaves out. Merge your save to fix a board you already have; nothing moves."
