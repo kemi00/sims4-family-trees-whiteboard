@@ -52,8 +52,8 @@ export type WorldCounts = {
   /** Living sims: not pets, not marked deceased. Unhoused ones included. */
   sims: number;
   /**
-   * Unknown cards for family-tree relatives (see SimNode.treeId) not known
-   * to be dead: they are no sims in the game, so `sims` leaves them out.
+   * Cards for family-tree relatives (see SimNode.treeId) not known to be
+   * dead: they are no sims in the game, so `sims` leaves them out.
    */
   relatives: number;
   /** Household boxes with a card shown; the Unhoused sims box is not one. */
@@ -229,7 +229,7 @@ export function worldCountsText(name: string, c: WorldCounts): string {
   const extra = [
     c.pets ? plural(c.pets, 'pet', 'pets') : '',
     c.deceased ? `${c.deceased} deceased` : '',
-    c.relatives ? plural(c.relatives, 'unnamed relative', 'unnamed relatives') : '',
+    c.relatives ? plural(c.relatives, 'relative from the family tree', 'relatives from the family tree') : '',
   ].filter(Boolean);
   if (extra.length) {
     const last = extra.pop()!;

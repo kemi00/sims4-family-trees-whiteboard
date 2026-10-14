@@ -486,6 +486,20 @@ describe('parseSaveGame', () => {
     assert.deepEqual(parseSaveGame(tinySave()).relatives, []);
   });
 
+  it("names a relative from the game's text when the board knows the key", () => {
+    // Mortimer Goth's mother; her name's key, and one the board does not know.
+    const named = (id: number, key: number) =>
+      encodeBytes(1, concat(encodeVarintField(1, id), treeEdge(id, 1, 1), encodeBytes(5, encodeVarintField(1, key))));
+    const parsed = parseSaveGame(tinySave(false, [named(9, 2983627535), named(8, 12345)]));
+    assert.deepEqual(
+      parsed.relatives?.map((r) => [r.treeId, r.nameKey, r.name]),
+      [
+        ['9', '2983627535', 'Cornelia Goth'],
+        ['8', '12345', undefined],
+      ],
+    );
+  });
+
   it('reads a save whose index writes the shared group once (late-2026 saves)', () => {
     const compact = parseSaveGame(tinySave(true));
     assert.deepEqual(compact, parseSaveGame(tinySave()));

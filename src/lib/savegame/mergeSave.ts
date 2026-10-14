@@ -42,8 +42,10 @@ export type SaveMergeSummary = {
   unhoused: string[];
   /** Sims with no home lot moved out of a world into Not in any world. */
   toNotInWorld: string[];
-  /** Unknown cards added for family-tree relatives with no sim (see treeRelatives). */
+  /** Cards added for family-tree relatives with no sim (see treeRelatives). */
   relatives: string[];
+  /** Unknown cards for such relatives that now have the game's name for them. */
+  relativesNamed: string[];
   /** Board cards this save has no sim or relative for; Merge leaves them as they are. */
   notInSave: number;
 };
@@ -660,12 +662,23 @@ function treeRelatives(
 /** First name on a relative's card: the save holds no name for them. */
 export const UNKNOWN_FIRST = 'Unknown';
 
+/**
+ * A relative's card name: the game's ("Cordelia Thebe II" is Cordelia, of
+ * Thebe II, as the game splits Cordelia Thebe V's), else Unknown and the
+ * family's surname. The game calls a few ancestors Unknown itself.
+ */
+function relativeName(r: ShownRelative): { first: string; sur: string } {
+  const name = r.name?.trim() ?? '';
+  if (!name || name === UNKNOWN_FIRST) return { first: UNKNOWN_FIRST, sur: r.kin.sur };
+  const at = name.indexOf(' ');
+  return at > 0 ? { first: name.slice(0, at), sur: name.slice(at + 1) } : { first: name, sur: '' };
+}
+
 function relativeNode(r: ShownRelative, home: BoardHome): SimNode {
   return {
     id: `t${r.treeId}`,
     gid: home.gid,
-    first: UNKNOWN_FIRST,
-    sur: r.kin.sur,
+    ...relativeName(r),
     age: 'Unknown',
     state: r.deceased ? DECEASED_STATE : 'Sim',
     gender: r.gender,
@@ -834,6 +847,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   // ("Unknown Hoffman"), which moves into its family's box if it sat apart.
   const relativesAdded: string[] = [];
   const relativesMoved: string[] = [];
+  const relativesNamed: string[] = [];
   const cardAt = new Map(nodes.map((n, i) => [n.id, i]));
   const simOnBoard = (saveId: string) => {
     const id = saveIdToBoard.get(saveId);
@@ -844,6 +858,15 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   for (const r of shown) {
     const home = homeOf(r.kin);
     let id = byTreeId.get(r.treeId);
+    // A card made before the board knew its name, never renamed by hand.
+    const named = relativeName(r);
+    if (id && named.first !== UNKNOWN_FIRST) {
+      const i = cardAt.get(id)!;
+      if (foldName(nodes[i]!.first) === foldName(UNKNOWN_FIRST)) {
+        nodes[i] = { ...nodes[i]!, ...named };
+        relativesNamed.push(id);
+      }
+    }
     if (!id) {
       const placeholders = (byName.get(nameKey(UNKNOWN_FIRST, r.kin.sur)) ?? []).filter(
         (n) => !claimed.has(n.id) && !n.saveSimId && !n.treeId,
@@ -851,6 +874,10 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       if (placeholders.length === 1) {
         const i = cardAt.get(placeholders[0]!.id)!;
         let card: SimNode = { ...nodes[i]!, treeId: r.treeId };
+        if (named.first !== UNKNOWN_FIRST) {
+          card = { ...card, ...named };
+          relativesNamed.push(card.id);
+        }
         if (r.gender) card.gender = r.gender;
         if (r.deceased) card.state = DECEASED_STATE;
         if (card.gid !== home.gid && !movedByHand.has(card.id)) {
@@ -1061,6 +1088,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       unhoused: unhousedIds.map(nameOf),
       toNotInWorld: toNotInWorld.map(nameOf),
       relatives: relativesAdded.map(nameOf),
+      relativesNamed: relativesNamed.map(nameOf),
       notInSave: input.nodes.filter((n) => !claimed.has(n.id)).length,
     },
   };

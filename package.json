@@ -15,6 +15,7 @@
     "test": "node --test --experimental-strip-types src/lib/*.test.ts src/lib/savegame/*.test.ts",
     "build:data": "node scripts/build-data.mjs",
     "build:changelog": "node scripts/build-changelog.mjs",
+    "build:tree-names": "node --experimental-strip-types scripts/build-tree-names.ts",
     "preview": "vite preview"
   },
   "dependencies": {

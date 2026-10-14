@@ -1,3 +1,4 @@
+import { TREE_NAMES } from '../../data/treeNames.ts';
 import { AGES_H } from '../constants.ts';
 import type { PairTag } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
@@ -40,14 +41,18 @@ export type ParsedSaveRel = {
  * Someone in the game's family tree who is not a sim in the save: a premade's
  * parent the game never made (Felix Hoffman's), or an ancestor the game has
  * since culled. The tree keeps their gender and, for the dead, how they died,
- * but their name only as a reference into the game's own text, which the
- * file does not hold.
+ * but their name only as a key into the game's own text, which the file does
+ * not hold; TREE_NAMES has the names behind the keys it has seen.
  */
 export type ParsedTreeRelative = {
   treeId: string;
   gender: string;
   /** The tree records how they died. */
   deceased?: true;
+  /** Key of their full name in the game's text, as a decimal uint32. */
+  nameKey?: string;
+  /** Their full name ("Cordelia Thebe II"), when TREE_NAMES knows the key. */
+  name?: string;
 };
 
 /** Relationship status between two save sims; only pairs with a known status. */
@@ -97,12 +102,15 @@ const HOUSEHOLD = {
 
 /**
  * Family-tree node fields: 1 id, 2 and 3 first and last name (sims only),
- * 4 edges, 5 and 6 name references into the game's text, 7 the ghost trait
- * of how they died (the same ids living ghosts carry), 8 gender.
+ * 4 edges, 5 the key of the full name in the game's text (its field 1; for
+ * those who are no sim), 6 the portrait's resource key, 7 the ghost trait of
+ * how they died (the same ids living ghosts carry), 8 gender, 10 a royal
+ * title (title, realm and rank).
  */
 const TREE_NODE = {
   id: 1,
   edge: 4,
+  name: 5,
   deathTrait: 7,
   gender: 8,
 } as const;
@@ -313,10 +321,16 @@ function parseTreeRelatives(graph: Uint8Array, simIds: ReadonlySet<string>): Par
     if (!id || simIds.has(idStr(id))) continue;
     const gender = rec.find((f) => f.field === TREE_NODE.gender && f.wire === 0)?.int;
     const died = rec.some((f) => f.field === TREE_NODE.deathTrait && f.wire === 0 && f.int > 0n);
+    const nameRef = rec.find((f) => f.field === TREE_NODE.name && f.bytes)?.bytes;
+    const key = nameRef ? decodeFields(nameRef).find((f) => f.field === 1)?.int : undefined;
+    const nameKey = key ? idStr(key) : undefined;
+    const name = nameKey ? TREE_NAMES[nameKey] : undefined;
     out.push({
       treeId: idStr(id),
       gender: gender === undefined ? '' : mapGender(gender),
       ...(died ? { deceased: true as const } : {}),
+      ...(nameKey ? { nameKey } : {}),
+      ...(name ? { name } : {}),
     });
   }
   return out;

@@ -1,0 +1,141 @@
+/**
+ * Adds the names of a save's family-tree relatives to src/data/treeNames.ts.
+ *
+ * A save keeps a relative who is no sim (an ancestor the game culled, a
+ * premade's parent it never made) only as a key into the game's text. The
+ * text is in the installed game's English string tables
+ * (Strings_ENG_US.package, one per pack), which this reads. The merge is
+ * additive: names already in the file stay, so runs on several saves add up.
+ *
+ * Usage:
+ *   node --experimental-strip-types scripts/build-tree-names.ts <save> [game folder]
+ * The game folder defaults to /Applications/EA Games, where the EA app
+ * installs the game on macOS.
+ */
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { inflateSync } from 'node:zlib';
+import { parseSaveGame } from '../src/lib/savegame/parseSave.ts';
+import { refpackDecompress } from '../src/lib/savegame/refpack.ts';
+import { TREE_NAMES } from '../src/data/treeNames.ts';
+
+const ROOT = new URL('..', import.meta.url).pathname;
+const OUT = join(ROOT, 'src/data/treeNames.ts');
+const STBL = 0x220557da;
+const ZLIB = 0x5a42;
+const REFPACK = 0xffff;
+
+const [savePath, gameDir = '/Applications/EA Games'] = process.argv.slice(2);
+if (!savePath) {
+  console.error('Usage: node --experimental-strip-types scripts/build-tree-names.ts <save> [game folder]');
+  process.exit(1);
+}
+
+/** Every Strings_ENG_US.package under `dir`. */
+function stringPackages(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    let info;
+    try {
+      info = statSync(path);
+    } catch {
+      continue;
+    }
+    if (info.isDirectory()) out.push(...stringPackages(path));
+    else if (entry === 'Strings_ENG_US.package') out.push(path);
+  }
+  return out;
+}
+
+/** The string table resources of a package, decompressed (see dbpf.ts for the index). */
+function stringTables(path: string): Uint8Array[] {
+  const buf = new Uint8Array(readFileSync(path));
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const count = view.getUint32(0x24, true);
+  const indexOff = view.getUint32(0x40, true);
+  const flags = view.getUint32(indexOff, true);
+  let pos = indexOff + 4;
+  const next = () => {
+    const v = view.getUint32(pos, true);
+    pos += 4;
+    return v;
+  };
+  const constType = flags & 0x1 ? next() : null;
+  const constGroup = flags & 0x2 ? next() : null;
+  const constHigh = flags & 0x4 ? next() : null;
+  const out: Uint8Array[] = [];
+  for (let i = 0; i < count; i++) {
+    const type = constType ?? next();
+    if (constGroup === null) next();
+    if (constHigh === null) next();
+    next(); // instance low
+    const offset = next();
+    const size = next() & 0x7fffffff;
+    next(); // memory size
+    const compression = view.getUint16(pos, true);
+    pos += 4; // compression, committed
+    if (type !== STBL) continue;
+    const raw = buf.subarray(offset, offset + size);
+    if (compression === ZLIB) out.push(new Uint8Array(inflateSync(raw)));
+    else if (compression === REFPACK) out.push(refpackDecompress(raw));
+    else if (compression === 0) out.push(raw);
+  }
+  return out;
+}
+
+/** STBL: "STBL", version, a flag, entry count (u64), 2 reserved, text size; then key, flags, length, text. */
+function readStringTable(b: Uint8Array, into: Map<number, string>): void {
+  if (String.fromCharCode(b[0]!, b[1]!, b[2]!, b[3]!) !== 'STBL') return;
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const count = Number(view.getBigUint64(7, true));
+  const text = new TextDecoder();
+  let pos = 21;
+  for (let i = 0; i < count; i++) {
+    const key = view.getUint32(pos, true);
+    const length = view.getUint16(pos + 5, true);
+    pos += 7;
+    if (!into.has(key)) into.set(key, text.decode(b.subarray(pos, pos + length)));
+    pos += length;
+  }
+}
+
+const relatives = parseSaveGame(new Uint8Array(readFileSync(savePath))).relatives ?? [];
+const wanted = new Set(relatives.map((r) => r.nameKey).filter((k): k is string => !!k));
+const strings = new Map<number, string>();
+const packages = stringPackages(gameDir);
+for (const path of packages) for (const table of stringTables(path)) readStringTable(table, strings);
+
+const names: Record<string, string> = { ...TREE_NAMES };
+let added = 0;
+const missing: string[] = [];
+for (const key of wanted) {
+  const name = strings.get(Number(key))?.trim();
+  if (!name) {
+    missing.push(key);
+    continue;
+  }
+  if (names[key] !== name) added += 1;
+  names[key] = name;
+}
+
+const sorted = Object.keys(names).sort((a, b) => names[a]!.localeCompare(names[b]!) || a.localeCompare(b));
+const body = sorted.map((k) => `  '${k}': ${JSON.stringify(names[k])},`).join('\n');
+writeFileSync(
+  OUT,
+  `/**
+ * Names of family-tree relatives who are no sim in a save, by the key of
+ * their name in the game's text, which is all the save keeps of it (see
+ * ParsedTreeRelative). The names come from the game's own string tables.
+ * Generated by scripts/build-tree-names.ts; run it on another save to add
+ * its relatives. Keys are uint32, in decimal.
+ */
+export const TREE_NAMES: Record<string, string> = {
+${body}
+};
+`,
+);
+console.log(
+  `${packages.length} string files, ${strings.size} strings. ` +
+    `${wanted.size} relatives' names in the save: ${added} added, ${missing.length} not found.`,
+);

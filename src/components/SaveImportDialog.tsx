@@ -37,6 +37,7 @@ export function SaveImportDialog({
   const hasDetails =
     summary.rejoined.length > 0 ||
     summary.relatives.length > 0 ||
+    summary.relativesNamed.length > 0 ||
     summary.toNotInWorld.length > 0 ||
     summary.skipped.length > 0 ||
     summary.saveWorlds.length > 0 ||
@@ -112,9 +113,16 @@ export function SaveImportDialog({
                   )}
                   {summary.relatives.length > 0 && (
                     <li>
-                      <b>{summary.relatives.length}</b> unnamed{' '}
+                      <b>{summary.relatives.length}</b>{' '}
                       {verb(summary.relatives.length, 'relative', 'relatives')} from the family
                       tree {verb(summary.relatives.length, 'joins', 'join')} their family
+                    </li>
+                  )}
+                  {summary.relativesNamed.length > 0 && (
+                    <li>
+                      <b>{summary.relativesNamed.length}</b> Unknown{' '}
+                      {verb(summary.relativesNamed.length, 'relative gets', 'relatives get')}{' '}
+                      the game's name for them
                     </li>
                   )}
                   {summary.notInSave > 0 && (
@@ -168,12 +176,14 @@ export function SaveImportDialog({
                   </span>
                 </div>
               )}
-              {summary.relatives.length > 0 && (
+              {summary.relatives.length + summary.relativesNamed.length > 0 && (
                 <div className="save-import__meta">
-                  <span className="save-import__meta-label">Unnamed relatives</span>
+                  <span className="save-import__meta-label">Family-tree relatives</span>
                   <span className="save-import__meta-value">
-                    {listPreview(summary.relatives, 8)}. The game's family tree
-                    links them to your sims but keeps no sim or name for them.
+                    {listPreview([...summary.relativesNamed, ...summary.relatives], 8)}. The
+                    game's family tree links them to your sims, though they are no sims
+                    in your save: mostly ancestors who died long ago. Those the game
+                    gives no name stay Unknown.
                   </span>
                 </div>
               )}

@@ -1027,6 +1027,47 @@ describe('family-tree relatives with no sim', () => {
     assert.deepEqual(r.summary.relatives, ['Unknown Hoffman']);
   });
 
+  it("gives a card the game's name for them, split as the game splits sims'", () => {
+    const named: ParsedSave = {
+      ...parsed,
+      relatives: [{ treeId: 'g1', gender: 'Male', name: 'Rodrigo De Pablo' }],
+    };
+    const r = mergeSaveIntoBoard({
+      nodes: [],
+      edges: [],
+      groups: [],
+      worlds,
+      parsed: named,
+      seedNameKeys: new Set(),
+      now: 'x',
+      nextEdgeId: () => 'v',
+    });
+    const card = r.nodes.find((n) => n.treeId === 'g1')!;
+    assert.deepEqual([card.first, card.sur], ['Rodrigo', 'De Pablo']);
+  });
+
+  it('names an Unknown card on the next merge, but not one renamed by hand', () => {
+    const once = merge([]);
+    const named: ParsedSave = { ...parsed, relatives: [{ treeId: 'g1', gender: 'Male', name: 'Klaus Hoffman' }] };
+    const again = (nodes: SimNode[]) =>
+      mergeSaveIntoBoard({
+        nodes,
+        edges: [],
+        groups: [],
+        worlds,
+        parsed: named,
+        seedNameKeys: new Set(),
+        now: 'x',
+        nextEdgeId: () => 'w',
+      });
+    const r = again(once.nodes);
+    const card = r.nodes.find((n) => n.treeId === 'g1')!;
+    assert.deepEqual([card.first, card.sur, card.id], ['Klaus', 'Hoffman', 'tg1']);
+    assert.deepEqual(r.summary.relativesNamed, ['Klaus Hoffman']);
+    const mine = once.nodes.map((n) => (n.treeId === 'g1' ? { ...n, first: 'Otto' } : n));
+    assert.equal(again(mine).nodes.find((n) => n.treeId === 'g1')!.first, 'Otto');
+  });
+
   it('leaves out one who links nobody else', () => {
     assert.ok(!merge([]).nodes.some((n) => n.treeId === 'g2'));
   });
