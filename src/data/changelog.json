@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "bc04a46",
+   "date": "2026-10-14",
+   "text": "Household name tags now fit their names, with even room on both sides; short names like Crumplebottom no longer run past the tag."
+  },
+  {
    "sha": "aaeed5a",
    "date": "2026-10-14",
    "text": "The tile grid no longer stops partway across a big board; it now fills the screen wherever you pan."
