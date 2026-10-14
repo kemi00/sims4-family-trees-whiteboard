@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "551479a",
+   "date": "2026-10-14",
+   "text": "13 starter sims now spell their names as the game does, like Chavez-Ralston, Eleanor Elderberry and Sofia Martinez, so a save matches them and fills in their details."
+  },
+  {
    "sha": "09b8603",
    "date": "2026-10-14",
    "text": "The sim editor now shows each sim's ID from your save, with a Copy ID button. Before you load a save, it tells you to."
