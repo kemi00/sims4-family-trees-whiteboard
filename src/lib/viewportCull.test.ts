@@ -6,6 +6,7 @@ import {
   nodeInCull,
   parsePointList,
   pathInCull,
+  tileGridRect,
 } from './viewportCull.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
@@ -51,5 +52,16 @@ describe('viewport culling', () => {
     assert.equal(pathInCull([[-5000, 100], [5000, 100]], win), true);
     assert.equal(pathInCull([[3000, 0], [3000, 900]], win), false);
     assert.deepEqual(parsePointList('10,20 30,40'), [[10, 20], [30, 40]]);
+  });
+});
+
+describe('tileGridRect', () => {
+  it('covers the render window in whole tiles, wherever it is', () => {
+    assert.deepEqual(tileGridRect({ l: 21950, t: -340, r: 26020, b: 1210 }), {
+      x: 21900,
+      y: -400,
+      width: 4200,
+      height: 1700,
+    });
   });
 });

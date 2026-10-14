@@ -1,3 +1,4 @@
+import { TILE } from './constants.ts';
 import { viewportWorldRect } from './geometry.ts';
 import { rectsIntersect, type WorldRect } from './marquee.ts';
 import type { Point, SimNode, Viewport } from '../types/whiteboard.ts';
@@ -15,6 +16,29 @@ export const CULL_OVERSCAN = 1;
 
 /** Re-centre once the view is closer than this to the window edge, in screens. */
 export const CULL_RECENTER_MARGIN = 0.5;
+
+/**
+ * Where to draw the tile grid: the render window, out to whole tiles, so the
+ * grid fills the view wherever the board is panned. A fixed square ran out
+ * once a board grew past it. Before the first window, a square around the
+ * origin.
+ */
+export function tileGridRect(win: WorldRect | null): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  if (!win) return { x: -20000, y: -20000, width: 40000, height: 40000 };
+  const x = Math.floor(win.l / TILE) * TILE;
+  const y = Math.floor(win.t / TILE) * TILE;
+  return {
+    x,
+    y,
+    width: Math.ceil(win.r / TILE) * TILE - x,
+    height: Math.ceil(win.b / TILE) * TILE - y,
+  };
+}
 
 /** The render window for a viewport on a `w`×`h` stage. */
 export function cullWindow(vp: Viewport, w: number, h: number): WorldRect {

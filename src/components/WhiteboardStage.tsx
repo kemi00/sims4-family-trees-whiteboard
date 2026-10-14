@@ -49,6 +49,7 @@ import {
   nodeInCull,
   parsePointList,
   pathInCull,
+  tileGridRect,
 } from '../lib/viewportCull.ts';
 import {
   describeLinkSelection,
@@ -1468,10 +1469,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           {wb.snap && (
             <rect
               className="stage-tilegrid"
-              x={-20000}
-              y={-20000}
-              width={40000}
-              height={40000}
+              {...tileGridRect(cullWin)}
               fill="url(#tilegrid)"
               pointerEvents="none"
             />
