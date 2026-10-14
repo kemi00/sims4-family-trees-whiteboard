@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "cc97cab",
+   "date": "2026-10-14",
+   "text": "Filters now list every game. One your save doesn't have, like Journey to Batuu, stays listed and switched off instead of disappearing, and comes back on when its sims arrive. The load dialogs now fit the window: only their middle scrolls, so Proceed is always in reach."
+  },
+  {
    "sha": "6d98220",
    "date": "2026-10-14",
    "text": "You can now zoom out until the whole board fits the screen, past the old 6% limit. Age up only shows when you are close enough to read it, so a click far out no longer ages a household by accident."
