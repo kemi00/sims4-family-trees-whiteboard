@@ -144,6 +144,18 @@ const REL_BIT = {
   secretChild: 487507n,
 } as const;
 
+/**
+ * One-way family bits: a parent holds `child` about each child, and the child
+ * holds `parent` about them. Read off a save, where they match every parent
+ * link the family tree has between sims in it. The tree leaves adoption out
+ * (Marilla Cuthbert, who adopted Anne, is no parent of hers there), but these
+ * bits have it.
+ */
+const FAMILY_BIT = {
+  child: 8805n,
+  parent: 8809n,
+} as const;
+
 /** Bits that map to a tag, strongest first within each kind. */
 const TAG_RULES: { kind: string; tag: PairTag; bits: bigint[] }[] = [
   { kind: 'romance', tag: 'married', bits: [REL_BIT.married] },
@@ -190,10 +202,17 @@ const AGE_BITS: { bit: number; age: (typeof AGES_H)[number] }[] = [
 const GENDER_MALE = 4096n;
 const GENDER_FEMALE = 8192n;
 
+/**
+ * SimInfo.species, the game's Species enum (1 is human). Small dogs have a
+ * value of their own; the board calls them dogs. Checked against a save:
+ * Rosie the French Bulldog is 4, every horse 6. Horses used to be read at 4,
+ * so they came in as humans and Rosie as a horse.
+ */
 const SPECIES: Record<number, string> = {
   2: 'Dog',
   3: 'Cat',
-  4: 'Horse',
+  4: 'Dog',
+  6: 'Horse',
 };
 
 function idStr(n: bigint): string {
@@ -377,9 +396,12 @@ function varints(fields: { field: number; wire: number; int: bigint; bytes: Uint
 function parseRelationships(rels: Uint8Array): {
   pairs: ParsedSavePair[];
   secretParents: { parent: string; child: string }[];
+  /** Parents by the family bits (see FAMILY_BIT), adoptive ones included. */
+  familyParents: { parent: string; child: string }[];
 } {
   const pairs: ParsedSavePair[] = [];
   const secretParents: { parent: string; child: string }[] = [];
+  const familyParents: { parent: string; child: string }[] = [];
   for (const rec of decodeFields(rels)) {
     if (rec.field !== 1 || !rec.bytes) continue;
     const fs = decodeFields(rec.bytes);
@@ -398,8 +420,32 @@ function parseRelationships(rels: Uint8Array): {
     if (bitsOf(5).has(REL_BIT.secretChild)) {
       secretParents.push({ parent: idStr(b), child: idStr(a) });
     }
+    const aAboutB = bitsOf(4);
+    const bAboutA = bitsOf(5);
+    if (aAboutB.has(FAMILY_BIT.child) || bAboutA.has(FAMILY_BIT.parent)) {
+      familyParents.push({ parent: idStr(a), child: idStr(b) });
+    }
+    if (bAboutA.has(FAMILY_BIT.child) || aAboutB.has(FAMILY_BIT.parent)) {
+      familyParents.push({ parent: idStr(b), child: idStr(a) });
+    }
   }
-  return { pairs, secretParents };
+  return { pairs, secretParents, familyParents };
+}
+
+/** Parent links the family bits have and the tree does not: adoptions. */
+function withAdoptions(
+  rels: ParsedSaveRel[],
+  familyParents: { parent: string; child: string }[],
+): ParsedSaveRel[] {
+  const known = new Set(rels.filter((r) => r.type === 'parent').map((r) => `${r.a}>${r.b}`));
+  const out = [...rels];
+  for (const { parent, child } of familyParents) {
+    const key = `${parent}>${child}`;
+    if (known.has(key)) continue;
+    known.add(key);
+    out.push({ a: parent, b: child, type: 'parent' });
+  }
+  return out;
 }
 
 function idField(fields: ReturnType<typeof decodeFields>, n: number): string {
@@ -540,9 +586,9 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
   const treeRels = graph ? parseTreeRels(graph) : [];
   const relatives = graph ? parseTreeRelatives(graph, seen) : [];
   const relData = gameplay ? firstBytes(gameplay, 13) : null;
-  const { pairs, secretParents } = relData
+  const { pairs, secretParents, familyParents } = relData
     ? parseRelationships(relData)
-    : { pairs: [], secretParents: [] };
-  const rels = withSecrets(treeRels, pairs, secretParents);
+    : { pairs: [], secretParents: [], familyParents: [] };
+  const rels = withSecrets(withAdoptions(treeRels, familyParents), pairs, secretParents);
   return { sims, rels, householdWorld, worlds, pairs, relatives };
 }

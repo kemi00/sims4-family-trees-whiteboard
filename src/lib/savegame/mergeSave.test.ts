@@ -947,6 +947,26 @@ describe('roster details for premades the board has no card for', () => {
     assert.deepEqual([fia.pack, fia.oplay, fia.state], ['Royalty & Legacy', 'NPC', 'Spellcaster']);
   });
 
+  it('takes the roster breed for a pet an earlier import took for a human', () => {
+    const horse = sim({ id: 'Duke', first: 'Duke', sur: 'Gooseman', world: 'Ondarion', species: 'Horse', state: 'Pet', breed: 'Clydesdale' });
+    const r2 = mergeSaveIntoBoard({
+      nodes: [sim({ id: 'Duke', first: 'Duke', sur: 'Gooseman', world: 'Ondarion', saveSimId: '9' })],
+      edges: [],
+      groups: [],
+      worlds,
+      parsed: {
+        sims: [{ saveSimId: '9', householdId: '3', first: 'Duke', last: 'Gooseman', household: 'Gooseman', age: 'Adult', gender: 'Male', species: 'Horse', world: 'Ondarion' }],
+        rels: [],
+      },
+      seedNameKeys: seedNameKeysFromNodes([horse]),
+      packReference: [horse],
+      now: 'x',
+      nextEdgeId: () => 'v',
+    });
+    const duke = r2.nodes.find((n) => n.id === 'Duke')!;
+    assert.deepEqual([duke.state, duke.species, duke.breed], ['Pet', 'Horse', 'Clydesdale']);
+  });
+
   it('takes the neighbourhood when the sim still lives in that world', () => {
     assert.equal(card('Ava').nb, 'Thornwick');
     assert.equal(card('Fia').nb, '-');

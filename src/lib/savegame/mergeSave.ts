@@ -350,7 +350,7 @@ function newSaveNode(
   roster?: SimNode,
 ): SimNode {
   const made = plainSaveNode(sim, fromSave, home, pack);
-  if (!roster || !!roster.species !== !!sim.species) return made;
+  if (!roster || (roster.species ?? '') !== (sim.species ?? '')) return made;
   return {
     ...made,
     state: sim.species ? made.state : roster.state,
@@ -400,7 +400,13 @@ function plainSaveNode(
   };
 }
 
-function patchMatched(n: SimNode, sim: ParsedSaveSim, fromSave: boolean): SimNode {
+function patchMatched(
+  n: SimNode,
+  sim: ParsedSaveSim,
+  fromSave: boolean,
+  /** The premade's roster card, for a breed the board's card lacks. */
+  roster?: SimNode,
+): SimNode {
   const next: SimNode = {
     ...n,
     first: sim.first || n.first,
@@ -412,6 +418,8 @@ function patchMatched(n: SimNode, sim: ParsedSaveSim, fromSave: boolean): SimNod
   if (sim.species) {
     next.species = sim.species;
     next.state = 'Pet';
+    // A pet an earlier import took for a human (horses were) has no breed.
+    if (!next.breed && roster?.breed && roster.species === sim.species) next.breed = roster.breed;
   }
   if (fromSave) {
     next.fromSave = true;
@@ -737,7 +745,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         seedNameKeys.has(nameKey(found.first, found.sur)) ||
         seedNameKeys.has(nameKey(sim.first, sim.last));
       const i = nodes.findIndex((n) => n.id === found.id);
-      const patched = patchMatched(found, sim, !onRoster);
+      const patched = patchMatched(found, sim, !onRoster, rosterOf(sim));
       nodes[i] = patched;
       claimed.add(patched.id);
       bySaveId.set(sim.saveSimId, patched);

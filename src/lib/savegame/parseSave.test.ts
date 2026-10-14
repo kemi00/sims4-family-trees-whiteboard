@@ -122,6 +122,8 @@ function simBlob(opts: {
   household: string;
   gender: number;
   age: number;
+  /** The game's Species value; humans leave it out. */
+  species?: number;
 }): Uint8Array {
   return concat(
     encodeVarintField(1, opts.id),
@@ -133,6 +135,7 @@ function simBlob(opts: {
     encodeVarintField(8, opts.age),
     encodeString(22, opts.household),
     ...(opts.source ? [encodeBytes(47, encodeString(17, opts.source))] : []),
+    ...(opts.species ? [encodeVarintField(60, opts.species)] : []),
   );
 }
 
@@ -258,6 +261,57 @@ function secretsSave(): Uint8Array {
   );
   return wrapDbpf(refpackCompress(concat(...blobs, encodeBytes(2, gameplay))));
 }
+
+/**
+ * Marilla (1) adopted Anne (2): the family tree leaves that out, the family
+ * bits have it. Matthew (3) is Marilla's son in the tree and in the bits.
+ * Hot-Pursuit (4) is a horse, Rosie (5) a small dog.
+ */
+function familySave(): Uint8Array {
+  const sims = [
+    [1, 'Marilla', 8192, 64, 0],
+    [2, 'Anne', 8192, 8, 0],
+    [3, 'Matthew', 4096, 32, 0],
+    [4, 'Hot-Pursuit', 8192, 4, 6],
+    [5, 'Rosie', 8192, 32, 4],
+  ] as const;
+  const blobs = sims.map(([id, first, gender, age, species]) =>
+    encodeBytes(
+      6,
+      simBlob({ id, householdId: 10, first, last: 'Cuthbert', household: 'Green Gables', gender, age, species }),
+    ),
+  );
+  const graph = concat(treeNode(1, treeEdge(1, 3, 1)), treeNode(2), treeNode(3));
+  const rels = concat(
+    relRecord(1, 2, [15799], [8805], [8809]), // Marilla holds child about Anne
+    relRecord(3, 1, [15799], [8809], [8805]), // Matthew holds parent about Marilla
+  );
+  const gameplay = encodeBytes(
+    8,
+    concat(encodeBytes(13, rels), encodeBytes(62, encodeBytes(1, graph))),
+  );
+  return wrapDbpf(refpackCompress(concat(...blobs, encodeBytes(2, gameplay))));
+}
+
+describe('family bits and species', () => {
+  const parsed = parseSaveGame(familySave());
+
+  it('adds an adoptive parent the family tree leaves out', () => {
+    const parents = parsed.rels.filter((r) => r.type === 'parent').map((r) => `${r.a}>${r.b}`);
+    assert.deepEqual(parents.sort(), ['1>2', '1>3']);
+  });
+
+  it('reads horses and small dogs as pets', () => {
+    const species = Object.fromEntries(parsed.sims.map((s) => [s.first, s.species ?? 'human']));
+    assert.deepEqual(species, {
+      Marilla: 'human',
+      Anne: 'human',
+      Matthew: 'human',
+      'Hot-Pursuit': 'Horse',
+      Rosie: 'Dog',
+    });
+  });
+});
 
 describe('save relationships', () => {
   const parsed = parseSaveGame(secretsSave());
