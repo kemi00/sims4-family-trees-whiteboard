@@ -281,9 +281,10 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     } else if (f.field === SIM.householdId && (f.wire === 0 || f.wire === 1)) {
       householdId = idStr(f.int);
     } else if (f.field === SIM.first && f.bytes) {
-      first = utf8(f.bytes) ?? '';
+      // Trimmed: the game keeps stray spaces ("Crispin Black " in a save).
+      first = (utf8(f.bytes) ?? '').trim();
     } else if (f.field === SIM.last && f.bytes) {
-      last = utf8(f.bytes) ?? '';
+      last = (utf8(f.bytes) ?? '').trim();
     } else if (f.field === SIM.householdName && f.bytes) {
       household = readableHouseholdName(utf8(f.bytes) ?? '');
     } else if (f.field === SIM.gender && f.wire === 0) {

@@ -135,6 +135,37 @@ const petRows = table(sheets['List of Pets'], [
   'first', 'sur', 'hh', 'age', 'species', 'breed', 'gender', 'oplay', 'nb', 'world', 'pack',
 ]);
 
+/**
+ * Names the spreadsheet spells differently from the game, by the sheet's
+ * "first|surname". Checked against a save and the game's own text, where
+ * the game's spelling is the right one; a household named for a misspelt
+ * surname follows it.
+ */
+const NAME_FIXES = {
+  'Nigel|Chaves-Ralston': { sur: 'Chavez-Ralston' },
+  'Sara|Chaves-Ralston': { sur: 'Chavez-Ralston' },
+  'Aeris|Chaves-Ralston': { sur: 'Chavez-Ralston' },
+  'Erin|Chaves-Ralston': { sur: 'Chavez-Ralston' },
+  'Eleanore|Elderberry': { first: 'Eleanor' },
+  'Liliana|Kealoha': { first: 'Lilliana' },
+  "Kalamainu'u|Iona": { first: 'Kalamainu\u2019u' },
+  "Paka'a|Uha": { first: 'Paka\u2019a' },
+  'Starbite|': { first: 'Starbrite' },
+  'Jennifer|Martínez': { sur: 'Martinez' },
+  'Pablo|Martínez': { sur: 'Martinez' },
+  'Leonardo|Martínez': { sur: 'Martinez' },
+  'Sofía|Martínez': { first: 'Sofia', sur: 'Martinez' },
+};
+const HOUSEHOLD_FIXES = { 'Chaves-Ralston': 'Chavez-Ralston', 'Martínez': 'Martinez' };
+
+for (const row of [...simRows, ...petRows]) {
+  const fix = NAME_FIXES[`${String(row.first).trim()}|${cleanSur(row.sur)}`];
+  if (fix?.first) row.first = fix.first;
+  if (fix?.sur) row.sur = fix.sur;
+  const hh = String(row.hh).trim();
+  if (HOUSEHOLD_FIXES[hh]) row.hh = HOUSEHOLD_FIXES[hh];
+}
+
 const prev = JSON.parse(readFileSync(OUT, 'utf8'));
 const worldColor = (world) =>
   prev.worlds.find((w) => w.name === world)?.color ?? '#9aa0a6';

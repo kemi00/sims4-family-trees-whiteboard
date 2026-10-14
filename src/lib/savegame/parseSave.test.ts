@@ -169,7 +169,8 @@ function tinySave(compactGroup = false, moreTree: Uint8Array[] = []): Uint8Array
     id: 2,
     householdId: 10,
     first: 'Eliza',
-    last: 'Pancakes',
+    // The game keeps stray spaces in names now and then.
+    last: 'Pancakes ',
     household: 'Pancakes',
     gender: 8192,
     age: 32,
@@ -492,6 +493,7 @@ describe('parseSaveGame', () => {
       ['Bob Pancakes', 'Eliza Pancakes', 'Iggy Pancakes'],
     );
     const bob = parsed.sims.find((s) => s.first === 'Bob')!;
+    assert.equal(parsed.sims.find((s) => s.first === 'Eliza')!.last, 'Pancakes', 'trimmed');
     assert.equal(bob.saveSimId, '1');
     assert.equal(bob.household, 'Pancakes');
     assert.equal(bob.age, 'Adult');
