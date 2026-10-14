@@ -9,6 +9,7 @@ import {
   TILE,
   UNHOUSED_HH,
 } from './constants.ts';
+import { measureText } from './textWidth.ts';
 import type { Group, SimNode } from '../types/whiteboard.ts';
 
 export function snapToTile(v: number): number {
@@ -72,9 +73,31 @@ export function tagPillWidth(label: string, extra: number): number {
 /** Room the Unhoused sims mark takes in a household tag, after the grip. */
 export const UNHOUSED_MARK_W = 16;
 
-/** A household's name tag width; an Unhoused sims tag also fits its mark. */
+/**
+ * A household's name tag width as packing reserves it, from a per-character
+ * estimate so a board packs the same everywhere; an Unhoused sims tag also
+ * fits its mark.
+ */
 export function householdTagWidth(g: HouseholdLabel | undefined | null): number {
   return tagPillWidth(householdLabel(g), 30) + (g?.hh === UNHOUSED_HH ? UNHOUSED_MARK_W : 0);
+}
+
+/** Room left of a tag's label (grip, and the Unhoused mark), and right of it. */
+const TAG_TEXT_X = 24;
+const TAG_PAD_R = 12;
+
+/**
+ * A household's name tag width as drawn: the label measured in the board's
+ * type, so the pill fits it whatever its letters. The estimate came up short
+ * for a short bold name (Crumplebottom's ran past its pill) and long for one
+ * with separators. Within a few pixels of {@link householdTagWidth}, which
+ * the tile of air between households absorbs.
+ */
+export function householdTagDrawWidth(g: HouseholdLabel | undefined | null): number {
+  // SVG text collapses the label's double spaces round "·", so measure it so.
+  const text = measureText(householdLabel(g).replace(/\s+/g, ' '), 12, 700);
+  if (text === null) return householdTagWidth(g);
+  return TAG_TEXT_X + (g?.hh === UNHOUSED_HH ? UNHOUSED_MARK_W : 0) + text + TAG_PAD_R;
 }
 
 export type HouseholdChrome = {
@@ -118,7 +141,7 @@ export function householdChrome(
     y1 = Math.max(y1, n.y + n.h);
   }
   const label = householdLabel(g);
-  const labelW = householdTagWidth(g);
+  const labelW = householdTagDrawWidth(g);
   const ageLabel = 'Age up';
   const ageW = tagPillWidth(ageLabel, 16);
   const originX = tileFloor(x0);

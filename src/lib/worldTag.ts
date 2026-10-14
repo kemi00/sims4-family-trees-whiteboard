@@ -8,6 +8,7 @@ import {
   WORLD_TAG_PILL_H,
   WORLD_TAG_ZOOM_OUT_MAX,
 } from './constants.ts';
+import { textWidth } from './textWidth.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
@@ -104,34 +105,6 @@ const NAME_X = 31;
 const PAD_R = 14;
 /** Second line under the name, used zoomed out (see {@link worldTagLayout}). */
 const LINE2_H = 16;
-
-let measureCtx: CanvasRenderingContext2D | null | undefined;
-const widths = new Map<string, number>();
-
-/**
- * Width of `text` in the board's type, from the browser's own font metrics.
- * Without a canvas (tests) it falls back to a per-character estimate.
- */
-function textWidth(text: string, size: number, weight: number): number {
-  const key = `${weight} ${size} ${text}`;
-  const hit = widths.get(key);
-  if (hit !== undefined) return hit;
-  if (measureCtx === undefined) {
-    measureCtx =
-      typeof document === 'undefined'
-        ? null
-        : document.createElement('canvas').getContext('2d');
-  }
-  let w: number;
-  if (measureCtx) {
-    measureCtx.font = `${weight} ${size}px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
-    w = measureCtx.measureText(text).width;
-  } else {
-    w = text.length * size * (weight >= 800 ? 0.586 : 0.58);
-  }
-  widths.set(key, w);
-  return w;
-}
 
 /**
  * A world tag's parts, in world units from the tag's top-left. The name
