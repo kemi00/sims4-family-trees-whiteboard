@@ -1922,6 +1922,7 @@ export function useWhiteboard() {
           parsed,
           seedNameKeys: seedNameKeysFromNodes(seed.nodes),
           packReference: seed.nodes,
+          rosterEdges: seed.edges,
           movedByHand: new Set(householdMoves.map((m) => m.simId)),
           now: new Date().toISOString(),
           nextEdgeId: () => 'v' + n++,
@@ -1933,7 +1934,7 @@ export function useWhiteboard() {
       }
     };
     rd.readAsArrayBuffer(file);
-  }, [nodesCore, edges, groups, worlds, pairStatus, seed.nodes, householdMoves]);
+  }, [nodesCore, edges, groups, worlds, pairStatus, seed.nodes, seed.edges, householdMoves]);
 
   const confirmSaveImport = useCallback(
     (svgWidth: number, svgHeight: number) => {
@@ -1955,6 +1956,7 @@ export function useWhiteboard() {
         parsed: saveImport.parsed,
         seedNameKeys: seedNameKeysFromNodes(seed.nodes),
         packReference: seed.nodes,
+        rosterEdges: seed.edges,
         now: new Date().toISOString(),
         nextEdgeId: () => 'v' + n++,
       });
@@ -1971,7 +1973,7 @@ export function useWhiteboard() {
         'replace',
       );
     },
-    [saveImport, worlds, seed.nodes, applySaveBoard],
+    [saveImport, worlds, seed.nodes, seed.edges, applySaveBoard],
   );
 
   const cancelSaveImport = useCallback(() => setSaveImport(null), []);

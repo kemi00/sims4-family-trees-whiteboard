@@ -67,6 +67,8 @@ export type SaveMergeInput = {
    * Replace).
    */
   packReference?: SimNode[];
+  /** The roster's links, which name a relative the save keeps nameless (see rosterRelative). */
+  rosterEdges?: Edge[];
   /** Sims the player moved to another household by hand; Merge keeps them there. */
   movedByHand?: ReadonlySet<string>;
   now: string;
@@ -659,6 +661,61 @@ function treeRelatives(
   return out;
 }
 
+/**
+ * The roster card for a relative the save keeps nameless: the one card whose
+ * links to the board's sims, matched by name, are all the relative's. The
+ * save keeps Colin Sullivan only as Eleanor Sullivan's son and Karmine
+ * Luna's father; the roster has him as both. It takes two links at least,
+ * and one card alone, so a lone parent is never guessed at.
+ */
+function rosterRelative(
+  r: ShownRelative,
+  rels: ParsedSaveRel[],
+  simOnBoard: (saveId: string) => SimNode | undefined,
+  roster: SimNode[],
+  rosterEdges: Edge[],
+  /** A sim the save has: no relative is named after them. */
+  inSave: (n: SimNode) => boolean,
+): SimNode | undefined {
+  const links: { kind: 'child' | 'parent' | 'partner'; sim: SimNode }[] = [];
+  for (const rel of rels) {
+    if (rel.a !== r.treeId && rel.b !== r.treeId) continue;
+    const sim = simOnBoard(rel.a === r.treeId ? rel.b : rel.a);
+    if (!sim || sim.treeId) continue;
+    const kind = rel.type !== 'parent' ? 'partner' : rel.a === r.treeId ? 'child' : 'parent';
+    links.push({ kind, sim });
+  }
+  if (links.length < 2 || !rosterEdges.length) return undefined;
+  const idsByName = new Map<string, Set<string>>();
+  for (const n of roster) {
+    const k = nameKey(n.first, n.sur);
+    idsByName.set(k, (idsByName.get(k) ?? new Set()).add(n.id));
+  }
+  const perLink: Set<string>[] = [];
+  for (const { kind, sim } of links) {
+    const ids = idsByName.get(nameKey(sim.first, sim.sur));
+    if (!ids) return undefined;
+    const here = new Set<string>();
+    for (const e of rosterEdges) {
+      if (e.type === 'parent') {
+        if (kind === 'child' && ids.has(e.b)) here.add(e.a);
+        if (kind === 'parent' && ids.has(e.a)) here.add(e.b);
+      } else if (kind === 'partner' && e.type !== 'sibling' && e.type !== 'custom') {
+        if (ids.has(e.a)) here.add(e.b);
+        if (ids.has(e.b)) here.add(e.a);
+      }
+    }
+    perLink.push(here);
+  }
+  const found = roster.filter(
+    (n) =>
+      perLink.every((ids) => ids.has(n.id)) &&
+      foldName(n.first) !== foldName(UNKNOWN_FIRST) &&
+      !inSave(n),
+  );
+  return found.length === 1 ? found[0] : undefined;
+}
+
 /** First name on a relative's card: the save holds no name for them. */
 export const UNKNOWN_FIRST = 'Unknown';
 
@@ -855,7 +912,28 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   };
   const shown = treeRelatives(parsed.relatives ?? [], parsed.rels, simOnBoard);
   const byTreeId = new Map(nodes.filter((n) => n.treeId).map((n) => [n.treeId!, n.id]));
-  for (const r of shown) {
+  for (const found of shown) {
+    // Nameless in the save, named on the roster by the family it links.
+    const onRoster =
+      !found.name || found.name === UNKNOWN_FIRST
+        ? rosterRelative(
+            found,
+            parsed.rels,
+            simOnBoard,
+            input.packReference ?? [],
+            input.rosterEdges ?? [],
+            (n) => (byName.get(nameKey(n.first, n.sur)) ?? []).some((c) => c.saveSimId),
+          )
+        : undefined;
+    const r: ShownRelative = onRoster
+      ? {
+          ...found,
+          name: `${onRoster.first} ${onRoster.sur}`.trim(),
+          ...(found.deceased || onRoster.state === DECEASED_STATE || onRoster.state === 'Ghost'
+            ? { deceased: true as const }
+            : {}),
+        }
+      : found;
     const home = homeOf(r.kin);
     let id = byTreeId.get(r.treeId);
     // A card made before the board knew its name, never renamed by hand.
@@ -863,14 +941,23 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     if (id && named.first !== UNKNOWN_FIRST) {
       const i = cardAt.get(id)!;
       if (foldName(nodes[i]!.first) === foldName(UNKNOWN_FIRST)) {
-        nodes[i] = { ...nodes[i]!, ...named };
+        nodes[i] = {
+          ...nodes[i]!,
+          ...named,
+          ...(r.deceased ? { state: DECEASED_STATE } : {}),
+        };
         relativesNamed.push(id);
       }
     }
     if (!id) {
-      const placeholders = (byName.get(nameKey(UNKNOWN_FIRST, r.kin.sur)) ?? []).filter(
-        (n) => !claimed.has(n.id) && !n.saveSimId && !n.treeId,
-      );
+      // A card standing for them already: the roster's own (Colin Sullivan
+      // on a starter board), or its placeholder ("Unknown Hoffman").
+      const free = (k: string) =>
+        (byName.get(k) ?? []).filter((n) => !claimed.has(n.id) && !n.saveSimId && !n.treeId);
+      const placeholders =
+        named.first !== UNKNOWN_FIRST && free(nameKey(named.first, named.sur)).length
+          ? free(nameKey(named.first, named.sur))
+          : free(nameKey(UNKNOWN_FIRST, r.kin.sur));
       if (placeholders.length === 1) {
         const i = cardAt.get(placeholders[0]!.id)!;
         let card: SimNode = { ...nodes[i]!, treeId: r.treeId };

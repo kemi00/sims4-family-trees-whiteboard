@@ -1099,6 +1099,70 @@ describe('family-tree relatives with no sim', () => {
   });
 });
 
+describe('relatives the save keeps nameless', () => {
+  const N = 'Not in any world';
+  const worlds = [{ name: 'San Sequoia', color: '#6b4c9a' }, { name: N, color: '#9aa0a6' }];
+  const lunaSullivan = (id: string, first: string, sur: string, extra: Partial<SimNode> = {}) =>
+    sim({ id, first, sur, world: 'San Sequoia', hh: 'Luna-Sullivan', gid: 'San Sequoia||Luna-Sullivan', ...extra });
+  const roster = [
+    lunaSullivan('Eleanor Sullivan', 'Eleanor', 'Sullivan'),
+    lunaSullivan('Karmine Luna', 'Karmine', 'Luna'),
+    lunaSullivan('Colin Sullivan', 'Colin', 'Sullivan', { state: 'Deceased' }),
+  ];
+  const rosterEdges: Edge[] = [
+    { id: 'r1', a: 'Eleanor Sullivan', b: 'Colin Sullivan', type: 'parent', source: 'seed' },
+    { id: 'r2', a: 'Colin Sullivan', b: 'Karmine Luna', type: 'parent', source: 'seed' },
+  ];
+  const saveSim = (id: string, first: string, last: string) => ({
+    saveSimId: id, householdId: '4', first, last, household: 'Luna-Sullivan', age: 'Adult', gender: 'Female', world: 'San Sequoia',
+  });
+  const merge = (rels: ParsedSave['rels'], nodes: SimNode[] = []) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges: [],
+      groups: [],
+      worlds,
+      parsed: {
+        sims: [saveSim('1', 'Eleanor', 'Sullivan'), saveSim('2', 'Karmine', 'Luna')],
+        rels,
+        relatives: [{ treeId: 'g1', gender: 'Male' }],
+      },
+      seedNameKeys: seedNameKeysFromNodes(roster),
+      packReference: roster,
+      rosterEdges,
+      now: 'x',
+      nextEdgeId: (() => {
+        let n = 0;
+        return () => `v${n++}`;
+      })(),
+    });
+  const between: ParsedSave['rels'] = [
+    { a: '1', b: 'g1', type: 'parent' },
+    { a: 'g1', b: '2', type: 'parent' },
+  ];
+
+  it("takes the roster's name when its links match the relative's", () => {
+    const colin = merge(between).nodes.find((n) => n.treeId === 'g1')!;
+    assert.deepEqual([colin.first, colin.sur, colin.state], ['Colin', 'Sullivan', 'Deceased']);
+  });
+
+  it('renames the Unknown card a board already has for them', () => {
+    const before = merge(between).nodes.map((n) =>
+      n.treeId === 'g1' ? { ...n, first: 'Unknown', sur: 'Luna', state: 'Sim' } : n,
+    );
+    const after = merge(between, before);
+    const card = after.nodes.find((n) => n.treeId === 'g1')!;
+    assert.deepEqual([card.first, card.sur, card.state], ['Colin', 'Sullivan', 'Deceased']);
+    assert.equal(after.nodes.filter((n) => n.treeId === 'g1').length, 1);
+  });
+
+  it('names nobody when one link differs from the roster card', () => {
+    // Married to Eleanor here, her son on the roster: not Colin.
+    const other = merge([{ a: 'g1', b: '2', type: 'parent' }, { a: '1', b: 'g1', type: 'marriage' }]);
+    assert.equal(other.nodes.find((n) => n.treeId === 'g1')!.first, 'Unknown');
+  });
+});
+
 describe('isStarterBoard', () => {
   const roster = ['a', 'b', 'c', 'd'].map((id) => sim({ id, first: id, sur: 'X' }));
 
