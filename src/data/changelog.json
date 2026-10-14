@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "8ecdb40",
+   "date": "2026-10-14",
+   "text": "The tile grid now stays on screen while you pan, zoom or drag, instead of vanishing until you let go, so you can line cards up on the tiles they snap to."
+  },
+  {
    "sha": "0698c05",
    "date": "2026-10-14",
    "text": "Zoomed out, a world's name tag now grows up into the gap above its frame instead of down over the first household's tag, so every household's name stays readable and grabbable. Nothing on your board moves."
