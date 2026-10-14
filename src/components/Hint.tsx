@@ -138,10 +138,10 @@ export function Hint() {
       </section>
 
       <section className="hint__section">
-        <h3 className="hint__heading">Edit a name</h3>
+        <h3 className="hint__heading">Edit a sim</h3>
         <p className="hint__body">
-          Double-click a Sim to edit. On a phone, double-tap or long-press
-          instead.
+          Click a Sim's ⠇, or double-click the Sim, to edit it or move it
+          to another household. On a phone, tap ⠇ or long-press the Sim.
         </p>
       </section>
 

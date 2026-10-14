@@ -149,6 +149,18 @@ export const SimNodeView = memo(function SimNodeView({
           )}
         </>
       )}
+      {/* ⠇ says the card has more to it: one click opens its editor (see
+          WhiteboardStage), where double-clicking the card is easy to miss.
+          Drawn only with the text, like Age up, so it is never a blank spot. */}
+      {labels && (
+        <g className="node__more" transform={`translate(${n.w - 17},${h - 17})`}>
+          <title>Edit or move this sim</title>
+          <circle className="node__more-bg" r={11} />
+          {[-5, 0, 5].map((dy) => (
+            <circle key={dy} cy={dy} r={1.7} />
+          ))}
+        </g>
+      )}
       {fromSave && (
         <g
           transform={`translate(${hasBadge || added ? n.w - 38 : n.w - 15}, 15)`}

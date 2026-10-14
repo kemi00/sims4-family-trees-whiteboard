@@ -479,6 +479,12 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hh-ageup{cursor:pointer}
 .hh-ageup:hover rect{filter:brightness(1.12)}
 .node rect{cursor:grab}
+.node__more{cursor:pointer;fill:#8a93a0}
+.node__more .node__more-bg{fill:transparent;transition:fill .12s ease}
+.node__more:hover{fill:#3b4757}
+.node__more:hover .node__more-bg{fill:#eef1f4}
+.node.sel .node__more{fill:#1b6cd6}
+.node.sel .node__more:hover .node__more-bg{fill:#d6e5fb}
 .node.sel>rect:first-of-type{stroke:#1b6cd6!important;stroke-width:4.5px!important;fill:#e9f2ff!important}
 .node.sel{filter:drop-shadow(0 0 0 #1b6cd6) drop-shadow(0 0 7px rgba(27,108,214,.9))}
 /* Soft membership highlight when a parent world/household is multi-selected. */

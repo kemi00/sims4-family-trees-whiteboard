@@ -136,6 +136,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     lastY: number;
     base: Record<string, { ox: number; oy: number }>;
     armed: boolean;
+    /** Pressed on the card's ⠇: a click opens the editor at once. */
+    more: boolean;
   } | null>(null);
   const legendRef = useRef<HTMLDivElement>(null);
   const movedRef = useRef(false);
@@ -1081,10 +1083,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     if (wb.connSrc) updateTemp(ev.clientX, ev.clientY);
   };
 
-  const finishNodePointer = (wasMoved: boolean, n: SimNode) => {
+  const finishNodePointer = (wasMoved: boolean, n: SimNode, more = false) => {
     // The drop already wrote the snapped spot via moveNodesByIds. wb.byid is
     // still the pre-drag render, so snapping it here put the sim back.
     if (wasMoved) return;
+    if (more) {
+      lastClickRef.current = null;
+      wb.selectNode(n.id);
+      wb.setEditNodeId(n.id);
+      positionEditor();
+      return;
+    }
     const now = performance.now();
     if (
       lastClickRef.current?.id === n.id &&
@@ -1225,7 +1234,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         );
       }
       dragRef.current = null;
-      finishNodePointer(wasMoved, n);
+      finishNodePointer(wasMoved, n, d.more);
       return;
     }
     if (panRef.current) {
@@ -1294,6 +1303,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         lastY: n.y,
         base: { [n.id]: { ox: n.ox ?? 0, oy: n.oy ?? 0 } },
         armed: false,
+        more: !!(ev.target as Element).closest?.('.node__more'),
       };
       movedRef.current = false;
       clearLongPress();
