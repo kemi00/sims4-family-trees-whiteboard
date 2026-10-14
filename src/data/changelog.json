@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "99306dc",
+   "date": "2026-10-14",
+   "text": "Every sim card now has a ⠇ in its corner. Click it to edit the sim or move it to another household in one click, no double-click needed."
+  },
+  {
    "sha": "cc97cab",
    "date": "2026-10-14",
    "text": "Filters now list every game. One your save doesn't have, like Journey to Batuu, stays listed and switched off instead of disappearing, and comes back on when its sims arrive. The load dialogs now fit the window: only their middle scrolls, so Proceed is always in reach."
