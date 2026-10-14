@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "09b8603",
+   "date": "2026-10-14",
+   "text": "The sim editor now shows each sim's ID from your save, with a Copy ID button. Before you load a save, it tells you to."
+  },
+  {
    "sha": "2c6c8ef",
    "date": "2026-10-14",
    "text": "Engaged couples from a save now get their link, labelled Engaged; the game's family tree leaves engagements out, so they had none. Merge your save to add them; nothing moves."
