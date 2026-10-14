@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "dc287a9",
+   "date": "2026-10-14",
+   "text": "Ancestors from the game's family tree now come in with their real names, like Cordelia Thebe II or Cornelia Goth, instead of Unknown. Merge your save to rename the Unknown cards on your board; nothing moves, and any you renamed yourself keep your name."
+  },
+  {
    "sha": "bc04a46",
    "date": "2026-10-14",
    "text": "Household name tags now fit their names, with even room on both sides; short names like Crumplebottom no longer run past the tag."
