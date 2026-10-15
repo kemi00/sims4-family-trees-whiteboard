@@ -12,8 +12,9 @@ export type LoadJsonRisk = {
 };
 
 /**
- * Load JSON is a full replace. Confirm whenever the board on screen is
- * anything other than the untouched built-in one.
+ * What loading a file would put at risk. `needsConfirm`: the board on screen
+ * is anything other than the untouched built-in one. Load JSON asks either
+ * way; over the untouched board it picks Replace for you (LoadJsonDialog).
  *
  * Counting only edits and save marks was not enough: a board that came from
  * Load JSON has no undo history, no editor adds and no planned links of its

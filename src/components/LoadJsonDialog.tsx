@@ -30,7 +30,13 @@ export function LoadJsonDialog({
   onMerge,
   onReplace,
 }: Props) {
-  const [mode, setMode] = useState<'merge' | 'replace'>('merge');
+  /**
+   * Nothing of the visitor's is on the board yet: the built-in starter. The
+   * file is their board, so Replace is picked; Merge would keep every
+   * premade the file leaves out. Positions are still theirs to choose.
+   */
+  const starter = !risk.needsConfirm;
+  const [mode, setMode] = useState<'merge' | 'replace'>(starter ? 'replace' : 'merge');
   // Each mode remembers its own choice. Merge keeps your layout by default;
   // Replace means "the file on its own", so it starts with the file's layout.
   const [keepBoardPositions, setKeepBoardPositions] = useState(true);
@@ -152,6 +158,13 @@ export function LoadJsonDialog({
                     loads the file on its own
                     {risk.hasUndo ? ', clearing the undo history' : ''}.
                   </span>
+                  {starter && (
+                    <span className="save-import__choice-note save-import__pick">
+                      Picked for you: this is the built-in starter board, with
+                      nothing of yours on it yet. Merging would keep the premade
+                      sims your file leaves out.
+                    </span>
+                  )}
                 </span>
               </label>
               {mode === 'replace' && (
@@ -204,11 +217,14 @@ export function LoadJsonDialog({
               )}
             </div>
           </fieldset>
-          <p className="save-import__backup">
-            <button type="button" className="save-import__text-btn" onClick={onDownload}>
-              Download a backup of this board
-            </button>
-          </p>
+          {/* The starter board needs no backup: Reset the board brings it back. */}
+          {!starter && (
+            <p className="save-import__backup">
+              <button type="button" className="save-import__text-btn" onClick={onDownload}>
+                Download a backup of this board
+              </button>
+            </p>
+          )}
         </div>
         <div className="save-import__actions">
           <button type="button" onClick={onCancel}>

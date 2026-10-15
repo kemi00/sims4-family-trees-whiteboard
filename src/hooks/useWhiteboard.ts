@@ -1793,26 +1793,26 @@ export function useWhiteboard() {
             fileFilters(parsed),
           );
         } catch {
-          // Unparseable — applyLoadedJson reports it.
+          // Unparseable: nothing to choose about, so say so straight away.
+          applyLoadedJson(file, text, svgWidth, svgHeight);
+          return;
         }
         const risk = loadJsonRisk(nodesCore, edges, {
           canUndo,
           sourceFileName,
           fromBrowserDraft,
         });
-        if (risk.needsConfirm || willRepack) {
-          setPendingLoadJson({
-            file,
-            text,
-            svgWidth,
-            svgHeight,
-            risk,
-            willRepack,
-            filtersNote,
-          });
-          return;
-        }
-        applyLoadedJson(file, text, svgWidth, svgHeight);
+        // Always ask, even over the untouched starter board: which card
+        // positions win is a choice there too (see LoadJsonDialog).
+        setPendingLoadJson({
+          file,
+          text,
+          svgWidth,
+          svgHeight,
+          risk,
+          willRepack,
+          filtersNote,
+        });
       };
       rd.readAsText(file);
     },
