@@ -123,14 +123,14 @@ describe('JSON merge filters', () => {
     });
     assert.equal(
       filterChangeNote(none, file),
-      "Your filters switch to the file's: it hides 3 games and 1 playability type, highlights 2 ages and single sims.",
+      "Your filters will change to the file's: it hides 3 games and 1 playability type, highlights 2 ages and single sims.",
     );
   });
 
   it('warns when merging would clear the filters on screen', () => {
     assert.equal(
       filterChangeNote({ ...none, hiddenPacks: ['Seasons'] }, fileFilters({ hiddenPacks: [] })),
-      "Your filters switch to the file's: it shows every game.",
+      "Your filters will change to the file's: it shows every game.",
     );
   });
 
@@ -142,11 +142,11 @@ describe('JSON merge filters', () => {
     assert.equal(fileFilters({ hiddenPacks: [] })?.hideSecrets, false);
     assert.equal(
       filterChangeNote(none, fileFilters({ hiddenPacks: [], hideSecrets: true })),
-      "Your filters switch to the file's: it hides secrets.",
+      "Your filters will change to the file's: it hides secrets.",
     );
     assert.equal(
       filterChangeNote({ ...none, hideSecrets: true }, fileFilters({ hiddenPacks: [] })),
-      "Your filters switch to the file's: it shows every game, shows secrets.",
+      "Your filters will change to the file's: it shows every game, shows secrets.",
     );
     assert.equal(filterChangeNote(none, fileFilters({ hiddenPacks: [] })), null);
   });

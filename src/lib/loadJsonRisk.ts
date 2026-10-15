@@ -145,5 +145,5 @@ export function filterChangeNote(
     highlights.length ? `highlights ${highlights.join(' and ')}` : null,
     board.hideSecrets && !file.hideSecrets ? 'shows secrets' : null,
   ].filter(Boolean);
-  return `Your filters switch to the file's: it ${parts.join(', ')}.`;
+  return `Your filters will change to the file's: it ${parts.join(', ')}.`;
 }
