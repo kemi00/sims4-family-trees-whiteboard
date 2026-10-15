@@ -1,6 +1,21 @@
 {
  "entries": [
   {
+   "sha": "942b1cf",
+   "date": "2026-10-15",
+   "text": "Scrolling now moves the board: two fingers on a trackpad, or the mouse wheel. To zoom, pinch, or hold ⌘/Ctrl while you scroll. You can also pan in every mode: drag empty board in Connect to reach a far-off sim, or hold Space (or the middle mouse button) and drag anywhere, Select included. A Getting around card shows this once; Quick tips keeps it."
+  },
+  {
+   "sha": "37bb3d3",
+   "date": "2026-10-15",
+   "text": "A + beside a household's Age up adds a new sim to it and opens their name, ready to type. In the sim editor, Enter now saves and closes."
+  },
+  {
+   "sha": "f705ab5",
+   "date": "2026-10-15",
+   "text": "Connect can now link secret lovers, a secret parent or secret child, and co-parents: two sims who aren't a couple but had a child together. Pick Co-parents, then click the child."
+  },
+  {
    "sha": "8ecdb40",
    "date": "2026-10-14",
    "text": "The tile grid now stays on screen while you pan, zoom or drag, instead of vanishing until you let go, so you can line cards up on the tiles they snap to."
