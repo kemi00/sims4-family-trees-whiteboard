@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
+} from 'react';
 import { AGES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
@@ -45,6 +52,8 @@ type Props = {
   onMove: (world: string, houseGid: string | '__new', newName?: string) => void;
   onLayout: () => void;
   onClose: () => void;
+  /** Focus the name, selected, so a sim just added can be named straight away. */
+  focusName?: boolean;
 };
 
 export function SimEditor({
@@ -59,6 +68,7 @@ export function SimEditor({
   onMove,
   onLayout,
   onClose,
+  focusName,
 }: Props) {
   const compact = useCompactChrome();
   const [name, setName] = useState(`${n.first} ${n.sur}`);
@@ -74,6 +84,12 @@ export function SimEditor({
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!focusName) return;
+    nameRef.current?.focus();
+    nameRef.current?.select();
+  }, [focusName]);
   useEffect(() => () => {
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
   }, []);
@@ -91,6 +107,28 @@ export function SimEditor({
     setCopied(true);
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
     copiedTimer.current = setTimeout(() => setCopied(false), 1600);
+  };
+
+  const save = () => {
+    const parts = name.trim().split(' ');
+    const first = parts.shift() || name;
+    const sur = parts.join(' ');
+    onSave({ first, sur, age, gender, state, oplay });
+  };
+
+  /**
+   * Enter saves and closes, as in any form; in the move section it moves the
+   * sim, that section's own action. A button keeps Enter for itself, and an
+   * Enter that finishes typing with an input method (Japanese, Chinese…) is
+   * left to it: Safari reports that one as key code 229.
+   */
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.keyCode === 229) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('button, a, textarea')) return;
+    e.preventDefault();
+    if (t.closest('#edMove')) onMove(world, house as string | '__new', newName);
+    else save();
   };
 
   const mid =
@@ -155,6 +193,7 @@ export function SimEditor({
       ref={editorRef}
       id="editor"
       className={compact ? 'editor editor--sheet' : 'editor'}
+      onKeyDown={onKeyDown}
       style={
         compact
           ? { display: 'block' }
@@ -165,7 +204,12 @@ export function SimEditor({
         ✕
       </button>
       <label>Name</label>
-      <input value={name} onChange={(e) => setName(e.target.value)} />
+      <input
+        ref={nameRef}
+        value={name}
+        enterKeyHint="done"
+        onChange={(e) => setName(e.target.value)}
+      />
       <label>Age / life stage</label>
       <select value={age} onChange={(e) => setAge(e.target.value)}>
         {AGES.map((a) => (
@@ -292,16 +336,7 @@ export function SimEditor({
         </div>
       )}
       <div className="row">
-        <button
-          onClick={() => {
-            const parts = name.trim().split(' ');
-            const first = parts.shift() || name;
-            const sur = parts.join(' ');
-            onSave({ first, sur, age, gender, state, oplay });
-          }}
-        >
-          Save
-        </button>
+        <button onClick={save}>Save</button>
       </div>
     </div>
   );

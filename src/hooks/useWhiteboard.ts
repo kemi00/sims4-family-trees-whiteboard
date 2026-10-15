@@ -18,6 +18,7 @@ import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import {
   bbox,
   cardOriginAtViewportCenter,
+  coreOffsetsAfterImportSeparation,
   coreOffsetsAfterWorldSeparation,
   introducedWorldNames,
   dominantWorldInViewport,
@@ -37,13 +38,14 @@ import {
 } from '../lib/routing.ts';
 import {
   computeLayout,
+  householdAddSpot,
   layoutBases,
   measureCard,
   OTHER_WORLD,
   rowPitch,
   spawnChildOrigin,
 } from '../lib/layout.ts';
-import { snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
+import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
 import { lineageIds } from '../lib/bloodline.ts';
 import {
   buildConnectionLog,
@@ -923,6 +925,82 @@ export function useWhiteboard() {
     });
     setSel({ type: 'node', id });
   }, [worlds, nodes, nodesCore, groups, nodeVis, viewport, edges, byid, pushUndo, snap]);
+
+  /**
+   * The household tag's +: a new sim in that household, beside its last card
+   * or in a row under its cards (householdAddSpot). Every other card keeps its
+   * place, unless a new row runs the box into the one below; that one moves
+   * down, as after a save merge. Returns the new sim's id.
+   */
+  const addSimToHousehold = useCallback(
+    (gid: string): string | null => {
+      const g = groups.find((x) => x.gid === gid);
+      const home = nodes.filter((n) => n.gid === gid);
+      const chrome = householdChrome(home, g);
+      if (!g || !chrome) return null;
+      pushUndo();
+      trackAction('/action/add-household-sim');
+      const id = 'new' + eidcRef.current++;
+      const surnames = new Map<string, number>();
+      for (const m of home) if (m.sur) surnames.set(m.sur, (surnames.get(m.sur) ?? 0) + 1);
+      const sur = [...surnames].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Sim';
+      const n: SimNode = {
+        id,
+        gid,
+        first: 'New',
+        sur,
+        age: 'Young Adult',
+        state: 'Sim',
+        gender: randomNewSimGender(),
+        hh: g.hh,
+        world: g.world,
+        nb: g.nb,
+        color: g.color,
+        townie: false,
+        oworld: g.world,
+        onb: g.nb,
+        ohh: g.hh,
+        oplay: 'Resident',
+        pack: '',
+        ox: 0,
+        oy: 0,
+        x: 0,
+        y: 0,
+        w: 0,
+        h: 0,
+        added: true,
+      };
+      const { x, y } = householdAddSpot(home, nodes, chrome.boxR);
+      const nextCore = [...nodesCore, toCore(n)];
+      const bases = layoutBases(nextCore, worlds, edges);
+      const pinned = nextCore.map((node) => {
+        const base = bases.get(node.id);
+        if (node.id === id) {
+          return base ? { ...node, ox: x - base.x, oy: y - base.y } : node;
+        }
+        const vis = byid[node.id];
+        if (!vis || !base) return node;
+        const ox = vis.x - base.x;
+        const oy = vis.y - base.y;
+        if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
+        return { ...node, ox, oy };
+      });
+      const laid = computeLayout(pinned, worlds, edges);
+      setNodesCore(
+        coreOffsetsAfterImportSeparation(
+          pinned,
+          snap ? snapNodesToTiles(laid) : laid,
+          groups,
+          nodes,
+        ),
+      );
+      setSel({ type: 'node', id });
+      setEditNodeId(id);
+      flashStatus(`Added a sim to ${g.hh}: name them, then press Enter`);
+      return id;
+    },
+    [groups, nodes, nodesCore, worlds, edges, byid, snap, pushUndo, flashStatus],
+  );
 
   const updateNode = useCallback((id: string, patch: Partial<SimNode>) => {
     const prev = nodesCore.find((n) => n.id === id);
@@ -2383,6 +2461,7 @@ export function useWhiteboard() {
     parentCycleReason,
     deleteSelected,
     addSim,
+    addSimToHousehold,
     updateNode,
     pushUndo,
     canUndo,

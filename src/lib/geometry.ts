@@ -823,7 +823,7 @@ export function buildRects(
         l: chrome.headerX - RGAP,
         t: chrome.headerY - RGAP,
         r:
-          Math.max(chrome.headerX + chrome.labelW, chrome.ageX + chrome.ageW) +
+          Math.max(chrome.headerX + chrome.labelW, chrome.addX + chrome.addW) +
           RGAP,
         b: chrome.ageY + chrome.pillH + RGAP,
         id: `__t_${g.gid}`,

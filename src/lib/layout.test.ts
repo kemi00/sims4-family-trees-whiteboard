@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import { CARD_H, CARD_MIN_W, HH_TAG_BAND, HH_TAG_INSET, HH_TAG_PILL_H, HH_TAG_STACK_GAP, TILE } from './constants.ts';
 import {
   computeLayout,
+  householdAddSpot,
   layoutBases,
   packingSignature,
   LAYOUT,
@@ -558,5 +559,27 @@ describe('world columns', () => {
     // Shares are bottom-aligned, so the band's lowest row is the same for all.
     const bottoms = new Set([at('fia'), at('lone')].map((n) => n.y + n.h));
     assert.equal(bottoms.size, 1);
+  });
+});
+
+describe('householdAddSpot', () => {
+  const card = (x: number, y: number) => ({ x, y, w: CARD_MIN_W, h: CARD_H });
+  // Two parents on the top row, one child under them.
+  const home = [card(0, 0), card(3 * TILE, 0), card(0, 2 * TILE)];
+
+  it("goes a tile right of the bottom row's last card while the box has room", () => {
+    assert.deepEqual(householdAddSpot(home, home, 6 * TILE), { x: 3 * TILE, y: 2 * TILE });
+  });
+
+  it('starts a new row under the cards when the box has no room', () => {
+    assert.deepEqual(householdAddSpot(home, home, 4 * TILE), { x: 0, y: 2 * TILE + rowPitch() });
+  });
+
+  it('moves down past a card already in the spot', () => {
+    const other = card(0, 2 * TILE + rowPitch());
+    assert.deepEqual(householdAddSpot(home, [...home, other], 4 * TILE), {
+      x: 0,
+      y: 2 * TILE + 2 * rowPitch(),
+    });
   });
 });

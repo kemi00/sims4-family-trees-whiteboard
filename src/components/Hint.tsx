@@ -129,9 +129,10 @@ export function Hint() {
       </section>
 
       <section className="hint__section">
-        <h3 className="hint__heading">Age Sims</h3>
+        <h3 className="hint__heading">Add and age Sims</h3>
         <p className="hint__body">
-          On a household label, <b>Age up</b> advances everyone one life stage
+          On a household label, <b>+</b> adds a new Sim to that household.{' '}
+          <b>Age up</b> advances everyone one life stage
           (Infant → … → Elder → Deceased). Pets and Sims who are already
           deceased stay put. To age one Sim only, open <b>Edit</b> and change
           their age.

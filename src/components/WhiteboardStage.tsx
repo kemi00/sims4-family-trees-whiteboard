@@ -888,6 +888,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       t.closest('.edge') ||
       t.closest('.hhandle') ||
       t.closest('.hh-ageup') ||
+      t.closest('.hh-add') ||
       t.closest('.whandle')
     )
       return;
@@ -1329,6 +1330,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     [],
   );
 
+  /** A sim added with a household's + opens to its name, ready to type. */
+  const [nameFocusId, setNameFocusId] = useState<string | null>(null);
+  const onAddSim = useCallback((gid: string) => {
+    setNameFocusId(wbRef.current.addSimToHousehold(gid));
+  }, []);
+
   const onHandlePointer = (ev: ReactPointerEvent) => {
     rememberPointer(ev);
     captureSvg(ev.pointerId);
@@ -1622,6 +1629,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             keepGids={dragUnit?.gids}
             onHouseholdDragStart={onHouseholdDragStart}
             onAgeUp={onAgeUp}
+            onAddSim={onAddSim}
           />
           {/* World chips last so they paint above household tags + sim cards. */}
           <WorldLayer
@@ -1775,6 +1783,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       <ViewControls wb={wb} svgRef={svgRef} />
       {editNode && (
         <SimEditor
+          // One editor per sim: opening another resets the fields to theirs.
+          key={editNode.id}
           node={editNode}
           worlds={wb.worlds}
           groups={wb.groups}
@@ -1792,6 +1802,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             wb.moveSimToHousehold(editNode.id, world, houseGid, newName);
           }}
           onClose={() => wb.setEditNodeId(null)}
+          focusName={nameFocusId === editNode.id}
         />
       )}
     </div>

@@ -477,6 +477,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hhandle{cursor:grab}
 .hh-ageup{cursor:pointer}
 .hh-ageup:hover rect{filter:brightness(1.12)}
+.hh-add{cursor:pointer}
+.hh-add:hover rect{filter:brightness(.96)}
 .node rect{cursor:grab}
 .node__more{cursor:pointer;fill:#8a93a0}
 .node__more .node__more-bg{fill:transparent;transition:fill .12s ease}

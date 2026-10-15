@@ -113,6 +113,9 @@ export type HouseholdChrome = {
   headerY: number;
   ageX: number;
   ageY: number;
+  /** The + that adds a sim, right of Age up and as wide as it is tall. */
+  addX: number;
+  addW: number;
   pillH: number;
   label: string;
   labelW: number;
@@ -154,6 +157,7 @@ export function householdChrome(
   const headerY = boxT + HH_TAG_INSET;
   const ageX = headerX;
   const ageY = headerY + HH_TAG_PILL_H + HH_TAG_STACK_GAP;
+  const addX = ageX + ageW + HH_TAG_STACK_GAP;
   return {
     x0,
     y0,
@@ -167,6 +171,8 @@ export function householdChrome(
     headerY,
     ageX,
     ageY,
+    addX,
+    addW: HH_TAG_PILL_H,
     pillH: HH_TAG_PILL_H,
     label,
     labelW,

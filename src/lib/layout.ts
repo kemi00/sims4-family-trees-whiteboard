@@ -2451,6 +2451,32 @@ export function rowsUnderHousehold(
 }
 
 /**
+ * Where a sim added with a household's + goes: on its bottom row, a tile
+ * right of the last card, while that stays inside the household's box (its
+ * name tag can make the box wider than its cards); otherwise in a new row
+ * under the cards, from the left, a row further down past any card there.
+ */
+export function householdAddSpot(
+  home: SpawnRect[],
+  occupied: SpawnRect[],
+  boxRight: number,
+): { x: number; y: number } {
+  const size = { w: CARD_MIN_W, h: CARD_H };
+  const free = (x: number, y: number) =>
+    !occupied.some((o) => rectsOverlap({ x, y, ...size }, o));
+  const rowY = Math.max(...home.map((n) => n.y));
+  const rowRight = Math.max(...home.filter((n) => n.y === rowY).map((n) => n.x + n.w));
+  const besideX = rowRight + LAYOUT.partnerGap;
+  if (besideX + size.w <= boxRight && free(besideX, rowY)) {
+    return tileSnapOrigin(besideX, rowY);
+  }
+  const left = Math.min(...home.map((n) => n.x));
+  let y = Math.max(...home.map((n) => n.y + n.h)) + LAYOUT.gapYExtra;
+  for (let i = 0; i <= occupied.length && !free(left, y); i++) y += rowPitch();
+  return tileSnapOrigin(left, y);
+}
+
+/**
  * Keep existing cards where they are. A sim who joins a household already on
  * the board goes in rows under that household's cards, so its box grows in
  * place instead of stretching down to wherever the newcomer lands. Pack

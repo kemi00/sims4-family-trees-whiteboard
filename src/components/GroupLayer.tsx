@@ -29,6 +29,8 @@ type Props = {
     ev: ReactPointerEvent,
   ) => void;
   onAgeUp: (gid: string) => void;
+  /** The household's + : add a new sim to it. */
+  onAddSim?: (gid: string) => void;
 };
 
 export const GroupLayer = memo(function GroupLayer({
@@ -44,6 +46,7 @@ export const GroupLayer = memo(function GroupLayer({
   keepGids,
   onHouseholdDragStart,
   onAgeUp,
+  onAddSim,
 }: Props) {
   if (!show) return null;
 
@@ -62,6 +65,8 @@ export const GroupLayer = memo(function GroupLayer({
           headerY,
           ageX,
           ageY,
+          addX,
+          addW,
           pillH,
           label,
           labelW,
@@ -221,6 +226,40 @@ export const GroupLayer = memo(function GroupLayer({
                   fill="#fff"
                 >
                   {ageLabel}
+                </text>
+              </g>
+            )}
+            {!unhoused && labels && onAddSim && (
+              <g
+                className="hh-add"
+                role="button"
+                aria-label={`Add a sim to ${g0.hh}`}
+                // Acts on click, not press, so a press that turns into a pan
+                // or a stray tap while zooming adds nobody.
+                onPointerDown={(ev) => ev.stopPropagation()}
+                onClick={() => onAddSim(g0.gid)}
+              >
+                <title>Add a sim to this household</title>
+                <rect
+                  x={addX}
+                  y={ageY}
+                  width={addW}
+                  height={pillH}
+                  rx={8}
+                  fill="#fff"
+                  stroke={g0.color}
+                  strokeWidth={1.5}
+                />
+                <text
+                  x={addX + addW / 2}
+                  y={textY(ageY)}
+                  dominantBaseline="central"
+                  fontSize={18}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill={g0.color}
+                >
+                  +
                 </text>
               </g>
             )}
