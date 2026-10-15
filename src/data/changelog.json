@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "3a4041a",
+   "date": "2026-10-15",
+   "text": "The family links button now opens a menu: show all links, only those inside households (the lines between households hide), or none. Highlight a sim's family lights up whoever you select (partners, parents, children, siblings) and counts them and the households they live in."
+  },
+  {
    "sha": "1e964d4",
    "date": "2026-10-15",
    "text": "Load .json now always asks how the file meets the board, even over the built-in starter board, so you can choose whose card positions win. On the starter board it picks Replace for you, since merging would bring back the premade sims your file leaves out."
