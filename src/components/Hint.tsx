@@ -295,6 +295,11 @@ export function Hint({ introReady = false }: Props) {
             edit, or delete.
           </li>
           <li>
+            <b>Organise</b> lays the whole board out like the starter one:
+            worlds in columns by how many households and sims they have, each
+            household packed tight. Undo puts everything back.
+          </li>
+          <li>
             The corner <b>map</b> shows the whole board. Click or drag it to
             pan; scroll on it to zoom.
           </li>

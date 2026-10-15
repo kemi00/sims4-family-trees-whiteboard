@@ -1502,6 +1502,33 @@ export function useWhiteboard() {
   }, [fit]);
 
   /**
+   * Lay the whole board out afresh, as the starter board is: worlds in columns
+   * by how many households and sims they have, each household packed tight.
+   * Every card moves, so it is one undo step, and the view frames the result.
+   */
+  const organiseBoard = useCallback(
+    (svgWidth: number, svgHeight: number) => {
+      pushUndo();
+      trackAction('/action/organise');
+      const fresh = nodesCore.map((n) => (n.ox || n.oy ? { ...n, ox: 0, oy: 0 } : n));
+      const laid = computeLayout(fresh, worlds, edges);
+      setNodesCore(
+        coreOffsetsAfterWorldSeparation(
+          fresh,
+          snap ? snapNodesToTiles(laid) : laid,
+          groups,
+          () => true,
+        ),
+      );
+      fitWhenLaidOut(svgWidth, svgHeight);
+      flashStatus(
+        'Board organised: worlds in columns by households and sims, each household packed. Undo puts it back.',
+      );
+    },
+    [nodesCore, worlds, edges, groups, snap, pushUndo, fitWhenLaidOut, flashStatus],
+  );
+
+  /**
    * Frame a single world. Two differences from `fit`: the zoom cap is above 1 so
    * picking a small world magnifies it rather than just recentring the board,
    * and `insetRight` keeps the result clear of the legend panel, which would
@@ -2509,6 +2536,7 @@ export function useWhiteboard() {
     deleteSelected,
     addSim,
     addSimToHousehold,
+    organiseBoard,
     updateNode,
     pushUndo,
     canUndo,

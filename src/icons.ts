@@ -23,6 +23,7 @@ export { IdentificationBadge } from '@phosphor-icons/react/IdentificationBadge';
 export { Info } from '@phosphor-icons/react/Info';
 export { LinkSimple } from '@phosphor-icons/react/LinkSimple';
 export { LockSimple } from '@phosphor-icons/react/LockSimple';
+export { MagicWand } from '@phosphor-icons/react/MagicWand';
 export { MagnifyingGlass } from '@phosphor-icons/react/MagnifyingGlass';
 export { Megaphone } from '@phosphor-icons/react/Megaphone';
 export { Minus } from '@phosphor-icons/react/Minus';

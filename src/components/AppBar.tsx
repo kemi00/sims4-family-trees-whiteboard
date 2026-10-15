@@ -9,6 +9,7 @@ import {
   IdentificationBadge,
   LinkSimple,
   LockSimple,
+  MagicWand,
   MagnifyingGlass,
   CaretDown,
   CaretUp,
@@ -257,6 +258,16 @@ export function AppBar({
       </ToolButton>
       <ToolButton icon={UserPlus} label="Add a sim" onClick={addNewSim}>
         Add sim
+      </ToolButton>
+      <ToolButton
+        icon={MagicWand}
+        label="Lay the board out like the starter one: worlds in columns, households packed"
+        onClick={() => {
+          const { w, h } = svgSize();
+          wb.organiseBoard(w, h);
+        }}
+      >
+        Organise
       </ToolButton>
       <ToolButton
         icon={Trash}
