@@ -58,7 +58,10 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .tool__count{min-width:17px;height:17px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:var(--accent);color:#fff;font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums}
 /* Icon-only buttons keep the glyph centred; the count sits on the corner. */
 .tool--icon .tool__count{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px}
-.tool .tool__caret{position:absolute;right:2px;bottom:2px;width:8px;height:8px;opacity:.7}
+/* A button that opens a menu: the caret sits beside the icon, the dropdown
+   convention, not squeezed into a corner, and the button widens to fit it. */
+.tool--icon.tool--menu{width:auto;padding:0 6px 0 8px;gap:3px}
+.tool .tool__caret{width:10px;height:10px;opacity:.6}
 
 /* Accent marks a mode that changes what your next action does, or a filter
    that is currently narrowing the board. Never the default state. */

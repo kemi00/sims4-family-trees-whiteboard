@@ -45,7 +45,7 @@ export function ToolButton({
       id={id}
       ref={ref}
       type="button"
-      className={children ? 'tool' : 'tool tool--icon'}
+      className={`${children ? 'tool' : 'tool tool--icon'}${menu ? ' tool--menu' : ''}`}
       data-tone={tone}
       data-pressed={pressed === undefined ? undefined : String(pressed)}
       data-tooltip={label}
