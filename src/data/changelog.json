@@ -1,6 +1,21 @@
 {
  "entries": [
   {
+   "sha": "2188104",
+   "date": "2026-10-15",
+   "text": "Long file names now wrap in the Load .json and Load .save dialogs instead of making them scroll sideways."
+  },
+  {
+   "sha": "02328e7",
+   "date": "2026-10-15",
+   "text": "New Organise button: it lays the whole board out like the starter one, with worlds in columns by how many households and sims they have and each household packed tight. Undo puts everything back."
+  },
+  {
+   "sha": "2048014",
+   "date": "2026-10-15",
+   "text": "A household whose parents live elsewhere no longer leaves an empty row above itself, which let the household under it overlap and pushed worlds into each other. Boards you already have stay exactly where they are; Organise uses the tighter packing."
+  },
+  {
    "sha": "3a4041a",
    "date": "2026-10-15",
    "text": "The family links button now opens a menu: show all links, only those inside households (the lines between households hide), or none. Highlight a sim's family lights up whoever you select (partners, parents, children, siblings) and counts them and the households they live in."
