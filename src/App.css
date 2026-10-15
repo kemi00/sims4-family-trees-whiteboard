@@ -75,8 +75,8 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .tool[data-tone=danger]:hover:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 
 /* Instant hover/focus tips (native title is too slow and easy to miss).
-   Size to content — never inherit the 32px icon button width (that stacks
-   one word per line). */
+   Size to content, up to the cap — never inherit the 32px icon button width
+   (that stacks one word per line). */
 @media (hover:hover) and (pointer:fine){
  .tool[data-tooltip]::after,
  .viewctl__zoom[data-tooltip]::after{
@@ -95,8 +95,11 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   font-weight:600;
   line-height:1.35;
   letter-spacing:.01em;
-  white-space:nowrap;
-  text-align:center;
+  /* Short tips stay on one line; a long one wraps inside its box (nowrap ran
+     it out past the 280px cap), its lines evened out. */
+  white-space:normal;
+  text-wrap:balance;
+  text-align:left;
   box-shadow:var(--lift);
   opacity:0;
   pointer-events:none;
