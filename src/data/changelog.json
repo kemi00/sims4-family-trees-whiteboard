@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "17e6062",
+   "date": "2026-10-15",
+   "text": "Toolbar tooltips are short again and fit their box, with no empty space beside the text."
+  },
+  {
    "sha": "f52eeaf",
    "date": "2026-10-15",
    "text": "Select a link and click or tap a name on its label to jump to that sim's card."
