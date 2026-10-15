@@ -151,7 +151,12 @@ export default function App() {
           onDevUpdates={() => setDevUpdatesOpen(true)}
           devUpdatesUnseen={devUpdatesUnseen}
         />
-        <WhiteboardStage wb={wb} svgRef={svgRef} stageRef={stageRef} />
+        <WhiteboardStage
+          wb={wb}
+          svgRef={svgRef}
+          stageRef={stageRef}
+          tipsReady={!devUpdatesOpen && !wb.saveImport && !wb.pendingLoadJson}
+        />
         {(wb.gamesOpen || wb.playOpen || wb.agesOpen) && (
           <div
             className="chrome-backdrop"

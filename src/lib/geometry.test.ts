@@ -12,6 +12,7 @@ import {
   separateOverlappingWorldFrames,
   introducedWorldNames,
   worldFrame,
+  wheelViewport,
   worldTagZoomScale,
   zoomFloor,
   zoomViewportAt,
@@ -181,6 +182,54 @@ describe('zoomViewportAt', () => {
     const worldY = (my - v.ty) / v.k;
     assert.equal((mx - next.tx) / next.k, worldX);
     assert.equal((my - next.ty) / next.k, worldY);
+  });
+});
+
+describe('wheelViewport', () => {
+  const svg = { left: 0, top: 0, width: 800, height: 600 } as DOMRect;
+  const v = { tx: 40, ty: 50, k: 0.5 };
+  const wheel = (o: Partial<WheelEvent>) =>
+    ({
+      deltaX: 0,
+      deltaY: 0,
+      deltaMode: 0,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      clientX: 400,
+      clientY: 300,
+      ...o,
+    }) as WheelEvent;
+
+  it('pans with a two-finger scroll or a wheel, at any zoom', () => {
+    assert.deepEqual(wheelViewport(v, wheel({ deltaX: 12, deltaY: -30 }), svg), {
+      k: 0.5,
+      tx: 28,
+      ty: 80,
+    });
+    assert.deepEqual(wheelViewport(v, wheel({ deltaY: 3, deltaMode: 1 }), svg), {
+      k: 0.5,
+      tx: 40,
+      ty: 2,
+    });
+  });
+
+  it('turns a wheel sideways with Shift', () => {
+    assert.deepEqual(wheelViewport(v, wheel({ deltaY: 20, shiftKey: true }), svg), {
+      k: 0.5,
+      tx: 20,
+      ty: 50,
+    });
+  });
+
+  it('zooms at the pointer on a pinch and with ⌘ or Ctrl + scroll', () => {
+    for (const keys of [{ ctrlKey: true }, { metaKey: true }]) {
+      const inward = wheelViewport(v, wheel({ deltaY: -10, ...keys }), svg);
+      assert.ok(inward.k > v.k);
+      // The board point under the pointer stays under it.
+      assert.ok(Math.abs((400 - inward.tx) / inward.k - (400 - v.tx) / v.k) < 1e-9);
+      assert.ok(wheelViewport(v, wheel({ deltaY: 10, ...keys }), svg).k < v.k);
+    }
   });
 });
 

@@ -648,7 +648,7 @@ export function useWhiteboard() {
       if (on && sel?.type === 'node' && byid[sel.id]) {
         setConnSrc(sel.id);
         setStatus(
-          `First sim: ${byid[sel.id]!.first} — now click the SECOND sim (Esc to cancel)`,
+          `First sim: ${byid[sel.id]!.first} — now click the SECOND sim; drag the board to reach them (Esc to cancel)`,
         );
       } else {
         setStatus(on ? 'Connect: click the FIRST sim' : '');
@@ -666,7 +666,7 @@ export function useWhiteboard() {
       setConnectMenu(null);
       setInfantHouseMenu(null);
       setStatus(
-        'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims',
+        'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims. Hold Space to pan',
       );
     } else {
       setStatus('');
@@ -681,7 +681,7 @@ export function useWhiteboard() {
     setInfantHouseMenu(null);
     setStatus(
       connectMode ? 'Connect: click the FIRST sim' : selectMode
-        ? 'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims'
+        ? 'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims. Hold Space to pan'
         : '',
     );
   }, [connectMode, selectMode]);
@@ -1368,7 +1368,7 @@ export function useWhiteboard() {
       if (!connSrc) {
         setConnSrc(n.id);
         setStatus(
-          'Connect: now click the SECOND sim — or click a ⚭/❤ to make this sim their child (Esc to cancel)',
+          'Connect: now click the SECOND sim; drag the board to reach them. Or click a ⚭/❤ to make this sim their child (Esc to cancel)',
         );
         return;
       }

@@ -215,6 +215,9 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 }
 #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#f4f1e8;--minimap-w:220px;--minimap-h:140px}
 #stage.stage--select svg{cursor:crosshair}
+/* Space held: the hand, over everything on the board. */
+#stage.stage--hand svg,#stage.stage--hand svg *{cursor:grab!important}
+#stage.stage--hand.stage--navigating svg,#stage.stage--hand.stage--navigating svg *{cursor:grabbing!important}
 /* Pan/zoom/drag: never hide relationship strokes or the tile grid. They live
    on #scene and travel with the live camera; unit drags also live-translate
    intra-unit ink. The grid stays put under a drag, so cards can be lined up
@@ -381,6 +384,19 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 }
 .hint__body b{color:var(--ink);font-weight:700}
 .hint__platform{display:inline}
+.hint__body--after{margin-top:8px}
+.navtips{display:grid;grid-template-columns:6.5em 1fr;gap:6px 12px;margin:0;font-size:12.5px;color:var(--ink-2)}
+.navtips dt{font-weight:700;color:var(--ink)}
+.navtips dd{margin:0}
+.navtips kbd{font:inherit;font-size:11px;font-weight:600;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:#fff;color:var(--ink);white-space:nowrap}
+.hint__again{margin:10px 0 0;font-size:12px;color:var(--ink-3)}
+.hint__again svg{display:inline-block;width:13px;height:13px;vertical-align:-2px}
+.hint__actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.hint__actions button{min-height:32px;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
+.hint__actions button:hover{background:#f3efe6;border-color:#c5bca8}
+.hint__actions button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.hint__actions .hint__ok{background:var(--accent);border-color:transparent;color:#fff}
+.hint__actions .hint__ok:hover{background:var(--accent);border-color:transparent;filter:brightness(1.06)}
 .hint__more{
   margin-top:10px;
   padding-top:10px;

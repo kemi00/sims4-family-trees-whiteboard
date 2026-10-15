@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { border, unionAtPoint, unionGeom, viewportWorldRect, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
+import { border, unionAtPoint, unionGeom, viewportWorldRect, wheelViewport, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
 import { householdChrome, tileSnapOrigin } from '../lib/tiles.ts';
 import {
   CARD_H,
@@ -79,13 +79,15 @@ type Props = {
   wb: WhiteboardApi;
   svgRef: React.RefObject<SVGSVGElement | null>;
   stageRef: React.RefObject<HTMLDivElement | null>;
+  /** No dialog is open: a first visit may show the Getting around card. */
+  tipsReady?: boolean;
 };
 
 /** Chrome on #stage that owns its own wheel (scroll), not board zoom. */
 const STAGE_WHEEL_SCROLL_SEL =
   '#legend, #hint, .legend-chip, .editor, .menu, .bloodline-banner, .minimap';
 
-export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
+export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
   const compact = useCompactChrome();
   const [tempLine, setTempLine] = useState<{
     x1: number;
@@ -123,7 +125,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     ty: number;
     k: number;
     armed: boolean;
+    /** Space or the middle button: only moves the view, even as a tap. */
+    hand?: boolean;
   } | null>(null);
+  /** Space held with the pointer over the board: every press pans (see onSvgPointerDownCapture). */
+  const spaceHandRef = useRef(false);
   const dragRef = useRef<{
     n: SimNode;
     dx: number;
@@ -304,6 +310,48 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     [stageRef],
   );
 
+  /**
+   * Space held over the board is the hand: presses pan in every mode until it
+   * is let go (a quasimode, like Figma or Miro). Typing keeps its spaces, and
+   * a button or field in a menu or the editor keeps Space for itself.
+   */
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const set = (on: boolean) => {
+      spaceHandRef.current = on;
+      stage.classList.toggle('stage--hand', on);
+    };
+    const keepsSpace = (t: EventTarget | null) =>
+      t instanceof HTMLElement &&
+      (t.isContentEditable ||
+        /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) ||
+        (stage.contains(t) && !t.closest('svg')));
+    const down = (ev: KeyboardEvent) => {
+      if (ev.code !== 'Space' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      if (!spaceHandRef.current && (keepsSpace(ev.target) || !stage.matches(':hover'))) return;
+      // No page scroll, and the toolbar button that still has focus is not pressed.
+      ev.preventDefault();
+      if (!spaceHandRef.current) set(true);
+    };
+    const up = (ev: KeyboardEvent) => {
+      if (ev.code !== 'Space' || !spaceHandRef.current) return;
+      ev.preventDefault();
+      set(false);
+    };
+    const off = () => {
+      if (spaceHandRef.current) set(false);
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', off);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', off);
+    };
+  }, [stageRef]);
+
   const readLiveViewport = useCallback(() => viewportLiveRef.current, []);
 
   const commitLiveViewport = useCallback(() => {
@@ -483,20 +531,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       const t = ev.target as Element | null;
       if (t?.closest?.(STAGE_WHEEL_SCROLL_SEL)) return;
       ev.preventDefault();
-      let dy = ev.deltaY;
-      if (ev.deltaMode === 1) dy *= 16;
-      else if (ev.deltaMode === 2) dy *= 400;
-      const step = ev.ctrlKey ? 0.01 : 0.0032;
-      dy = Math.max(-80, Math.min(80, dy));
       const r = svgRef.current!.getBoundingClientRect();
-      const next = zoomViewportAt(
+      const next = wheelViewport(
         viewportLiveRef.current,
-        Math.exp(-dy * step),
-        ev.clientX,
-        ev.clientY,
+        ev,
         r,
         minZoomRef.current(r.width, r.height),
       );
+      if (next === viewportLiveRef.current) return;
       scheduleWheelViewport(next);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
@@ -892,13 +934,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       t.closest('.whandle')
     )
       return;
-    if (wb.connectMode) {
-      connectTapRef.current = true;
-      return;
-    }
-    if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
+    // Connect links sims with clicks, so a drag on empty board is free to
+    // pan to the second sim; a tap there still cancels the link.
+    if (wb.connectMode) connectTapRef.current = true;
+    else if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
 
-    const wantMarquee = wb.selectMode || ev.shiftKey;
+    const wantMarquee = !wb.connectMode && (wb.selectMode || ev.shiftKey);
     if (wantMarquee) {
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       marqueeRef.current = {
@@ -915,6 +956,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
     }
 
     // Pan — keep link/node selection until an empty click (unarmed pan up).
+    beginPan(ev, false);
+  };
+
+  const beginPan = (ev: ReactPointerEvent, hand: boolean) => {
     const vp = viewportLiveRef.current;
     panRef.current = {
       x: ev.clientX,
@@ -925,7 +970,28 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       ty: vp.ty,
       k: vp.k,
       armed: false,
+      hand,
     };
+  };
+
+  /**
+   * Hold Space, or press the middle button, and any press pans — on a sim,
+   * a tag or empty board, in every mode, Select and Connect included. Caught
+   * on the way down, before the sim, tag or link under the pointer sees it.
+   */
+  const onSvgPointerDownCapture = (ev: ReactPointerEvent) => {
+    const hand = ev.button === 1 || (ev.button === 0 && spaceHandRef.current);
+    if (!hand) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+    rememberPointer(ev);
+    captureSvg(ev.pointerId);
+    if (pointersRef.current.size >= 2) {
+      beginPinch();
+      return;
+    }
+    if (leftoverRef.current != null) return;
+    beginPan(ev, true);
   };
 
   const onSvgPointerMove = (ev: ReactPointerEvent) => {
@@ -1187,7 +1253,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
         } else {
           wb.setStatus(
             wb.selectMode
-              ? 'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims'
+              ? 'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims. Hold Space to pan'
               : '',
           );
         }
@@ -1253,7 +1319,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           ty: p.ty + (p.lastY - p.y),
         });
         commitLiveViewport();
-      } else {
+        // A pan in Connect keeps the half-made link.
+        connectTapRef.current = false;
+      } else if (!p.hand && !wb.connectMode) {
         wb.clearSel();
         wb.clearMultiSel();
       }
@@ -1447,7 +1515,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
       <svg
         id="svg"
         ref={svgRef}
+        onPointerDownCapture={onSvgPointerDownCapture}
         onPointerDown={onSvgPointerDown}
+        // The middle button pans; stop the browser's autoscroll on it.
+        onMouseDown={(ev) => {
+          if (ev.button === 1) ev.preventDefault();
+        }}
         onPointerMove={onSvgPointerMove}
         onPointerUp={onSvgPointerUp}
         onPointerCancel={onSvgPointerUp}
@@ -1778,7 +1851,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
           wb.zoomToWorld(world, r?.width ?? 800, r?.height ?? 600, inset);
         }}
       />
-      <Hint />
+      <Hint introReady={tipsReady} />
       <Minimap wb={wb} svgRef={svgRef} camera={liveCamera} />
       <ViewControls wb={wb} svgRef={svgRef} />
       {editNode && (

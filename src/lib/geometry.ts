@@ -611,6 +611,38 @@ export function zoomViewportAt(
   };
 }
 
+/** The parts of a wheel event that move the view. */
+export type WheelInput = Pick<
+  WheelEvent,
+  'deltaX' | 'deltaY' | 'deltaMode' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'clientX' | 'clientY'
+>;
+
+/**
+ * What a wheel event does to the view, as in other canvas apps. Scrolling,
+ * with two fingers on a trackpad or with a mouse wheel, pans; Shift turns a
+ * wheel's scroll sideways. A trackpad pinch, which browsers send as a wheel
+ * with Ctrl held, zooms at the pointer, and so does ⌘ or Ctrl + scroll.
+ */
+export function wheelViewport(
+  v: Viewport,
+  ev: WheelInput,
+  svgRect: DOMRect,
+  zoomMin = ZOOM_MIN,
+): Viewport {
+  const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
+  let dx = ev.deltaX * unit;
+  let dy = ev.deltaY * unit;
+  if (ev.ctrlKey || ev.metaKey) {
+    // A pinch sends small steps, a wheel big ones, so a pinch zooms faster per unit.
+    const step = ev.ctrlKey ? 0.01 : 0.0032;
+    const d = Math.max(-80, Math.min(80, dy));
+    return zoomViewportAt(v, Math.exp(-d * step), ev.clientX, ev.clientY, svgRect, zoomMin);
+  }
+  if (ev.shiftKey && !dx) [dx, dy] = [dy, 0];
+  if (!dx && !dy) return v;
+  return { k: v.k, tx: v.tx - dx, ty: v.ty - dy };
+}
+
 /** Top-left so a card of this size sits centred in the current view. */
 export function cardOriginAtViewportCenter(
   viewport: Viewport,
