@@ -1759,6 +1759,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           stageW={stageSize.w}
           stageH={stageSize.h}
           obstacles={linkChipObstacles}
+          onGoToSim={(id) => {
+            const r = svgRef.current?.getBoundingClientRect();
+            wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
+          }}
         />
       )}
       <div id="autosave-cue">

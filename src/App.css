@@ -297,6 +297,11 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   white-space:nowrap;
 }
 .link-sel-chip__party--to{color:var(--ink);font-weight:600}
+/* The chip lets presses through to the board; its names alone catch them.
+   Dotted underline says they go somewhere; solid on hover. */
+.link-sel-chip__sim{all:unset;pointer-events:auto;cursor:pointer;border-radius:4px;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb, currentColor 45%, transparent);text-underline-offset:2px;white-space:nowrap}
+.link-sel-chip__sim:hover{color:var(--accent-strong);text-decoration-style:solid;text-decoration-color:currentColor}
+.link-sel-chip__sim:focus-visible{box-shadow:0 0 0 3px var(--accent-ring)}
 .link-sel-chip__note{
   font-size:11px;
   font-weight:500;

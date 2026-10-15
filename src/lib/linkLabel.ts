@@ -20,6 +20,9 @@ const CHIP_LABEL: Record<EdgeType, string> = {
   custom: 'Custom link',
 };
 
+/** A sim named on the chip, to jump to. */
+export type ChipSim = { id: string; name: string };
+
 export type LinkSelectionInfo = {
   mark: string;
   label: string;
@@ -33,6 +36,10 @@ export type LinkSelectionInfo = {
   nameFrom?: string;
   /** Right side of a directed relation (child/children). */
   nameTo?: string;
+  /** The sims behind {@link nameFrom} and {@link nameTo}, or {@link names}, by id. */
+  fromSims?: ChipSim[];
+  toSims?: ChipSim[];
+  sims?: ChipSim[];
   /** Extra line: a secret parent, or what co-parents are to each other. */
   note?: string;
   /**
@@ -311,21 +318,27 @@ export function placeChipOnVisiblePath(
   return best ? { at: best.at, side: best.side } : null;
 }
 
+/** Sims on the board for these ids, once each, in order of first appearance. */
+function simsForIds(ids: string[], byid: Record<string, SimNode>): ChipSim[] {
+  const seen = new Set<string>();
+  const out: ChipSim[] = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const n = byid[id];
+    if (n) out.push({ id, name: simName(n) });
+  }
+  return out;
+}
+
 /** Unique display names for sim ids, stable order of first appearance. */
 function namesForIds(
   ids: string[],
   byid: Record<string, SimNode>,
 ): string {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const id of ids) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const n = byid[id];
-    if (!n) continue;
-    out.push(simName(n));
-  }
-  return out.join(' · ');
+  return simsForIds(ids, byid)
+    .map((s) => s.name)
+    .join(' · ');
 }
 
 /**
@@ -335,35 +348,43 @@ function namesForIds(
 export function formatLinkNames(
   matched: Edge[],
   byid: Record<string, SimNode>,
-): Pick<LinkSelectionInfo, 'names' | 'nameFrom' | 'nameTo'> {
+): Pick<
+  LinkSelectionInfo,
+  'names' | 'nameFrom' | 'nameTo' | 'fromSims' | 'toSims' | 'sims'
+> {
   if (!matched.length) return { names: '' };
   const type = matched[0]!.type;
 
   if (type === 'parent') {
-    const nameFrom = namesForIds(
+    const fromSims = simsForIds(
       matched.map((e) => e.a),
       byid,
     );
-    const nameTo = namesForIds(
+    const toSims = simsForIds(
       matched.map((e) => e.b),
       byid,
     );
+    const nameFrom = fromSims.map((s) => s.name).join(' · ');
+    const nameTo = toSims.map((s) => s.name).join(' · ');
     if (nameFrom && nameTo) {
       return {
         nameFrom,
         nameTo,
         names: `${nameFrom} → ${nameTo}`,
+        fromSims,
+        toSims,
       };
     }
-    return { names: nameFrom || nameTo || '' };
+    const sims = fromSims.length ? fromSims : toSims;
+    return { names: nameFrom || nameTo || '', sims };
   }
 
   // Symmetric links: one flat list is enough.
-  const names = namesForIds(
+  const sims = simsForIds(
     matched.flatMap((e) => [e.a, e.b]),
     byid,
   );
-  return { names };
+  return { names: sims.map((s) => s.name).join(' · '), sims };
 }
 
 const UNION_TYPES: ReadonlySet<EdgeType> = new Set(['marriage', 'romance', 'divorced']);
@@ -417,11 +438,11 @@ export function describeLinkSelection(
   const mark = LINK_MARK[type] ?? LINK_MARK.custom;
   const copy = relationshipCopy(matched, edges, byid, pairs);
   const label = copy.label ?? CHIP_LABEL[type] ?? CHIP_LABEL.custom;
-  const { names, nameFrom, nameTo } = formatLinkNames(matched, byid);
+  const parties = formatLinkNames(matched, byid);
 
   const path = linkSelectionPath(ids, edgeData, edges, byid);
   if (!path?.length) return null;
 
-  return { mark, label, names, nameFrom, nameTo, note: copy.note, path };
+  return { mark, label, ...parties, note: copy.note, path };
 }
 

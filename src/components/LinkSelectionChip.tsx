@@ -1,4 +1,5 @@
-import type { ChipObstacle, LinkSelectionInfo } from '../lib/linkLabel.ts';
+import { Fragment } from 'react';
+import type { ChipObstacle, ChipSim, LinkSelectionInfo } from '../lib/linkLabel.ts';
 import { placeChipOnVisiblePath } from '../lib/linkLabel.ts';
 
 type Props = {
@@ -11,7 +12,40 @@ type Props = {
   stageH: number;
   /** Sim cards / household chrome — chip prefers path points clear of these. */
   obstacles?: ChipObstacle[];
+  /** A name was clicked: select that sim and bring their card into view. */
+  onGoToSim?: (id: string) => void;
 };
+
+/** Names as buttons that take you to each sim, " · " between them. */
+function SimNames({
+  sims,
+  onGoToSim,
+}: {
+  sims: ChipSim[];
+  onGoToSim?: (id: string) => void;
+}) {
+  return (
+    <>
+      {sims.map((s, i) => (
+        <Fragment key={s.id}>
+          {i > 0 && <span aria-hidden="true">·</span>}
+          {onGoToSim ? (
+            <button
+              type="button"
+              className="link-sel-chip__sim"
+              title={`Go to ${s.name}`}
+              onClick={() => onGoToSim(s.id)}
+            >
+              {s.name}
+            </button>
+          ) : (
+            <span>{s.name}</span>
+          )}
+        </Fragment>
+      ))}
+    </>
+  );
+}
 
 /**
  * Relationship chip: follows the visible part of the selected link.
@@ -26,6 +60,7 @@ export function LinkSelectionChip({
   stageW,
   stageH,
   obstacles = [],
+  onGoToSim,
 }: Props) {
   const placement = placeChipOnVisiblePath(
     info.path,
@@ -63,16 +98,28 @@ export function LinkSelectionChip({
         <span className="link-sel-chip__label">{info.label}</span>
         {directed ? (
           <span className="link-sel-chip__names">
-            <span className="link-sel-chip__party">{info.nameFrom}</span>
+            <span className="link-sel-chip__party">
+              {info.fromSims ? (
+                <SimNames sims={info.fromSims} onGoToSim={onGoToSim} />
+              ) : (
+                info.nameFrom
+              )}
+            </span>
             <span className="link-sel-chip__dir" aria-hidden="true">
               →
             </span>
             <span className="link-sel-chip__party link-sel-chip__party--to">
-              {info.nameTo}
+              {info.toSims ? (
+                <SimNames sims={info.toSims} onGoToSim={onGoToSim} />
+              ) : (
+                info.nameTo
+              )}
             </span>
           </span>
         ) : info.names ? (
-          <span className="link-sel-chip__names">{info.names}</span>
+          <span className="link-sel-chip__names">
+            {info.sims ? <SimNames sims={info.sims} onGoToSim={onGoToSim} /> : info.names}
+          </span>
         ) : null}
         {info.note && <span className="link-sel-chip__note">{info.note}</span>}
       </span>

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   densifyPath,
   describeLinkSelection,
+  formatLinkNames,
   placeChipOnVisiblePath,
   sampleInkPath,
 } from './linkLabel.ts';
@@ -359,5 +360,32 @@ describe('describeLinkSelection', () => {
       info!.names,
       'Jacques Villareal · Elettra Villareal → Luna Villareal',
     );
+  });
+});
+
+describe('formatLinkNames', () => {
+  const byid = {
+    mum: node('mum', 'Gioia', 0, 0),
+    dad: node('dad', 'Lorenzo', 200, 0),
+    kid: node('kid', 'Caleb', 0, 200),
+  };
+  const ids = (sims: { id: string }[] | undefined) => sims?.map((s) => s.id);
+
+  it('names each side of a parent link with the sims to go to', () => {
+    const f = formatLinkNames(
+      [
+        { id: 'p1', a: 'mum', b: 'kid', type: 'parent' },
+        { id: 'p2', a: 'dad', b: 'kid', type: 'parent' },
+      ],
+      byid,
+    );
+    assert.deepEqual(ids(f.fromSims), ['mum', 'dad']);
+    assert.deepEqual(ids(f.toSims), ['kid']);
+    assert.equal(f.names, `${f.nameFrom} → ${f.nameTo}`);
+  });
+
+  it('lists both partners of a two-way link, once each', () => {
+    const f = formatLinkNames([{ id: 'm1', a: 'mum', b: 'dad', type: 'marriage' }], byid);
+    assert.deepEqual(ids(f.sims), ['mum', 'dad']);
   });
 });
