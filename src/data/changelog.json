@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "1e6c822",
+   "date": "2026-10-15",
+   "text": "The family links button's arrow now sits beside its icon instead of being squeezed into the corner, so it reads clearly as a menu."
+  },
+  {
    "sha": "57c891d",
    "date": "2026-10-15",
    "text": "Long toolbar tooltips now wrap inside their box instead of running out past it."
