@@ -1,6 +1,16 @@
 {
  "entries": [
   {
+   "sha": "57c891d",
+   "date": "2026-10-15",
+   "text": "Long toolbar tooltips now wrap inside their box instead of running out past it."
+  },
+  {
+   "sha": "bfb94dc",
+   "date": "2026-10-15",
+   "text": "The Load .json dialog is clearer: first choose which sims and links end up on the board (add the file, or replace the board with it), then where the cards go. It says what Replace removes, and the button names what will happen."
+  },
+  {
    "sha": "2188104",
    "date": "2026-10-15",
    "text": "Long file names now wrap in the Load .json and Load .save dialogs instead of making them scroll sideways."
