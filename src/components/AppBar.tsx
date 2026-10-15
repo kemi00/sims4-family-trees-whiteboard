@@ -56,14 +56,11 @@ const LINK_VIEWS: { view: LinksView; icon: Icon; label: string; note?: string }[
   { view: 'none', icon: EyeSlash, label: 'Hidden' },
 ];
 
+/** One short line: a tooltip stays on one line, and this is also the button's name. */
 function linksToolLabel(wb: WhiteboardApi): string {
-  const view =
-    wb.linksView === 'all'
-      ? 'all shown'
-      : wb.linksView === 'inside'
-        ? 'only inside households'
-        : 'hidden';
-  return `Family links: ${view}${wb.familyFocus ? ', highlighting a family' : ''}`;
+  if (wb.familyFocus) return 'Family links: highlighting a family';
+  if (wb.linksView === 'inside') return 'Family links: inside households';
+  return wb.linksView === 'none' ? 'Family links: hidden' : 'Family links: all';
 }
 
 /** Close a popover on a press outside `ref` or on Escape. */
@@ -246,9 +243,7 @@ export function AppBar({
       <ToolButton
         icon={LinkSimple}
         label={
-          wb.connectMode
-            ? 'Connect mode is on. Click a sim, or click here to leave.'
-            : 'Connect two sims'
+          wb.connectMode ? 'Connect is on: click to turn it off' : 'Link two sims'
         }
         tone="primary"
         pressed={wb.connectMode}
@@ -261,7 +256,7 @@ export function AppBar({
       </ToolButton>
       <ToolButton
         icon={MagicWand}
-        label="Lay the board out like the starter one: worlds in columns, households packed"
+        label="Arrange the board like the starter one"
         onClick={() => {
           const { w, h } = svgSize();
           wb.organiseBoard(w, h);
@@ -278,7 +273,7 @@ export function AppBar({
       />
       <ToolButton
         icon={ArrowCounterClockwise}
-        label="Undo the last change (Ctrl/⌘ Z)"
+        label="Undo (Ctrl/⌘ Z)"
         disabled={!wb.canUndo}
         onClick={wb.undo}
       />
@@ -286,11 +281,7 @@ export function AppBar({
         id="btnLog"
         ref={logBtnRef}
         icon={Scroll}
-        label={
-          wb.connectionLog.length
-            ? `Links and household moves you added. ${wb.connectionLog.length} on the list.`
-            : 'Links and household moves you added'
-        }
+        label="Links and household moves you added"
         pressed={wb.logOpen}
         count={wb.connectionLog.length}
         expanded={wb.logOpen}
@@ -388,11 +379,7 @@ export function AppBar({
           id="btnFilters"
           ref={filtersBtnRef}
           icon={Funnel}
-          label={
-            filterCount
-              ? `Filters. ${filterCount} active.`
-              : 'Filters: bloodline, secrets, games, playability, and ages'
-          }
+          label={filterCount ? `Filters: ${filterCount} on` : 'Bloodline, secrets, games, play, ages'}
           pressed={filterCount > 0 || filterPanelOpen || filtersOpen}
           count={filterCount}
           expanded={filtersOpen}
