@@ -10,6 +10,7 @@ import {
   OTHER_WORLD,
   rowPitch,
   spawnChildOrigin,
+  TIGHT_HOUSEHOLDS_EPOCH,
   UNHOUSED_FAMILY_EPOCH,
   unhousedArrangement,
   unhousedEdgeSide,
@@ -581,5 +582,32 @@ describe('householdAddSpot', () => {
       x: 0,
       y: 2 * TILE + 2 * rowPitch(),
     });
+  });
+});
+
+describe('a household whose parents live elsewhere', () => {
+  // Kids in Willow Creek whose parents live in Oasis Springs, beside a
+  // household with no parents anywhere.
+  const both = [...worlds, { name: 'Oasis Springs', color: '#f28e2b' }];
+  const away = { world: 'Oasis Springs', oworld: 'Oasis Springs' };
+  const nodes = [
+    sim({ id: 'mum', first: 'Mum', hh: 'Parents', gid: 'Oasis Springs||Parents', ...away }),
+    sim({ id: 'dad', first: 'Dad', hh: 'Parents', gid: 'Oasis Springs||Parents', ...away }),
+    sim({ id: 'k1', first: 'Kit', hh: 'Kids', gid: 'Willow Creek||Kids', age: 'Child' }),
+    sim({ id: 'k2', first: 'Kay', hh: 'Kids', gid: 'Willow Creek||Kids', age: 'Child' }),
+    sim({ id: 'b1', first: 'Bee', hh: 'Bee', gid: 'Willow Creek||Bee' }),
+  ];
+  const edges = ['k1', 'k2'].flatMap((k) => [edge('mum', k, 'parent'), edge('dad', k, 'parent')]);
+  const top = (laid: SimNode[], gid: string) =>
+    Math.min(...laid.filter((n) => n.gid === gid).map((n) => n.y));
+
+  it('starts at the top of its slot, level with its neighbour, with no empty row', () => {
+    const laid = computeLayout(nodes, both, edges, TIGHT_HOUSEHOLDS_EPOCH);
+    assert.equal(top(laid, 'Willow Creek||Kids'), top(laid, 'Willow Creek||Bee'));
+  });
+
+  it('kept a generation of empty space above it before', () => {
+    const laid = computeLayout(nodes, both, edges, TIGHT_HOUSEHOLDS_EPOCH - 1);
+    assert.equal(top(laid, 'Willow Creek||Kids') - top(laid, 'Willow Creek||Bee'), rowPitch());
   });
 });

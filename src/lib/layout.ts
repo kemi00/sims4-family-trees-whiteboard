@@ -979,10 +979,20 @@ function orderHouseholdsByLinks(
 }
 
 /** Shift cards to origin and return tight pixel bounds. */
+/**
+ * First layout epoch whose household blocks start at the top of their slot.
+ * A household whose parents live elsewhere is laid out a generation down;
+ * before this, its block kept that empty row but left it out of its height,
+ * so the block under it in the column overlapped it, and the push that then
+ * cleared the overlap grew the world into the next one in its column.
+ */
+export const TIGHT_HOUSEHOLDS_EPOCH = 6;
+
 function finalizeHouseholdBlock(
   placed: PlacedCard[],
   originX: number,
   originY: number,
+  epoch: number = LAYOUT_EPOCH,
 ): { placed: PlacedCard[]; w: number; h: number } {
   if (!placed.length) {
     return {
@@ -998,6 +1008,14 @@ function finalizeHouseholdBlock(
   const baseX = originX + LAYOUT.hhPad;
   const baseY = originY + LAYOUT.hhHeader + LAYOUT.hhPad;
   const dx = baseX - minX;
+  if (epoch >= TIGHT_HOUSEHOLDS_EPOCH) {
+    const lift = baseY - minY;
+    return {
+      placed: dx || lift ? placed.map((p) => ({ ...p, x: p.x + dx, y: p.y + lift })) : placed,
+      w: maxX - minX + LAYOUT.hhPad * 2,
+      h: maxY - minY + LAYOUT.hhHeader + LAYOUT.hhPad * 2,
+    };
+  }
   /** Keep intentional generation padding — only nudge upward when content sits too high. */
   const dy = minY < baseY ? baseY - minY : 0;
   const normalized =
@@ -1151,11 +1169,11 @@ function layoutOtherHouseholdTile(
   if (isUnhousedGid(mem[0]!.gid)) {
     if (epoch < UNHOUSED_FAMILY_EPOCH) {
       const cols = Math.min(mem.length, LAYOUT.otherHhCols);
-      const { placed, w, h } = finalizeHouseholdBlock(layoutUnhousedGrid(mem, cols), 0, 0);
+      const { placed, w, h } = finalizeHouseholdBlock(layoutUnhousedGrid(mem, cols), 0, 0, epoch);
       return { placed, w, h, colSpan: cols };
     }
     const grid = layoutUnhousedFamilies(mem, edges, unhousedCols(mem.length, epoch));
-    const { placed, w, h } = finalizeHouseholdBlock(grid, 0, 0);
+    const { placed, w, h } = finalizeHouseholdBlock(grid, 0, 0, epoch);
     return { placed, w, h, colSpan: otherTileColSpan(placed, w) };
   }
   return pedigreeTile(mem, edges, epoch);
@@ -1224,7 +1242,7 @@ function pedigreeTile(
     if (lift > 0) pinned = pinned.map((p) => ({ ...p, y: p.y - lift }));
   }
 
-  const { placed: normalized, w, h } = finalizeHouseholdBlock(pinned, 0, 0);
+  const { placed: normalized, w, h } = finalizeHouseholdBlock(pinned, 0, 0, epoch);
   return {
     placed: normalized,
     w,
@@ -1325,7 +1343,7 @@ function otherWorldTiles(
         households: comp,
       });
     } else {
-      const cluster = layoutClusterTile(comp, edges, hhLinks);
+      const cluster = layoutClusterTile(comp, edges, hhLinks, epoch);
       tiles.push({
         placed: cluster.placed,
         w: cluster.w,
@@ -1392,6 +1410,7 @@ function layoutClusterTile(
   component: [string, SimNode[]][],
   edges: Edge[],
   hhLinks: Map<string, Set<string>>,
+  epoch: number = LAYOUT_EPOCH,
 ): HHTile {
   const minGenFn = (hhMem: SimNode[]) => householdMinGen(hhMem, edges);
   const ordered = orderHouseholdsByLinks(component, hhLinks, minGenFn);
@@ -1420,7 +1439,7 @@ function layoutClusterTile(
   let colX = LAYOUT.hhPad;
   for (const [gid, hhMem] of ordered) {
     colStart.set(gid, colX);
-    const block = layoutHousehold(hhMem, edges, 0, 0);
+    const block = layoutHousehold(hhMem, edges, 0, 0, epoch);
     const span = colSpanFromPlaced(block.placed);
     colSpan.set(gid, span);
     colX += gridColumnWidth(span) + LAYOUT.householdGap;
@@ -1452,7 +1471,7 @@ function layoutClusterTile(
     cardY += pitchY;
   }
 
-  const { placed: normalized, w, h } = finalizeHouseholdBlock(placed, 0, 0);
+  const { placed: normalized, w, h } = finalizeHouseholdBlock(placed, 0, 0, epoch);
   const sortKey = ordered.map(([, mem]) => mem[0]?.hh ?? '').sort().join('|');
   return { w, h, placed: normalized, isCluster: true, sortKey };
 }
@@ -1545,7 +1564,7 @@ function placeHouseholdBento(
       const [gid, mem] = comp[0]!;
       singleTiles.push(layoutSingleTile(gid, mem, edges, epoch));
     } else {
-      clusterTiles.push(layoutClusterTile(comp, edges, hhLinks));
+      clusterTiles.push(layoutClusterTile(comp, edges, hhLinks, epoch));
     }
   }
 
@@ -1670,6 +1689,7 @@ function layoutHousehold(
       grid.map((p) => ({ ...p, x: p.x + originX, y: p.y + originY })),
       originX,
       originY,
+      epoch,
     );
     return { gid: mem[0]!.gid, w, h, placed };
   }
@@ -1714,6 +1734,7 @@ function layoutHousehold(
     placed,
     originX,
     originY,
+    epoch,
   );
   return { gid: mem[0]!.gid, w, h, placed: normalized };
 }
