@@ -91,3 +91,73 @@ describe('familySummary', () => {
     });
   });
 });
+
+describe('extended family', () => {
+  // Ann's parents Mum and Dad; Mum's parents Gma and Gpa, whose other child
+  // Aunt has Cuz; Dad's brother Unc (a sibling link) has Cuz2. Dad's new wife
+  // Step has Sib from before. Ann married Cy, who has Kid from before; Ann's
+  // daughter Dee has Gee.
+  const fam: Edge[] = [
+    link('p1', 'mum', 'ann', 'parent'),
+    link('p2', 'dad', 'ann', 'parent'),
+    link('g1', 'gma', 'mum', 'parent'),
+    link('g2', 'gpa', 'mum', 'parent'),
+    link('g3', 'gma', 'aunt', 'parent'),
+    link('g4', 'gpa', 'aunt', 'parent'),
+    link('a1', 'aunt', 'cuz', 'parent'),
+    link('s1', 'dad', 'unc', 'sibling'),
+    link('u1', 'unc', 'cuz2', 'parent'),
+    link('m1', 'dad', 'step', 'marriage'),
+    link('t1', 'step', 'sib', 'parent'),
+    link('m2', 'ann', 'cy', 'marriage'),
+    link('k1', 'cy', 'kid', 'parent'),
+    link('d1', 'ann', 'dee', 'parent'),
+    link('d2', 'dee', 'gee', 'parent'),
+  ];
+
+  it('keeps to one step out for close family', () => {
+    assert.deepEqual([...familyOf('ann', fam).roles.keys()].sort(), ['cy', 'dad', 'dee', 'mum']);
+  });
+
+  it('reaches grandparents, grandchildren, aunts, uncles, cousins and step-family', () => {
+    const f = familyOf('ann', fam, 'extended');
+    assert.deepEqual(Object.fromEntries([...f.roles].sort()), {
+      aunt: 'auntuncle',
+      cuz: 'cousin',
+      cuz2: 'cousin',
+      cy: 'partner',
+      dad: 'parent',
+      dee: 'child',
+      gee: 'grandchild',
+      gma: 'grandparent',
+      gpa: 'grandparent',
+      kid: 'stepchild',
+      mum: 'parent',
+      sib: 'stepsibling',
+      step: 'stepparent',
+      unc: 'auntuncle',
+    });
+    // Every link here shows one of them.
+    assert.deepEqual([...f.edgeIds].sort(), fam.map((e) => e.id).sort());
+  });
+
+  it('counts aunts and uncles apart when the board knows which', () => {
+    const sim = (id: string, gender = 'Female') => ({ id, gid: `W||${id}`, pack: '', gender }) as SimNode;
+    const byid = Object.fromEntries(
+      ['mum', 'dad', 'gma', 'gpa', 'aunt', 'cuz', 'unc', 'cuz2', 'step', 'sib', 'cy', 'kid', 'dee', 'gee'].map((id) => [
+        id,
+        sim(id, id === 'unc' ? 'Male' : 'Female'),
+      ]),
+    );
+    const s = familySummary(familyOf('ann', fam, 'extended'), byid, () => true);
+    assert.equal(
+      s.roles,
+      '1 partner, 2 parents, 1 child, 2 grandparents, 1 grandchild, 1 aunt, 1 uncle, 2 cousins, 1 step-parent, 1 step-child, 1 step-sibling',
+    );
+  });
+
+  it('does not call a sibling who shares a parent a step-sibling', () => {
+    const half = [...fam, link('t2', 'dad', 'sib', 'parent')];
+    assert.equal(familyOf('ann', half, 'extended').roles.get('sib'), 'sibling');
+  });
+});

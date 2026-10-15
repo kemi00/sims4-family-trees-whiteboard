@@ -83,9 +83,12 @@ import type {
 } from '../types/whiteboard.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
-import { familyOf, linksInView, type LinksView } from '../lib/family.ts';
+import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
 
 const INITIAL_VIEW: Viewport = { tx: 40, ty: 40, k: 0.72 };
+
+/** localStorage key: the family highlight's last scope, close or extended. */
+const FAMILY_SCOPE_KEY = 'sims4-family-trees:family-scope:v1';
 
 /** The link each connect choice adds, from the first sim clicked to the second (flip: the other way). */
 const CONNECT_LINKS: Record<
@@ -235,6 +238,23 @@ export function useWhiteboard() {
   const [linksView, setLinksViewState] = useState<LinksView>('all');
   /** Highlight the selected sim's family (familyOf), whoever is selected. */
   const [familyFocus, setFamilyFocusState] = useState(false);
+  /** Close or extended family; this viewer's last pick, kept across visits. */
+  const [familyScope, setFamilyScopeState] = useState<FamilyScope>(() => {
+    try {
+      return localStorage.getItem(FAMILY_SCOPE_KEY) === 'extended' ? 'extended' : 'close';
+    } catch {
+      return 'close';
+    }
+  });
+  const setFamilyScope = useCallback((scope: FamilyScope) => {
+    setFamilyScopeState(scope);
+    trackAction(`/action/family/${scope}`);
+    try {
+      localStorage.setItem(FAMILY_SCOPE_KEY, scope);
+    } catch {
+      // No storage: the pick lasts until the page reloads.
+    }
+  }, []);
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEW);
   const [sel, setSel] = useState<Selection>(null);
   const [connectMode, setConnectModeState] = useState(false);
@@ -419,8 +439,8 @@ export function useWhiteboard() {
   const familyId =
     familyFocus && sel?.type === 'node' && byid[sel.id] ? sel.id : null;
   const family = useMemo(
-    () => (familyId ? familyOf(familyId, shownEdges) : null),
-    [familyId, shownEdges],
+    () => (familyId ? familyOf(familyId, shownEdges, familyScope) : null),
+    [familyId, shownEdges, familyScope],
   );
   /** The highlighted family, the sim included: everyone else dims. */
   const familyIds = useMemo(
@@ -2481,6 +2501,8 @@ export function useWhiteboard() {
     setLinksView,
     familyFocus,
     setFamilyFocus,
+    familyScope,
+    setFamilyScope,
     family,
     familyIds,
     partneredIds,

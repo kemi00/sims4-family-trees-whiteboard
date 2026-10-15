@@ -306,8 +306,10 @@ export function Hint({ introReady = false }: Props) {
           <li>
             The <b>family links</b> button (the tree) shows all links, only
             those inside households, or none. Its <b>Highlight a sim's
-            family</b> lights up whoever you select: partners, parents,
-            children and siblings, with how many and in how many households.
+            family</b> lights up whoever you select, with how many and in how
+            many households. <b>Close</b> family is partners, parents, children
+            and siblings; <b>Extended</b> adds grandparents, grandchildren,
+            aunts, uncles, first cousins and step-family.
           </li>
           <li>
             Select a Sim, then <b>Filters → Bloodline</b>, to dim everyone

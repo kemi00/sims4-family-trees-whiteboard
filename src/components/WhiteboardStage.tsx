@@ -1821,6 +1821,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           family={wb.family}
           byid={wb.byid}
           shown={wb.nodeVis}
+          scope={wb.familyScope}
+          onScope={wb.setFamilyScope}
           onDone={() => wb.setFamilyFocus(false)}
         />
       )}

@@ -481,6 +481,14 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .bloodline-banner{position:absolute;left:50%;top:48px;transform:translateX(-50%);z-index:7;pointer-events:auto;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;max-width:min(520px, calc(100% - 24px));padding:8px 10px 8px 13px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;box-shadow:var(--lift)}
 .bloodline-banner p{margin:0;flex:1 1 12em;min-width:0}
 .family-banner__roles{display:block;margin-top:2px;font-weight:500;color:var(--ink-2)}
+/* Wider than Bloodline's: it also holds the Close / Extended switch. */
+.bloodline-banner.family-banner{max-width:min(620px, calc(100% - 24px))}
+/* Close / Extended: a two-way switch, quieter than Done beside it. */
+.family-banner__scope{display:inline-flex;flex:0 0 auto;margin-left:auto;padding:2px;gap:2px;border-radius:9px;background:var(--recess);border:1px solid var(--line)}
+.bloodline-banner .family-banner__scope button{height:24px;margin:0;padding:0 9px;border:none;border-radius:7px;background:transparent;color:var(--ink-2);font-weight:600}
+.bloodline-banner .family-banner__scope button:hover{background:#ffffffb3;color:var(--ink)}
+.bloodline-banner .family-banner__scope button[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1a}
+.family-banner__scope + button{margin-left:0}
 .tab-banner{border-color:#e0a03a;background:#fff8ec}
 .tab-banner p{font-weight:500}
 .tab-banner .tab-banner__save{background:transparent;color:var(--accent-strong);border-color:var(--line)}

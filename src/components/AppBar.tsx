@@ -351,7 +351,7 @@ export function AppBar({
                 <UsersFour aria-hidden="true" />
                 <span className="pop__text">
                   Highlight a sim's family
-                  <small>Select any sim: partners, parents, children and siblings light up</small>
+                  <small>Select any sim; pick close or extended family on the banner</small>
                 </span>
                 {wb.familyFocus && <Check className="pop__check" aria-hidden="true" />}
               </button>
