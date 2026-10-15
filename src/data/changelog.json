@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "f52eeaf",
+   "date": "2026-10-15",
+   "text": "Select a link and click or tap a name on its label to jump to that sim's card."
+  },
+  {
    "sha": "1e6c822",
    "date": "2026-10-15",
    "text": "The family links button's arrow now sits beside its icon instead of being squeezed into the corner, so it reads clearly as a menu."
