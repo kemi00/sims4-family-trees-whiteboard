@@ -836,6 +836,29 @@ describe('mergeSaveIntoBoard secrets and statuses', () => {
     assert.equal(again.edges.filter((e) => e.secret).length, 0);
     assert.equal(again.summary.newLinks, 0);
   });
+
+  it('keeps a secret the user planned that the save does not have yet', () => {
+    const first = merge();
+    const planned = [
+      { id: 'u1', a: 's2', b: 's3', type: 'parent' as const, source: 'planned' as const, secret: true as const },
+      { id: 'u2', a: 's2', b: 's4', type: 'romance' as const, source: 'planned' as const, secret: true as const },
+    ];
+    const again = mergeSaveIntoBoard({
+      nodes: first.nodes,
+      edges: [...first.edges, ...planned],
+      groups: first.groups,
+      worlds: world,
+      parsed,
+      seedNameKeys: new Set(),
+      now: '2026-10-13T00:00:00.000Z',
+      nextEdgeId: () => `w${n++}`,
+    });
+    const kept = again.edges.filter((e) => e.id === 'u1' || e.id === 'u2');
+    assert.deepEqual(
+      kept.map((e) => `${e.id}:${e.source}:${!!e.secret}`),
+      ['u1:planned:true', 'u2:planned:true'],
+    );
+  });
 });
 
 describe('games for save sims', () => {

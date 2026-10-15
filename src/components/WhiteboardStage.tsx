@@ -1739,11 +1739,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef }: Props) {
             parent: wb.parentCycleReason(menu.a, menu.b) ?? undefined,
             childof: wb.parentCycleReason(menu.b, menu.a) ?? undefined,
           }}
-          onConfirm={(type) => {
-            if (type === 'parent')
-              wb.confirmConnect('parent');
-            else wb.confirmConnect(type);
-          }}
+          onConfirm={(type) => wb.confirmConnect(type)}
           onCancel={() => {
             wb.setConnectMenu(null);
             wb.cancelConnect();

@@ -4,21 +4,8 @@ import type { World } from '../types/whiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { House, User } from '../icons.ts';
 import { COL } from '../lib/constants.ts';
-import { LockGlyph } from './LockGlyph.tsx';
+import { InlineLock as LegendLock } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
-
-/** Inline padlock for legend rows (the board's secret marker). */
-function LegendLock({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="-6 -6 12 12"
-      aria-hidden="true"
-      style={{ width: 12, height: 12, display: 'inline-block', flex: '0 0 auto' }}
-    >
-      <LockGlyph x={0} y={0.4} color={color} size={10} />
-    </svg>
-  );
-}
 
 type Props = {
   worlds: World[];

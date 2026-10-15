@@ -63,6 +63,7 @@ import {
 } from '../lib/savegame/mergeSave.ts';
 import type {
   BoardMultiSel,
+  ConnectChoice,
   ConnSrc,
   DeceasedMark,
   Edge,
@@ -82,6 +83,23 @@ import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 
 const INITIAL_VIEW: Viewport = { tx: 40, ty: 40, k: 0.72 };
+
+/** The link each connect choice adds, from the first sim clicked to the second (flip: the other way). */
+const CONNECT_LINKS: Record<
+  Exclude<ConnectChoice, 'coparents'>,
+  { type: Edge['type']; flip?: true; secret?: true }
+> = {
+  marriage: { type: 'marriage' },
+  romance: { type: 'romance' },
+  secretromance: { type: 'romance', secret: true },
+  divorced: { type: 'divorced' },
+  parent: { type: 'parent' },
+  secretparent: { type: 'parent', secret: true },
+  childof: { type: 'parent', flip: true },
+  secretchildof: { type: 'parent', flip: true, secret: true },
+  sibling: { type: 'sibling' },
+  custom: { type: 'custom' },
+};
 
 function simCentroid(
   ids: string[],
@@ -726,15 +744,38 @@ export function useWhiteboard() {
     [edges, byid],
   );
 
-  const addEdge = useCallback((a: string, b: string, type: Edge['type']) => {
+  /**
+   * `secret`: a secret parent or secret lovers. When the same link is already
+   * on the board, it is marked secret rather than drawn twice.
+   */
+  const addEdge = useCallback((a: string, b: string, type: Edge['type'], secret = false) => {
     if (type === 'sibling' && siblingsShareParents(a, b, edges)) return;
     let nextEdges: Edge[] | null = null;
     pushUndo();
     setEdges((e) => {
+      const same = secret
+        ? e.find(
+            (x) =>
+              x.type === type &&
+              ((x.a === a && x.b === b) || (type !== 'parent' && x.a === b && x.b === a)),
+          )
+        : undefined;
+      if (same) {
+        nextEdges = e.map((x) => (x === same ? { ...x, secret: true as const } : x));
+        return nextEdges;
+      }
       const id = 'u' + eidcRef.current++;
       nextEdges = sanitizeEdges([
         ...e,
-        { id, a, b, type, source: 'planned', createdAt: new Date().toISOString() },
+        {
+          id,
+          a,
+          b,
+          type,
+          source: 'planned',
+          createdAt: new Date().toISOString(),
+          ...(secret ? { secret: true as const } : {}),
+        },
       ]);
       return nextEdges;
     });
@@ -1280,12 +1321,23 @@ export function useWhiteboard() {
   );
 
   const confirmConnect = useCallback(
-    (type: string) => {
+    (choice: ConnectChoice) => {
       if (!connectMenu) return;
       const { a, b } = connectMenu;
-      if (type === 'parent' || type === 'childof') {
-        const why =
-          type === 'parent' ? parentCycleReason(a, b) : parentCycleReason(b, a);
+      if (choice === 'coparents') {
+        // Sims who are not a couple and have a child: the child's two parent
+        // links say it all, so the next sim clicked becomes that child.
+        setConnectMenu(null);
+        setConnSrc({ union: [a, b] });
+        setStatus(
+          `Co-parents: ${byid[a]?.first ?? ''} ＋ ${byid[b]?.first ?? ''} — now click their CHILD (Esc to cancel)`,
+        );
+        return;
+      }
+      const link = CONNECT_LINKS[choice];
+      const [from, to] = link.flip ? [b, a] : [a, b];
+      if (link.type === 'parent') {
+        const why = parentCycleReason(from, to);
         if (why) {
           setConnectMenu(null);
           setConnSrc(null);
@@ -1293,13 +1345,16 @@ export function useWhiteboard() {
           return;
         }
       }
-      if (type === 'childof') addEdge(b, a, 'parent');
-      else addEdge(a, b, type as Edge['type']);
+      addEdge(from, to, link.type, !!link.secret);
       setConnectMenu(null);
-      flashStatus('Linked ✓ — click a sim for the next link');
+      flashStatus(
+        link.secret && hideSecrets
+          ? 'Linked ✓ — it is secret, so Hide secrets keeps it off the board. Click a sim for the next link'
+          : 'Linked ✓ — click a sim for the next link',
+      );
       setConnSrc(null);
     },
-    [connectMenu, addEdge, flashStatus, parentCycleReason],
+    [connectMenu, addEdge, byid, flashStatus, hideSecrets, parentCycleReason],
   );
 
   const fit = useCallback((svgWidth: number, svgHeight: number) => {

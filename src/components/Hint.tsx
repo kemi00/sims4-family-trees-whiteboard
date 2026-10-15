@@ -123,7 +123,8 @@ export function Hint() {
         <p className="hint__body">
           Tap a couple’s ring or heart on the board, then <b>+</b>, to add a
           baby. Or tap a ring/heart link, then a Sim, to make that Sim the
-          child of both partners.
+          child of both partners. For two Sims who had a child without being
+          a couple, pick <b>Co-parents</b> in Connect, then tap the child.
         </p>
       </section>
 

@@ -22,3 +22,16 @@ export function LockGlyph({
     </g>
   );
 }
+
+/** The same padlock inline in text (legend rows, menus). */
+export function InlineLock({ color }: { color: string }) {
+  return (
+    <svg
+      viewBox="-6 -6 12 12"
+      aria-hidden="true"
+      style={{ width: 12, height: 12, display: 'inline-block', flex: '0 0 auto' }}
+    >
+      <LockGlyph x={0} y={0.4} color={color} size={10} />
+    </svg>
+  );
+}

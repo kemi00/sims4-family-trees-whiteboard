@@ -1084,10 +1084,11 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   for (const rel of parsed.rels) applyRel(rel);
 
   // A secret the game has since revealed (or never had) drops its flag, but
-  // only between sims in this save — the save says nothing about the rest.
+  // only between sims in this save — the save says nothing about the rest —
+  // and not on a link still planned: that secret is the user's plan.
   const inSave = new Set(saveIdToBoard.values());
   for (const e of edges) {
-    if (!e.secret || !inSave.has(e.a) || !inSave.has(e.b)) continue;
+    if (!e.secret || e.source === 'planned' || !inSave.has(e.a) || !inSave.has(e.b)) continue;
     if (!secretKeys.has(pairKey(e.type, e.a, e.b))) delete e.secret;
   }
 

@@ -49,6 +49,20 @@ export type EdgeType =
   | 'sibling'
   | 'custom';
 
+/** What the Connect menu can make; see CONNECT_LINKS for the links each one adds. */
+export type ConnectChoice =
+  | 'marriage'
+  | 'romance'
+  | 'secretromance'
+  | 'divorced'
+  | 'parent'
+  | 'secretparent'
+  | 'childof'
+  | 'secretchildof'
+  | 'coparents'
+  | 'sibling'
+  | 'custom';
+
 export type EdgeSource = 'seed' | 'save' | 'planned';
 
 export interface Edge {
