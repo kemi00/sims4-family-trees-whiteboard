@@ -225,8 +225,8 @@ export type BoardMultiSel =
   | { kind: 'households'; gids: string[] }
   | { kind: 'nodes'; ids: string[] };
 
+/** Household and world boxes. Family links have their own view (LinksView). */
 export interface ShowToggles {
-  seed: boolean;
   groups: boolean;
   worlds: boolean;
 }

@@ -178,7 +178,20 @@ type Props = {
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
   worldById?: ReadonlyMap<string, string>;
   gidById?: ReadonlyMap<string, string>;
+  /** A highlighted family's links (familyOf): the rest fade behind them. */
+  focusEdgeIds?: ReadonlySet<string> | null;
 };
+
+/** Link class: selected, or faded behind a highlighted family. */
+function linkClass(
+  selected: boolean,
+  ids: readonly string[] | undefined,
+  focus: ReadonlySet<string> | null | undefined,
+): string {
+  if (selected) return 'link edge sel';
+  if (focus && !ids?.some((id) => focus.has(id))) return 'link edge edge--faded';
+  return 'link edge';
+}
 
 function nodeIdsFromEdges(
   edgeIds: string[] | undefined,
@@ -227,6 +240,7 @@ export const EdgeLayer = memo(function EdgeLayer({
   onAddInfant,
   worldById,
   gidById,
+  focusEdgeIds,
 }: Props) {
   return (
     <g id="lEdges">
@@ -240,7 +254,7 @@ export const EdgeLayer = memo(function EdgeLayer({
         return (
           <g
             key={`blood-${pi}`}
-            className={selected ? 'link edge sel' : 'link edge'}
+            className={linkClass(selected, p.ids, focusEdgeIds)}
             data-ends={nodeIds.length ? JSON.stringify(nodeIds) : ''}
             {...chromeDataProps(nodeIds, worldById, gidById)}
             onPointerDown={(e) => {
@@ -276,7 +290,7 @@ export const EdgeLayer = memo(function EdgeLayer({
         return (
           <g
             key={u.edgeId}
-            className={sq ? 'link edge sel' : 'link edge'}
+            className={linkClass(sq, [u.edgeId], focusEdgeIds)}
             data-ends={JSON.stringify([u.a, u.b])}
             {...chromeDataProps([u.a, u.b], worldById, gidById)}
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
@@ -332,7 +346,7 @@ export const EdgeLayer = memo(function EdgeLayer({
         return (
           <g
             key={`secret-${m.child}`}
-            className={sq ? 'link edge sel' : 'link edge'}
+            className={linkClass(sq, m.ids, focusEdgeIds)}
             data-ends={nodeIds.length ? JSON.stringify(nodeIds) : ''}
             {...chromeDataProps(nodeIds, worldById, gidById)}
             onPointerDown={(e) => {
@@ -354,7 +368,7 @@ export const EdgeLayer = memo(function EdgeLayer({
         return (
           <g
             key={c.edgeId}
-            className={sq ? 'link edge sel' : 'link edge'}
+            className={linkClass(sq, [c.edgeId], focusEdgeIds)}
             data-ends={nodeIds.length ? JSON.stringify(nodeIds) : ''}
             {...chromeDataProps(nodeIds, worldById, gidById)}
             onPointerDown={(e) => {

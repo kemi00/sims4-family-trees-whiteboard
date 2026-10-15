@@ -61,6 +61,7 @@ import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
+import { FamilyBanner } from './FamilyBanner.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
 import { EdgeLayer } from './EdgeLayer.tsx';
@@ -1590,6 +1591,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             endsById={edgeEndsById}
             worldById={worldById}
             gidById={gidById}
+            focusEdgeIds={wb.family?.edgeIds}
             userEdgeIds={userEdgeIds.current}
             isSelLink={wb.isSelLink}
             connectMode={wb.connectMode}
@@ -1683,6 +1685,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 hiSingle={wb.hiSingle}
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
+                familyIds={wb.familyIds}
                 onPointerDown={onNodePointerDown}
               />
             ))}
@@ -1807,6 +1810,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         <BloodlineBanner
           node={wb.byid[wb.bloodlineId]}
           onShowEveryone={() => wb.setBloodlineId(null)}
+        />
+      )}
+      {wb.familyFocus && (
+        <FamilyBanner
+          family={wb.family}
+          byid={wb.byid}
+          shown={wb.nodeVis}
+          onDone={() => wb.setFamilyFocus(false)}
         />
       )}
       {menu && (

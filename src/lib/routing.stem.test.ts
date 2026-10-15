@@ -187,7 +187,6 @@ describe('childRoute', () => {
 
 describe('union pedigree fork bottom stem', () => {
   const show: ShowToggles = {
-    seed: true,
     groups: true,
     worlds: true,
   };
@@ -326,7 +325,6 @@ describe('union pedigree fork bottom stem', () => {
 
 describe('sibling top stems', () => {
   const show: ShowToggles = {
-    seed: true,
     groups: true,
     worlds: true,
   };
@@ -472,7 +470,7 @@ describe('skipRoute', () => {
       nodes: [card({ id: 'A', x: 0, y: 0 })],
       edges: [{ id: 'e1', a: 'A', b: 'A', type: 'custom', source: 'planned' }],
       groups: [],
-      show: { seed: true, groups: true, worlds: true },
+      show: { groups: true, worlds: true },
       packVis: () => true,
       fastRoute: false,
       skipRoute: true,

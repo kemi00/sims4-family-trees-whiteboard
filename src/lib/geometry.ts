@@ -26,7 +26,6 @@ import { worldTagLayout, worldCounts } from './worldTag.ts';
 export { worldTagMetrics, worldTagZoomScale } from './worldTag.ts';
 import type {
   BuildRectsResult,
-  Edge,
   Group,
   Guides,
   HhBox,
@@ -52,19 +51,6 @@ export function border(n: SimNode, tox: number, toy: number): [number, number] {
   const sy = dy ? hh / Math.abs(dy) : 1e9;
   const s = Math.min(sx, sy);
   return [cx + dx * s, cy + dy * s];
-}
-
-export function edgeVisible(e: Edge, show: ShowToggles): boolean {
-  if (
-    e.type === 'marriage' ||
-    e.type === 'romance' ||
-    e.type === 'divorced' ||
-    e.type === 'parent' ||
-    e.type === 'sibling'
-  ) {
-    return show.seed;
-  }
-  return true;
 }
 
 export type SnapSticky = { x: number | null; y: number | null };

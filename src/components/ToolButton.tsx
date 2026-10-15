@@ -1,4 +1,4 @@
-import type { Icon } from '../icons.ts';
+import { CaretDown, type Icon } from '../icons.ts';
 import type { ReactNode, Ref } from 'react';
 
 type Tone = 'neutral' | 'primary' | 'danger';
@@ -16,6 +16,11 @@ type Props = {
   count?: number;
   disabled?: boolean;
   expanded?: boolean;
+  /**
+   * Opens a menu: announced as one, with a small caret to say so. `pressed`
+   * then only styles it, since a menu button is not a toggle.
+   */
+  menu?: boolean;
   id?: string;
   ref?: Ref<HTMLButtonElement>;
   onClick?: () => void;
@@ -30,6 +35,7 @@ export function ToolButton({
   count,
   disabled,
   expanded,
+  menu,
   id,
   ref,
   onClick,
@@ -43,7 +49,8 @@ export function ToolButton({
       data-tone={tone}
       data-pressed={pressed === undefined ? undefined : String(pressed)}
       data-tooltip={label}
-      aria-pressed={pressed}
+      aria-pressed={menu ? undefined : pressed}
+      aria-haspopup={menu ? 'menu' : undefined}
       aria-expanded={expanded}
       aria-label={children ? undefined : label}
       disabled={disabled}
@@ -52,6 +59,7 @@ export function ToolButton({
       <Glyph aria-hidden="true" />
       {children && <span className="tool__label">{children}</span>}
       {count ? <span className="tool__count">{count}</span> : null}
+      {menu && <CaretDown className="tool__caret" weight="bold" aria-hidden="true" />}
     </button>
   );
 }

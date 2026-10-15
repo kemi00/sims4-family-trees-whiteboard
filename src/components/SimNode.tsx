@@ -18,6 +18,8 @@ type Props = {
   hiSingle: boolean;
   partneredIds: Set<string>;
   bloodlineIds: Set<string> | null;
+  /** A highlighted family (familyOf): they glow, everyone else dims. */
+  familyIds?: Set<string> | null;
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
@@ -33,6 +35,7 @@ export const SimNodeView = memo(function SimNodeView({
   hiSingle,
   partneredIds,
   bloodlineIds,
+  familyIds = null,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -49,8 +52,10 @@ export const SimNodeView = memo(function SimNodeView({
   const ageMatch =
     !highlighting || isHighlightMatch(n, hiAges, hiSingle, partneredIds);
   const bloodMatch = !bloodlineIds || bloodlineIds.has(n.id);
-  const dim = (highlighting || !!bloodlineIds) && !(ageMatch && bloodMatch);
-  const ageClass = highlighting && ageMatch && bloodMatch ? 'agehl' : dim ? 'agedim' : '';
+  const familyMatch = !familyIds || familyIds.has(n.id);
+  const match = ageMatch && bloodMatch && familyMatch;
+  const dim = (highlighting || !!bloodlineIds || !!familyIds) && !match;
+  const ageClass = (highlighting || !!familyIds) && match ? 'agehl' : dim ? 'agedim' : '';
   const searchClass = searchCurrent
     ? 'searchcur'
     : searchHit

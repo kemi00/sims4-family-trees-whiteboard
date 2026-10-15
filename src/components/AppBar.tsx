@@ -1,4 +1,6 @@
 import {
+  Check,
+  EyeSlash,
   Funnel,
   GameController,
   Globe,
@@ -15,14 +17,17 @@ import {
   Trash,
   TreeStructure,
   UserPlus,
+  UsersFour,
   UsersThree,
+  type Icon,
 } from '../icons.ts';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
+import type { LinksView } from '../lib/family.ts';
 import { OverflowMenu } from './OverflowMenu.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
@@ -36,6 +41,53 @@ function bloodlineToolLabel(wb: WhiteboardApi): string {
     return 'Dim everyone who is not an ancestor or descendant of the selected sim.';
   }
   return 'Select a sim, then Bloodline, to dim everyone outside their ancestors and descendants.';
+}
+
+/** The family-links views, in the menu's order: most shown to least. */
+const LINK_VIEWS: { view: LinksView; icon: Icon; label: string; note?: string }[] = [
+  { view: 'all', icon: TreeStructure, label: 'All' },
+  {
+    view: 'inside',
+    icon: House,
+    label: 'Only inside households',
+    note: 'Lines between households hide',
+  },
+  { view: 'none', icon: EyeSlash, label: 'Hidden' },
+];
+
+function linksToolLabel(wb: WhiteboardApi): string {
+  const view =
+    wb.linksView === 'all'
+      ? 'all shown'
+      : wb.linksView === 'inside'
+        ? 'only inside households'
+        : 'hidden';
+  return `Family links: ${view}${wb.familyFocus ? ', highlighting a family' : ''}`;
+}
+
+/** Close a popover on a press outside `ref` or on Escape. */
+function useDismiss(
+  open: boolean,
+  ref: RefObject<HTMLElement | null>,
+  close: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (ev: PointerEvent) => {
+      if (!ref.current?.contains(ev.target as Node)) close();
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return;
+      ev.stopPropagation();
+      close();
+    };
+    document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [open, ref, close]);
 }
 
 type Props = {
@@ -65,6 +117,14 @@ export function AppBar({
     filtersOpen,
     filtersRef,
   );
+  const [linksOpen, setLinksOpen] = useState(false);
+  const linksRef = useRef<HTMLDivElement>(null);
+  const { popRef: linksPopRef, style: linksPopStyle } = useDropdownPosition(
+    linksOpen,
+    linksRef,
+  );
+  const closeLinks = useCallback(() => setLinksOpen(false), []);
+  useDismiss(linksOpen, linksRef, closeLinks);
 
   // A game switched off with no sims on the board hides nothing, so it is
   // not an active filter (Games lists it, off, all the same).
@@ -105,25 +165,8 @@ export function AppBar({
     if (!compact) setSearchOpen(false);
   }, [compact]);
 
-  useEffect(() => {
-    if (!filtersOpen) return;
-    const onPointer = (ev: PointerEvent) => {
-      if (!filtersRef.current?.contains(ev.target as Node)) {
-        setFiltersOpen(false);
-      }
-    };
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.key !== 'Escape') return;
-      ev.stopPropagation();
-      setFiltersOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointer, true);
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointer, true);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [filtersOpen]);
+  const closeFilters = useCallback(() => setFiltersOpen(false), []);
+  useDismiss(filtersOpen, filtersRef, closeFilters);
 
   const closeFilterPanels = () => {
     wb.setGamesOpen(false);
@@ -138,6 +181,7 @@ export function AppBar({
       return;
     }
     wb.setLogOpen(false);
+    setLinksOpen(false);
     setFiltersOpen((o) => {
       if (!o) trackAction('/action/filters');
       return !o;
@@ -247,12 +291,71 @@ export function AppBar({
       <span className="appbar__rule" aria-hidden="true" />
 
       <span className="segment" role="group" aria-label="Canvas layers">
-        <ToolButton
-          icon={TreeStructure}
-          label="Family links"
-          pressed={wb.show.seed}
-          onClick={() => wb.toggleShow('seed')}
-        />
+        <div className="overflow" ref={linksRef}>
+          <ToolButton
+            icon={TreeStructure}
+            label={linksToolLabel(wb)}
+            menu
+            pressed={wb.linksView !== 'none' || wb.familyFocus}
+            expanded={linksOpen}
+            onClick={() => {
+              setFiltersOpen(false);
+              setLinksOpen((o) => !o);
+            }}
+          />
+          {linksOpen && (
+            <div
+              ref={linksPopRef}
+              className="pop pop--links"
+              role="menu"
+              aria-label="Family links"
+              style={linksPopStyle}
+            >
+              <div className="pop__head" aria-hidden="true">
+                Show family links
+              </div>
+              {LINK_VIEWS.map(({ view, icon: Glyph, label, note }) => {
+                const on = wb.linksView === view;
+                return (
+                  <button
+                    key={view}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={on}
+                    onClick={() => {
+                      wb.setLinksView(view);
+                      setLinksOpen(false);
+                    }}
+                  >
+                    <Glyph aria-hidden="true" />
+                    <span className="pop__text">
+                      {label}
+                      {note && <small>{note}</small>}
+                    </span>
+                    {on && <Check className="pop__check" aria-hidden="true" />}
+                  </button>
+                );
+              })}
+              <span className="pop__rule" aria-hidden="true" />
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={wb.familyFocus}
+                onClick={() => {
+                  wb.setFamilyFocus(!wb.familyFocus);
+                  setLinksOpen(false);
+                }}
+              >
+                <UsersFour aria-hidden="true" />
+                <span className="pop__text">
+                  Highlight a sim's family
+                  <small>Select any sim: partners, parents, children and siblings light up</small>
+                </span>
+                {wb.familyFocus && <Check className="pop__check" aria-hidden="true" />}
+              </button>
+            </div>
+          )}
+        </div>
         <ToolButton
           icon={House}
           label="Household boxes"

@@ -1,7 +1,6 @@
 import { BAND, MINDROP, PILL_DROP, STUB } from './constants.ts';
 import {
   buildRects,
-  edgeVisible,
   ptsClear,
   segClear,
   unionGeom,
@@ -960,10 +959,10 @@ export function computeEdgeRenderData(
   const ctx: RoutingContext = { rects: RECTS, rbands: RBANDS, fastRoute };
   const cache = input.cache;
 
+  // Which family links show is decided before routing (linksInView).
   const vis = (e: Edge): boolean =>
     !!byid[e.a] &&
     !!byid[e.b] &&
-    edgeVisible(e, show) &&
     packVis(byid[e.a]!) &&
     packVis(byid[e.b]!);
 

@@ -83,6 +83,7 @@ import type {
 } from '../types/whiteboard.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
+import { familyOf, linksInView, type LinksView } from '../lib/family.ts';
 
 const INITIAL_VIEW: Viewport = { tx: 40, ty: 40, k: 0.72 };
 
@@ -118,11 +119,13 @@ function simCentroid(
   };
 }
 
+const LINKS_STATUS: Record<LinksView, string> = {
+  all: 'Family links: all — parent, sibling, and partner lines',
+  inside: 'Family links: only inside households — lines between households hide',
+  none: 'Family links: hidden — cards stay, relationship lines hide',
+};
+
 const LAYER_STATUS: Record<keyof ShowToggles, { on: string; off: string }> = {
-  seed: {
-    on: 'Family links on — parent, sibling, and partner lines',
-    off: 'Family links off — cards stay, relationship lines hide',
-  },
   groups: {
     on: 'Household boxes on — dashed boxes around each house',
     off: 'Household boxes off — house outlines hide',
@@ -226,10 +229,12 @@ export function useWhiteboard() {
     () => new Set(boot.hiddenPlay || []),
   );
   const [show, setShow] = useState<ShowToggles>({
-    seed: true,
     groups: true,
     worlds: true,
   });
+  const [linksView, setLinksViewState] = useState<LinksView>('all');
+  /** Highlight the selected sim's family (familyOf), whoever is selected. */
+  const [familyFocus, setFamilyFocusState] = useState(false);
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEW);
   const [sel, setSel] = useState<Selection>(null);
   const [connectMode, setConnectModeState] = useState(false);
@@ -411,6 +416,23 @@ export function useWhiteboard() {
   const hasSecrets = useMemo(() => edges.some((e) => e.secret), [edges]);
 
   // Routes from the last pass; an edit re-routes only the links it can reach.
+  const familyId =
+    familyFocus && sel?.type === 'node' && byid[sel.id] ? sel.id : null;
+  const family = useMemo(
+    () => (familyId ? familyOf(familyId, shownEdges) : null),
+    [familyId, shownEdges],
+  );
+  /** The highlighted family, the sim included: everyone else dims. */
+  const familyIds = useMemo(
+    () => (family ? new Set([family.id, ...family.roles.keys()]) : null),
+    [family],
+  );
+  /** Links drawn in the current view; a highlighted family's always are. */
+  const viewEdges = useMemo(
+    () => linksInView(shownEdges, (id) => byid[id]?.gid, linksView, family?.edgeIds),
+    [shownEdges, byid, linksView, family],
+  );
+
   const [routeCache] = useState(() => new RouteCache());
   const edgeData = useMemo(
     () =>
@@ -418,14 +440,14 @@ export function useWhiteboard() {
         ? EMPTY_EDGE_DATA
         : computeEdgeRenderData({
             nodes,
-            edges: shownEdges,
+            edges: viewEdges,
             groups,
             show,
             packVis: nodeVis,
             fastRoute,
             cache: routeCache,
           }),
-    [nodes, shownEdges, groups, show, nodeVis, fastRoute, skipRoute, routeCache],
+    [nodes, viewEdges, groups, show, nodeVis, fastRoute, skipRoute, routeCache],
   );
 
   const nodeBuckets = useMemo(() => bucketNodes(nodes), [nodes]);
@@ -633,6 +655,23 @@ export function useWhiteboard() {
     },
     [show, flashStatus],
   );
+
+  const setLinksView = useCallback(
+    (view: LinksView) => {
+      setLinksViewState(view);
+      trackAction(`/action/links/${view}`);
+      flashStatus(LINKS_STATUS[view]);
+    },
+    [flashStatus],
+  );
+
+  const setFamilyFocus = useCallback((on: boolean) => {
+    setFamilyFocusState(on);
+    if (!on) return;
+    // One sim's relatives at a time: a family highlight replaces Bloodline.
+    setBloodlineId(null);
+    trackAction('/action/family');
+  }, []);
 
   const setConnectMode = useCallback(
     (on: boolean) => {
@@ -2309,6 +2348,8 @@ export function useWhiteboard() {
         setBloodlineId(null);
       } else {
         setBloodlineId(sel.id);
+        // One sim's relatives at a time: Bloodline replaces a family highlight.
+        setFamilyFocusState(false);
         trackAction('/action/bloodline');
       }
       return;
@@ -2409,6 +2450,12 @@ export function useWhiteboard() {
     hiSingle,
     bloodlineId,
     bloodlineIds,
+    linksView,
+    setLinksView,
+    familyFocus,
+    setFamilyFocus,
+    family,
+    familyIds,
     partneredIds,
     status,
     fastRoute,

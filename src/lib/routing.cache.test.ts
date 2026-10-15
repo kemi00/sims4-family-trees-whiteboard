@@ -58,7 +58,7 @@ const route = (nodes: SimNode[], edges: Edge[], cache?: RouteCache, fastRoute = 
     nodes,
     edges,
     groups: [],
-    show: { seed: true, groups: true, worlds: true },
+    show: { groups: true, worlds: true },
     packVis: () => true,
     fastRoute,
     cache,

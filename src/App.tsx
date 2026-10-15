@@ -72,6 +72,7 @@ export default function App() {
         }         else if (wb.connectMode) wb.setConnectMode(false);
         else if (wb.multiSel) wb.clearMultiSel();
         else if (wb.selectMode) wb.setSelectMode(false);
+        else if (wb.familyFocus) wb.setFamilyFocus(false);
         else if (wb.bloodlineId) wb.setBloodlineId(null);
       }
       const typing =

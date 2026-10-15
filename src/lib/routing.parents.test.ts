@@ -44,7 +44,7 @@ function route(nodes: SimNode[], edges: Edge[], fastRoute = false): EdgeRenderDa
     nodes,
     edges,
     groups: [],
-    show: { seed: true, groups: true, worlds: true },
+    show: { groups: true, worlds: true },
     packVis: () => true,
     fastRoute,
   });

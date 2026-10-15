@@ -64,7 +64,7 @@ const data = computeEdgeRenderData({
   nodes,
   edges,
   groups: [],
-  show: { seed: true, groups: true, worlds: true },
+  show: { groups: true, worlds: true },
   packVis: () => true,
   fastRoute: true,
 });
@@ -150,7 +150,7 @@ describe('hide secrets', () => {
     nodes,
     edges: shown,
     groups: [],
-    show: { seed: true, groups: true, worlds: true },
+    show: { groups: true, worlds: true },
     packVis: () => true,
     fastRoute: true,
   });
