@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "8a9a6e1",
+   "date": "2026-10-15",
+   "text": "Highlight a sim's family now has two levels, picked on its banner: Close (partners, parents, children, siblings) and Extended, which adds grandparents, grandchildren, aunts and uncles, first cousins and step-family. Your choice is remembered."
+  },
+  {
    "sha": "17e6062",
    "date": "2026-10-15",
    "text": "Toolbar tooltips are short again and fit their box, with no empty space beside the text."
