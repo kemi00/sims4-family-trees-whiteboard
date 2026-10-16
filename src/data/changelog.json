@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "b79e3b2",
+   "date": "2026-10-16",
+   "text": "A selected link between households keeps proper dashes at any zoom, instead of turning into a comb of short vertical ticks."
+  },
+  {
    "sha": "f25502c",
    "date": "2026-10-16",
    "text": "Family links inside a household are strong solid lines; links between households are thin and dashed, so each household's own tree stands out. The legend shows both."
