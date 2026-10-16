@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "3ceca9b",
+   "date": "2026-10-16",
+   "text": "Scrolling zooms the board again, with a mouse wheel or a trackpad; drag an empty spot to move around. The Getting around tips are rewritten as plain tasks and show once more."
+  },
+  {
    "sha": "8a9a6e1",
    "date": "2026-10-15",
    "text": "Highlight a sim's family now has two levels, picked on its banner: Close (partners, parents, children, siblings) and Extended, which adds grandparents, grandchildren, aunts and uncles, first cousins and step-family. Your choice is remembered."
