@@ -600,14 +600,14 @@ export function zoomViewportAt(
 /** The parts of a wheel event that move the view. */
 export type WheelInput = Pick<
   WheelEvent,
-  'deltaX' | 'deltaY' | 'deltaMode' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'clientX' | 'clientY'
+  'deltaY' | 'deltaMode' | 'ctrlKey' | 'clientX' | 'clientY'
 >;
 
 /**
- * What a wheel event does to the view, as in other canvas apps. Scrolling,
- * with two fingers on a trackpad or with a mouse wheel, pans; Shift turns a
- * wheel's scroll sideways. A trackpad pinch, which browsers send as a wheel
- * with Ctrl held, zooms at the pointer, and so does ⌘ or Ctrl + scroll.
+ * Scrolling zooms the board at the pointer, with a mouse wheel or two
+ * fingers on a trackpad; dragging is how it pans, so scrolling has no
+ * panning to do. A trackpad pinch arrives as a wheel with Ctrl held, in
+ * small steps, so it zooms faster per step.
  */
 export function wheelViewport(
   v: Viewport,
@@ -616,17 +616,10 @@ export function wheelViewport(
   zoomMin = ZOOM_MIN,
 ): Viewport {
   const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
-  let dx = ev.deltaX * unit;
-  let dy = ev.deltaY * unit;
-  if (ev.ctrlKey || ev.metaKey) {
-    // A pinch sends small steps, a wheel big ones, so a pinch zooms faster per unit.
-    const step = ev.ctrlKey ? 0.01 : 0.0032;
-    const d = Math.max(-80, Math.min(80, dy));
-    return zoomViewportAt(v, Math.exp(-d * step), ev.clientX, ev.clientY, svgRect, zoomMin);
-  }
-  if (ev.shiftKey && !dx) [dx, dy] = [dy, 0];
-  if (!dx && !dy) return v;
-  return { k: v.k, tx: v.tx - dx, ty: v.ty - dy };
+  const d = Math.max(-80, Math.min(80, ev.deltaY * unit));
+  if (!d) return v;
+  const step = ev.ctrlKey ? 0.01 : 0.0032;
+  return zoomViewportAt(v, Math.exp(-d * step), ev.clientX, ev.clientY, svgRect, zoomMin);
 }
 
 /** Top-left so a card of this size sits centred in the current view. */

@@ -1254,7 +1254,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         } else {
           wb.setStatus(
             wb.selectMode
-              ? 'Select: box across 2+ worlds moves those worlds; inside one world, grab tags or sims. Hold Space to pan'
+              ? 'Select is on: drag a box around Sims, households or worlds, then drag them to move. Hold Space to move around.'
               : '',
           );
         }

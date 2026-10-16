@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 
 /** localStorage key, set once the first-visit Getting around card is dismissed. */
-export const NAV_INTRO_SEEN_KEY = 'sims4-family-trees:nav-intro-seen:v1';
+export const NAV_INTRO_SEEN_KEY = 'sims4-family-trees:nav-intro-seen:v2';
 
 function navIntroSeen(): boolean {
   try {
@@ -30,8 +30,8 @@ function NavTips() {
   if (touch) {
     return (
       <dl className="navtips">
-        <dt>Pan</dt>
-        <dd>Drag the board, or drag with two fingers anywhere, in Select and Connect too.</dd>
+        <dt>Move around</dt>
+        <dd>Drag the board. In Select, drag with two fingers.</dd>
         <dt>Zoom</dt>
         <dd>Pinch.</dd>
         <dt>Edit</dt>
@@ -41,20 +41,20 @@ function NavTips() {
   }
   return (
     <dl className="navtips">
-      <dt>Pan</dt>
-      <dd>Drag empty board, or scroll with two fingers or the mouse wheel.</dd>
+      <dt>Move around</dt>
+      <dd>Drag an empty spot on the board.</dd>
       <dt>Zoom</dt>
+      <dd>Scroll, or pinch on a trackpad.</dd>
+      <dt>Move a Sim</dt>
+      <dd>Drag the Sim.</dd>
+      <dt>Select several</dt>
       <dd>
-        Pinch, or hold <kbd>⌘</kbd>/<kbd>Ctrl</kbd> and scroll.
+        Drag a box while holding <kbd>Shift</kbd>, or turn on <b>Select</b>.
       </dd>
-      <dt>Pan from anywhere</dt>
+      <dt>Move around in Select</dt>
       <dd>
-        Hold <kbd>Space</kbd> and drag, or drag with the middle button: in
-        Select and Connect too, even starting on a Sim.
-      </dd>
-      <dt>Select</dt>
-      <dd>
-        <kbd>Shift</kbd> + drag a box, or turn on <b>Select</b> and drag.
+        Hold <kbd>Space</kbd> and drag. This also works when you start on a
+        Sim.
       </dd>
     </dl>
   );
@@ -230,7 +230,6 @@ export function Hint({ introReady = false }: Props) {
       <section className="hint__section">
         <h3 className="hint__heading">Getting around</h3>
         <NavTips />
-        <p className="hint__body hint__body--after">Drag a Sim to move them.</p>
       </section>
 
       <section className="hint__section">
