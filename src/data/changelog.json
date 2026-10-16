@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "f25502c",
+   "date": "2026-10-16",
+   "text": "Family links inside a household are strong solid lines; links between households are thin and dashed, so each household's own tree stands out. The legend shows both."
+  },
+  {
    "sha": "3ceca9b",
    "date": "2026-10-16",
    "text": "Scrolling zooms the board again, with a mouse wheel or a trackpad; drag an empty spot to move around. The Getting around tips are rewritten as plain tasks and show once more."
