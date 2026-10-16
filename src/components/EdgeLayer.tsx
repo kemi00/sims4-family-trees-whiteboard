@@ -189,7 +189,15 @@ type Props = {
  */
 const STROKE = 2.3;
 const STROKE_ACROSS = 1.3;
-const DASH_ACROSS = '5 4';
+
+/**
+ * Dashes in proportion to the stroke. A selected link is drawn a fixed
+ * screen width, so zoomed out it grew wider than fixed dashes were long and
+ * they turned into a comb of ticks; scaled to the width they keep their shape.
+ */
+function dashFor(width: number): string {
+  return `${width * 3.8} ${width * 3}`;
+}
 
 /** Link class: selected, or faded behind a highlighted family. */
 function linkClass(
@@ -276,7 +284,9 @@ export const EdgeLayer = memo(function EdgeLayer({
               fill="none"
               stroke={col}
               strokeWidth={selected ? selStroke : p.cross ? STROKE_ACROSS : STROKE}
-              strokeDasharray={p.cross ? DASH_ACROSS : undefined}
+              strokeDasharray={
+                p.cross ? dashFor(selected ? selStroke : STROKE_ACROSS) : undefined
+              }
               strokeLinejoin="round"
               strokeLinecap={p.cross ? 'butt' : 'round'}
               style={selected ? { pointerEvents: 'none' } : undefined}
@@ -320,7 +330,7 @@ export const EdgeLayer = memo(function EdgeLayer({
               fill="none"
               stroke={lc}
               strokeWidth={sq ? selStroke : u.cross ? STROKE_ACROSS : STROKE}
-              strokeDasharray={u.cross ? DASH_ACROSS : undefined}
+              strokeDasharray={u.cross ? dashFor(sq ? selStroke : STROKE_ACROSS) : undefined}
               strokeLinejoin="round"
               strokeLinecap={u.cross ? 'butt' : 'round'}
             />
