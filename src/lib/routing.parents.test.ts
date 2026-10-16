@@ -268,3 +268,36 @@ describe('a parent off to one side of the child', () => {
     assert.ok(!legs.some((x) => near(x, -STUB)), 'not the far side');
   });
 });
+
+describe('links between households', () => {
+  // Mum and Dad married in house g; their son Kit still lives with them,
+  // their daughter Dot has moved out to house h, and Dot's husband Rex lives
+  // in house r.
+  const nodes = [
+    card({ id: 'mum', x: 0, y: 0 }),
+    card({ id: 'dad', x: 300, y: 0 }),
+    card({ id: 'kit', x: 0, y: 300 }),
+    card({ id: 'dot', x: 900, y: 300, gid: 'h' }),
+    card({ id: 'rex', x: 1200, y: 300, gid: 'r' }),
+  ];
+  const edges: Edge[] = [
+    { id: 'm1', a: 'mum', b: 'dad', type: 'marriage', source: 'seed' },
+    { id: 'm2', a: 'dot', b: 'rex', type: 'marriage', source: 'seed' },
+    ...parentEdges('kit', 'mum', 'dad'),
+    ...parentEdges('dot', 'mum', 'dad'),
+  ];
+  const data = route(nodes, edges);
+  const strokesTo = (child: string) =>
+    data.blood.filter((p) => p.ids.some((id) => id.endsWith(`_${child}`)));
+
+  it('marks the strokes to a child in another household, and only those', () => {
+    assert.ok(strokesTo('dot').length > 0);
+    assert.ok(strokesTo('dot').every((p) => p.cross));
+    assert.ok(strokesTo('kit').every((p) => !p.cross));
+  });
+
+  it('marks a couple who live apart', () => {
+    const cross = Object.fromEntries(data.unions.map((u) => [u.edgeId, !!u.cross]));
+    assert.deepEqual(cross, { m1: false, m2: true });
+  });
+});

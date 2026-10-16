@@ -930,6 +930,11 @@ function impliedSiblings(
 }
 
 /** Child was raised in another household — parent line must still draw. */
+/** `{ cross: true }` for a stroke that joins sims in different households, else nothing. */
+function across(cross: boolean): { cross?: true } {
+  return cross ? { cross: true } : {};
+}
+
 function crossHouseholdChild(
   child: SimNode,
   ps: string[],
@@ -1080,6 +1085,7 @@ export function computeEdgeRenderData(
             return kn.map((n) => ({
               ids: pEB[n.id] || [],
               pts: childRoute(p.x + p.w / 2, p.y + p.h, n, [pid, n.id], ctx, p.y + p.h),
+              ...across(p.gid !== n.gid),
             }));
           }),
         ),
@@ -1126,7 +1132,8 @@ export function computeEdgeRenderData(
         const out: BloodPath[] = [];
         if (coParents) {
           const ids = edgeIdsForKids(kn, pEB);
-          for (const pts of coParentJoin(...coParents, ctx).legs) out.push({ ids, pts });
+          const cross = across(coParents[0].gid !== coParents[1].gid);
+          for (const pts of coParentJoin(...coParents, ctx).legs) out.push({ ids, pts, ...cross });
         }
         /** Cross-household kids get their own drop — no shared horizontal bus. */
         const inHHBelow = belowK.filter((n) => !crossHouseholdChild(n, ps, byid));
@@ -1138,6 +1145,7 @@ export function computeEdgeRenderData(
           out.push({
             ids: pEB[n.id] || [],
             pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx, tagsBottom),
+            ...across(crossHouseholdChild(n, ps, byid)),
           });
         }
         return out;
@@ -1184,7 +1192,12 @@ export function computeEdgeRenderData(
         .map((e) => e.id);
       const mn = ms.map((m) => byid[m]!);
       const sig = [...mn.map(nodeSig), ids.join(',')].join(';');
-      BLOOD.push(...routed(`s:${ms.slice().sort().join('|')}`, sig, () => drawSiblingFork(mn, ids, ctx)));
+      const cross = across(new Set(mn.map((n) => n.gid)).size > 1);
+      BLOOD.push(
+        ...routed(`s:${ms.slice().sort().join('|')}`, sig, () =>
+          drawSiblingFork(mn, ids, ctx).map((p) => ({ ...p, ...cross })),
+        ),
+      );
     });
   }
 
@@ -1200,6 +1213,7 @@ export function computeEdgeRenderData(
       ry: g0.ry,
       isUser: isUserE(e),
       ...(e.type === 'romance' && e.secret ? { secret: true } : {}),
+      ...across(byid[e.a]!.gid !== byid[e.b]!.gid),
     };
   });
 

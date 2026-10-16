@@ -290,6 +290,8 @@ export interface BloodVert {
 export interface BloodPath {
   ids: string[];
   pts: Point[];
+  /** Joins sims in different households: drawn thin and dashed. */
+  cross?: true;
 }
 
 /** Render data for a spouse union (marriage / romance / divorced). */
@@ -304,6 +306,8 @@ export interface UnionRender {
   isUser: boolean;
   /** Secret lovers (a romance the save marks secret). */
   secret?: boolean;
+  /** The partners live in different households: the line is thin and dashed. */
+  cross?: true;
 }
 
 /** Lock badge on a child's top stem: one of its parents is secret. */

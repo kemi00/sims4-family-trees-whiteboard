@@ -182,6 +182,15 @@ type Props = {
   focusEdgeIds?: ReadonlySet<string> | null;
 };
 
+/**
+ * Family links inside one household are strong solid lines, a household's
+ * own tree; links between households are thin and dashed, so they recede
+ * and the eye can still follow each tree. Selected links keep their dash.
+ */
+const STROKE = 2.3;
+const STROKE_ACROSS = 1.3;
+const DASH_ACROSS = '5 4';
+
 /** Link class: selected, or faded behind a highlighted family. */
 function linkClass(
   selected: boolean,
@@ -266,9 +275,10 @@ export const EdgeLayer = memo(function EdgeLayer({
               d={d}
               fill="none"
               stroke={col}
-              strokeWidth={selected ? selStroke : 2.3}
+              strokeWidth={selected ? selStroke : p.cross ? STROKE_ACROSS : STROKE}
+              strokeDasharray={p.cross ? DASH_ACROSS : undefined}
               strokeLinejoin="round"
-              strokeLinecap="round"
+              strokeLinecap={p.cross ? 'butt' : 'round'}
               style={selected ? { pointerEvents: 'none' } : undefined}
             />
             <path
@@ -309,9 +319,10 @@ export const EdgeLayer = memo(function EdgeLayer({
               points={u.pts}
               fill="none"
               stroke={lc}
-              strokeWidth={sq ? selStroke : 2.3}
+              strokeWidth={sq ? selStroke : u.cross ? STROKE_ACROSS : STROKE}
+              strokeDasharray={u.cross ? DASH_ACROSS : undefined}
               strokeLinejoin="round"
-              strokeLinecap="round"
+              strokeLinecap={u.cross ? 'butt' : 'round'}
             />
             <g
               className={sq ? 'union-pill union-pill--plus' : 'union-pill'}

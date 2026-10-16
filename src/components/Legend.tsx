@@ -7,6 +7,28 @@ import { COL } from '../lib/constants.ts';
 import { InlineLock as LegendLock } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
+/** A short stretch of family link, as the board draws it (EdgeLayer). */
+function LineSample({ across = false }: { across?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 18 6"
+      aria-hidden="true"
+      style={{ width: 18, height: 6, display: 'inline-block', flex: '0 0 auto' }}
+    >
+      <line
+        x1={1}
+        y1={3}
+        x2={17}
+        y2={3}
+        stroke={COL.blood}
+        strokeWidth={across ? 1.1 : 2}
+        strokeDasharray={across ? '3 2.5' : undefined}
+        strokeLinecap={across ? 'butt' : 'round'}
+      />
+    </svg>
+  );
+}
+
 type Props = {
   worlds: World[];
   /** Worlds with at least one sim currently on the board. */
@@ -100,6 +122,12 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
         aria-labelledby="legend-links-h"
       >
         <h3 id="legend-links-h">Links</h3>
+        <div className="lg">
+          <LineSample /> inside a household
+        </div>
+        <div className="lg">
+          <LineSample across /> between households
+        </div>
         <div className="lg">
           <span style={{ fontSize: 13, lineHeight: 1, color: '#3f4756' }}>⊥</span>{' '}
           parent → child
