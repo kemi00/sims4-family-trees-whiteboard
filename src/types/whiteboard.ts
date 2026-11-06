@@ -50,10 +50,66 @@ export interface SimNode {
   /** Their place in it, marked on the card. Plain members have none. */
   dynastyRole?: DynastyRole;
   /**
+   * The dynasty (its `dynastyKey`) this sim was the first head of. Its
+   * generations count from them, so a new head does not renumber anyone,
+   * and it stays when they die or leave the dynasty.
+   */
+  firstHeadOf?: string;
+  /** Age facts from the last save import (see SimLife). Pets have none. */
+  life?: SimLife;
+  /**
    * Sims 4 family-tree id of a relative the save keeps only in its family
    * tree, with no sim and no name (an "Unknown" card), as a decimal string.
    */
   treeId?: string;
+}
+
+/** The game's Sim Lifespan option. */
+export type Lifespan = 'Short' | 'Normal' | 'Long';
+
+/**
+ * A sim's age as the last save import read it. Stored raw, so the editor
+ * works out days and years from the save's current settings.
+ */
+export interface SimLife {
+  /** Game tick of birth: the save's clock minus the ticks they have lived. */
+  born: number;
+  /**
+   * Days into their life stage, in Normal-lifespan days. The game keeps the
+   * fraction of the stage when the lifespan changes, so this survives it.
+   */
+  stageDays: number;
+  /** The life stage those days belong to; changing the card's age voids them. */
+  stage: string;
+  /** Still a newborn, the first part of infancy. */
+  newborn?: true;
+  /** Born during play. */
+  inPlay?: true;
+  /** The save's clock when this was read. */
+  at: number;
+  /** Why they were not aging when the game saved; absent when they were. */
+  frozen?: 'inactive' | 'played' | 'unplayed';
+}
+
+/** The game clock and aging options from the last save import. */
+export interface SaveGameInfo {
+  /** The save file's name. */
+  fileName?: string;
+  /** When the board read it (ISO time). */
+  importedAt: string;
+  /** Game ticks (90,000 a sim hour). */
+  clock: number;
+  lifespan?: Lifespan;
+  /** Days in a season (Seasons); a year is four seasons. */
+  seasonDays?: number;
+  /** Auto Age (Played Households): No, Yes or Only Active Household. */
+  playedAging?: 'No' | 'Yes' | 'Active';
+  /** Auto Age (Unplayed Households). */
+  unplayedAging?: boolean;
+  /** The household being played when the game saved. */
+  activeHousehold?: string;
+  /** Clock of the first import where every household was aging. */
+  allAgingSince?: number;
 }
 
 export type EdgeType =
@@ -211,6 +267,8 @@ export interface WhiteboardData {
   simAgeUps?: SimAgeUp[];
   /** Relationship statuses read from the last save import. */
   pairStatus?: PairStatus[];
+  /** Game clock and aging options from the last save import. */
+  saveGame?: SaveGameInfo | null;
   /** Pack names hidden by the Games filter. */
   hiddenPacks?: string[];
   /** Origin-playability values hidden by the Play filter. */

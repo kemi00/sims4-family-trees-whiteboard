@@ -124,7 +124,15 @@ function simBlob(opts: {
   age: number;
   /** The game's Species value; humans leave it out. */
   species?: number;
+  /** Ticks since birth (gameplay field 16). */
+  alive?: number;
+  /** Days into the life stage (field 13, a float). */
+  stageDays?: number;
 }): Uint8Array {
+  const play = concat(
+    ...(opts.alive !== undefined ? [encodeVarintField(16, opts.alive)] : []),
+    ...(opts.source ? [encodeString(17, opts.source)] : []),
+  );
   return concat(
     encodeVarintField(1, opts.id),
     encodeVarintField(2, opts.zone ?? 0),
@@ -133,10 +141,22 @@ function simBlob(opts: {
     encodeString(6, opts.last),
     encodeVarintField(7, opts.gender),
     encodeVarintField(8, opts.age),
+    ...(opts.stageDays !== undefined ? [encodeFloat(13, opts.stageDays)] : []),
     encodeString(22, opts.household),
-    ...(opts.source ? [encodeBytes(47, encodeString(17, opts.source))] : []),
+    ...(play.byteLength ? [encodeBytes(47, play)] : []),
     ...(opts.species ? [encodeVarintField(60, opts.species)] : []),
   );
+}
+
+function encodeFloat(field: number, x: number): Uint8Array {
+  const bytes = new Uint8Array(4);
+  new DataView(bytes.buffer).setFloat32(0, x, true);
+  return concat(encodeKey(field, 5), bytes);
+}
+
+/** A save of the given top-level records (sims are field 6, the slot 2). */
+function saveOf(...records: Uint8Array[]): Uint8Array {
+  return wrapDbpf(refpackCompress(concat(...records)));
 }
 
 function treeEdge(a: number, b: number, kind: number): Uint8Array {
@@ -654,6 +674,79 @@ describe('dynasties', () => {
     const parsed = parseSaveGame(tinySave());
     assert.equal(parsed.dynasties, undefined);
     assert.ok(parsed.sims.every((s) => !s.dynasty && !s.dynastyRole));
+  });
+});
+
+describe('game clock, options and sim ages', () => {
+  const DAY = 2_160_000;
+  /** Game Options as Save Game Data field 3 → 14 → 2 holds them. */
+  const options = (o: { lifespan: number; played: number; unplayed: number; season: number }) =>
+    encodeBytes(
+      3,
+      encodeBytes(
+        14,
+        encodeBytes(
+          2,
+          concat(
+            encodeVarintField(1, 3),
+            encodeVarintField(3, o.lifespan),
+            encodeVarintField(8, o.played),
+            encodeVarintField(9, o.unplayed),
+            encodeVarintField(12, o.season),
+          ),
+        ),
+      ),
+    );
+  const household = (id: number, name: string, played: boolean) =>
+    encodeBytes(5, concat(encodeVarintField(2, id), encodeString(3, name), encodeVarintField(31, played ? 1 : 0)));
+  const sims = [
+    simBlob({ id: 1, householdId: 10, first: 'Malcolm', last: 'Landgraab', household: 'Landgraab', gender: 4096, age: 8, alive: Math.round(31.82 * DAY), stageDays: 5.45 }),
+    simBlob({ id: 2, householdId: 20, first: 'Kelvin', last: 'Bheeda', household: 'Bheeda', gender: 4096, age: 1, alive: Math.round(1.91 * DAY), stageDays: 0, source: 'pregnancy' }),
+    simBlob({ id: 3, householdId: 20, first: 'Old', last: 'Format', household: 'Bheeda', gender: 4096, age: 16 }),
+  ].map((s) => encodeBytes(6, s));
+  const slot = (clock?: number) =>
+    encodeBytes(
+      2,
+      concat(
+        encodeVarintField(11, 10),
+        encodeBytes(8, clock === undefined ? new Uint8Array() : encodeVarintField(1, clock)),
+      ),
+    );
+
+  it('reads the clock, the active household, played households and the aging options', () => {
+    const parsed = parseSaveGame(
+      saveOf(...sims, slot(11_135_049), options({ lifespan: 0, played: 2, unplayed: 0, season: 0 }), household(10, 'Landgraab', true), household(20, 'Bheeda', false)),
+    );
+    assert.deepEqual(parsed.game, {
+      clock: 11_135_049,
+      activeHouseholdId: '10',
+      playedHouseholds: ['10'],
+      lifespan: 'Short',
+      seasonDays: 7,
+      playedAging: 'Active',
+      unplayedAging: false,
+    });
+    const long = parseSaveGame(saveOf(...sims, slot(1), options({ lifespan: 2, played: 1, unplayed: 1, season: 2 })));
+    assert.deepEqual(
+      [long.game?.lifespan, long.game?.seasonDays, long.game?.playedAging, long.game?.unplayedAging],
+      ['Long', 28, 'Yes', true],
+    );
+  });
+
+  it('reads days alive, days into the stage, newborns and births in play', () => {
+    const parsed = parseSaveGame(saveOf(...sims, slot(11_135_049)));
+    const of = (first: string) => parsed.sims.find((s) => s.first === first)!;
+    assert.equal(of('Malcolm').aliveTicks, Math.round(31.82 * DAY));
+    assert.ok(Math.abs(of('Malcolm').stageDays! - 5.45) < 1e-5);
+    assert.equal(of('Malcolm').bornInPlay, undefined);
+    assert.deepEqual([of('Kelvin').age, of('Kelvin').newborn, of('Kelvin').bornInPlay], ['Infant', true, true]);
+    assert.deepEqual([of('Old').aliveTicks, of('Old').stageDays], [undefined, undefined]);
+  });
+
+  it('leaves the game out when the save has no clock, and options it lacks unset', () => {
+    assert.equal(parseSaveGame(saveOf(...sims, slot())).game, undefined);
+    const bare = parseSaveGame(saveOf(...sims, slot(5)));
+    assert.deepEqual(bare.game, { clock: 5, activeHouseholdId: '10', playedHouseholds: [] });
   });
 });
 

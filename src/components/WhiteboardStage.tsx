@@ -73,9 +73,17 @@ import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
+import type { DynastyGeneration } from '../lib/generations.ts';
 import { SimNodeView } from './SimNode.tsx';
 import { ViewControls } from './ViewControls.tsx';
 import { WorldLayer } from './WorldLayer.tsx';
+
+/** "Gen 2" or "Gen 1 by marriage" for a card's dynasty hover. */
+function generationTitle(g: DynastyGeneration | undefined): string | undefined {
+  if (!g) return undefined;
+  if (g.before) return 'before the dynasty';
+  return g.gen ? `Gen ${g.gen}${g.byMarriage ? ' by marriage' : ''}` : undefined;
+}
 
 type Props = {
   wb: WhiteboardApi;
@@ -1706,6 +1714,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.familyIds}
+                generation={generationTitle(wb.dynastyGens.get(n.id))}
                 onPointerDown={onNodePointerDown}
               />
             ))}
@@ -1924,13 +1933,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           worlds={wb.worlds}
           groups={wb.groups}
           nodes={wb.nodes}
+          edges={wb.edges}
+          saveGame={wb.saveGame}
+          generations={wb.dynastyGens}
+          onPickPartner={(id) => {
+            const r = svgRef.current?.getBoundingClientRect();
+            wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
+          }}
           left={editorPos.left}
           top={editorPos.top}
           editorRef={editorRef}
           onLayout={positionEditor}
-          onSave={(patch) => {
+          onSave={({ firstHead, ...patch }) => {
             wb.pushUndo();
             wb.updateNode(editNode.id, patch);
+            if (firstHead) wb.setDynastyFirstHead(firstHead.key, firstHead.id, { undo: false });
             wb.setEditNodeId(null);
           }}
           onMove={(world, houseGid, newName) => {

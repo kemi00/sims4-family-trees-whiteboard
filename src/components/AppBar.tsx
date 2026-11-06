@@ -1,4 +1,5 @@
 import {
+  CalendarBlank,
   Check,
   EyeSlash,
   Funnel,
@@ -29,6 +30,17 @@ import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
 import type { LinksView } from '../lib/family.ts';
+import {
+  agingSummary,
+  clockText,
+  dayOf,
+  dayText,
+  playedAgingText,
+  saveChipText,
+  yearOf,
+  yearText,
+} from '../lib/lifeClock.ts';
+import type { SaveGameInfo } from '../types/whiteboard.ts';
 import { OverflowMenu } from './OverflowMenu.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
@@ -88,6 +100,57 @@ function useDismiss(
   }, [open, ref, close]);
 }
 
+/** "Nov 7, 12:10 AM" for when the board read the save. */
+function readAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+/**
+ * What the board knows of the save it last read: the game time, then the
+ * options that decide ages. Read only: they change in the game.
+ */
+function SaveDetails({ game }: { game: SaveGameInfo }) {
+  const day = dayOf(game.clock);
+  const rows: [string, string][] = [
+    ['Game time', `${clockText(game.clock)}${game.seasonDays ? ` · ${yearText(yearOf(day, game.seasonDays))}` : ''}`],
+    ['Sim Lifespan', game.lifespan ?? 'Unknown'],
+    [
+      'Season Length',
+      game.seasonDays ? `${game.seasonDays} days (a year is ${game.seasonDays * 4} days)` : 'Not in this save',
+    ],
+    ['Auto Age (Played)', playedAgingText(game.playedAging)],
+    [
+      'Auto Age (Unplayed)',
+      game.unplayedAging === undefined ? 'Unknown' : game.unplayedAging ? 'On' : 'Off',
+    ],
+  ];
+  if (game.activeHousehold) rows.push(['Active household', game.activeHousehold]);
+  if (game.allAgingSince !== undefined) rows.push(['Everyone ages since', dayText(dayOf(game.allAgingSince))]);
+  const who = agingSummary(game);
+  const read = readAt(game.importedAt);
+  return (
+    <>
+      <div className="pop__head">From your save</div>
+      <dl className="savechip__list">
+        {rows.map(([k, v]) => (
+          <div key={k} className="savechip__row">
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="savechip__note">
+        {who ? `In this save ${who}. ` : ''}Ages in the sim editor come from{' '}
+        {game.fileName ?? 'this save'}
+        {read ? `, read ${read}` : ''}. To change these options, use Game Options in the game,
+        then load the save again.
+      </p>
+    </>
+  );
+}
+
 type Props = {
   wb: WhiteboardApi;
   svgRef: RefObject<SVGSVGElement | null>;
@@ -123,6 +186,11 @@ export function AppBar({
   );
   const closeLinks = useCallback(() => setLinksOpen(false), []);
   useDismiss(linksOpen, linksRef, closeLinks);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const saveRef = useRef<HTMLDivElement>(null);
+  const { popRef: savePopRef, style: savePopStyle } = useDropdownPosition(saveOpen, saveRef);
+  const closeSave = useCallback(() => setSaveOpen(false), []);
+  useDismiss(saveOpen, saveRef, closeSave);
 
   // A game switched off with no sims on the board hides nothing, so it is
   // not an active filter (Games lists it, off, all the same).
@@ -180,6 +248,7 @@ export function AppBar({
     }
     wb.setLogOpen(false);
     setLinksOpen(false);
+    setSaveOpen(false);
     setFiltersOpen((o) => {
       if (!o) trackAction('/action/filters');
       return !o;
@@ -302,6 +371,7 @@ export function AppBar({
             expanded={linksOpen}
             onClick={() => {
               setFiltersOpen(false);
+              setSaveOpen(false);
               setLinksOpen((o) => !o);
             }}
           />
@@ -373,6 +443,43 @@ export function AppBar({
       </span>
 
       <span className="appbar__spacer" />
+
+      {wb.saveGame && (
+        <div className="overflow overflow--save" ref={saveRef}>
+          <button
+            type="button"
+            className="tool tool--menu savechip"
+            data-tone="neutral"
+            data-tooltip={`Your save: ${clockText(wb.saveGame.clock)}`}
+            aria-label={`Your save: ${saveChipText(wb.saveGame)}`}
+            aria-haspopup="dialog"
+            aria-expanded={saveOpen}
+            onClick={() => {
+              setFiltersOpen(false);
+              setLinksOpen(false);
+              setSaveOpen((o) => {
+                if (!o) trackAction('/action/save-details');
+                return !o;
+              });
+            }}
+          >
+            <CalendarBlank aria-hidden="true" />
+            <span className="tool__label">{saveChipText(wb.saveGame)}</span>
+            <CaretDown className="tool__caret" weight="bold" aria-hidden="true" />
+          </button>
+          {saveOpen && (
+            <div
+              ref={savePopRef}
+              className="pop pop--save"
+              role="dialog"
+              aria-label="Your save"
+              style={savePopStyle}
+            >
+              <SaveDetails game={wb.saveGame} />
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="overflow" ref={filtersRef}>
         <ToolButton

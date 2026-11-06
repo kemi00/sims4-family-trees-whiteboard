@@ -8,8 +8,25 @@ import {
 } from 'react';
 import { AGES, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import {
+  dynastyKey,
+  dynastyLabel,
+  generationText,
+  type DynastyGeneration,
+} from '../lib/generations.ts';
+import {
+  clockText,
+  dayText,
+  daysText,
+  frozenText,
+  lifeView,
+  wholeDaysText,
+  yearText,
+  type LifeView,
+} from '../lib/lifeClock.ts';
+import { gapText, partnerCandidates } from '../lib/partners.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
-import type { DynastyRole, Group, SimNode, World } from '../types/whiteboard.ts';
+import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
   const rest = items
@@ -31,6 +48,48 @@ function noSimIdNote(n: SimNode, boardHasSave: boolean): string {
   return 'No sim ID: not in your save';
 }
 
+/** "Day 3, Year 1" for a birth in play; "Day −26, before play (Year 0)" for a premade. */
+function bornText(v: LifeView): string {
+  const year = v.bornYear === undefined ? '' : yearText(v.bornYear);
+  if (v.inPlay || v.bornDay >= 1) return `${dayText(v.bornDay)}${year ? `, ${year}` : ''}`;
+  return `${dayText(v.bornDay)}, before play${year ? ` (${year})` : ''}`;
+}
+
+/**
+ * The sim's age from the last save import: born, days alive, how far into
+ * the stage and the days to the next, on the save's lifespan. Read only.
+ */
+function LifeFacts({ v }: { v: LifeView }) {
+  const stage = v.newborn ? 'Newborn' : v.stage;
+  const rows: [string, string][] = [
+    ['Born', bornText(v)],
+    ['Days alive', daysText(v.daysAlive)],
+  ];
+  if (v.elderDays !== undefined) rows.push(['Elder for', daysText(v.elderDays)]);
+  else if (v.through !== undefined) rows.push([stage, `${Math.round(v.through * 100)}% through`]);
+  if (v.next && v.daysToNext !== undefined) {
+    rows.push([`${v.next} in`, `${wholeDaysText(v.daysToNext)}${v.frozen ? ' of aging' : ''}`]);
+  }
+  return (
+    <div id="edLife" className="ro edlife">
+      {rows.map(([k, val]) => (
+        <div key={k} className="edlife__row">
+          <span>{k}</span>
+          <b>{val}</b>
+        </div>
+      ))}
+      {v.frozen && <div className="edlife__note edlife__note--frozen">{frozenText(v.frozen)}</div>}
+      <div className="edlife__note">
+        {v.fromEarlierImport ? 'From an earlier save import, at ' : 'From your save at '}
+        {clockText(v.at)} · {v.lifespan} lifespan{v.lifespanGuessed ? ' (assumed)' : ''}
+        {v.fromEarlierImport ? '. Load the save again to refresh.' : ''}
+      </div>
+    </div>
+  );
+}
+
+const PARTNER_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
+
 const LIFE_STATE_OPTIONS = pinnedAlpha(LIFE_STATES, 'Sim');
 const PLAYABILITY_OPTIONS = pinnedAlpha(PLAYABILITY, 'Resident');
 
@@ -39,6 +98,13 @@ type Props = {
   worlds: World[];
   groups: Group[];
   nodes: SimNode[];
+  edges: Edge[];
+  /** Game clock and aging options from the last save import. */
+  saveGame: SaveGameInfo | null;
+  /** Each dynasty member's generation (dynastyGenerations). */
+  generations: Map<string, DynastyGeneration>;
+  /** Show a possible partner on the board. */
+  onPickPartner: (id: string) => void;
   left: number;
   top: number;
   editorRef: RefObject<HTMLDivElement | null>;
@@ -50,6 +116,8 @@ type Props = {
     state: string;
     oplay: string;
     dynastyRole: DynastyRole | undefined;
+    /** Count this dynasty's generations from another first head. */
+    firstHead?: { key: string; id: string };
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   onLayout: () => void;
@@ -63,6 +131,10 @@ export function SimEditor({
   worlds,
   groups,
   nodes,
+  edges,
+  saveGame,
+  generations,
+  onPickPartner,
   left,
   top,
   editorRef,
@@ -86,6 +158,28 @@ export function SimEditor({
   const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
   const [moveOpen, setMoveOpen] = useState(false);
   const boardHasSave = useMemo(() => nodes.some((x) => x.saveSimId), [nodes]);
+  const byId = useMemo(() => Object.fromEntries(nodes.map((x) => [x.id, x])), [nodes]);
+  const life = useMemo(() => lifeView(n, saveGame), [n, saveGame]);
+  const gen = generations.get(n.id);
+  const genLabel = gen ? dynastyLabel(gen, generations, byId) : '';
+  const genLine = gen ? generationText(gen, genLabel) : null;
+  /** Who the dynasty's generations count from; changed here, applied on Save. */
+  const [firstHead, setFirstHead] = useState(gen?.firstHeadId ?? '');
+  const headChoices = useMemo(() => {
+    if (!gen) return [];
+    return nodes
+      .filter((x) => x.id === gen.firstHeadId || (dynastyKey(x) === gen.key && !x.species))
+      .sort((a, b) => `${a.first} ${a.sur}`.localeCompare(`${b.first} ${b.sur}`));
+  }, [gen, nodes]);
+  const [partnersOpen, setPartnersOpen] = useState(false);
+  const [partnerGender, setPartnerGender] = useState('');
+  const partners = useMemo(
+    () =>
+      partnersOpen
+        ? partnerCandidates({ id: n.id, nodes, edges, game: saveGame, gender: partnerGender || undefined })
+        : [],
+    [partnersOpen, n.id, nodes, edges, saveGame, partnerGender],
+  );
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef<HTMLInputElement>(null);
@@ -118,7 +212,16 @@ export function SimEditor({
     const parts = name.trim().split(' ');
     const first = parts.shift() || name;
     const sur = parts.join(' ');
-    onSave({ first, sur, age, gender, state, oplay, dynastyRole: dynastyRole || undefined });
+    onSave({
+      first,
+      sur,
+      age,
+      gender,
+      state,
+      oplay,
+      dynastyRole: dynastyRole || undefined,
+      ...(gen && firstHead && firstHead !== gen.firstHeadId ? { firstHead: { key: gen.key, id: firstHead } } : {}),
+    });
   };
 
   /**
@@ -148,7 +251,7 @@ export function SimEditor({
 
   useEffect(() => {
     onLayout();
-  }, [moveOpen, onLayout]);
+  }, [moveOpen, partnersOpen, onLayout]);
 
   useEffect(() => {
     if (!compact) return;
@@ -209,6 +312,13 @@ export function SimEditor({
           <option value={age}>{age}</option>
         )}
       </select>
+      {life && <LifeFacts v={life} />}
+      {!life && n.life && !n.species && n.life.stage !== n.age && (
+        <div className="edhint">
+          Life stage changed on the board since your save, so its days are hidden. Load the
+          save again to see them.
+        </div>
+      )}
       <label>Gender</label>
       <select value={gender} onChange={(e) => setGender(e.target.value)}>
         {GENDERS.map((g) => (
@@ -264,6 +374,32 @@ export function SimEditor({
               choosing either here takes it from whoever has it now.
             </div>
           )}
+          {gen && (
+            <>
+              <label htmlFor="edFirstHead">Generation</label>
+              <div className="ro edgen" id="edGen">
+                {genLine ?? `No number: no family link to ${byId[gen.firstHeadId]?.first ?? 'the first head'}`}
+                {gen.planned && <span className="edgen__planned"> · through a planned link</span>}
+              </div>
+              <select
+                id="edFirstHead"
+                value={firstHead}
+                aria-describedby="edFirstHeadHint"
+                onChange={(e) => setFirstHead(e.target.value)}
+              >
+                {headChoices.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    Count from {x.first} {x.sur}
+                    {x.id === gen.firstHeadId ? ' (first head)' : ''}
+                  </option>
+                ))}
+              </select>
+              <div id="edFirstHeadHint" className="edhint">
+                Gen 1 is the {genLabel} dynasty's first head; each child is one more. The board
+                keeps counting from them when an heir takes over.
+              </div>
+            </>
+          )}
         </>
       )}
       <label>Game pack</label>
@@ -306,6 +442,68 @@ export function SimEditor({
       >
         ↪ Move to another household
       </button>
+      {!n.species && (
+        <button
+          type="button"
+          className="movebtn partnerbtn"
+          aria-expanded={partnersOpen}
+          aria-controls="edPartners"
+          onClick={() => setPartnersOpen(!partnersOpen)}
+        >
+          ♡ Possible partners
+        </button>
+      )}
+      {partnersOpen && (
+        <div id="edPartners">
+          <label htmlFor="edPartnerGender">Show</label>
+          <select
+            id="edPartnerGender"
+            value={partnerGender}
+            onChange={(e) => setPartnerGender(e.target.value)}
+          >
+            <option value="">Anyone</option>
+            {PARTNER_GENDERS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+          <div className="edhint">
+            Closest in life first: living sims who aren't blood relatives or married. Click one to
+            find them on the board.
+          </div>
+          {partners.length ? (
+            <ul className="partners">
+              {partners.map((c) => {
+                const p = byId[c.id];
+                if (!p) return null;
+                const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
+                const flags = [
+                  c.frozen ? 'not aging now' : '',
+                  c.taken ? 'in a romance' : '',
+                  p.dynasty ? `${p.dynasty} dynasty` : '',
+                ].filter(Boolean);
+                return (
+                  <li key={c.id}>
+                    <button type="button" onClick={() => onPickPartner(c.id)}>
+                      <span className="partners__name">
+                        {mark}
+                        {p.first} {p.sur}
+                      </span>
+                      <span className="partners__meta">
+                        {p.age} · {gapText(c)} · {p.hh}
+                      </span>
+                      {flags.length > 0 && <span className="partners__flags">{flags.join(' · ')}</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="edhint">No one on the board fits.</div>
+          )}
+        </div>
+      )}
       {moveOpen && (
         <div id="edMove">
           <HouseholdMoveForm

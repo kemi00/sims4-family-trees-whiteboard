@@ -261,6 +261,7 @@ export default function App() {
         {wb.saveImport && (
           <SaveImportDialog
             summary={wb.saveImport.merge.summary}
+            game={wb.saveImport.merge.saveGame}
             starter={wb.saveImport.starter}
             onCancel={wb.cancelSaveImport}
             onMerge={() => {

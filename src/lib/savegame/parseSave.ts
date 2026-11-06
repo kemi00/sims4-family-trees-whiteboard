@@ -33,6 +33,39 @@ export type ParsedSaveSim = {
   dynastyId?: string;
   /** Head, heir or outcast of that dynasty; plain members have none. */
   dynastyRole?: DynastyRole;
+  /**
+   * Game ticks since the sim's birth. It runs on the game clock whatever the
+   * aging settings, and a cake does not move it. The game back-dates a
+   * premade by the Normal length of the stages before its own.
+   */
+  aliveTicks?: number;
+  /**
+   * Days into the current life stage, counted in days of the save's lifespan.
+   * Only moves while the sim ages; a lifespan change rescales it.
+   */
+  stageDays?: number;
+  /** In the first part of infancy (the game's own age for it). */
+  newborn?: true;
+  /** Born during play: the game's creation source says pregnancy. */
+  bornInPlay?: true;
+};
+
+/** Played-household aging in Game Options: No, Yes, or Only Active Household. */
+export type SavePlayedAging = 'No' | 'Yes' | 'Active';
+
+/** The save's clock and the Game Options that decide how sims age. */
+export type ParsedGameInfo = {
+  /** Game ticks: 90,000 a sim hour. */
+  clock: number;
+  lifespan?: 'Short' | 'Normal' | 'Long';
+  /** Days in a season (Seasons): 7, 14 or 28. */
+  seasonDays?: number;
+  playedAging?: SavePlayedAging;
+  unplayedAging?: boolean;
+  /** Household the player was in when the game saved. */
+  activeHouseholdId?: string;
+  /** Households the player has played. */
+  playedHouseholds: string[];
 };
 
 export type ParsedSaveRel = {
@@ -84,6 +117,8 @@ export type ParsedSave = {
    * none in the game. Older saves leave this out and say nothing either way.
    */
   dynasties?: true;
+  /** The game clock and aging options; absent when the save has no clock. */
+  game?: ParsedGameInfo;
 };
 
 /**
@@ -99,17 +134,35 @@ const SIM = {
   gender: 7,
   age: 8,
   householdName: 22,
-  /** Creation info; its field 17 names the source ("filter: …" when generated). */
+  /** A float: days into the current life stage, in days of the save's lifespan. */
+  stageDays: 13,
+  /**
+   * Gameplay data. Field 16 is the ticks since birth; field 17 names the
+   * creation source ("filter: …" when generated, "pregnancy" when born in play).
+   */
   creation: 47,
   species: 60,
 } as const;
 
-/** Household records (Save Game Data field 5). */
+/** Household records (Save Game Data field 5). Field 31 is 1 once played. */
 const HOUSEHOLD = {
   id: 2,
   name: 3,
   homeZone: 4,
+  played: 31,
 } as const;
+
+/**
+ * Game Options live in Save Game Data field 3 → 14 → 2. Checked on
+ * 2026-11-06/07 by changing one option at a time in a real save: 3 is Sim
+ * Lifespan, 8 Auto Age (Played Households), 9 Auto Age (Unplayed
+ * Households), 12 Season Length. Played aging 0 (No) is inferred; 1 and 2
+ * were seen.
+ */
+const OPTION = { lifespan: 3, playedAging: 8, unplayedAging: 9, seasonLength: 12 } as const;
+const LIFESPANS: Record<number, ParsedGameInfo['lifespan']> = { 0: 'Short', 1: 'Normal', 2: 'Long' };
+const SEASON_DAYS: Record<number, number> = { 0: 7, 1: 14, 2: 28 };
+const PLAYED_AGING: Record<number, SavePlayedAging> = { 0: 'No', 1: 'Yes', 2: 'Active' };
 
 /**
  * Family-tree node fields: 1 id, 2 and 3 first and last name (sims only),
@@ -218,6 +271,9 @@ const AGE_BITS: { bit: number; age: (typeof AGES_H)[number] }[] = [
   { bit: 64, age: 'Elder' },
 ];
 
+/** SimInfo.age of a newborn, the first day of infancy on Normal. */
+const NEWBORN_BIT = 1n;
+
 const GENDER_MALE = 4096n;
 const GENDER_FEMALE = 8192n;
 
@@ -286,6 +342,10 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
   let gender = '';
   let species: string | undefined;
   let generated = false;
+  let newborn = false;
+  let bornInPlay = false;
+  let aliveTicks: number | undefined;
+  let stageDays: number | undefined;
   for (const f of fields) {
     if (f.field === SIM.id && (f.wire === 0 || f.wire === 1) && f.int > 0n) {
       saveSimId = idStr(f.int);
@@ -301,12 +361,21 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     } else if (f.field === SIM.gender && f.wire === 0) {
       gender = mapGender(f.int);
     } else if (f.field === SIM.age && f.wire === 0) {
-      age = mapAge(f.int);
+      // A newborn has an age of its own (1); the board counts it an infant.
+      newborn = f.int === NEWBORN_BIT;
+      age = newborn ? 'Infant' : mapAge(f.int);
+    } else if (f.field === SIM.stageDays && f.wire === 5) {
+      const days = float32(f.int);
+      if (Number.isFinite(days) && days >= 0) stageDays = days;
     } else if (f.field === SIM.species && f.wire === 0) {
       species = SPECIES[Number(f.int)];
     } else if (f.field === SIM.creation && f.bytes) {
-      const source = decodeFields(f.bytes).find((g) => g.field === 17 && g.bytes);
-      generated = /^filter:/.test(utf8(source?.bytes ?? null) ?? '');
+      const play = decodeFields(f.bytes);
+      const text = utf8(play.find((g) => g.field === 17 && g.bytes)?.bytes ?? null) ?? '';
+      generated = /^filter:/.test(text);
+      bornInPlay = text === 'pregnancy';
+      const alive = play.find((g) => g.field === 16 && g.wire === 0)?.int;
+      if (alive !== undefined && alive < BigInt(Number.MAX_SAFE_INTEGER)) aliveTicks = Number(alive);
     }
   }
   if (!saveSimId || (!first && !last)) return null;
@@ -320,7 +389,60 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     gender,
     species,
     ...(generated ? { generated: true as const } : {}),
+    ...(aliveTicks !== undefined ? { aliveTicks } : {}),
+    ...(stageDays !== undefined ? { stageDays } : {}),
+    ...(newborn ? { newborn: true as const } : {}),
+    ...(bornInPlay ? { bornInPlay: true as const } : {}),
   };
+}
+
+/** A protobuf fixed32 read as the float it holds. */
+function float32(bits: bigint): number {
+  const view = new DataView(new ArrayBuffer(4));
+  view.setUint32(0, Number(bits & 0xffffffffn), true);
+  return view.getFloat32(0, true);
+}
+
+/**
+ * The save's clock (slot → gameplay field 1), the active household (slot
+ * field 11), played households and the aging options. Absent with no clock.
+ */
+function parseGameInfo(saveGame: Uint8Array): ParsedGameInfo | undefined {
+  const slot = firstBytes(saveGame, 2);
+  const gameplay = slot ? firstBytes(slot, 8) : null;
+  const clockField = gameplay
+    ? decodeFields(gameplay).find((f) => f.field === 1 && f.wire === 0)
+    : undefined;
+  if (!slot || !clockField) return undefined;
+  const info: ParsedGameInfo = { clock: Number(clockField.int), playedHouseholds: [] };
+  const active = idField(decodeFields(slot), 11);
+  if (active) info.activeHouseholdId = active;
+  for (const rec of decodeFields(saveGame)) {
+    if (rec.field === 5 && rec.bytes) {
+      const fields = decodeFields(rec.bytes);
+      const played = fields.some((f) => f.field === HOUSEHOLD.played && f.wire === 0 && f.int === 1n);
+      const id = idField(fields, HOUSEHOLD.id);
+      if (played && id) info.playedHouseholds.push(id);
+    }
+  }
+  const account = firstBytes(saveGame, 3);
+  const options = account ? firstBytes(account, 14) : null;
+  const record = options ? firstBytes(options, 2) : null;
+  if (record) {
+    const value = (n: number) => {
+      const f = decodeFields(record).find((x) => x.field === n && x.wire === 0);
+      return f === undefined ? undefined : Number(f.int);
+    };
+    const lifespan = LIFESPANS[value(OPTION.lifespan) ?? -1];
+    if (lifespan) info.lifespan = lifespan;
+    const seasonDays = SEASON_DAYS[value(OPTION.seasonLength) ?? -1];
+    if (seasonDays) info.seasonDays = seasonDays;
+    const playedAging = PLAYED_AGING[value(OPTION.playedAging) ?? -1];
+    if (playedAging) info.playedAging = playedAging;
+    const unplayed = value(OPTION.unplayedAging);
+    if (unplayed === 0 || unplayed === 1) info.unplayedAging = unplayed === 1;
+  }
+  return info;
 }
 
 /** Tree nodes that are no sim in the save, with their gender and death. */
@@ -696,6 +818,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
       if (d.role) sim.dynastyRole = d.role;
     }
   }
+  const game = parseGameInfo(data);
   return {
     sims,
     rels,
@@ -704,5 +827,6 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     pairs,
     relatives,
     ...(dynasties ? { dynasties: true as const } : {}),
+    ...(game ? { game } : {}),
   };
 }

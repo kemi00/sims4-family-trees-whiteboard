@@ -5,6 +5,7 @@
  */
 export { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwise';
 export { ArrowsDownUp } from '@phosphor-icons/react/ArrowsDownUp';
+export { CalendarBlank } from '@phosphor-icons/react/CalendarBlank';
 export { CaretDown } from '@phosphor-icons/react/CaretDown';
 export { CaretUp } from '@phosphor-icons/react/CaretUp';
 export { Check } from '@phosphor-icons/react/Check';
@@ -17,6 +18,7 @@ export { Funnel } from '@phosphor-icons/react/Funnel';
 export { GameController } from '@phosphor-icons/react/GameController';
 export { Globe } from '@phosphor-icons/react/Globe';
 export { GridFour } from '@phosphor-icons/react/GridFour';
+export { Heart } from '@phosphor-icons/react/Heart';
 export { Highlighter } from '@phosphor-icons/react/Highlighter';
 export { House } from '@phosphor-icons/react/House';
 export { IdentificationBadge } from '@phosphor-icons/react/IdentificationBadge';

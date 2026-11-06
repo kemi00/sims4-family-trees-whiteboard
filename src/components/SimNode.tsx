@@ -21,6 +21,8 @@ type Props = {
   bloodlineIds: Set<string> | null;
   /** A highlighted family (familyOf): they glow, everyone else dims. */
   familyIds?: Set<string> | null;
+  /** Their dynasty generation ("Gen 2"), added to the dynasty mark's hover. */
+  generation?: string;
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
@@ -37,6 +39,7 @@ export const SimNodeView = memo(function SimNodeView({
   partneredIds,
   bloodlineIds,
   familyIds = null,
+  generation,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -73,9 +76,7 @@ export const SimNodeView = memo(function SimNodeView({
   const wide = labels ? textWidth(name, 13, 700) : 0;
   const nameSize = wide > room ? Math.max(10, Math.floor((13 * room) / wide * 2) / 2) : 13;
   const roleTitle = role
-    ? n.dynasty
-      ? `${role.noun} of the ${n.dynasty} dynasty`
-      : role.label
+    ? `${n.dynasty ? `${role.noun} of the ${n.dynasty} dynasty` : role.label}${generation ? ` · ${generation}` : ''}`
     : null;
 
   return (

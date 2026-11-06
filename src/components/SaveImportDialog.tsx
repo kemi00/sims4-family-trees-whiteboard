@@ -1,8 +1,12 @@
 import { useState, type SyntheticEvent } from 'react';
+import { agingSummary, clockText } from '../lib/lifeClock.ts';
 import type { SaveMergeSummary } from '../lib/savegame/mergeSave.ts';
+import type { SaveGameInfo } from '../types/whiteboard.ts';
 
 type Props = {
   summary: SaveMergeSummary;
+  /** The save's clock and aging options, when it has a clock. */
+  game?: SaveGameInfo | null;
   /** The board is still the starter roster (see isStarterBoard): Replace is picked. */
   starter: boolean;
   onMerge: () => void;
@@ -28,6 +32,7 @@ function listPreview(items: string[], max = 6): string {
  */
 export function SaveImportDialog({
   summary,
+  game,
   starter,
   onMerge,
   onReplace,
@@ -63,6 +68,40 @@ export function SaveImportDialog({
       <div className="save-import__card" onClick={(e) => e.stopPropagation()}>
         <h2 id="save-import-title">Load save game</h2>
         <p>Choose how this save meets the board.</p>
+        {game && (
+          <p className="save-import__game">
+            This save: <b>{clockText(game.clock)}</b>
+            {game.lifespan && (
+              <>
+                {' · '}
+                <b>{game.lifespan}</b> lifespan
+              </>
+            )}
+            {game.seasonDays && (
+              <>
+                {' · '}
+                <b>{game.seasonDays}-day</b> seasons
+              </>
+            )}
+            {agingSummary(game) && <> · {agingSummary(game)}</>}.
+          </p>
+        )}
+        {summary.gameChanges.length > 0 && (
+          <div className="save-import__game save-import__game--changed">
+            Changed in Game Options since your last import:
+            <ul>
+              {summary.gameChanges.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+            Days to the next life stage follow the new options.
+          </div>
+        )}
+        {game?.allAgingSince !== undefined && game.allAgingSince === game.clock && (
+          <p className="save-import__game save-import__game--changed">
+            Every household ages from here: sims at the same place in life now grow older together.
+          </p>
+        )}
         {/* Scrolls on its own, so the title and Proceed stay in view. */}
         <div className="save-import__body">
           <fieldset className="save-import__choices">

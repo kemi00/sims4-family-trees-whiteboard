@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Edge, SimNode } from '../../types/whiteboard.ts';
+import type { Edge, SaveGameInfo, SimNode } from '../../types/whiteboard.ts';
 import {
   fillMissingSavePacks,
   hiddenPacksAfterImport,
@@ -1409,5 +1409,140 @@ describe('dynasty marks from the save', () => {
     const board = [goth('c', 'Cassandra', { saveSimId: '2', dynasty: 'Goth', dynastyRole: 'heir' })];
     const r = merge({ sims: [saveSim('2', 'Cassandra')], rels: [] }, board);
     assert.deepEqual(marks(r), { Cassandra: ['Goth', 'heir'] });
+  });
+});
+
+describe('ages, game options and first heads from the save', () => {
+  const DAY = 2_160_000;
+  const worlds = [{ name: 'Willow Creek', color: '#4e79a7' }, ...world];
+  const goth = (id: string, first: string, extra: Partial<SimNode> = {}) =>
+    sim({ id, first, sur: 'Goth', hh: 'Goth', ohh: 'Goth', gid: 'Willow Creek||Goth', ...extra });
+  const roster = [goth('Bella Goth', 'Bella'), goth('Mortimer Goth', 'Mortimer'), goth('Cassandra Goth', 'Cassandra')];
+  const saveSim = (id: string, first: string, extra: Partial<ParsedSave['sims'][number]> = {}) => ({
+    saveSimId: id,
+    householdId: 'h1',
+    first,
+    last: 'Goth',
+    household: 'Goth',
+    age: 'Adult',
+    gender: 'Female',
+    world: 'Willow Creek',
+    ...extra,
+  });
+  const game = (extra: Partial<NonNullable<ParsedSave['game']>> = {}): NonNullable<ParsedSave['game']> => ({
+    clock: 11_135_049,
+    lifespan: 'Short',
+    seasonDays: 7,
+    playedAging: 'Active',
+    unplayedAging: false,
+    activeHouseholdId: 'h2',
+    playedHouseholds: ['h1', 'h2'],
+    ...extra,
+  });
+  const merge = (parsed: ParsedSave, nodes: SimNode[], prev: SaveGameInfo | null = null) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges: [],
+      groups: [],
+      worlds,
+      parsed,
+      seedNameKeys: seedNameKeysFromNodes(roster),
+      packReference: roster,
+      game: prev,
+      fileName: 'Slot_00000006.save',
+      now: 'now',
+      nextEdgeId: (() => {
+        let n = 0;
+        return () => `v${n++}`;
+      })(),
+    });
+  const of = (r: ReturnType<typeof merge>, first: string) => r.nodes.find((n) => n.first === first)!;
+
+  it('stores birth, days into the stage in Normal days, and why a sim is not aging', () => {
+    const r = merge(
+      {
+        sims: [
+          saveSim('1', 'Cassandra', { age: 'Teen', aliveTicks: Math.round(31.82 * DAY), stageDays: 5.45 }),
+          saveSim('2', 'Kelvin', { last: 'Bheeda', household: 'Bheeda', householdId: 'h2', age: 'Infant', newborn: true, bornInPlay: true, aliveTicks: DAY, stageDays: 0.2 }),
+          saveSim('3', 'Rex', { species: 'Dog', aliveTicks: DAY, stageDays: 1 }),
+          saveSim('4', 'Townie', { householdId: 'h9', aliveTicks: DAY, stageDays: 1 }),
+        ],
+        rels: [],
+        game: game(),
+      },
+      roster.map((n) => ({ ...n })),
+    );
+    const cass = of(r, 'Cassandra').life!;
+    assert.equal(cass.born, 11_135_049 - Math.round(31.82 * DAY));
+    assert.equal(cass.stageDays, 10.9);
+    assert.deepEqual([cass.stage, cass.at, cass.frozen], ['Teen', 11_135_049, 'inactive']);
+    const kelvin = of(r, 'Kelvin').life!;
+    assert.deepEqual([kelvin.newborn, kelvin.inPlay, kelvin.frozen, kelvin.stageDays], [true, true, undefined, 0.4]);
+    assert.equal(of(r, 'Rex').life, undefined);
+    assert.equal(of(r, 'Townie').life?.frozen, 'unplayed');
+  });
+
+  it('records the options, the active household and the file, and says what changed', () => {
+    const parsed: ParsedSave = {
+      sims: [saveSim('2', 'Kelvin', { last: 'Bheeda', household: 'Bheeda', householdId: 'h2' })],
+      rels: [],
+      game: game(),
+    };
+    const first = merge(parsed, []);
+    assert.deepEqual(first.saveGame, {
+      fileName: 'Slot_00000006.save',
+      importedAt: 'now',
+      clock: 11_135_049,
+      lifespan: 'Short',
+      seasonDays: 7,
+      playedAging: 'Active',
+      unplayedAging: false,
+      activeHousehold: 'Bheeda',
+    });
+    assert.deepEqual(first.summary.gameChanges, []);
+    const everyone = merge({ ...parsed, game: game({ lifespan: 'Long', playedAging: 'Yes', unplayedAging: true }) }, [], first.saveGame);
+    assert.deepEqual(everyone.summary.gameChanges, [
+      'Sim Lifespan: Short → Long',
+      'Auto Age (Played Households): Only the active household → Yes',
+      'Auto Age (Unplayed Households): Off → On',
+    ]);
+    assert.equal(everyone.saveGame?.allAgingSince, 11_135_049);
+    const later = merge({ ...parsed, game: game({ clock: 20_000_000, playedAging: 'Yes', unplayedAging: true }) }, [], everyone.saveGame);
+    assert.equal(later.saveGame?.allAgingSince, 11_135_049);
+    const stopped = merge({ ...parsed, game: game({ clock: 30_000_000 }) }, [], later.saveGame);
+    assert.equal(stopped.saveGame?.allAgingSince, undefined);
+  });
+
+  it('keeps the board’s save details when the save has no clock', () => {
+    const prev: SaveGameInfo = { importedAt: 'before', clock: 5, lifespan: 'Normal' };
+    const r = merge({ sims: [saveSim('1', 'Bella')], rels: [] }, [], prev);
+    assert.equal(r.saveGame, prev);
+  });
+
+  it('remembers the first head it sees, and keeps them when the heir succeeds', () => {
+    const first = merge(
+      {
+        sims: [
+          saveSim('1', 'Mortimer', { dynasty: 'Goth', dynastyId: '9', dynastyRole: 'head' }),
+          saveSim('2', 'Cassandra', { dynasty: 'Goth', dynastyId: '9', dynastyRole: 'heir' }),
+        ],
+        rels: [],
+        dynasties: true,
+      },
+      roster.map((n) => ({ ...n })),
+    );
+    assert.equal(of(first, 'Mortimer').firstHeadOf, 'id:9');
+    assert.equal(of(first, 'Cassandra').firstHeadOf, undefined);
+    // Mortimer has left the dynasty; Cassandra heads it now.
+    const next = merge(
+      {
+        sims: [saveSim('1', 'Mortimer'), saveSim('2', 'Cassandra', { dynasty: 'Goth', dynastyId: '9', dynastyRole: 'head' })],
+        rels: [],
+        dynasties: true,
+      },
+      first.nodes,
+    );
+    assert.deepEqual([of(next, 'Mortimer').firstHeadOf, of(next, 'Mortimer').dynasty], ['id:9', undefined]);
+    assert.equal(of(next, 'Cassandra').firstHeadOf, undefined);
   });
 });

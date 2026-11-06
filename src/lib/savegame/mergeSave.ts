@@ -1,5 +1,7 @@
 import { DECEASED_STATE, UNHOUSED_HH } from '../constants.ts';
+import { rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
+import { everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
 import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
 import { edgeSourceOf, sanitizeEdges, uKey, worldColor } from '../utils.ts';
 import type {
@@ -7,10 +9,13 @@ import type {
   EdgeType,
   Group,
   PairStatus,
+  SaveGameInfo,
+  SimLife,
   SimNode,
   World,
 } from '../../types/whiteboard.ts';
 import {
+  type ParsedGameInfo,
   readableHouseholdName,
   type ParsedSave,
   type ParsedSaveRel,
@@ -53,6 +58,8 @@ export type SaveMergeSummary = {
   ownSurnames: { name: string; married: string }[];
   /** Board cards this save has no sim or relative for; Merge leaves them as they are. */
   notInSave: number;
+  /** Game Options that differ from the board's last import ("Lifespan: Normal → Short"). */
+  gameChanges: string[];
 };
 
 export type SaveMergeInput = {
@@ -76,6 +83,10 @@ export type SaveMergeInput = {
   rosterEdges?: Edge[];
   /** Sims the player moved to another household by hand; Merge keeps them there. */
   movedByHand?: ReadonlySet<string>;
+  /** The game clock and options from the board's last import. */
+  game?: SaveGameInfo | null;
+  /** The save file's name, for the save details. */
+  fileName?: string;
   now: string;
   nextEdgeId: () => string;
 };
@@ -85,6 +96,8 @@ export type SaveMergeResult = {
   edges: Edge[];
   groups: Group[];
   pairStatus: PairStatus[];
+  /** This save's clock and options; the board's own when the save has no clock. */
+  saveGame: SaveGameInfo | null;
   /**
    * Board ids of cards this import moved to another box: sims rejoined or
    * unhoused, and placeholders that now stand for a family-tree relative.
@@ -1273,6 +1286,29 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     });
   }
 
+  if (parsed.game) {
+    const played = new Set(parsed.game.playedHouseholds);
+    const at = new Map(nodes.map((n, i) => [n.id, i]));
+    for (const sim of sims) {
+      const id = saveIdToBoard.get(sim.saveSimId);
+      const i = id === undefined ? undefined : at.get(id);
+      if (i === undefined) continue;
+      const life = lifeFor(sim, parsed.game, played);
+      if (life) nodes[i] = { ...nodes[i]!, life };
+      else if (nodes[i]!.life) {
+        const { life: _old, ...rest } = nodes[i]!;
+        nodes[i] = rest;
+      }
+    }
+  }
+  if (parsed.dynasties) {
+    const remembered = rememberFirstHeads(nodes);
+    if (remembered !== nodes) nodes.splice(0, nodes.length, ...remembered);
+  }
+  const saveGame = parsed.game
+    ? saveGameFrom(parsed.game, sims, input.game ?? null, input.fileName, input.now)
+    : (input.game ?? null);
+
   const nameOf = (id: string) => {
     const n = nodes.find((x) => x.id === id)!;
     return `${n.first} ${n.sur}`.trim();
@@ -1296,6 +1332,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     edges: sanitizeEdges(edges),
     groups,
     pairStatus,
+    saveGame,
     rehomed,
     summary: {
       matched,
@@ -1321,6 +1358,79 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         return [{ name: nameOf(id), married: sim.marriedLast }];
       }),
       notInSave: input.nodes.filter((n) => !claimed.has(n.id)).length,
+      gameChanges: parsed.game && input.game ? gameChanges(input.game, saveGame!) : [],
     },
   };
+}
+
+/**
+ * A sim's age facts from the save: their birth on the game clock, their days
+ * into the stage in Normal-lifespan days, and why they were not aging, if so.
+ * Pets and sims with no clock data have none.
+ */
+function lifeFor(sim: ParsedSaveSim, game: ParsedGameInfo, played: ReadonlySet<string>): SimLife | undefined {
+  if (sim.species || !sim.age || sim.aliveTicks === undefined || sim.stageDays === undefined) return undefined;
+  const frozen = frozenReason({
+    played: played.has(sim.householdId),
+    active: !!sim.householdId && sim.householdId === game.activeHouseholdId,
+    playedAging: game.playedAging,
+    unplayedAging: game.unplayedAging,
+  });
+  return {
+    born: game.clock - sim.aliveTicks,
+    stageDays: Math.round((sim.stageDays / scaleOf(game.lifespan)) * 1e4) / 1e4,
+    stage: sim.age,
+    ...(sim.newborn ? { newborn: true as const } : {}),
+    ...(sim.bornInPlay ? { inPlay: true as const } : {}),
+    at: game.clock,
+    ...(frozen ? { frozen } : {}),
+  };
+}
+
+/** The board's record of the save's clock and options after this import. */
+function saveGameFrom(
+  game: ParsedGameInfo,
+  sims: ParsedSaveSim[],
+  prev: SaveGameInfo | null,
+  fileName: string | undefined,
+  now: string,
+): SaveGameInfo {
+  const active = game.activeHouseholdId
+    ? sims.find((s) => s.householdId === game.activeHouseholdId)?.household
+    : undefined;
+  const next: SaveGameInfo = {
+    ...(fileName ? { fileName } : {}),
+    importedAt: now,
+    clock: game.clock,
+    ...(game.lifespan ? { lifespan: game.lifespan } : {}),
+    ...(game.seasonDays ? { seasonDays: game.seasonDays } : {}),
+    ...(game.playedAging ? { playedAging: game.playedAging } : {}),
+    ...(game.unplayedAging !== undefined ? { unplayedAging: game.unplayedAging } : {}),
+    ...(active ? { activeHousehold: active } : {}),
+  };
+  // From the first import where every household ages, sims at the same place
+  // in life grow older together; the board keeps that moment until it ends.
+  if (everyoneAges(next)) next.allAgingSince = prev?.allAgingSince ?? game.clock;
+  return next;
+}
+
+/** Options that changed between two imports, in words. */
+function gameChanges(prev: SaveGameInfo, next: SaveGameInfo): string[] {
+  const out: string[] = [];
+  const onOff = (v?: boolean) => (v === undefined ? 'unknown' : v ? 'On' : 'Off');
+  if (prev.lifespan && next.lifespan && prev.lifespan !== next.lifespan) {
+    out.push(`Sim Lifespan: ${prev.lifespan} → ${next.lifespan}`);
+  }
+  if (prev.seasonDays && next.seasonDays && prev.seasonDays !== next.seasonDays) {
+    out.push(`Season Length: ${prev.seasonDays} → ${next.seasonDays} days`);
+  }
+  if (prev.playedAging && next.playedAging && prev.playedAging !== next.playedAging) {
+    out.push(
+      `Auto Age (Played Households): ${playedAgingText(prev.playedAging)} → ${playedAgingText(next.playedAging)}`,
+    );
+  }
+  if (prev.unplayedAging !== undefined && next.unplayedAging !== undefined && prev.unplayedAging !== next.unplayedAging) {
+    out.push(`Auto Age (Unplayed Households): ${onOff(prev.unplayedAging)} → ${onOff(next.unplayedAging)}`);
+  }
+  return out;
 }

@@ -7,6 +7,7 @@ import type {
   HouseholdMove,
   PairStatus,
   Point,
+  SaveGameInfo,
   SimAgeUp,
   SimNode,
   World,
@@ -213,6 +214,7 @@ export function migrateWhiteboardData(d: {
   deceasedMarks?: DeceasedMark[];
   simAgeUps?: SimAgeUp[];
   pairStatus?: PairStatus[];
+  saveGame?: SaveGameInfo | null;
 }): typeof d {
   const world = currentWorldName;
   const gid = currentGid;

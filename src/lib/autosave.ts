@@ -5,6 +5,7 @@ import type {
   HouseholdAgeUp,
   HouseholdMove,
   PairStatus,
+  SaveGameInfo,
   SimAgeUp,
   SimNode,
   WhiteboardData,
@@ -40,6 +41,8 @@ export type PersistPayload = {
   simAgeUps: SimAgeUp[];
   /** Relationship statuses from the last save import (absent on older files). */
   pairStatus?: PairStatus[];
+  /** Game clock and aging options from the last save import (absent on older files). */
+  saveGame?: SaveGameInfo | null;
   connectionLog: string[];
 };
 
@@ -72,6 +75,7 @@ export function buildPersistPayload(input: {
   deceasedMarks: DeceasedMark[];
   simAgeUps: SimAgeUp[];
   pairStatus?: PairStatus[];
+  saveGame?: SaveGameInfo | null;
   connectionLog: { text: string }[];
   sourceFileName: string | null;
 }): PersistPayload {
@@ -92,6 +96,7 @@ export function buildPersistPayload(input: {
     deceasedMarks: input.deceasedMarks,
     simAgeUps: input.simAgeUps,
     pairStatus: input.pairStatus ?? [],
+    saveGame: input.saveGame ?? null,
     connectionLog: input.connectionLog.map((entry) => entry.text),
   };
 }
@@ -127,6 +132,8 @@ function nodeIdentity(n: SimNode) {
     dynastyId: n.dynastyId ?? null,
     dynastyRole: n.dynastyRole ?? null,
     treeId: n.treeId ?? null,
+    firstHeadOf: n.firstHeadOf ?? null,
+    life: n.life ?? null,
   };
 }
 
@@ -169,6 +176,7 @@ export function boardIdentity(payload: PersistPayload): string {
     deceasedMarks: payload.deceasedMarks ?? [],
     simAgeUps: payload.simAgeUps ?? [],
     pairStatus: payload.pairStatus ?? [],
+    saveGame: payload.saveGame ?? null,
   });
 }
 
@@ -190,6 +198,7 @@ export function persistPayloadFromSeed(seed: WhiteboardData): PersistPayload {
     deceasedMarks: migrated.deceasedMarks ?? [],
     simAgeUps: migrated.simAgeUps ?? [],
     pairStatus: migrated.pairStatus ?? [],
+    saveGame: null,
     connectionLog: [],
     sourceFileName: null,
   });
@@ -390,6 +399,7 @@ export function bootWhiteboardData(
       deceasedMarks: draft.deceasedMarks,
       simAgeUps: draft.simAgeUps,
       pairStatus: draft.pairStatus,
+      saveGame: draft.saveGame ?? null,
       connectionLog: draft.connectionLog,
     },
   };

@@ -816,3 +816,38 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .tool[data-tone=danger]:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 }
 
+
+/* ── save chip: the game clock and aging options from the last save ─────── */
+.pop--save{width:300px;padding:6px 6px 8px}
+.savechip__list{margin:0;padding:2px 9px 0}
+.savechip__row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--rule);font-size:12px;line-height:1.35}
+.savechip__row:last-child{border-bottom:none}
+.savechip__row dt{color:var(--ink-3);font-weight:600;flex:0 0 auto}
+.savechip__row dd{margin:0;color:var(--ink);font-weight:600;text-align:right;min-width:0}
+.savechip__note{margin:6px 9px 0;font-size:11px;line-height:1.4;color:var(--ink-3)}
+/* Phones: the bar has no room; the sim editor names the lifespan instead. */
+@media (max-width:640px){ .overflow--save{display:none} }
+.save-import__card .save-import__game{margin:-4px 0 10px;padding:7px 10px;border-radius:8px;background:#f4f7fb;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.save-import__card .save-import__game--changed{background:#fff7e6;color:#7a5200}
+.save-import__game ul{margin:3px 0;padding-left:18px}
+
+/* ── sim editor: age from the save, dynasty generation, possible partners ─ */
+.editor .edlife{margin-top:5px;padding:5px 8px}
+.editor .edlife__row{display:flex;justify-content:space-between;gap:8px;padding:2px 0}
+.editor .edlife__row span{color:#6b7480}
+.editor .edlife__row b{font-weight:600;color:#22304a;text-align:right}
+.editor .edlife__note{margin-top:4px;font-size:10.5px;color:#7a8491;line-height:1.35}
+.editor .edlife__note--frozen{color:#8a5a00}
+.editor .edgen{margin-bottom:5px;font-weight:600}
+.editor .edgen__planned{font-weight:400;color:#6b5bd6}
+.editor .partnerbtn{border-color:#e3b3c8;background:#fdf1f6;color:#b0306b}
+.editor .partnerbtn:hover{background:#fbe4ee}
+.editor #edPartners{margin-top:6px;padding:8px;border:1px solid #f0d4e1;border-radius:8px;background:#fffafc}
+.editor #edPartners label{margin-top:0}
+.editor .partners{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.editor .partners button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:5px 7px;border:1px solid #eadde3;border-radius:7px;background:#fff;text-align:left;cursor:pointer;font:inherit}
+.editor .partners button:hover{background:#fdf1f6;border-color:#e3b3c8}
+.editor .partners button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.editor .partners__name{font-size:12px;font-weight:600;color:#22304a}
+.editor .partners__meta{font-size:10.5px;color:#5c6673}
+.editor .partners__flags{font-size:10px;color:#8a5a00}

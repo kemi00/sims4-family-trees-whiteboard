@@ -74,6 +74,7 @@ import type {
   HouseholdAgeUp,
   HouseholdMove,
   PairStatus,
+  SaveGameInfo,
   Selection,
   ShowToggles,
   SimAgeUp,
@@ -82,6 +83,7 @@ import type {
   WhiteboardData,
   World,
 } from '../types/whiteboard.ts';
+import { dynastyGenerations, setFirstHead } from '../lib/generations.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
@@ -149,6 +151,7 @@ type BoardSnap = {
   deceasedMarks: DeceasedMark[];
   simAgeUps: SimAgeUp[];
   pairStatus: PairStatus[];
+  saveGame: SaveGameInfo | null;
   /** Set only by actions that change filters, so only their undo restores them. */
   filters?: BoardFilters;
 };
@@ -305,6 +308,8 @@ export function useWhiteboard() {
   const [pairStatus, setPairStatus] = useState<PairStatus[]>(
     () => boot.pairStatus ?? [],
   );
+  /** Game clock and aging options from the last save import. */
+  const [saveGame, setSaveGame] = useState<SaveGameInfo | null>(() => boot.saveGame ?? null);
   const pairIndex = useMemo(
     () => indexPairStatus(hideSecrets ? withoutSecretStatus(pairStatus) : pairStatus),
     [pairStatus, hideSecrets],
@@ -546,6 +551,7 @@ export function useWhiteboard() {
         deceasedMarks,
         simAgeUps,
         pairStatus,
+        saveGame,
         connectionLog,
         sourceFileName,
       }),
@@ -564,6 +570,7 @@ export function useWhiteboard() {
       deceasedMarks,
       simAgeUps,
       pairStatus,
+      saveGame,
       connectionLog,
       sourceFileName,
     ],
@@ -629,6 +636,7 @@ export function useWhiteboard() {
       deceasedMarks: deceasedMarks.map((d) => ({ ...d })),
       simAgeUps: simAgeUps.map((a) => ({ ...a })),
       pairStatus,
+      saveGame,
       filters: opts?.filters
         ? {
             hiddenPacks: [...hiddenPacks],
@@ -640,7 +648,7 @@ export function useWhiteboard() {
         : undefined,
     });
     setCanUndo(true);
-  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets]);
+  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets]);
 
   const undo = useCallback(() => {
     const prev = undoRef.current.pop();
@@ -653,6 +661,7 @@ export function useWhiteboard() {
     setDeceasedMarks(prev.deceasedMarks);
     setSimAgeUps(prev.simAgeUps);
     setPairStatus(prev.pairStatus);
+    setSaveGame(prev.saveGame);
     if (prev.filters) {
       setHiddenPacks(new Set(prev.filters.hiddenPacks));
       setHiddenPlay(new Set(prev.filters.hiddenPlay));
@@ -1061,6 +1070,21 @@ export function useWhiteboard() {
     },
     [groups, nodes, nodesCore, worlds, edges, byid, snap, pushUndo, flashStatus],
   );
+
+  /**
+   * Count dynasty `key`'s generations from `id`, its first head on the board.
+   * `undo: false` when the caller already pushed an undo step (the editor's Save).
+   */
+  const setDynastyFirstHead = useCallback(
+    (key: string, id: string, opts?: { undo?: boolean }) => {
+      if (opts?.undo !== false) pushUndo();
+      setNodesCore((ns) => setFirstHead(ns, key, id));
+    },
+    [pushUndo],
+  );
+
+  /** Each dynasty member's generation, counted from the first head. */
+  const dynastyGens = useMemo(() => dynastyGenerations(nodesCore, edges), [nodesCore, edges]);
 
   const updateNode = useCallback((id: string, patch: Partial<SimNode>) => {
     const prev = nodesCore.find((n) => n.id === id);
@@ -1714,6 +1738,7 @@ export function useWhiteboard() {
       setDeceasedMarks([]);
       setSimAgeUps([]);
       setPairStatus([]);
+      setSaveGame(null);
       setSourceFileName(null);
       setFromBrowserDraft(false);
       undoRef.current = [];
@@ -1801,6 +1826,7 @@ export function useWhiteboard() {
         setDeceasedMarks(loadedDeaths);
         setSimAgeUps(loadedSimAgeUps);
         setPairStatus(d.pairStatus ?? []);
+        setSaveGame(d.saveGame ?? null);
         eidcRef.current = nextEidc(
           loadedEdges,
           eidcRef.current,
@@ -2011,6 +2037,8 @@ export function useWhiteboard() {
         if (d.pairStatus?.length) {
           setPairStatus((prev) => mergePairStatus(prev, d.pairStatus!));
         }
+        // The board's own save details win; a board without any takes the file's.
+        if (d.saveGame) setSaveGame((prev) => prev ?? d.saveGame!);
         if (d.householdMoves?.length) {
           setHouseholdMoves((prev) => {
             const seen = new Set(prev.map((m) => m.id));
@@ -2100,6 +2128,7 @@ export function useWhiteboard() {
       setEdges(result.edges);
       setGroups(result.groups);
       setPairStatus(result.pairStatus);
+      setSaveGame(result.saveGame);
       setNodesCore(
         saveImportCore({
           mode,
@@ -2160,6 +2189,8 @@ export function useWhiteboard() {
           packReference: seed.nodes,
           rosterEdges: seed.edges,
           movedByHand: new Set(householdMoves.map((m) => m.simId)),
+          game: saveGame,
+          fileName: file.name,
           now: new Date().toISOString(),
           nextEdgeId: () => 'v' + n++,
         });
@@ -2170,7 +2201,7 @@ export function useWhiteboard() {
       }
     };
     rd.readAsArrayBuffer(file);
-  }, [nodesCore, edges, groups, worlds, pairStatus, seed.nodes, seed.edges, householdMoves]);
+  }, [nodesCore, edges, groups, worlds, pairStatus, saveGame, seed.nodes, seed.edges, householdMoves]);
 
   const confirmSaveImport = useCallback(
     (svgWidth: number, svgHeight: number) => {
@@ -2193,6 +2224,7 @@ export function useWhiteboard() {
         seedNameKeys: seedNameKeysFromNodes(seed.nodes),
         packReference: seed.nodes,
         rosterEdges: seed.edges,
+        fileName: saveImport.merge.saveGame?.fileName,
         now: new Date().toISOString(),
         nextEdgeId: () => 'v' + n++,
       });
@@ -2556,6 +2588,8 @@ export function useWhiteboard() {
     addSimToHousehold,
     organiseBoard,
     updateNode,
+    setDynastyFirstHead,
+    dynastyGens,
     pushUndo,
     canUndo,
     undo,
@@ -2599,6 +2633,7 @@ export function useWhiteboard() {
     confirmSaveReplace,
     cancelSaveImport,
     saveImport,
+    saveGame,
     togglePack,
     togglePlay,
     setHiddenPlay,
