@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "7101113",
+   "date": "2026-11-06",
+   "text": "The chip on a selected link joins names with a plus: Ignacio Robles + Jade Rosa → Heir Rosa."
+  },
+  {
    "sha": "61366f7",
    "date": "2026-11-06",
    "text": "Move several sims to another household, or a new one, at once: Shift-click them (or click them with Select on), then choose Move to household in the bar that appears. One undo puts them all back. In the editor too, Create a new household now comes first in the list."
