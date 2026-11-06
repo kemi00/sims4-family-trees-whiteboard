@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "108d86b",
+   "date": "2026-11-07",
+   "text": "Dynasty generations count from the first head's oldest known ancestor, deceased sims and family-tree relatives included: Cordelia Thebe V is Gen 5 of the Thebe, under Queen Thebe. The editor says who Gen 1 is, and Count from lets you start the count from someone else on the line."
+  },
+  {
    "sha": "c2233b3",
    "date": "2026-11-07",
    "text": "Deceased sims' cards fade, and Filters → Hide deceased takes them off the board (saved with the board, like Hide secrets). Ages in Filters is now Highlight, grouped into life stage, gender, relationship and pets, and it says how many sims your chips pick out, such as \"25 male elders\", in the panel and in a banner on the board."
