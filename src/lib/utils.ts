@@ -1,4 +1,4 @@
-import { AGES_H, DECEASED_STATE, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD } from './constants.ts';
+import { AGES_H, DECEASED_STATE, GENDER_CHIPS, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD } from './constants.ts';
 import type {
   DeceasedMark,
   Edge,
@@ -313,8 +313,9 @@ export function isUnpartnered(id: string, edges: Edge[]): boolean {
 }
 
 /**
- * Age/species chips OR with each other; Single ANDs with that set.
- * Pets ignore Single and only match species chips.
+ * Age/species chips OR with each other; gender chips OR with each other and
+ * AND with that set, and so does Single. Pets ignore Single and only glow
+ * for their species chip, which a gender chip narrows like it does ages.
  */
 export function isHighlightMatch(
   n: SimNode,
@@ -323,11 +324,11 @@ export function isHighlightMatch(
   partnered: Set<string>,
 ): boolean {
   if (hi.size === 0 && !hiSingle) return true;
-  if (isPet(n)) {
-    if (hi.size === 0) return false;
-    return !!n.species && hi.has(n.species);
-  }
-  const ageOk = hi.size === 0 || hi.has(n.age);
+  let genders = 0;
+  for (const h of hi) if (GENDER_CHIPS.has(h)) genders++;
+  const genderOk = genders === 0 || hi.has(n.gender);
+  if (isPet(n)) return !!n.species && hi.has(n.species) && genderOk;
+  const ageOk = hi.size === genders || hi.has(n.age);
   const singleOk = !hiSingle || !partnered.has(n.id);
-  return ageOk && singleOk;
+  return ageOk && genderOk && singleOk;
 }

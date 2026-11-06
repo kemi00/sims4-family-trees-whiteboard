@@ -1,4 +1,5 @@
 import type { Edge, SimNode } from '../types/whiteboard.ts';
+import { GENDER_CHIPS, SPECIES_H } from './constants.ts';
 
 /** What Load JSON would discard from the current board. */
 export type LoadJsonRisk = {
@@ -112,6 +113,12 @@ const sameSet = (a: string[], b: string[]) =>
 const count = (n: number, one: string, many: string) =>
   `${n} ${n === 1 ? one : many}`;
 
+/** "a", "a and b", "a, b and c". */
+const listed = (items: unknown[]) =>
+  items.length < 2
+    ? String(items[0] ?? '')
+    : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+
 /**
  * One plain sentence for the Load JSON dialog on how a merge would change the
  * filters on screen, or null when it would leave them as they are.
@@ -136,13 +143,19 @@ export function filterChangeNote(
       count(file.hiddenPlay.length, 'playability type', 'playability types'),
     file.hideSecrets && 'secrets',
   ].filter(Boolean);
+  // One set holds the age, pet and gender chips.
+  const genders = file.hiAges.filter((h) => GENDER_CHIPS.has(h)).length;
+  const pets = file.hiAges.filter((h) => (SPECIES_H as readonly string[]).includes(h)).length;
+  const ages = file.hiAges.length - genders - pets;
   const highlights = [
-    file.hiAges.length && count(file.hiAges.length, 'age', 'ages'),
+    ages && count(ages, 'age', 'ages'),
+    genders && count(genders, 'gender', 'genders'),
+    pets && count(pets, 'pet species', 'pet species'),
     file.hiSingle && 'single sims',
   ].filter(Boolean);
   const parts = [
     hides.length ? `hides ${hides.join(' and ')}` : 'shows every game',
-    highlights.length ? `highlights ${highlights.join(' and ')}` : null,
+    highlights.length ? `highlights ${listed(highlights)}` : null,
     board.hideSecrets && !file.hideSecrets ? 'shows secrets' : null,
   ].filter(Boolean);
   return `Your filters will change to the file's: it ${parts.join(', ')}.`;

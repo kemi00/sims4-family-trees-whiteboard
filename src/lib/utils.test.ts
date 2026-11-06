@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { currentGid, currentWorldName, migrateWhiteboardData, parentLinkMakesCycle } from './utils.ts';
+import { currentGid, currentWorldName, isHighlightMatch, migrateWhiteboardData, parentLinkMakesCycle } from './utils.ts';
 
 function edge(a: string, b: string, type: Edge['type'] = 'parent'): Edge {
   return { id: `${type}:${a}:${b}`, a, b, type, source: 'seed' };
@@ -67,5 +67,36 @@ describe('Not in any world', () => {
   it('leaves a household that only starts with "Other" alone', () => {
     assert.equal(currentGid('Otherworld||Ames'), 'Otherworld||Ames');
     assert.equal(currentWorldName('Willow Creek'), 'Willow Creek');
+  });
+});
+
+describe('isHighlightMatch', () => {
+  const sim = (id: string, age: string, gender: string, species?: string) =>
+    ({ id, age, gender, ...(species ? { species } : {}) }) as SimNode;
+  const bella = sim('bella', 'Adult', 'Female');
+  const mortimer = sim('mortimer', 'Adult', 'Male');
+  const cassandra = sim('cassandra', 'Young Adult', 'Female');
+  const nb = sim('heir', 'Infant', 'Non-Binary');
+  const cat = sim('cat', 'Adult', 'Female', 'Cat');
+  const partnered = new Set(['bella', 'mortimer']);
+  const glowing = (hi: string[], single = false) =>
+    [bella, mortimer, cassandra, nb, cat]
+      .filter((n) => isHighlightMatch(n, new Set(hi), single, partnered))
+      .map((n) => n.id);
+
+  it('picks sims by gender, and gender chips add to each other', () => {
+    assert.deepEqual(glowing(['Female']), ['bella', 'cassandra']);
+    assert.deepEqual(glowing(['Non-Binary']), ['heir']);
+    assert.deepEqual(glowing(['Female', 'Male']), ['bella', 'mortimer', 'cassandra']);
+  });
+
+  it('narrows the ages picked, and Single narrows it further', () => {
+    assert.deepEqual(glowing(['Adult', 'Young Adult', 'Female']), ['bella', 'cassandra']);
+    assert.deepEqual(glowing(['Female'], true), ['cassandra']);
+  });
+
+  it('narrows pets only once their species is picked', () => {
+    assert.deepEqual(glowing(['Cat', 'Female']), ['cat']);
+    assert.deepEqual(glowing(['Cat', 'Male']), []);
   });
 });

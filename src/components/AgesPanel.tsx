@@ -1,8 +1,16 @@
-import { AGES_H, SPECIES, SPECIES_H } from '../lib/constants.ts';
+import { AGES_H, GENDERS, NEW_SIM_GENDERS, SPECIES, SPECIES_H } from '../lib/constants.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { isPet, partneredIdSet } from '../lib/utils.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
+
+const sectionLabel = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: '#6b7280',
+  margin: '10px 4px 6px',
+  letterSpacing: '0.02em',
+} as const;
 
 type Props = {
   nodes: SimNode[];
@@ -38,6 +46,14 @@ export function AgesPanel({
   const cntSpecies = (s: string) =>
     pets.filter((n) => n.species === s).length;
   const cntSingle = sims.filter((n) => !partnered.has(n.id)).length;
+  const cntGender = (g: string) => sims.filter((n) => n.gender === g).length;
+  // Female, Male and Non-Binary always; Variable, from the roster, only when a sim has it.
+  const genders = GENDERS.filter(
+    (g) =>
+      (NEW_SIM_GENDERS as readonly string[]).includes(g) ||
+      cntGender(g) > 0 ||
+      hiAges.has(g),
+  );
   const shown = nodes.filter(packVis).length;
 
   return (
@@ -47,7 +63,7 @@ export function AgesPanel({
       style={{ display: 'block', ...pos }}
     >
       <div className="gph">
-        <b>Highlight age, pets, or single sims</b>
+        <b>Highlight age, gender, pets, or single sims</b>
         <span>
           <button onClick={onClear}>Clear</button>
         </span>
@@ -90,19 +106,23 @@ export function AgesPanel({
           </button>
         ))}
       </div>
+      <div style={sectionLabel}>Gender</div>
+      <div className="agechips">
+        {genders.map((g) => (
+          <button
+            key={g}
+            data-gender={g}
+            className={hiAges.has(g) ? 'on' : ''}
+            onClick={() => onToggle(g)}
+          >
+            {g}{' '}
+            <b style={{ opacity: 0.6 }}>{cntGender(g)}</b>
+          </button>
+        ))}
+      </div>
       {pets.length > 0 && (
         <>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: '#6b7280',
-              margin: '10px 4px 6px',
-              letterSpacing: '0.02em',
-            }}
-          >
-            Pets
-          </div>
+          <div style={sectionLabel}>Pets</div>
           <div className="agechips">
             {SPECIES_H.map((s) => (
               <button
@@ -125,8 +145,8 @@ export function AgesPanel({
           margin: '8px 4px 2px',
         }}
       >
-        Highlighted sims glow gold; the rest dim. Age chips combine with
-        each other; Single intersects whatever ages are picked.
+        Highlighted sims glow gold; the rest dim. Age and pet chips add to
+        each other; gender and Single narrow them down.
       </div>
     </div>
   );

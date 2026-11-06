@@ -127,6 +127,14 @@ describe('JSON merge filters', () => {
     );
   });
 
+  it('names genders and pet species apart from ages', () => {
+    const file = fileFilters({ hiAges: ['Adult', 'Female', 'Male', 'Cat'], hiSingle: true });
+    assert.equal(
+      filterChangeNote(none, file),
+      "Your filters will change to the file's: it shows every game, highlights 1 age, 2 genders, 1 pet species and single sims.",
+    );
+  });
+
   it('warns when merging would clear the filters on screen', () => {
     assert.equal(
       filterChangeNote({ ...none, hiddenPacks: ['Seasons'] }, fileFilters({ hiddenPacks: [] })),

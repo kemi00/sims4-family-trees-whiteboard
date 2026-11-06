@@ -173,6 +173,9 @@ export const GENDERS = [
 /** Genders assigned when the user adds a sim. */
 export const NEW_SIM_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
 
+/** Gender chips in the highlight panel. They share the set with age and pet chips; no age or species is spelled the same. */
+export const GENDER_CHIPS: ReadonlySet<string> = new Set(GENDERS);
+
 /** Playability values from the premade sims spreadsheet. */
 export const PLAYABILITY = [
   'Resident',
