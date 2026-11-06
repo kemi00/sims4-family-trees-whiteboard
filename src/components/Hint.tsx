@@ -50,6 +50,12 @@ function NavTips() {
       <dt>Select several</dt>
       <dd>
         Drag a box while holding <kbd>Shift</kbd>, or turn on <b>Select</b>.
+        <kbd>Shift</kbd>-click a Sim to add or remove them.
+      </dd>
+      <dt>Move Sims to a household</dt>
+      <dd>
+        Select them, then choose <b>Move to household…</b> in the bar that
+        appears.
       </dd>
       <dt>Move around in Select</dt>
       <dd>

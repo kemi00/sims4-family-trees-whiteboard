@@ -15,6 +15,7 @@ import { trackAction } from '../lib/analytics.ts';
 import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, separateLoadOverlaps, shouldRepackOffsets, withReadableHouseholdNames } from '../lib/loadLayout.ts';
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
+import { householdMovePlan, moveDestination, type MoveDestination } from '../lib/householdMove.ts';
 import {
   bbox,
   cardOriginAtViewportCenter,
@@ -725,7 +726,7 @@ export function useWhiteboard() {
       setConnectMenu(null);
       setInfantHouseMenu(null);
       setStatus(
-        'Select is on: drag a box around Sims, households or worlds, then drag them to move. Hold Space to move around.',
+        'Select is on: click Sims one by one, or drag a box around Sims, households or worlds. Drag them to move them. Hold Space to move around.',
       );
     } else {
       setStatus('');
@@ -740,7 +741,7 @@ export function useWhiteboard() {
     setInfantHouseMenu(null);
     setStatus(
       connectMode ? 'Connect: click the FIRST sim' : selectMode
-        ? 'Select is on: drag a box around Sims, households or worlds, then drag them to move. Hold Space to move around.'
+        ? 'Select is on: click Sims one by one, or drag a box around Sims, households or worlds. Drag them to move them. Hold Space to move around.'
         : '',
     );
   }, [connectMode, selectMode]);
@@ -2223,109 +2224,88 @@ export function useWhiteboard() {
     setHiSingle((on) => !on);
   }, []);
 
-  const moveSimToHousehold = useCallback(
+  /**
+   * Move sims to a household on the board, or to a new one, as one undo
+   * step. Their cards stay where they are, as a single sim's do; the
+   * selection stays too, so they can be dragged into place. Returns where
+   * they went and how many moved (sims already there are skipped).
+   */
+  const moveSimsToHousehold = useCallback(
     (
-      nodeId: string,
+      ids: string[],
       world: string,
-      houseGid: string | '__new',
+      houseGid: string,
       newName?: string,
-    ) => {
-      const n = byid[nodeId];
-      if (!n) return;
-      let dest: {
-        gid: string;
-        hh: string;
-        world: string;
-        nb: string;
-        color: string;
-      } | null = null;
-      if (houseGid === '__new') {
-        const name = (newName || '').trim();
-        if (!name) return;
-        const gid = world + '||' + name;
-        dest = {
-          gid,
-          hh: name,
-          world,
-          nb: '-',
-          color: worldColor(world, worlds),
-        };
-        setGroups((gs) => {
-          if (gs.find((g) => g.gid === gid)) return gs;
-          return [
-            ...gs,
-            {
-              gid,
-              hh: name,
-              world,
-              nb: '-',
-              color: dest!.color,
-              x: 0,
-              y: 0,
-              w: 0,
-              h: 0,
-            },
-          ];
-        });
-      } else {
-        const g = groups.find((x) => x.gid === houseGid);
-        if (!g) return;
-        dest = {
-          gid: g.gid,
-          hh: g.hh,
-          world: g.world,
-          nb: g.nb,
-          color: g.color,
-        };
-      }
-      if (dest.gid === n.gid) {
-        setEditNodeId(null);
-        return;
-      }
+    ): { dest: MoveDestination; moved: number } | null => {
+      const dest = moveDestination(groups, nodes, worlds, world, houseGid, newName);
+      if (!dest) return null;
+      const { patches, moves } = householdMovePlan(nodes, ids, dest);
+      if (!patches.size) return { dest, moved: 0 };
       pushUndo();
-      const patch: Partial<SimNode> = {
-        gid: dest.gid,
-        hh: dest.hh,
-        world: dest.world,
-        color: dest.color,
-      };
-      if (n.added) {
-        patch.oworld = dest.world;
-        patch.ohh = dest.hh;
-        patch.oplay = 'Resident';
-        patch.townie = false;
-        if (houseGid === '__new') patch.onb = '-';
-        else {
-          const m0 = nodes.find(
-            (x) =>
-              x.gid === dest!.gid &&
-              x.id !== nodeId &&
-              x.onb &&
-              x.onb !== '-',
-          );
-          if (m0) patch.onb = m0.onb;
-        }
+      if (dest.isNew) {
+        setGroups((gs) =>
+          gs.some((g) => g.gid === dest.gid)
+            ? gs
+            : [
+                ...gs,
+                {
+                  gid: dest.gid,
+                  hh: dest.hh,
+                  world: dest.world,
+                  nb: dest.nb,
+                  color: dest.color,
+                  x: 0,
+                  y: 0,
+                  w: 0,
+                  h: 0,
+                },
+              ],
+        );
       }
+      const createdAt = new Date().toISOString();
       setHouseholdMoves((ms) => [
         ...ms,
-        {
-          id: 'h' + eidcRef.current++,
-          simId: nodeId,
-          createdAt: new Date().toISOString(),
-          fromGid: n.gid,
-          fromHh: n.hh,
-          fromWorld: n.world,
-          fromNb: n.nb,
-          toGid: dest.gid,
-          toHh: dest.hh,
-          toWorld: dest.world,
-          toNb: dest.nb,
-        },
+        ...moves.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt })),
       ]);
-      updateNode(nodeId, patch);
-      setEditNodeId(null);
+      // One pass for every card: patching them one by one would each start
+      // from the same old board and keep only the last.
+      const apply = (ns: SimNode[]) =>
+        ns.map((n) => {
+          const patch = patches.get(n.id);
+          return patch ? toCore({ ...n, ...patch }) : n;
+        });
+      pinCardsToCurrentPlaces(edges, apply(nodesCore));
+      return { dest, moved: patches.size };
     },
-    [byid, groups, nodes, updateNode, worlds, pushUndo],
+    [groups, nodes, nodesCore, worlds, edges, pushUndo, pinCardsToCurrentPlaces],
+  );
+
+  const moveSimToHousehold = useCallback(
+    (nodeId: string, world: string, houseGid: string, newName?: string) => {
+      const done = moveSimsToHousehold([nodeId], world, houseGid, newName);
+      if (done) setEditNodeId(null);
+    },
+    [moveSimsToHousehold],
+  );
+
+  /**
+   * Shift-click (or a tap in Select): add a sim to the selected sims, or take
+   * them out. A sim selected on their own joins, so click one and Shift-click
+   * the next to pick both.
+   */
+  const toggleSimInSelection = useCallback(
+    (id: string) => {
+      const base =
+        multiSel?.kind === 'nodes'
+          ? multiSel.ids
+          : sel?.type === 'node' && sel.id !== id
+            ? [sel.id]
+            : [];
+      const ids = base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+      setSel(null);
+      setMultiSel(ids.length ? { kind: 'nodes', ids } : null);
+    },
+    [multiSel, sel],
   );
 
   const ageUpHousehold = useCallback(
@@ -2616,9 +2596,12 @@ export function useWhiteboard() {
     setHiSingle,
     setHiddenPacks,
     moveSimToHousehold,
+    moveSimsToHousehold,
+    toggleSimInSelection,
     isSelLink,
     setSnap,
     setStatus,
+    flashStatus,
     setFastRoute,
     setSkipRoute,
     setViewport,

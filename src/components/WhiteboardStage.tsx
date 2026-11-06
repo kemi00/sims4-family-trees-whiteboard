@@ -62,6 +62,7 @@ import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
 import { FamilyBanner } from './FamilyBanner.tsx';
+import { SelectionBar } from './SelectionBar.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
 import { EdgeLayer } from './EdgeLayer.tsx';
@@ -146,6 +147,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     armed: boolean;
     /** Pressed on the card's ⠇: a click opens the editor at once. */
     more: boolean;
+    /** Shift-click, or any click in Select: a click adds the sim to the selection or takes them out. */
+    toggle: boolean;
   } | null>(null);
   const legendRef = useRef<HTMLDivElement>(null);
   const movedRef = useRef(false);
@@ -200,6 +203,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     px: number;
     py: number;
     armed: boolean;
+    /** Pressed with Shift (or in Select) on a selected sim: a click without a drag takes them out. */
+    toggleId?: string;
   } | null>(null);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchRef = useRef<{
@@ -550,7 +555,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     const el = stageRef.current;
     if (!el) return;
     const chromeSel =
-      '.viewctl, #legend, #hint, #hintIcon, .editor, .menu, #status, #autosave-cue, .legend-chip, .bloodline-banner, .minimap';
+      '.viewctl, #legend, #hint, #hintIcon, .editor, .menu, #status, #autosave-cue, .legend-chip, .bloodline-banner, .selbar, .minimap';
     const onTouchStart = (ev: TouchEvent) => {
       const t = ev.target as Element | null;
       if (t?.closest?.(chromeSel)) return;
@@ -1152,10 +1157,20 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     if (wb.connSrc) updateTemp(ev.clientX, ev.clientY);
   };
 
-  const finishNodePointer = (wasMoved: boolean, n: SimNode, more = false) => {
+  const finishNodePointer = (
+    wasMoved: boolean,
+    n: SimNode,
+    more = false,
+    toggle = false,
+  ) => {
     // The drop already wrote the snapped spot via moveNodesByIds. wb.byid is
     // still the pre-drag render, so snapping it here put the sim back.
     if (wasMoved) return;
+    if (toggle) {
+      lastClickRef.current = null;
+      wb.toggleSimInSelection(n.id);
+      return;
+    }
     if (more) {
       lastClickRef.current = null;
       wb.selectNode(n.id);
@@ -1235,26 +1250,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         });
         wb.clearSel();
         wb.setMultiSel(next);
-        if (next) {
-          const n =
-            next.kind === 'worlds'
-              ? next.worlds.length
-              : next.kind === 'households'
-                ? next.gids.length
-                : next.ids.length;
-          const label =
-            next.kind === 'worlds'
-              ? 'world'
-              : next.kind === 'households'
-                ? 'household'
-                : 'sim';
-          wb.setStatus(
-            `Selected ${n} ${label}${n === 1 ? '' : 's'} — drag to move`,
-          );
+        if (next && next.kind !== 'worlds') {
+          // The selection bar says what is picked and what to do with it.
+          wb.setStatus('');
+        } else if (next) {
+          const n = next.worlds.length;
+          wb.setStatus(`Selected ${n} world${n === 1 ? '' : 's'} — drag to move`);
         } else {
           wb.setStatus(
             wb.selectMode
-              ? 'Select is on: drag a box around Sims, households or worlds, then drag them to move. Hold Space to move around.'
+              ? 'Select is on: click Sims one by one, or drag a box around Sims, households or worlds. Drag them to move them. Hold Space to move around.'
               : '',
           );
         }
@@ -1271,6 +1276,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       if (d.armed) {
         endDragPreview();
         wb.moveNodesByIds(d.ids, d.lastDx, d.lastDy, d.base);
+      } else if (d.toggleId) {
+        wb.toggleSimInSelection(d.toggleId);
       }
       multiDragRef.current = null;
       return;
@@ -1303,7 +1310,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         );
       }
       dragRef.current = null;
-      finishNodePointer(wasMoved, n, d.more);
+      finishNodePointer(wasMoved, n, d.more, d.toggle);
       return;
     }
     if (panRef.current) {
@@ -1356,11 +1363,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         return;
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
+      const more = !!(ev.target as Element).closest?.('.node__more');
+      // Shift (⌘ or Ctrl too) picks sims one by one; in Select any click does.
+      const toggle =
+        !more && (ev.shiftKey || ev.metaKey || ev.ctrlKey || wbNow.selectMode);
       if (multiSelContainsNode(wbNow.multiSel, n.id) && wbNow.multiSel) {
         beginMultiDragRef.current(wbNow.multiSel, wx, wy, ev);
+        if (toggle && multiDragRef.current) multiDragRef.current.toggleId = n.id;
         return;
       }
-      wbNow.clearMultiSel();
+      if (!toggle) wbNow.clearMultiSel();
       dragRef.current = {
         n,
         dx: wx - n.x,
@@ -1374,7 +1386,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         lastY: n.y,
         base: { [n.id]: { ox: n.ox ?? 0, oy: n.oy ?? 0 } },
         armed: false,
-        more: !!(ev.target as Element).closest?.('.node__more'),
+        more,
+        toggle,
       };
       movedRef.current = false;
       clearLongPress();
@@ -1411,6 +1424,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     if (pointersRef.current.size >= 2) beginPinch();
   };
 
+  // Whole worlds are for dragging only; picked sims and households can move house.
+  const selectedSims =
+    wb.multiSel && wb.multiSel.kind !== 'worlds'
+      ? idsForMultiSel(wb.multiSel, wb.nodes)
+          .map((id) => wb.byid[id])
+          .filter((n): n is SimNode => !!n)
+      : [];
   const keepIds = new Set<string>(dragUnit?.ids ?? []);
   if (wb.sel?.type === 'node') keepIds.add(wb.sel.id);
   if (wb.multiSel?.kind === 'nodes') wb.multiSel.ids.forEach((id) => keepIds.add(id));
@@ -1824,6 +1844,31 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           scope={wb.familyScope}
           onScope={wb.setFamilyScope}
           onDone={() => wb.setFamilyFocus(false)}
+        />
+      )}
+      {selectedSims.length > 0 && wb.multiSel && (
+        <SelectionBar
+          sims={selectedSims}
+          households={wb.multiSel.kind === 'households' ? wb.multiSel.gids.length : undefined}
+          selectMode={wb.selectMode}
+          worlds={wb.worlds}
+          groups={wb.groups}
+          nodes={wb.nodes}
+          onMove={(world, house, name) => {
+            const ids = selectedSims.map((n) => n.id);
+            const done = wb.moveSimsToHousehold(ids, world, house, name);
+            if (!done) return;
+            // Keep the sims picked, so their cards can be dragged into place.
+            wb.setMultiSel({ kind: 'nodes', ids });
+            const { dest, moved } = done;
+            const where = `the ${dest.hh} household in ${dest.world}`;
+            wb.flashStatus(
+              moved === 0
+                ? `They already live in ${where}.`
+                : `Moved ${moved === 1 ? '1 sim' : `${moved} sims`} to ${where}${dest.isNew ? ' (new)' : ''}. Their cards stay put: drag them into place. Undo with ⌘Z.`,
+            );
+          }}
+          onClear={() => wb.clearMultiSel()}
         />
       )}
       {menu && (

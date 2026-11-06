@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { AGES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
@@ -49,7 +50,7 @@ type Props = {
     state: string;
     oplay: string;
   }) => void;
-  onMove: (world: string, houseGid: string | '__new', newName?: string) => void;
+  onMove: (world: string, houseGid: string, newName: string) => void;
   onLayout: () => void;
   onClose: () => void;
   /** Focus the name, selected, so a sim just added can be named straight away. */
@@ -82,9 +83,6 @@ export function SimEditor({
   const [state, setState] = useState(n.state || 'Sim');
   const [oplay, setOplay] = useState(n.oplay || 'Resident');
   const [moveOpen, setMoveOpen] = useState(false);
-  const [world, setWorld] = useState(n.oworld || n.world || worlds[0]?.name || '');
-  const [house, setHouse] = useState('');
-  const [newName, setNewName] = useState('');
   const boardHasSave = useMemo(() => nodes.some((x) => x.saveSimId), [nodes]);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -131,9 +129,10 @@ export function SimEditor({
     if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.keyCode === 229) return;
     const t = e.target as HTMLElement;
     if (t.closest('button, a, textarea')) return;
+    // The move form handles its own Enter.
+    if (t.closest('#edMove')) return;
     e.preventDefault();
-    if (t.closest('#edMove')) onMove(world, house as string | '__new', newName);
-    else save();
+    save();
   };
 
   const mid =
@@ -144,31 +143,6 @@ export function SimEditor({
         : n.oplay !== 'Resident'
           ? 'Townie'
           : '—';
-
-  const houseOptions = (() => {
-    const seen = new Set<string>();
-    const opts: { gid: string; hh: string }[] = [];
-    groups.forEach((g) => {
-      if (
-        g.world === world &&
-        g.gid !== n.gid &&
-        !seen.has(g.gid) &&
-        nodes.some((x) => x.gid === g.gid)
-      ) {
-        seen.add(g.gid);
-        opts.push({ gid: g.gid, hh: g.hh });
-      }
-    });
-    return opts.sort((a, b) =>
-      a.hh.localeCompare(b.hh, undefined, { sensitivity: 'base' }),
-    );
-  })();
-
-  useEffect(() => {
-    if (moveOpen && !house && houseOptions.length) {
-      setHouse(houseOptions[0]!.gid);
-    }
-  }, [moveOpen, world, houseOptions, house]);
 
   useEffect(() => {
     onLayout();
@@ -298,53 +272,26 @@ export function SimEditor({
           {noSimIdNote(n, boardHasSave)}
         </div>
       )}
-      <button className="movebtn" onClick={() => setMoveOpen(!moveOpen)}>
-        ↪ Move to a new household
+      <button
+        className="movebtn"
+        aria-expanded={moveOpen}
+        aria-controls="edMove"
+        onClick={() => setMoveOpen(!moveOpen)}
+      >
+        ↪ Move to another household
       </button>
       {moveOpen && (
         <div id="edMove">
-          <label>World</label>
-          <select
-            value={world}
-            onChange={(e) => {
-              setWorld(e.target.value);
-              setHouse('');
-            }}
-          >
-            {worlds.map((w) => (
-              <option key={w.name} value={w.name}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-          <label>Household</label>
-          <select
-            value={house}
-            onChange={(e) => setHouse(e.target.value)}
-          >
-            {houseOptions.map((o) => (
-              <option key={o.gid} value={o.gid}>
-                {o.hh}
-              </option>
-            ))}
-            <option value="__new">➕ Create a new household…</option>
-          </select>
-          {house === '__new' && (
-            <input
-              placeholder="New household name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              style={{ marginTop: 6 }}
-            />
-          )}
-          <button
-            className="movego"
-            onClick={() =>
-              onMove(world, house as string | '__new', newName)
-            }
-          >
-            Move {n.first} here
-          </button>
+          <HouseholdMoveForm
+            idPrefix="edMove"
+            worlds={worlds}
+            groups={groups}
+            nodes={nodes}
+            initialWorld={n.oworld || n.world || worlds[0]?.name || ''}
+            exclude={n.gid}
+            submitLabel={`Move ${n.first || 'this sim'} here`}
+            onMove={onMove}
+          />
         </div>
       )}
       <div className="row">
