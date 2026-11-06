@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "0cd0c7f",
+   "date": "2026-11-06",
+   "text": "Filters can highlight sims by gender: Female, Male or Non-Binary. A gender chip narrows the ages you pick, so Female with Young Adult lights only young adult women, and with a pet chip it picks out female cats, dogs or horses."
+  },
+  {
    "sha": "3b88803",
    "date": "2026-11-06",
    "text": "A premade who came in under a married name loses the save badge once the board knows them by their own name again."
