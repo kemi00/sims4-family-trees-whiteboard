@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "bcb4475",
+   "date": "2026-11-07",
+   "text": "Loading a save now reads how your game ages sims. A chip in the bar shows its lifespan and season length, with the game time and Auto Age options behind it. The sim editor shows when a sim was born, how long they have lived, how far into their life stage they are and the days to the next one. Dynasty members show their generation, counted from the dynasty's first head (\"Gen 2 of the Goth\"), and Possible partners lists unrelated sims closest in life."
+  },
+  {
    "sha": "5f41333",
    "date": "2026-11-06",
    "text": "Cards mark dynasties: 👑 the head, ⚜️ the heir and 🥀 an outcast, read from a Royalty & Legacy save or set in the editor's new Dynasty role field. Hover over a marked name to see its dynasty. The legend explains the marks."
