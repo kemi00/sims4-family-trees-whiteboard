@@ -72,6 +72,11 @@ export function SimEditor({
 }: Props) {
   const compact = useCompactChrome();
   const [name, setName] = useState(`${n.first} ${n.sur}`);
+  /** The game's surname from a spouse, when the card shows another. */
+  const married =
+    n.marriedSur && n.marriedSur.trim().toLowerCase() !== n.sur.trim().toLowerCase()
+      ? n.marriedSur
+      : '';
   const [age, setAge] = useState(n.age);
   const [gender, setGender] = useState(n.gender);
   const [state, setState] = useState(n.state || 'Sim');
@@ -208,8 +213,15 @@ export function SimEditor({
         ref={nameRef}
         value={name}
         enterKeyHint="done"
+        aria-describedby={married ? 'edMarried' : undefined}
         onChange={(e) => setName(e.target.value)}
       />
+      {married && (
+        <div id="edMarried" className="edhint">
+          In the game: {n.first} {married}, their spouse's surname. Type it here to
+          show it on the card.
+        </div>
+      )}
       <label>Age / life stage</label>
       <select value={age} onChange={(e) => setAge(e.target.value)}>
         {AGES.map((a) => (

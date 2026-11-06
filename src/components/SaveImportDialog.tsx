@@ -38,6 +38,7 @@ export function SaveImportDialog({
     summary.rejoined.length > 0 ||
     summary.relatives.length > 0 ||
     summary.relativesNamed.length > 0 ||
+    summary.ownSurnames.length > 0 ||
     summary.toNotInWorld.length > 0 ||
     summary.skipped.length > 0 ||
     summary.saveWorlds.length > 0 ||
@@ -125,6 +126,14 @@ export function SaveImportDialog({
                       the game's name for them
                     </li>
                   )}
+                  {summary.ownSurnames.length > 0 && (
+                    <li>
+                      <b>{summary.ownSurnames.length}</b> married{' '}
+                      {sims(summary.ownSurnames.length)}{' '}
+                      {verb(summary.ownSurnames.length, 'keeps', 'keep')} their own surname,
+                      not their spouse's
+                    </li>
+                  )}
                   {summary.notInSave > 0 && (
                     <li>
                       <b>{summary.notInSave}</b> {cards(summary.notInSave)} not in this save{' '}
@@ -184,6 +193,19 @@ export function SaveImportDialog({
                     game's family tree links them to your sims, though they are no sims
                     in your save: mostly ancestors who died long ago. Those the game
                     gives no name stay Unknown.
+                  </span>
+                </div>
+              )}
+              {summary.ownSurnames.length > 0 && (
+                <div className="save-import__meta">
+                  <span className="save-import__meta-label">Own surnames kept</span>
+                  <span className="save-import__meta-value">
+                    {listPreview(
+                      summary.ownSurnames.map((s) => `${s.name} (${s.married} in the game)`),
+                      8,
+                    )}
+                    . The game gives them their spouse's surname; a sim's card shows the
+                    married name once you type it there.
                   </span>
                 </div>
               )}

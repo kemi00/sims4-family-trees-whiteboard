@@ -1198,3 +1198,127 @@ describe('isStarterBoard', () => {
     assert.ok(!isStarterBoard(roster.slice(0, 1), roster));
   });
 });
+
+describe('married sims under their own surname', () => {
+  const worlds = [{ name: 'Willow Creek', color: '#4e79a7' }, ...world];
+  const goth = (id: string, first: string, sur: string, extra: Partial<SimNode> = {}) =>
+    sim({ id, first, sur, hh: 'Goth', ohh: 'Goth', gid: 'Willow Creek||Goth', ...extra });
+  const roster = [
+    goth('Bella Goth', 'Bella', 'Goth', { gender: 'Female' }),
+    goth('Mortimer Goth', 'Mortimer', 'Goth'),
+    goth('Cassandra Goth', 'Cassandra', 'Goth', { gender: 'Female', pack: 'Base Game' }),
+    sim({ id: 'Caleb Vatore', first: 'Caleb', sur: 'Vatore', hh: 'Vatore', ohh: 'Vatore' }),
+    sim({ id: 'Celeste Capp', first: 'Celeste', sur: 'Capp', gender: 'Non-Binary', hh: 'Capp', ohh: 'Capp' }),
+    sim({ id: 'Tybalt Capp', first: 'Tybalt', sur: 'Capp', hh: 'Capp', ohh: 'Capp' }),
+    sim({ id: 'Summer Holiday', first: 'Summer', sur: 'Holiday', gender: 'Female', hh: 'BFF', ohh: 'BFF' }),
+  ];
+  const rosterEdges: Edge[] = [
+    { id: 'r1', a: 'Bella Goth', b: 'Cassandra Goth', type: 'parent', source: 'seed' },
+    { id: 'r2', a: 'Mortimer Goth', b: 'Cassandra Goth', type: 'parent', source: 'seed' },
+    { id: 'r3', a: 'Tybalt Capp', b: 'Celeste Capp', type: 'parent', source: 'seed' },
+  ];
+  const saveSim = (id: string, first: string, last: string, household: string, gender = 'Female') => ({
+    saveSimId: id, householdId: `h-${household}`, first, last, household, age: 'Young Adult', gender, world: 'Willow Creek',
+  });
+  /** Cassandra married Caleb, and the game gave her his surname. */
+  const married: ParsedSave = {
+    sims: [
+      saveSim('1', 'Cassandra', 'Vatore', 'Goth'),
+      saveSim('2', 'Caleb', 'Vatore', 'Goth', 'Male'),
+      saveSim('3', 'Bella', 'Goth', 'Goth'),
+      saveSim('4', 'Mortimer', 'Goth', 'Goth', 'Male'),
+    ],
+    rels: [
+      { a: '1', b: '2', type: 'marriage' },
+      { a: '3', b: '4', type: 'marriage' },
+      { a: '3', b: '1', type: 'parent' },
+      { a: '4', b: '1', type: 'parent' },
+    ],
+  };
+  const merge = (parsed: ParsedSave, nodes: SimNode[] = []) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges: [],
+      groups: [],
+      worlds,
+      parsed,
+      seedNameKeys: seedNameKeysFromNodes(roster),
+      packReference: roster,
+      rosterEdges,
+      now: 'x',
+      nextEdgeId: (() => {
+        let n = 0;
+        return () => `v${n++}`;
+      })(),
+    });
+  const card = (r: ReturnType<typeof merge>, saveSimId: string) =>
+    r.nodes.find((n) => n.saveSimId === saveSimId)!;
+
+  it("keeps the card's surname when the game gives a sim their spouse's", () => {
+    const r = merge(married, [goth('c', 'Cassandra', 'Goth', { saveSimId: '1', gender: 'Female' })]);
+    const cassandra = card(r, '1');
+    assert.deepEqual([cassandra.sur, cassandra.marriedSur], ['Goth', 'Vatore']);
+    const caleb = card(r, '2');
+    assert.deepEqual([caleb.sur, caleb.marriedSur], ['Vatore', undefined]);
+    assert.equal(card(r, '3').marriedSur, undefined);
+    assert.deepEqual(r.summary.ownSurnames, [{ name: 'Cassandra Goth', married: 'Vatore' }]);
+  });
+
+  it('knows a renamed premade from the roster when the card already has the married name', () => {
+    const r = merge(married, [
+      goth('c', 'Cassandra', 'Vatore', { saveSimId: '1', gender: 'Female', fromSave: true }),
+    ]);
+    const cassandra = card(r, '1');
+    assert.deepEqual([cassandra.sur, cassandra.marriedSur, cassandra.fromSave], ['Goth', 'Vatore', undefined]);
+  });
+
+  it('gives a renamed premade its roster card on Replace, by a parent when the household moved', () => {
+    const r = merge({
+      sims: [
+        saveSim('5', 'Celeste', 'Alto', 'Alto'),
+        saveSim('6', 'Enzo', 'Alto', 'Alto', 'Male'),
+        saveSim('7', 'Tybalt', 'Capp', 'Capp', 'Male'),
+      ],
+      rels: [
+        { a: '5', b: '6', type: 'marriage' },
+        { a: '7', b: '5', type: 'parent' },
+      ],
+    });
+    const celeste = card(r, '5');
+    assert.deepEqual([celeste.sur, celeste.marriedSur, !!celeste.fromSave], ['Capp', 'Alto', false]);
+  });
+
+  it('takes no roster card that only shares a first name', () => {
+    const r = merge({
+      sims: [saveSim('8', 'Summer', 'Smith', 'Smith'), saveSim('9', 'John', 'Smith', 'Smith', 'Male')],
+      rels: [{ a: '8', b: '9', type: 'marriage' }],
+    });
+    assert.deepEqual([card(r, '8').sur, card(r, '8').marriedSur], ['Smith', undefined]);
+  });
+
+  it('keeps the married name once the player typed it on the card', () => {
+    const typed = goth('c', 'Cassandra', 'Vatore', { saveSimId: '1', gender: 'Female', marriedSur: 'Vatore' });
+    const cassandra = card(merge(married, [typed]), '1');
+    assert.deepEqual([cassandra.sur, cassandra.marriedSur], ['Vatore', 'Vatore']);
+  });
+
+  it('drops the married name when the game gives their own back', () => {
+    const divorced: ParsedSave = {
+      ...married,
+      sims: married.sims.map((s) => (s.saveSimId === '1' ? { ...s, last: 'Goth' } : s)),
+      rels: married.rels.map((r) => (r.a === '1' && r.b === '2' ? { ...r, type: 'divorced' as const } : r)),
+    };
+    const before = goth('c', 'Cassandra', 'Goth', { saveSimId: '1', gender: 'Female', marriedSur: 'Vatore' });
+    const cassandra = card(merge(divorced, [before]), '1');
+    assert.deepEqual([cassandra.sur, cassandra.marriedSur], ['Goth', undefined]);
+  });
+
+  it('settles on the same names when the same save comes in again', () => {
+    const once = merge(married, [goth('c', 'Cassandra', 'Vatore', { saveSimId: '1', gender: 'Female', fromSave: true })]);
+    const twice = merge(married, once.nodes);
+    assert.deepEqual(
+      twice.nodes.map((n) => [n.first, n.sur, n.marriedSur ?? '']),
+      once.nodes.map((n) => [n.first, n.sur, n.marriedSur ?? '']),
+    );
+  });
+});

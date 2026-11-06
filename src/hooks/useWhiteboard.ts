@@ -1640,7 +1640,11 @@ export function useWhiteboard() {
       const hits = nodes
         .filter(
           (n) =>
-            nodeVis(n) && `${n.first} ${n.sur}`.toLowerCase().includes(query),
+            nodeVis(n) &&
+            // The game's married name finds the sim too (Cassandra Vatore).
+            [n.sur, n.marriedSur].some(
+              (sur) => sur !== undefined && `${n.first} ${sur}`.toLowerCase().includes(query),
+            ),
         )
         .map((n) => n.id);
       if (!hits.length) {

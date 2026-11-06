@@ -122,6 +122,7 @@ function nodeIdentity(n: SimNode) {
     added: !!n.added,
     saveSimId: n.saveSimId ?? null,
     fromSave: !!n.fromSave,
+    marriedSur: n.marriedSur ?? null,
     treeId: n.treeId ?? null,
   };
 }

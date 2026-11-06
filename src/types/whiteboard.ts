@@ -35,6 +35,12 @@ export interface SimNode {
   /** In the save and not on the shipped xlsx roster. */
   fromSave?: boolean;
   /**
+   * The surname the game gives this sim from their spouse (Vatore for
+   * Cassandra Goth once she married Caleb). The card keeps `sur`, the
+   * sim's own; when the two are the same, the player chose to show it.
+   */
+  marriedSur?: string;
+  /**
    * Sims 4 family-tree id of a relative the save keeps only in its family
    * tree, with no sim and no name (an "Unknown" card), as a decimal string.
    */

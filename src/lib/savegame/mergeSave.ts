@@ -46,6 +46,11 @@ export type SaveMergeSummary = {
   relatives: string[];
   /** Unknown cards for such relatives that now have the game's name for them. */
   relativesNamed: string[];
+  /**
+   * Married sims the board shows under their own surname, with the one the
+   * game gives them from their spouse (see withOwnSurnames).
+   */
+  ownSurnames: { name: string; married: string }[];
   /** Board cards this save has no sim or relative for; Merge leaves them as they are. */
   notInSave: number;
 };
@@ -148,6 +153,106 @@ function pairKey(type: EdgeType, a: string, b: string): string {
 }
 
 type SourcedEdge = Edge & { source: 'seed' | 'save' | 'planned' };
+
+const BINARY = new Set(['Male', 'Female']);
+
+/** A save sim as the board files it (see {@link withOwnSurnames}). */
+type SaveSim = ParsedSaveSim & {
+  /** The game's surname, a spouse's; `last` is then the sim's own. */
+  marriedLast?: string;
+};
+
+/**
+ * Married sims under their own surname. The game can give a sim their
+ * spouse's (Cassandra Goth is Cassandra Vatore once she marries Caleb), and
+ * a mod such as MC Command Center can do it to every married couple in the
+ * save at once. A dynasty board follows the family a sim was born into, so
+ * a sim whose surname is a spouse's keeps the one the board knows:
+ *  - their card's, when the card has another surname (the board knew them
+ *    before the wedding, or the name was changed there by hand);
+ *  - their card's too when the card already has the married name as such
+ *    (the player chose to show it);
+ *  - otherwise, for a renamed premade, the roster's: the one roster card of
+ *    that first name the save holds no sim for, that shares the sim's
+ *    household, a parent or a spouse.
+ * The game's surname goes along as `marriedLast`.
+ */
+function withOwnSurnames(
+  parsed: ParsedSave,
+  board: SimNode[],
+  roster: SimNode[],
+  rosterEdges: Edge[],
+  seedNameKeys: Set<string>,
+): SaveSim[] {
+  const byId = new Map(parsed.sims.map((s) => [s.saveSimId, s]));
+  const relativeName = new Map(
+    (parsed.relatives ?? []).flatMap((r) => (r.name ? [[r.treeId, r.name] as const] : [])),
+  );
+  const fullName = (id: string) => {
+    const s = byId.get(id);
+    return foldName(s ? `${s.first} ${s.last}` : (relativeName.get(id) ?? ''));
+  };
+  const spouses = new Map<string, string[]>();
+  const parents = new Map<string, string[]>();
+  const add = (m: Map<string, string[]>, k: string, v: string) => m.set(k, [...(m.get(k) ?? []), v]);
+  for (const r of parsed.rels) {
+    if (r.type === 'parent') add(parents, r.b, r.a);
+    else if (r.type === 'marriage' || r.type === 'divorced') {
+      add(spouses, r.a, r.b);
+      add(spouses, r.b, r.a);
+    }
+  }
+  const rosterById = new Map(roster.map((n) => [n.id, n]));
+  const rosterName = (id: string) => {
+    const n = rosterById.get(id);
+    return n ? foldName(`${n.first} ${n.sur}`) : '';
+  };
+  const rosterKin = (id: string, kind: 'parent' | 'spouse') =>
+    rosterEdges.flatMap((e) => {
+      if (kind === 'parent') return e.type === 'parent' && e.b === id ? [rosterName(e.a)] : [];
+      if (e.type !== 'marriage' && e.type !== 'romance' && e.type !== 'divorced') return [];
+      return e.a === id ? [rosterName(e.b)] : e.b === id ? [rosterName(e.a)] : [];
+    });
+  const cardOf = new Map(board.flatMap((n) => (n.saveSimId ? [[n.saveSimId, n] as const] : [])));
+  const inSave = new Set(parsed.sims.map((s) => nameKey(s.first, s.last)));
+  const taken = new Set<string>();
+
+  return parsed.sims.map((sim): SaveSim => {
+    const last = foldName(sim.last);
+    const mine = spouses.get(sim.saveSimId) ?? [];
+    const renamed = !!last && mine.some((id) => foldName(byId.get(id)?.last ?? '') === last);
+    if (!renamed) return sim;
+    const card = cardOf.get(sim.saveSimId);
+    if (card?.sur.trim() && foldName(card.sur) !== last) {
+      return { ...sim, last: card.sur, marriedLast: sim.last };
+    }
+    if (card?.marriedSur && foldName(card.marriedSur) === last) {
+      return { ...sim, marriedLast: sim.last };
+    }
+    if (seedNameKeys.has(nameKey(sim.first, sim.last))) return sim;
+    const first = foldName(sim.first);
+    const hh = foldName(sim.household);
+    const theirParents = new Set((parents.get(sim.saveSimId) ?? []).map(fullName).filter(Boolean));
+    const theirSpouses = new Set(mine.map(fullName).filter(Boolean));
+    const found = roster.filter(
+      (r) =>
+        foldName(r.first) === first &&
+        !!r.sur.trim() &&
+        foldName(r.sur) !== last &&
+        (r.species ?? '') === (sim.species ?? '') &&
+        // The save knows two genders; the roster also says Non-Binary (Celeste Capp).
+        !(BINARY.has(r.gender) && BINARY.has(sim.gender) && r.gender !== sim.gender) &&
+        !inSave.has(nameKey(r.first, r.sur)) &&
+        !taken.has(r.id) &&
+        ((!!hh && (foldName(r.ohh) === hh || foldName(r.hh) === hh)) ||
+          rosterKin(r.id, 'parent').some((n) => theirParents.has(n)) ||
+          rosterKin(r.id, 'spouse').some((n) => theirSpouses.has(n))),
+    );
+    if (found.length !== 1) return sim;
+    taken.add(found[0]!.id);
+    return { ...sim, last: found[0]!.sur, marriedLast: sim.last };
+  });
+}
 
 type BoardHome = {
   gid: string;
@@ -346,7 +451,7 @@ export function renameTemplateHouseholds(
 }
 
 function newSaveNode(
-  sim: ParsedSaveSim,
+  sim: SaveSim,
   fromSave: boolean,
   home: BoardHome,
   pack: string,
@@ -369,7 +474,7 @@ function newSaveNode(
 }
 
 function plainSaveNode(
-  sim: ParsedSaveSim,
+  sim: SaveSim,
   fromSave: boolean,
   home: BoardHome,
   pack: string,
@@ -379,6 +484,7 @@ function plainSaveNode(
     gid: home.gid,
     first: sim.first,
     sur: sim.last,
+    ...(sim.marriedLast ? { marriedSur: sim.marriedLast } : {}),
     age: sim.age,
     state: sim.species ? 'Pet' : 'Sim',
     gender: sim.gender,
@@ -406,7 +512,7 @@ function plainSaveNode(
 
 function patchMatched(
   n: SimNode,
-  sim: ParsedSaveSim,
+  sim: SaveSim,
   fromSave: boolean,
   /** The premade's roster card, for a breed the board's card lacks. */
   roster?: SimNode,
@@ -417,6 +523,13 @@ function patchMatched(
     sur: sim.last || n.sur,
     saveSimId: sim.saveSimId,
   };
+  if (sim.marriedLast) {
+    next.marriedSur = sim.marriedLast;
+    // Known as a premade again: the mark came from the married name.
+    if (!fromSave) delete next.fromSave;
+  } else {
+    delete next.marriedSur;
+  }
   if (sim.age) next.age = sim.age;
   if (sim.gender) next.gender = sim.gender;
   if (sim.species) {
@@ -796,7 +909,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const hhHome = new Map<string, BoardHome>();
   const existingGids = new Set(nodes.map((n) => n.gid));
   const skipped: string[] = [];
-  const unmatched: ParsedSaveSim[] = [];
+  const unmatched: SaveSim[] = [];
   /** Save household id → its sims matched to board cards. */
   const byHousehold = new Map<string, { sim: ParsedSaveSim; id: string }[]>();
   const unhousedMatched: string[] = [];
@@ -804,7 +917,14 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   let added = 0;
   let fromSaveCount = 0;
 
-  for (const sim of parsed.sims) {
+  const sims = withOwnSurnames(
+    parsed,
+    input.nodes,
+    input.packReference ?? [],
+    input.rosterEdges ?? [],
+    seedNameKeys,
+  );
+  for (const sim of sims) {
     const found = matchSaveSim(sim, bySaveId, byName, byNameHh, byLast, claimed);
     if (found === 'ambiguous') {
       skipped.push(`${sim.first} ${sim.last}`.trim());
@@ -1177,6 +1297,11 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       toNotInWorld: toNotInWorld.map(nameOf),
       relatives: relativesAdded.map(nameOf),
       relativesNamed: relativesNamed.map(nameOf),
+      ownSurnames: sims.flatMap((sim) => {
+        const id = saveIdToBoard.get(sim.saveSimId);
+        if (!id || !sim.marriedLast || foldName(sim.marriedLast) === foldName(sim.last)) return [];
+        return [{ name: nameOf(id), married: sim.marriedLast }];
+      }),
       notInSave: input.nodes.filter((n) => !claimed.has(n.id)).length,
     },
   };
