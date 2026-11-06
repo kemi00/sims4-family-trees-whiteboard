@@ -851,3 +851,18 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .partners__name{font-size:12px;font-weight:600;color:#22304a}
 .editor .partners__meta{font-size:10.5px;color:#5c6673}
 .editor .partners__flags{font-size:10px;color:#8a5a00}
+
+/* ── deceased sims: their cards fade, so the living stand out ───────────── */
+.node.dead{opacity:.48}
+.node.dead.agedim{opacity:.14}
+.node.dead.sel,.node.dead.msel,.node.dead.agehl,.node.dead.searchhit,.node.dead.searchcur{opacity:.85}
+.lg__dead{display:inline-block;width:16px;height:9px;margin-right:4px;border:1.5px solid #8a94a0;border-radius:3px;background:#fff;opacity:.48;vertical-align:-1px}
+
+/* ── highlight count: in the Highlight panel and on the board ──────────── */
+.hlsum{margin:0 4px 4px;padding:6px 8px;border-radius:8px;background:#fff8e6;font-size:12px;line-height:1.4;color:#5c4a12}
+.hlsum b{color:#3d2f00}
+.hlsum__of{color:#8a7f63}
+.highlight-banner{border-color:#f0d58a}
+.highlight-banner .highlight-banner__change{margin-left:auto;background:#fff;color:var(--ink);border-color:var(--line)}
+.highlight-banner .highlight-banner__change:hover{background:var(--hover)}
+.highlight-banner .highlight-banner__change + button{margin-left:0}

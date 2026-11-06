@@ -74,6 +74,8 @@ export type BoardFilters = {
   hiSingle: boolean;
   /** Absent means shown, as in files saved before the filter existed. */
   hideSecrets?: boolean;
+  /** Absent means shown, as in files saved before the filter existed. */
+  hideDeceased?: boolean;
 };
 
 /**
@@ -86,13 +88,15 @@ export function fileFilters(d: {
   hiAges?: unknown;
   hiSingle?: unknown;
   hideSecrets?: unknown;
+  hideDeceased?: unknown;
 }): BoardFilters | null {
   if (
     d.hiddenPacks === undefined &&
     d.hiddenPlay === undefined &&
     d.hiAges === undefined &&
     d.hiSingle === undefined &&
-    d.hideSecrets === undefined
+    d.hideSecrets === undefined &&
+    d.hideDeceased === undefined
   ) {
     return null;
   }
@@ -104,6 +108,7 @@ export function fileFilters(d: {
     hiAges: list(d.hiAges),
     hiSingle: d.hiSingle === true,
     hideSecrets: d.hideSecrets === true,
+    hideDeceased: d.hideDeceased === true,
   };
 }
 
@@ -133,7 +138,8 @@ export function filterChangeNote(
       sameSet(board.hiddenPlay, file.hiddenPlay) &&
       sameSet(board.hiAges, file.hiAges) &&
       board.hiSingle === file.hiSingle &&
-      !!board.hideSecrets === !!file.hideSecrets)
+      !!board.hideSecrets === !!file.hideSecrets &&
+      !!board.hideDeceased === !!file.hideDeceased)
   ) {
     return null;
   }
@@ -142,6 +148,7 @@ export function filterChangeNote(
     file.hiddenPlay.length &&
       count(file.hiddenPlay.length, 'playability type', 'playability types'),
     file.hideSecrets && 'secrets',
+    file.hideDeceased && 'deceased sims',
   ].filter(Boolean);
   // One set holds the age, pet and gender chips.
   const genders = file.hiAges.filter((h) => GENDER_CHIPS.has(h)).length;
@@ -154,9 +161,10 @@ export function filterChangeNote(
     file.hiSingle && 'single sims',
   ].filter(Boolean);
   const parts = [
-    hides.length ? `hides ${hides.join(' and ')}` : 'shows every game',
+    hides.length ? `hides ${listed(hides)}` : 'shows every game',
     highlights.length ? `highlights ${listed(highlights)}` : null,
     board.hideSecrets && !file.hideSecrets ? 'shows secrets' : null,
+    board.hideDeceased && !file.hideDeceased ? 'shows deceased sims' : null,
   ].filter(Boolean);
   return `Your filters will change to the file's: it ${parts.join(', ')}.`;
 }

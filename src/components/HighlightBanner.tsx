@@ -1,0 +1,33 @@
+import type { HighlightSummary } from '../lib/highlight.ts';
+
+type Props = {
+  summary: HighlightSummary;
+  /** Open the Highlight panel to change the chips. */
+  onChange: () => void;
+  onClear: () => void;
+};
+
+/**
+ * While a highlight is on and its panel is closed, say how many cards it
+ * picks out, so the count stays in view on the board.
+ */
+export function HighlightBanner({ summary, onChange, onClear }: Props) {
+  return (
+    <div
+      className="bloodline-banner highlight-banner"
+      role="status"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <p>
+        Highlighting <b>{summary.count}</b> {summary.phrase}
+        {summary.deceased > 0 ? ` (${summary.deceased} deceased)` : ''} of {summary.shown} shown.
+      </p>
+      <button type="button" className="highlight-banner__change" onClick={onChange}>
+        Change
+      </button>
+      <button type="button" onClick={onClear}>
+        Clear
+      </button>
+    </div>
+  );
+}

@@ -279,6 +279,8 @@ export interface WhiteboardData {
   hiSingle?: boolean;
   /** Hide secrets filter: secret lovers and secret parents stay off the board. */
   hideSecrets?: boolean;
+  /** Hide deceased filter: sims marked Deceased stay off the board. */
+  hideDeceased?: boolean;
   /** Sim whose ancestors and descendants stay undimmed. */
   bloodlineId?: string | null;
 }

@@ -146,6 +146,7 @@ describe('JSON merge filters', () => {
     assert.deepEqual(fileFilters({ hideSecrets: true }), {
       ...none,
       hideSecrets: true,
+      hideDeceased: false,
     });
     assert.equal(fileFilters({ hiddenPacks: [] })?.hideSecrets, false);
     assert.equal(
@@ -157,5 +158,18 @@ describe('JSON merge filters', () => {
       "Your filters will change to the file's: it shows every game, shows secrets.",
     );
     assert.equal(filterChangeNote(none, fileFilters({ hiddenPacks: [] })), null);
+  });
+
+  it('reads and describes the Hide deceased filter', () => {
+    assert.equal(fileFilters({ hideDeceased: true })?.hideDeceased, true);
+    assert.equal(fileFilters({ hiddenPacks: [] })?.hideDeceased, false);
+    assert.equal(
+      filterChangeNote(none, fileFilters({ hiddenPacks: [], hideSecrets: true, hideDeceased: true })),
+      "Your filters will change to the file's: it hides secrets and deceased sims.",
+    );
+    assert.equal(
+      filterChangeNote({ ...none, hideDeceased: true }, fileFilters({ hiddenPacks: [] })),
+      "Your filters will change to the file's: it shows every game, shows deceased sims.",
+    );
   });
 });

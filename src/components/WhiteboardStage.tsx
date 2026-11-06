@@ -62,6 +62,7 @@ import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
 import { FamilyBanner } from './FamilyBanner.tsx';
+import { HighlightBanner } from './HighlightBanner.tsx';
 import { SelectionBar } from './SelectionBar.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
@@ -74,6 +75,7 @@ import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
 import type { DynastyGeneration } from '../lib/generations.ts';
+import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { SimNodeView } from './SimNode.tsx';
 import { ViewControls } from './ViewControls.tsx';
 import { WorldLayer } from './WorldLayer.tsx';
@@ -1845,6 +1847,31 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           onShowEveryone={() => wb.setBloodlineId(null)}
         />
       )}
+      {!wb.staleTab &&
+        !wb.bloodlineId &&
+        !wb.familyFocus &&
+        !wb.agesOpen &&
+        highlightActive(wb.hiAges, wb.hiSingle) && (
+          <HighlightBanner
+            summary={highlightSummary({
+              nodes: wb.nodes,
+              shown: wb.nodeVis,
+              hi: wb.hiAges,
+              hiSingle: wb.hiSingle,
+              partnered: wb.partneredIds,
+            })}
+            onChange={() => {
+              wb.setGamesOpen(false);
+              wb.setPlayOpen(false);
+              wb.setLogOpen(false);
+              wb.setAgesOpen(true);
+            }}
+            onClear={() => {
+              wb.setHiAges(new Set());
+              wb.setHiSingle(false);
+            }}
+          />
+        )}
       {wb.familyFocus && (
         <FamilyBanner
           family={wb.family}

@@ -1,6 +1,7 @@
 import { AGES_H, GENDERS, NEW_SIM_GENDERS, SPECIES, SPECIES_H } from '../lib/constants.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
+import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { isPet, partneredIdSet } from '../lib/utils.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
@@ -39,8 +40,11 @@ export function AgesPanel({
   const pos = panelPosition(anchorRect, 266);
   if (!pos) return null;
 
-  const sims = nodes.filter((n) => !isPet(n));
-  const pets = nodes.filter(isPet);
+  // Counts follow what the board shows: hidden games, play types and the
+  // deceased (Filters → Hide deceased) are left out, as on the board.
+  const visible = nodes.filter(packVis);
+  const sims = visible.filter((n) => !isPet(n));
+  const pets = visible.filter(isPet);
   const partnered = partneredIdSet(edges);
   const cntAge = (a: string) => sims.filter((n) => n.age === a).length;
   const cntSpecies = (s: string) =>
@@ -54,7 +58,8 @@ export function AgesPanel({
       cntGender(g) > 0 ||
       hiAges.has(g),
   );
-  const shown = nodes.filter(packVis).length;
+  const active = highlightActive(hiAges, hiSingle);
+  const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, partnered });
 
   return (
     <div
@@ -63,37 +68,35 @@ export function AgesPanel({
       style={{ display: 'block', ...pos }}
     >
       <div className="gph">
-        <b>Highlight age, gender, pets, or single sims</b>
+        <b>Highlight sims</b>
         <span>
-          <button onClick={onClear}>Clear</button>
+          <button onClick={onClear} disabled={!active}>
+            Clear
+          </button>
         </span>
       </div>
-      <div style={{ margin: '0 4px 9px', fontSize: 12, color: '#3b4757' }}>
-        <b>{sims.length}</b> sims
-        {pets.length > 0 && (
+      <div className="hlsum" role="status" aria-live="polite">
+        {active ? (
           <>
-            {' '}
-            · <b>{pets.length}</b> pets
+            <b>{summary.count}</b> {summary.phrase}
+            {summary.deceased > 0 && <> · {summary.deceased} deceased</>}
+            <span className="hlsum__of"> of {summary.shown} shown</span>
           </>
-        )}
-        {shown !== nodes.length && (
+        ) : (
           <>
-            {' '}
-            · <b>{shown}</b> shown
+            <b>{sims.length}</b> sims
+            {pets.length > 0 && (
+              <>
+                {' '}
+                · <b>{pets.length}</b> pets
+              </>
+            )}{' '}
+            shown. Pick what to highlight.
           </>
         )}
       </div>
+      <div style={sectionLabel}>Life stage</div>
       <div className="agechips">
-        <button
-          type="button"
-          className={hiSingle ? 'on' : ''}
-          onClick={onToggleSingle}
-        >
-          Single{' '}
-          <b style={{ opacity: 0.6 }}>{cntSingle}</b>
-        </button>
-      </div>
-      <div className="agechips" style={{ marginTop: 8 }}>
         {AGES_H.map((a) => (
           <button
             key={a}
@@ -120,6 +123,17 @@ export function AgesPanel({
           </button>
         ))}
       </div>
+      <div style={sectionLabel}>Relationship</div>
+      <div className="agechips">
+        <button
+          type="button"
+          className={hiSingle ? 'on' : ''}
+          onClick={onToggleSingle}
+        >
+          Single{' '}
+          <b style={{ opacity: 0.6 }}>{cntSingle}</b>
+        </button>
+      </div>
       {pets.length > 0 && (
         <>
           <div style={sectionLabel}>Pets</div>
@@ -145,8 +159,8 @@ export function AgesPanel({
           margin: '8px 4px 2px',
         }}
       >
-        Highlighted sims glow gold; the rest dim. Age and pet chips add to
-        each other; gender and Single narrow them down.
+        Highlighted sims glow gold; the rest dim. Life stage and pet chips
+        add to each other; gender and Single narrow them down.
       </div>
     </div>
   );

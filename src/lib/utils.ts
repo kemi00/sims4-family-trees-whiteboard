@@ -208,6 +208,7 @@ export function migrateWhiteboardData(d: {
   hiAges?: string[];
   hiSingle?: boolean;
   hideSecrets?: boolean;
+  hideDeceased?: boolean;
   bloodlineId?: string | null;
   householdMoves?: HouseholdMove[];
   householdAgeUps?: HouseholdAgeUp[];

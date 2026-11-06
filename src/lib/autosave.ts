@@ -34,6 +34,8 @@ export type PersistPayload = {
   hiSingle: boolean;
   /** Hide secrets filter (absent on older files). */
   hideSecrets?: boolean;
+  /** Hide deceased filter (absent on older files). */
+  hideDeceased?: boolean;
   bloodlineId: string | null;
   householdMoves: HouseholdMove[];
   householdAgeUps: HouseholdAgeUp[];
@@ -69,6 +71,7 @@ export function buildPersistPayload(input: {
   hiAges: Iterable<string>;
   hiSingle: boolean;
   hideSecrets?: boolean;
+  hideDeceased?: boolean;
   bloodlineId: string | null;
   householdMoves: HouseholdMove[];
   householdAgeUps: HouseholdAgeUp[];
@@ -90,6 +93,7 @@ export function buildPersistPayload(input: {
     hiAges: [...input.hiAges],
     hiSingle: input.hiSingle,
     hideSecrets: !!input.hideSecrets,
+    hideDeceased: !!input.hideDeceased,
     bloodlineId: input.bloodlineId,
     householdMoves: input.householdMoves,
     householdAgeUps: input.householdAgeUps,
@@ -170,6 +174,7 @@ export function boardIdentity(payload: PersistPayload): string {
     hiAges: [...(payload.hiAges ?? [])].sort(),
     hiSingle: !!payload.hiSingle,
     hideSecrets: !!payload.hideSecrets,
+    hideDeceased: !!payload.hideDeceased,
     bloodlineId: payload.bloodlineId ?? null,
     householdMoves: payload.householdMoves ?? [],
     householdAgeUps: payload.householdAgeUps ?? [],
@@ -192,6 +197,7 @@ export function persistPayloadFromSeed(seed: WhiteboardData): PersistPayload {
     hiAges: migrated.hiAges ?? [],
     hiSingle: !!migrated.hiSingle,
     hideSecrets: !!migrated.hideSecrets,
+    hideDeceased: !!migrated.hideDeceased,
     bloodlineId: migrated.bloodlineId ?? null,
     householdMoves: migrated.householdMoves ?? [],
     householdAgeUps: migrated.householdAgeUps ?? [],
@@ -393,6 +399,7 @@ export function bootWhiteboardData(
       hiAges: draft.hiAges,
       hiSingle: draft.hiSingle,
       hideSecrets: draft.hideSecrets,
+      hideDeceased: draft.hideDeceased,
       bloodlineId: draft.bloodlineId,
       householdMoves: draft.householdMoves,
       householdAgeUps: draft.householdAgeUps,

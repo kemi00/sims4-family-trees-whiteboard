@@ -12,6 +12,7 @@ import {
   LockSimple,
   MagicWand,
   MagnifyingGlass,
+  Skull,
   CaretDown,
   CaretUp,
   ArrowCounterClockwise,
@@ -202,7 +203,8 @@ export function AppBar({
     playHidden +
     ageCount +
     (wb.bloodlineId ? 1 : 0) +
-    (wb.hideSecrets ? 1 : 0);
+    (wb.hideSecrets ? 1 : 0) +
+    (wb.hideDeceased ? 1 : 0);
   const filterPanelOpen = wb.gamesOpen || wb.playOpen || wb.agesOpen;
 
   const svgSize = () => {
@@ -289,6 +291,10 @@ export function AppBar({
   };
   const onHideSecrets = () => {
     wb.toggleHideSecrets();
+    setFiltersOpen(false);
+  };
+  const onHideDeceased = () => {
+    wb.toggleHideDeceased();
     setFiltersOpen(false);
   };
 
@@ -486,7 +492,7 @@ export function AppBar({
           id="btnFilters"
           ref={filtersBtnRef}
           icon={Funnel}
-          label={filterCount ? `Filters: ${filterCount} on` : 'Bloodline, secrets, games, play, ages'}
+          label={filterCount ? `Filters: ${filterCount} on` : 'Bloodline, hide secrets or deceased, games, play, highlight'}
           pressed={filterCount > 0 || filterPanelOpen || filtersOpen}
           count={filterCount}
           expanded={filtersOpen}
@@ -528,6 +534,21 @@ export function AppBar({
               <LockSimple aria-hidden="true" />
               Hide secrets
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              aria-pressed={wb.hideDeceased}
+              disabled={!wb.hasDeceased && !wb.hideDeceased}
+              title={
+                wb.hasDeceased || wb.hideDeceased
+                  ? 'Hide sims marked Deceased. Their cards keep their places, and they stay in your file.'
+                  : 'No deceased sims on this board.'
+              }
+              onClick={onHideDeceased}
+            >
+              <Skull aria-hidden="true" />
+              Hide deceased
+            </button>
             <span className="pop__rule" aria-hidden="true" />
             <button type="button" role="menuitem" onClick={openGames}>
               <GameController aria-hidden="true" />
@@ -541,7 +562,7 @@ export function AppBar({
             </button>
             <button type="button" role="menuitem" onClick={openAges}>
               <Highlighter aria-hidden="true" />
-              Ages
+              Highlight
               {ageCount ? ` (${ageCount})` : ''}
             </button>
           </div>

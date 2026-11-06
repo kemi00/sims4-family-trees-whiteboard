@@ -165,6 +165,10 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
             </span>
           ))}
         </div>
+        <div className="lg">
+          <span className="lg__dead" aria-hidden="true" />
+          faded card = deceased (Filters → Hide deceased)
+        </div>
         <div className="lg lg--notes">
           <span className="lg__swatch" aria-hidden="true" />
           <span>

@@ -272,6 +272,7 @@ export function useWhiteboard() {
   const [hiSingle, setHiSingle] = useState(() => !!boot.hiSingle);
   /** Hide secrets filter: secret lovers and secret parents stay off the board. */
   const [hideSecrets, setHideSecrets] = useState(() => !!boot.hideSecrets);
+  const [hideDeceased, setHideDeceased] = useState(() => !!boot.hideDeceased);
   const [bloodlineId, setBloodlineId] = useState<string | null>(() => {
     if (boot.bloodlineId && boot.nodes.some((n) => n.id === boot.bloodlineId)) {
       return boot.bloodlineId;
@@ -424,10 +425,10 @@ export function useWhiteboard() {
     [hiddenPlay],
   );
 
-  /** Combined pack + playability visibility for canvas rendering. */
+  /** Combined pack, playability and Hide deceased visibility for canvas rendering. */
   const nodeVis = useCallback(
-    (n: SimNode) => packVis(n) && playVis(n),
-    [packVis, playVis],
+    (n: SimNode) => packVis(n) && playVis(n) && !(hideDeceased && n.state === DECEASED_STATE),
+    [packVis, playVis, hideDeceased],
   );
 
   /**
@@ -545,6 +546,7 @@ export function useWhiteboard() {
         hiAges,
         hiSingle,
         hideSecrets,
+        hideDeceased,
         bloodlineId,
         householdMoves,
         householdAgeUps,
@@ -564,6 +566,7 @@ export function useWhiteboard() {
       hiAges,
       hiSingle,
       hideSecrets,
+      hideDeceased,
       bloodlineId,
       householdMoves,
       householdAgeUps,
@@ -644,11 +647,12 @@ export function useWhiteboard() {
             hiAges: [...hiAges],
             hiSingle,
             hideSecrets,
+            hideDeceased,
           }
         : undefined,
     });
     setCanUndo(true);
-  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets]);
+  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased]);
 
   const undo = useCallback(() => {
     const prev = undoRef.current.pop();
@@ -668,6 +672,7 @@ export function useWhiteboard() {
       setHiAges(new Set(prev.filters.hiAges));
       setHiSingle(prev.filters.hiSingle);
       setHideSecrets(!!prev.filters.hideSecrets);
+      setHideDeceased(!!prev.filters.hideDeceased);
     }
     setCanUndo(undoRef.current.length > 0);
     setSel(null);
@@ -1732,6 +1737,7 @@ export function useWhiteboard() {
       setHiAges(new Set());
       setHiSingle(false);
       setHideSecrets(false);
+      setHideDeceased(false);
       setBloodlineId(null);
       setHouseholdMoves([]);
       setHouseholdAgeUps([]);
@@ -1845,6 +1851,7 @@ export function useWhiteboard() {
         setHiAges(new Set(d.hiAges || []));
         setHiSingle(!!d.hiSingle);
         setHideSecrets(!!d.hideSecrets);
+        setHideDeceased(!!d.hideDeceased);
         const loadedIds = new Set((d.nodes as SimNode[]).map((n) => n.id));
         setBloodlineId(
           d.bloodlineId && loadedIds.has(d.bloodlineId)
@@ -1918,6 +1925,7 @@ export function useWhiteboard() {
               hiAges: [...hiAges],
               hiSingle,
               hideSecrets,
+              hideDeceased,
             },
             fileFilters(parsed),
           );
@@ -1956,6 +1964,7 @@ export function useWhiteboard() {
       hiAges,
       hiSingle,
       hideSecrets,
+      hideDeceased,
       applyLoadedJson,
     ],
   );
@@ -2053,6 +2062,7 @@ export function useWhiteboard() {
           setHiAges(new Set(incomingFilters.hiAges));
           setHiSingle(incomingFilters.hiSingle);
           setHideSecrets(!!incomingFilters.hideSecrets);
+          setHideDeceased(!!incomingFilters.hideDeceased);
         }
         setSourceFileName(pending.file.name);
         setFromBrowserDraft(false);
@@ -2118,7 +2128,8 @@ export function useWhiteboard() {
         setHiddenPlay(new Set());
         setHiAges(new Set());
         setHiSingle(false);
-      setHideSecrets(false);
+        setHideSecrets(false);
+        setHideDeceased(false);
         setBloodlineId(null);
         setFromBrowserDraft(false);
         setSourceFileName(null);
@@ -2451,6 +2462,22 @@ export function useWhiteboard() {
     );
   }, [hideSecrets, sel, edges, flashStatus]);
 
+  /** Hide or show sims marked Deceased; their cards keep their places. */
+  const toggleHideDeceased = useCallback(() => {
+    const on = !hideDeceased;
+    setHideDeceased(on);
+    if (on && sel?.type === 'node' && byid[sel.id]?.state === DECEASED_STATE) setSel(null);
+    if (on) trackAction('/action/hide-deceased');
+    flashStatus(
+      on
+        ? 'Deceased sims hidden. They stay in your file, and their cards keep their places.'
+        : 'Deceased sims shown',
+    );
+  }, [hideDeceased, sel, byid, flashStatus]);
+
+  /** Sims marked Deceased on the board, shown or not. */
+  const hasDeceased = useMemo(() => nodesCore.some((n) => n.state === DECEASED_STATE), [nodesCore]);
+
   const togglePlay = useCallback((oplay: string, visible: boolean) => {
     setHiddenPlay((s) => {
       const next = new Set(s);
@@ -2564,6 +2591,9 @@ export function useWhiteboard() {
     hideSecrets,
     hasSecrets,
     toggleHideSecrets,
+    hideDeceased,
+    hasDeceased,
+    toggleHideDeceased,
     pairIndex,
     bloodVerts: bloodVertsMemo,
     hopD,

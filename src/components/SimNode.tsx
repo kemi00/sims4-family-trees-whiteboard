@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { CARD_H, CARD_MIN_W, COL, DYNASTY_ROLES, OCC, SPECIES, UEDIT } from '../lib/constants.ts';
+import { CARD_H, CARD_MIN_W, COL, DECEASED_STATE, DYNASTY_ROLES, OCC, SPECIES, UEDIT } from '../lib/constants.ts';
 import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch } from '../lib/utils.ts';
@@ -81,7 +81,7 @@ export const SimNodeView = memo(function SimNodeView({
 
   return (
     <g
-      className={`node ${ageClass} ${searchClass} ${selected ? 'sel' : ''} ${groupSelected && !selected ? 'msel' : ''}`}
+      className={`node ${ageClass} ${searchClass} ${selected ? 'sel' : ''} ${groupSelected && !selected ? 'msel' : ''}${n.state === DECEASED_STATE ? ' dead' : ''}`}
       data-id={n.id}
       transform={`translate(${n.x},${n.y})`}
       onPointerDown={(e) => onPointerDown(e, n)}
