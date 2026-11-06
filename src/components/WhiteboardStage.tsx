@@ -83,7 +83,7 @@ import { WorldLayer } from './WorldLayer.tsx';
 /** "Gen 2" or "Gen 1 by marriage" for a card's dynasty hover. */
 function generationTitle(g: DynastyGeneration | undefined): string | undefined {
   if (!g) return undefined;
-  if (g.before) return 'before the dynasty';
+  if (g.before) return 'before the count';
   return g.gen ? `Gen ${g.gen}${g.byMarriage ? ' by marriage' : ''}` : undefined;
 }
 
@@ -1971,10 +1971,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           top={editorPos.top}
           editorRef={editorRef}
           onLayout={positionEditor}
-          onSave={({ firstHead, ...patch }) => {
+          onSave={({ genRoot, ...patch }) => {
             wb.pushUndo();
             wb.updateNode(editNode.id, patch);
-            if (firstHead) wb.setDynastyFirstHead(firstHead.key, firstHead.id, { undo: false });
+            if (genRoot) wb.setDynastyGenRoot(genRoot.key, genRoot.id, { undo: false });
             wb.setEditNodeId(null);
           }}
           onMove={(world, houseGid, newName) => {

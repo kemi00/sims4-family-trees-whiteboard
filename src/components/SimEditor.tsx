@@ -9,7 +9,6 @@ import {
 import { AGES, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import {
-  dynastyKey,
   dynastyLabel,
   generationText,
   type DynastyGeneration,
@@ -90,6 +89,9 @@ function LifeFacts({ v }: { v: LifeView }) {
 
 const PARTNER_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
 
+/** The Generation menu's choice for counting from the oldest known ancestor. */
+const AUTO_ROOT = '__oldest';
+
 const LIFE_STATE_OPTIONS = pinnedAlpha(LIFE_STATES, 'Sim');
 const PLAYABILITY_OPTIONS = pinnedAlpha(PLAYABILITY, 'Resident');
 
@@ -116,8 +118,8 @@ type Props = {
     state: string;
     oplay: string;
     dynastyRole: DynastyRole | undefined;
-    /** Count this dynasty's generations from another first head. */
-    firstHead?: { key: string; id: string };
+    /** Count this dynasty's generations from another Gen 1 (null: the oldest known ancestor). */
+    genRoot?: { key: string; id: string | null };
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   onLayout: () => void;
@@ -163,14 +165,26 @@ export function SimEditor({
   const gen = generations.get(n.id);
   const genLabel = gen ? dynastyLabel(gen, generations, byId) : '';
   const genLine = gen ? generationText(gen, genLabel) : null;
-  /** Who the dynasty's generations count from; changed here, applied on Save. */
-  const [firstHead, setFirstHead] = useState(gen?.firstHeadId ?? '');
-  const headChoices = useMemo(() => {
+  /** Who is Gen 1 of the dynasty's count; changed here, applied on Save. */
+  const [genRoot, setGenRootPick] = useState(gen?.rootPicked ? gen.rootId : AUTO_ROOT);
+  const rootChoices = useMemo(() => {
     if (!gen) return [];
-    return nodes
-      .filter((x) => x.id === gen.firstHeadId || (dynastyKey(x) === gen.key && !x.species))
-      .sort((a, b) => `${a.first} ${a.sur}`.localeCompare(`${b.first} ${b.sur}`));
-  }, [gen, nodes]);
+    // The line and the members: anyone the count numbers, in generation order.
+    const ids = new Set([gen.rootId, gen.autoRootId, gen.firstHeadId]);
+    for (const [id, g] of generations) if (g.key === gen.key && g.gen !== undefined && !g.byMarriage) ids.add(id);
+    return [...ids]
+      .map((id) => byId[id])
+      .filter((x): x is SimNode => !!x && !x.species && x.id !== gen.autoRootId)
+      .sort(
+        (a, b) =>
+          (generations.get(a.id)?.gen ?? 99) - (generations.get(b.id)?.gen ?? 99) ||
+          `${a.first} ${a.sur}`.localeCompare(`${b.first} ${b.sur}`),
+      );
+  }, [gen, generations, byId]);
+  const nameOf = (id: string | undefined) => {
+    const x = id ? byId[id] : undefined;
+    return x ? `${x.first} ${x.sur}`.trim() : 'someone not on the board';
+  };
   const [partnersOpen, setPartnersOpen] = useState(false);
   const [partnerGender, setPartnerGender] = useState('');
   const partners = useMemo(
@@ -220,7 +234,9 @@ export function SimEditor({
       state,
       oplay,
       dynastyRole: dynastyRole || undefined,
-      ...(gen && firstHead && firstHead !== gen.firstHeadId ? { firstHead: { key: gen.key, id: firstHead } } : {}),
+      ...(gen && (genRoot === AUTO_ROOT ? null : genRoot) !== (gen.rootPicked ? gen.rootId : null)
+        ? { genRoot: { key: gen.key, id: genRoot === AUTO_ROOT ? null : genRoot } }
+        : {}),
     });
   };
 
@@ -376,27 +392,32 @@ export function SimEditor({
           )}
           {gen && (
             <>
-              <label htmlFor="edFirstHead">Generation</label>
+              <label htmlFor="edGenRoot">Generation</label>
               <div className="ro edgen" id="edGen">
-                {genLine ?? `No number: no family link to ${byId[gen.firstHeadId]?.first ?? 'the first head'}`}
+                {genLine ?? `No number: no family link to ${nameOf(gen.rootId)}`}
                 {gen.planned && <span className="edgen__planned"> · through a planned link</span>}
               </div>
               <select
-                id="edFirstHead"
-                value={firstHead}
-                aria-describedby="edFirstHeadHint"
-                onChange={(e) => setFirstHead(e.target.value)}
+                id="edGenRoot"
+                value={genRoot}
+                aria-describedby="edGenRootHint"
+                onChange={(e) => setGenRootPick(e.target.value)}
               >
-                {headChoices.map((x) => (
+                <option value={AUTO_ROOT}>Count from the oldest ancestor: {nameOf(gen.autoRootId)}</option>
+                {rootChoices.map((x) => (
                   <option key={x.id} value={x.id}>
                     Count from {x.first} {x.sur}
                     {x.id === gen.firstHeadId ? ' (first head)' : ''}
                   </option>
                 ))}
               </select>
-              <div id="edFirstHeadHint" className="edhint">
-                Gen 1 is the {genLabel} dynasty's first head; each child is one more. The board
-                keeps counting from them when an heir takes over.
+              <div id="edGenRootHint" className="edhint">
+                {gen.rootPicked
+                  ? `Gen 1 is ${nameOf(gen.rootId)}, picked here. `
+                  : gen.autoRootId === gen.firstHeadId
+                    ? `Gen 1 is ${nameOf(gen.firstHeadId)}, the ${genLabel} dynasty's first head: the board knows none of their parents. `
+                    : `Gen 1 is ${nameOf(gen.autoRootId)}, the oldest known ancestor of ${nameOf(gen.firstHeadId)}, the ${genLabel} dynasty's first head. `}
+                Each child is one more, counting the deceased and family-tree relatives.
               </div>
             </>
           )}

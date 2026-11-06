@@ -8,7 +8,7 @@ import {
   firstHeads,
   generationText,
   rememberFirstHeads,
-  setFirstHead,
+  setGenRoot,
 } from './generations.ts';
 
 const sim = (id: string, extra: Partial<SimNode> = {}): SimNode =>
@@ -37,22 +37,58 @@ describe('dynasty generations', () => {
     parent('Cassandra', 'Baby', { source: 'planned' }),
   ];
 
-  it('counts from the first head down the parent links, spouses taking their partner’s number', () => {
+  it('counts from the first head’s oldest known ancestor, spouses taking their partner’s number', () => {
     const g = dynastyGenerations(nodes, edges);
     const of = (id: string) => g.get(id)!;
-    assert.deepEqual([of('Mortimer').gen, of('Cassandra').gen, of('Alexander').gen], [1, 2, 2]);
-    assert.deepEqual([of('Bella').gen, of('Bella').byMarriage], [1, true]);
-    assert.deepEqual([of('Caleb').gen, of('Caleb').byMarriage], [2, true]);
-    assert.deepEqual([of('Baby').gen, of('Baby').planned], [3, true]);
+    assert.deepEqual([of('Mortimer').rootId, of('Mortimer').autoRootId], ['Gunther', 'Gunther']);
+    assert.deepEqual([of('Mortimer').gen, of('Cassandra').gen, of('Alexander').gen], [2, 3, 3]);
+    assert.deepEqual([of('Bella').gen, of('Bella').byMarriage], [2, true]);
+    assert.deepEqual([of('Caleb').gen, of('Caleb').byMarriage], [3, true]);
+    assert.deepEqual([of('Baby').gen, of('Baby').planned], [4, true]);
     assert.equal(of('Stranger').gen, undefined);
-    assert.equal(g.has('Gunther'), false);
+    // Gunther is no member, but the line starts with him.
+    assert.deepEqual([of('Gunther').gen, of('Gunther').forebear], [1, true]);
+    assert.equal(generationText(of('Gunther'), 'Goth'), 'Gen 1 of the Goth line');
     assert.equal(of('Cassandra').firstHeadId, 'Mortimer');
   });
 
-  it('marks an ancestor of the first head as before the dynasty', () => {
-    const g = dynastyGenerations(nodes.map((n) => (n.id === 'Gunther' ? sim('Gunther') : n)), edges);
-    assert.equal(g.get('Gunther')!.before, true);
-    assert.equal(generationText(g.get('Gunther')!, 'Goth'), 'before the Goth dynasty');
+  it('goes back through dead and family-tree ancestors: Cordelia Thebe V is Gen 5', () => {
+    const thebe = (id: string, extra: Partial<SimNode> = {}) =>
+      sim(id, { sur: 'Thebe', dynasty: undefined, dynastyId: undefined, state: 'Deceased', ...extra });
+    const line = [
+      thebe('Queen', { first: 'Queen', treeId: '1' }),
+      sim('Beard', { first: 'John Wilson', sur: 'Beard', dynasty: undefined, dynastyId: undefined, treeId: '2' }),
+      thebe('II'),
+      thebe('III'),
+      thebe('IV'),
+      thebe('V', { state: 'Sim', dynasty: 'Thebe', dynastyId: '7', dynastyRole: 'head' }),
+      thebe('VI', { state: 'Sim', dynasty: 'Thebe', dynastyId: '7', dynastyRole: 'heir' }),
+    ];
+    const links = [
+      parent('Beard', 'II'),
+      parent('Queen', 'II'),
+      parent('II', 'III'),
+      parent('III', 'IV'),
+      parent('IV', 'V'),
+      parent('V', 'VI'),
+    ];
+    const g = dynastyGenerations(line, links);
+    assert.equal(g.get('V')!.autoRootId, 'Queen');
+    assert.deepEqual([g.get('V')!.gen, g.get('VI')!.gen, g.get('III')!.gen], [5, 6, 3]);
+    assert.equal(g.get('III')!.forebear, true);
+    assert.equal(generationText(g.get('V')!, 'Thebe'), 'Gen 5 of the Thebe');
+  });
+
+  it('counts from a picked Gen 1, its ancestors before the count', () => {
+    const g = dynastyGenerations(setGenRoot(nodes, 'id:9', 'Mortimer'), edges);
+    assert.deepEqual([g.get('Mortimer')!.gen, g.get('Mortimer')!.rootPicked, g.get('Cassandra')!.gen], [1, true, 2]);
+    assert.equal(g.get('Mortimer')!.autoRootId, 'Gunther');
+    const withGunther = setGenRoot(nodes.map((n) => (n.id === 'Gunther' ? sim('Gunther') : n)), 'id:9', 'Mortimer');
+    const h = dynastyGenerations(withGunther, edges);
+    assert.equal(h.get('Gunther')!.before, true);
+    assert.equal(generationText(h.get('Gunther')!, 'Goth'), 'before the Goth count');
+    const back = setGenRoot(setGenRoot(nodes, 'id:9', 'Mortimer'), 'id:9', null);
+    assert.ok(back.every((n) => !n.genRootOf));
   });
 
   it('keeps counting from a remembered first head after the heir succeeds', () => {
@@ -64,9 +100,9 @@ describe('dynasty generations', () => {
           : n,
     );
     const g = dynastyGenerations(after, edges);
-    assert.deepEqual([g.get('Cassandra')!.gen, g.get('Baby')!.gen], [2, 3]);
-    assert.equal(generationText(g.get('Cassandra')!, 'Goth'), 'Gen 2 of the Goth');
-    assert.equal(generationText(g.get('Bella')!, 'Goth'), 'Gen 1 of the Goth by marriage');
+    assert.deepEqual([g.get('Cassandra')!.gen, g.get('Baby')!.gen], [3, 4]);
+    assert.equal(generationText(g.get('Cassandra')!, 'Goth'), 'Gen 3 of the Goth');
+    assert.equal(generationText(g.get('Bella')!, 'Goth'), 'Gen 2 of the Goth by marriage');
   });
 });
 
@@ -81,12 +117,10 @@ describe('first heads', () => {
     assert.deepEqual(moved.map((n) => n.firstHeadOf), ['id:9', undefined]);
   });
 
-  it('falls back to the head now, and a pick replaces the remembered one', () => {
-    const nodes = [sim('Mortimer', { dynastyRole: 'head' }), sim('Bella')];
-    assert.equal(firstHeads(nodes).get('id:9'), 'Mortimer');
-    const picked = setFirstHead(rememberFirstHeads(nodes), 'id:9', 'Bella');
-    assert.deepEqual(picked.map((n) => n.firstHeadOf), [undefined, 'id:9']);
-    assert.equal(firstHeads(picked).get('id:9'), 'Bella');
+  it('falls back to the head now, and prefers the remembered one', () => {
+    const nodes = [sim('Mortimer', { dynastyRole: 'head' }), sim('Bella', { firstHeadOf: 'id:9' })];
+    assert.equal(firstHeads([nodes[0]!]).get('id:9'), 'Mortimer');
+    assert.equal(firstHeads(nodes).get('id:9'), 'Bella');
   });
 
   it('keys a dynasty by the game’s id, else its name', () => {

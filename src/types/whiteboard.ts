@@ -55,6 +55,12 @@ export interface SimNode {
    * and it stays when they die or leave the dynasty.
    */
   firstHeadOf?: string;
+  /**
+   * The dynasty (its `dynastyKey`) whose generations count from this sim, as
+   * Gen 1, picked in the editor. Without one, the count starts at the first
+   * head's oldest known ancestor.
+   */
+  genRootOf?: string;
   /** Age facts from the last save import (see SimLife). Pets have none. */
   life?: SimLife;
   /**

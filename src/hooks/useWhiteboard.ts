@@ -83,7 +83,7 @@ import type {
   WhiteboardData,
   World,
 } from '../types/whiteboard.ts';
-import { dynastyGenerations, setFirstHead } from '../lib/generations.ts';
+import { dynastyGenerations, setGenRoot } from '../lib/generations.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
@@ -1077,13 +1077,14 @@ export function useWhiteboard() {
   );
 
   /**
-   * Count dynasty `key`'s generations from `id`, its first head on the board.
-   * `undo: false` when the caller already pushed an undo step (the editor's Save).
+   * Count dynasty `key`'s generations from `id` as Gen 1, or with null from
+   * the first head's oldest known ancestor again. `undo: false` when the
+   * caller already pushed an undo step (the editor's Save).
    */
-  const setDynastyFirstHead = useCallback(
-    (key: string, id: string, opts?: { undo?: boolean }) => {
+  const setDynastyGenRoot = useCallback(
+    (key: string, id: string | null, opts?: { undo?: boolean }) => {
       if (opts?.undo !== false) pushUndo();
-      setNodesCore((ns) => setFirstHead(ns, key, id));
+      setNodesCore((ns) => setGenRoot(ns, key, id));
     },
     [pushUndo],
   );
@@ -2618,7 +2619,7 @@ export function useWhiteboard() {
     addSimToHousehold,
     organiseBoard,
     updateNode,
-    setDynastyFirstHead,
+    setDynastyGenRoot,
     dynastyGens,
     pushUndo,
     canUndo,
