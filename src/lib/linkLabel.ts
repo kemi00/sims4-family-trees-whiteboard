@@ -331,6 +331,9 @@ function simsForIds(ids: string[], byid: Record<string, SimNode>): ChipSim[] {
   return out;
 }
 
+/** Between names in the chip: "Ignacio Robles + Jade Rosa". */
+const NAME_SEP = ' + ';
+
 /** Unique display names for sim ids, stable order of first appearance. */
 function namesForIds(
   ids: string[],
@@ -338,7 +341,7 @@ function namesForIds(
 ): string {
   return simsForIds(ids, byid)
     .map((s) => s.name)
-    .join(' · ');
+    .join(NAME_SEP);
 }
 
 /**
@@ -364,8 +367,8 @@ export function formatLinkNames(
       matched.map((e) => e.b),
       byid,
     );
-    const nameFrom = fromSims.map((s) => s.name).join(' · ');
-    const nameTo = toSims.map((s) => s.name).join(' · ');
+    const nameFrom = fromSims.map((s) => s.name).join(NAME_SEP);
+    const nameTo = toSims.map((s) => s.name).join(NAME_SEP);
     if (nameFrom && nameTo) {
       return {
         nameFrom,
@@ -384,7 +387,7 @@ export function formatLinkNames(
     matched.flatMap((e) => [e.a, e.b]),
     byid,
   );
-  return { names: sims.map((s) => s.name).join(' · '), sims };
+  return { names: sims.map((s) => s.name).join(NAME_SEP), sims };
 }
 
 const UNION_TYPES: ReadonlySet<EdgeType> = new Set(['marriage', 'romance', 'divorced']);

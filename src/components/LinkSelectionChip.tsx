@@ -16,7 +16,7 @@ type Props = {
   onGoToSim?: (id: string) => void;
 };
 
-/** Names as buttons that take you to each sim, " · " between them. */
+/** Names as buttons that take you to each sim, " + " between them. */
 function SimNames({
   sims,
   onGoToSim,
@@ -28,7 +28,11 @@ function SimNames({
     <>
       {sims.map((s, i) => (
         <Fragment key={s.id}>
-          {i > 0 && <span aria-hidden="true">·</span>}
+          {i > 0 && (
+            <span className="link-sel-chip__sep" aria-hidden="true">
+              +
+            </span>
+          )}
           {onGoToSim ? (
             <button
               type="button"

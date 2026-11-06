@@ -354,11 +354,11 @@ describe('describeLinkSelection', () => {
     );
     assert.ok(info);
     assert.equal(info!.label, 'Parent → child');
-    assert.equal(info!.nameFrom, 'Jacques Villareal · Elettra Villareal');
+    assert.equal(info!.nameFrom, 'Jacques Villareal + Elettra Villareal');
     assert.equal(info!.nameTo, 'Luna Villareal');
     assert.equal(
       info!.names,
-      'Jacques Villareal · Elettra Villareal → Luna Villareal',
+      'Jacques Villareal + Elettra Villareal → Luna Villareal',
     );
   });
 });
