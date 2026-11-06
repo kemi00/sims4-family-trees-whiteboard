@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "61366f7",
+   "date": "2026-11-06",
+   "text": "Move several sims to another household, or a new one, at once: Shift-click them (or click them with Select on), then choose Move to household in the bar that appears. One undo puts them all back. In the editor too, Create a new household now comes first in the list."
+  },
+  {
    "sha": "0cd0c7f",
    "date": "2026-11-06",
    "text": "Filters can highlight sims by gender: Female, Male or Non-Binary. A gender chip narrows the ages you pick, so Female with Young Adult lights only young adult women, and with a pet chip it picks out female cats, dogs or horses."
