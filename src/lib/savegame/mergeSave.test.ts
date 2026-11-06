@@ -1313,6 +1313,16 @@ describe('married sims under their own surname', () => {
     assert.deepEqual([cassandra.sur, cassandra.marriedSur], ['Goth', undefined]);
   });
 
+  it('drops the from-save mark once the game calls a premade by its own name again', () => {
+    const fixedInCas: ParsedSave = {
+      ...married,
+      sims: married.sims.map((s) => (s.saveSimId === '1' ? { ...s, last: 'Goth' } : s)),
+    };
+    const before = goth('c', 'Cassandra', 'Vatore', { saveSimId: '1', gender: 'Female', fromSave: true });
+    const cassandra = card(merge(fixedInCas, [before]), '1');
+    assert.deepEqual([cassandra.sur, cassandra.marriedSur, cassandra.fromSave], ['Goth', undefined, undefined]);
+  });
+
   it('settles on the same names when the same save comes in again', () => {
     const once = merge(married, [goth('c', 'Cassandra', 'Vatore', { saveSimId: '1', gender: 'Female', fromSave: true })]);
     const twice = merge(married, once.nodes);

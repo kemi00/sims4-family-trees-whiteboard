@@ -523,13 +523,8 @@ function patchMatched(
     sur: sim.last || n.sur,
     saveSimId: sim.saveSimId,
   };
-  if (sim.marriedLast) {
-    next.marriedSur = sim.marriedLast;
-    // Known as a premade again: the mark came from the married name.
-    if (!fromSave) delete next.fromSave;
-  } else {
-    delete next.marriedSur;
-  }
+  if (sim.marriedLast) next.marriedSur = sim.marriedLast;
+  else delete next.marriedSur;
   if (sim.age) next.age = sim.age;
   if (sim.gender) next.gender = sim.gender;
   if (sim.species) {
@@ -936,6 +931,9 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         seedNameKeys.has(nameKey(sim.first, sim.last));
       const i = nodes.findIndex((n) => n.id === found.id);
       const patched = patchMatched(found, sim, !onRoster, rosterOf(sim));
+      // A premade by the save's name has no from-save mark, whatever an
+      // earlier import thought: one under a married name got it.
+      if (seedNameKeys.has(nameKey(sim.first, sim.last))) delete patched.fromSave;
       nodes[i] = patched;
       claimed.add(patched.id);
       bySaveId.set(sim.saveSimId, patched);
