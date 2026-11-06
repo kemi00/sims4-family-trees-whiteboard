@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "217b101",
+   "date": "2026-11-06",
+   "text": "When the game, or a mod such as MC Command Center, gives a married sim their spouse's surname, the board keeps their own: Cassandra stays Cassandra Goth after marrying Caleb Vatore. The editor shows the married name, Find a sim finds either name, and typing the married name in the editor puts it on the card."
+  },
+  {
    "sha": "b79e3b2",
    "date": "2026-10-16",
    "text": "A selected link between households keeps proper dashes at any zoom, instead of turning into a comb of short vertical ticks."
