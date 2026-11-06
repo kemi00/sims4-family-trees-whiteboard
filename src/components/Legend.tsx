@@ -3,7 +3,7 @@ import type { Ref } from 'react';
 import type { World } from '../types/whiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { House, User } from '../icons.ts';
-import { COL } from '../lib/constants.ts';
+import { COL, DYNASTY_ROLES } from '../lib/constants.ts';
 import { InlineLock as LegendLock } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
@@ -156,6 +156,14 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
         <div className="lg">
           <span style={{ fontSize: 13, lineHeight: 1, color: '#7c3aed' }}>⚮</span>{' '}
           divorced
+        </div>
+        <div className="lg lg--dynasty">
+          {(Object.keys(DYNASTY_ROLES) as (keyof typeof DYNASTY_ROLES)[]).map((r) => (
+            <span key={r}>
+              <span aria-hidden="true">{DYNASTY_ROLES[r].mark}</span>{' '}
+              {r === 'head' ? DYNASTY_ROLES[r].label.toLowerCase() : r}
+            </span>
+          ))}
         </div>
         <div className="lg lg--notes">
           <span className="lg__swatch" aria-hidden="true" />

@@ -170,6 +170,13 @@ export const GENDERS = [
   'Variable',
 ] as const;
 
+/** Dynasty roles in the game's words, with the mark each card shows. */
+export const DYNASTY_ROLES = {
+  head: { mark: '👑', label: 'Dynasty head', noun: 'Head' },
+  heir: { mark: '⚜️', label: 'Dynasty heir', noun: 'Heir' },
+  outcast: { mark: '🥀', label: 'Dynasty outcast', noun: 'Outcast' },
+} as const;
+
 /** Genders assigned when the user adds a sim. */
 export const NEW_SIM_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
 

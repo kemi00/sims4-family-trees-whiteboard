@@ -507,7 +507,25 @@ function plainSaveNode(
     saveSimId: sim.saveSimId,
     fromSave: fromSave || undefined,
     species: sim.species,
+    ...(sim.dynasty ? { dynasty: sim.dynasty } : {}),
+    ...(sim.dynastyId ? { dynastyId: sim.dynastyId } : {}),
+    ...(sim.dynastyRole ? { dynastyRole: sim.dynastyRole } : {}),
   };
+}
+
+/**
+ * The game's dynasty and role on a card. A save that keeps dynasties is the
+ * truth for its sims, so one it lists in none loses them; a save from before
+ * Royalty & Legacy says nothing, and the card keeps what it has.
+ */
+function syncDynasty(next: SimNode, sim: ParsedSaveSim, saveHasDynasties: boolean): void {
+  if (!saveHasDynasties) return;
+  if (sim.dynasty) next.dynasty = sim.dynasty;
+  else delete next.dynasty;
+  if (sim.dynastyId) next.dynastyId = sim.dynastyId;
+  else delete next.dynastyId;
+  if (sim.dynastyRole) next.dynastyRole = sim.dynastyRole;
+  else delete next.dynastyRole;
 }
 
 function patchMatched(
@@ -516,6 +534,7 @@ function patchMatched(
   fromSave: boolean,
   /** The premade's roster card, for a breed the board's card lacks. */
   roster?: SimNode,
+  saveHasDynasties = false,
 ): SimNode {
   const next: SimNode = {
     ...n,
@@ -525,6 +544,7 @@ function patchMatched(
   };
   if (sim.marriedLast) next.marriedSur = sim.marriedLast;
   else delete next.marriedSur;
+  syncDynasty(next, sim, saveHasDynasties);
   if (sim.age) next.age = sim.age;
   if (sim.gender) next.gender = sim.gender;
   if (sim.species) {
@@ -930,7 +950,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         seedNameKeys.has(nameKey(found.first, found.sur)) ||
         seedNameKeys.has(nameKey(sim.first, sim.last));
       const i = nodes.findIndex((n) => n.id === found.id);
-      const patched = patchMatched(found, sim, !onRoster, rosterOf(sim));
+      const patched = patchMatched(found, sim, !onRoster, rosterOf(sim), !!parsed.dynasties);
       // A premade by the save's name has no from-save mark, whatever an
       // earlier import thought: one under a married name got it.
       if (seedNameKeys.has(nameKey(sim.first, sim.last))) delete patched.fromSave;

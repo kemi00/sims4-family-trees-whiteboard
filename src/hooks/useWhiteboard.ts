@@ -1069,9 +1069,21 @@ export function useWhiteboard() {
       LAYOUT_PIN_KEYS.some(
         (k) => patch[k] !== undefined && patch[k] !== prev[k],
       );
+    // A dynasty has one head and one heir: naming one takes the role from
+    // whoever held it, as the game does.
+    const sole =
+      prev?.dynasty && (patch.dynastyRole === 'head' || patch.dynastyRole === 'heir')
+        ? patch.dynastyRole
+        : null;
+    const sameDynasty = (n: SimNode) =>
+      prev?.dynastyId && n.dynastyId ? n.dynastyId === prev.dynastyId : n.dynasty === prev?.dynasty;
     const apply = (ns: SimNode[]) =>
       ns.map((n) => {
-        if (n.id !== id) return n;
+        if (n.id !== id) {
+          return sole && n.dynastyRole === sole && sameDynasty(n)
+            ? toCore({ ...n, dynastyRole: undefined })
+            : n;
+        }
         const next: SimNode = { ...n, ...patch };
         if (patch.x !== undefined || patch.y !== undefined) {
           const laid = byid[id];

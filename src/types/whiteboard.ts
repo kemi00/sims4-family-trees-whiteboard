@@ -1,3 +1,6 @@
+/** 👑 the dynasty's head, ⚜️ its heir, 🥀 an outcast it declared. */
+export type DynastyRole = 'head' | 'heir' | 'outcast';
+
 /** A sim card on the whiteboard. */
 export interface SimNode {
   id: string;
@@ -40,6 +43,12 @@ export interface SimNode {
    * sim's own; when the two are the same, the player chose to show it.
    */
   marriedSur?: string;
+  /** The dynasty this sim belongs to in the game (Royalty & Legacy), by name. */
+  dynasty?: string;
+  /** The game's id for that dynasty: two can share a name (a second "Ngata"). */
+  dynastyId?: string;
+  /** Their place in it, marked on the card. Plain members have none. */
+  dynastyRole?: DynastyRole;
   /**
    * Sims 4 family-tree id of a relative the save keeps only in its family
    * tree, with no sim and no name (an "Unknown" card), as a decimal string.

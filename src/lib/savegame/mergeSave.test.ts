@@ -1332,3 +1332,82 @@ describe('married sims under their own surname', () => {
     );
   });
 });
+
+describe('dynasty marks from the save', () => {
+  const worlds = [{ name: 'Willow Creek', color: '#4e79a7' }, ...world];
+  const goth = (id: string, first: string, extra: Partial<SimNode> = {}) =>
+    sim({ id, first, sur: 'Goth', hh: 'Goth', ohh: 'Goth', gid: 'Willow Creek||Goth', ...extra });
+  const roster = [goth('Bella Goth', 'Bella'), goth('Mortimer Goth', 'Mortimer'), goth('Cassandra Goth', 'Cassandra')];
+  const saveSim = (id: string, first: string, extra: Partial<ParsedSave['sims'][number]> = {}) => ({
+    saveSimId: id,
+    householdId: 'h1',
+    first,
+    last: 'Goth',
+    household: 'Goth',
+    age: 'Adult',
+    gender: 'Female',
+    world: 'Willow Creek',
+    ...extra,
+  });
+  const merge = (parsed: ParsedSave, nodes: SimNode[]) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges: [],
+      groups: [],
+      worlds,
+      parsed,
+      seedNameKeys: seedNameKeysFromNodes(roster),
+      packReference: roster,
+      now: 'x',
+      nextEdgeId: (() => {
+        let n = 0;
+        return () => `v${n++}`;
+      })(),
+    });
+  const marks = (r: ReturnType<typeof merge>) =>
+    Object.fromEntries(r.nodes.map((n) => [n.first, [n.dynasty ?? '', n.dynastyRole ?? '']]));
+
+  it("puts the game's head, heir and outcast on matched and new cards", () => {
+    const r = merge(
+      {
+        sims: [
+          saveSim('1', 'Mortimer', { dynasty: 'Goth', dynastyRole: 'head' }),
+          saveSim('2', 'Cassandra', { dynasty: 'Goth', dynastyRole: 'heir' }),
+          saveSim('3', 'Bella', { dynasty: 'Goth' }),
+          saveSim('4', 'Alexander', { dynasty: 'Goth', dynastyRole: 'outcast' }),
+        ],
+        rels: [],
+        dynasties: true,
+      },
+      roster.map((n) => ({ ...n })),
+    );
+    assert.deepEqual(marks(r), {
+      Mortimer: ['Goth', 'head'],
+      Cassandra: ['Goth', 'heir'],
+      Bella: ['Goth', ''],
+      Alexander: ['Goth', 'outcast'],
+    });
+  });
+
+  it('takes a role the game no longer gives away, when the save keeps dynasties', () => {
+    const board = [
+      goth('m', 'Mortimer', { saveSimId: '1', dynasty: 'Goth', dynastyRole: 'head' }),
+      goth('c', 'Cassandra', { saveSimId: '2', dynasty: 'Goth', dynastyRole: 'heir' }),
+    ];
+    const r = merge(
+      {
+        sims: [saveSim('1', 'Mortimer'), saveSim('2', 'Cassandra', { dynasty: 'Goth', dynastyRole: 'head' })],
+        rels: [],
+        dynasties: true,
+      },
+      board,
+    );
+    assert.deepEqual(marks(r), { Mortimer: ['', ''], Cassandra: ['Goth', 'head'] });
+  });
+
+  it('leaves the marks alone when the save keeps no dynasties', () => {
+    const board = [goth('c', 'Cassandra', { saveSimId: '2', dynasty: 'Goth', dynastyRole: 'heir' })];
+    const r = merge({ sims: [saveSim('2', 'Cassandra')], rels: [] }, board);
+    assert.deepEqual(marks(r), { Cassandra: ['Goth', 'heir'] });
+  });
+});

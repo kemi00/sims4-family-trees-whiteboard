@@ -155,7 +155,12 @@ function treeNode(self: number, ...edges: Uint8Array[]): Uint8Array {
 }
 
 /** Tiny DBPF + RefPack + protobuf save: two spouses and one child. */
-function tinySave(compactGroup = false, moreTree: Uint8Array[] = []): Uint8Array {
+function tinySave(
+  compactGroup = false,
+  moreTree: Uint8Array[] = [],
+  /** More gameplay fields, beside the family tree (62). */
+  moreGameplay: Uint8Array[] = [],
+): Uint8Array {
   const bob = simBlob({
     id: 1,
     householdId: 10,
@@ -191,7 +196,7 @@ function tinySave(compactGroup = false, moreTree: Uint8Array[] = []): Uint8Array
     ...moreTree,
   );
   const tree = encodeBytes(62, encodeBytes(1, graph));
-  const gameplay = encodeBytes(8, tree);
+  const gameplay = encodeBytes(8, concat(tree, ...moreGameplay));
   const slot = encodeBytes(2, gameplay);
   const data = concat(
     encodeBytes(6, bob),
@@ -584,6 +589,71 @@ describe('parseSaveGame', () => {
     assert.ok(parsed.worlds?.includes('Willow Creek'));
     assert.ok(parsed.worlds?.includes('Ciudad Enamorada'));
     assert.ok(!parsed.worlds?.includes('Batuu'));
+  });
+});
+
+/** A dynasty record as gameplay field 60 holds it (see parseDynasties). */
+function dynasty(name: string, head: number, heir: number, members: [number, boolean?][]): Uint8Array {
+  return encodeBytes(
+    1,
+    concat(
+      encodeVarintField(1, 900 + head),
+      encodeString(2, name),
+      encodeVarintField(4, head),
+      encodeVarintField(5, heir),
+      ...members.map(([id, outcast], i) =>
+        encodeBytes(
+          6,
+          concat(encodeVarintField(1, id), encodeVarintField(4, i + 1), encodeVarintField(6, outcast ? 1 : 0)),
+        ),
+      ),
+    ),
+  );
+}
+
+describe('dynasties', () => {
+  it('reads each member\'s dynasty and the head, heir and outcasts', () => {
+    // Eliza heads the Pancakes, Iggy is her heir and Bob her outcast.
+    const parsed = parseSaveGame(
+      tinySave(false, [], [encodeBytes(60, dynasty('Pancakes', 2, 3, [[2], [1, true], [3]]))]),
+    );
+    const of = (first: string) => parsed.sims.find((s) => s.first === first)!;
+    assert.equal(parsed.dynasties, true);
+    assert.deepEqual(
+      ['Eliza', 'Iggy', 'Bob'].map((f) => [of(f).dynasty, of(f).dynastyId, of(f).dynastyRole]),
+      [
+        ['Pancakes', '902', 'head'],
+        ['Pancakes', '902', 'heir'],
+        ['Pancakes', '902', 'outcast'],
+      ],
+    );
+  });
+
+  it('tells apart two dynasties that share a name', () => {
+    const parsed = parseSaveGame(
+      tinySave(false, [], [encodeBytes(60, concat(dynasty('Pancakes', 1, 0, [[1]]), dynasty('Pancakes', 2, 3, [[2], [3]])))]),
+    );
+    const of = (first: string) => parsed.sims.find((s) => s.first === first)!;
+    assert.deepEqual(
+      ['Bob', 'Eliza'].map((f) => [of(f).dynasty, of(f).dynastyId, of(f).dynastyRole]),
+      [
+        ['Pancakes', '901', 'head'],
+        ['Pancakes', '902', 'head'],
+      ],
+    );
+  });
+
+  it('gives a plain member the dynasty and no role, and a dynasty without an heir none', () => {
+    const parsed = parseSaveGame(tinySave(false, [], [encodeBytes(60, dynasty('Pancakes', 1, 0, [[1], [2]]))]));
+    const of = (first: string) => parsed.sims.find((s) => s.first === first)!;
+    assert.deepEqual([of('Bob').dynastyRole, of('Eliza').dynasty, of('Eliza').dynastyRole], ['head', 'Pancakes', undefined]);
+    assert.equal(of('Iggy').dynasty, undefined);
+  });
+
+  it('says nothing about dynasties when the save keeps none', () => {
+    const parsed = parseSaveGame(tinySave());
+    assert.equal(parsed.dynasties, undefined);
+    assert.ok(parsed.sims.every((s) => !s.dynasty && !s.dynastyRole));
   });
 });
 

@@ -6,10 +6,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from 'react';
-import { AGES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
+import { AGES, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
-import type { Group, SimNode, World } from '../types/whiteboard.ts';
+import type { DynastyRole, Group, SimNode, World } from '../types/whiteboard.ts';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
   const rest = items
@@ -49,6 +49,7 @@ type Props = {
     gender: string;
     state: string;
     oplay: string;
+    dynastyRole: DynastyRole | undefined;
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   onLayout: () => void;
@@ -82,6 +83,7 @@ export function SimEditor({
   const [gender, setGender] = useState(n.gender);
   const [state, setState] = useState(n.state || 'Sim');
   const [oplay, setOplay] = useState(n.oplay || 'Resident');
+  const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
   const [moveOpen, setMoveOpen] = useState(false);
   const boardHasSave = useMemo(() => nodes.some((x) => x.saveSimId), [nodes]);
   const [copied, setCopied] = useState(false);
@@ -116,7 +118,7 @@ export function SimEditor({
     const parts = name.trim().split(' ');
     const first = parts.shift() || name;
     const sur = parts.join(' ');
-    onSave({ first, sur, age, gender, state, oplay });
+    onSave({ first, sur, age, gender, state, oplay, dynastyRole: dynastyRole || undefined });
   };
 
   /**
@@ -240,6 +242,30 @@ export function SimEditor({
           <option value={oplay}>{oplay}</option>
         )}
       </select>
+      {!n.species && (
+        <>
+          <label htmlFor="edDynasty">Dynasty role</label>
+          <select
+            id="edDynasty"
+            value={dynastyRole}
+            aria-describedby={n.dynasty ? 'edDynastyHint' : undefined}
+            onChange={(e) => setDynastyRole(e.target.value as DynastyRole | '')}
+          >
+            <option value="">None</option>
+            {(Object.keys(DYNASTY_ROLES) as DynastyRole[]).map((r) => (
+              <option key={r} value={r}>
+                {DYNASTY_ROLES[r].mark} {DYNASTY_ROLES[r].noun}
+              </option>
+            ))}
+          </select>
+          {n.dynasty && (
+            <div id="edDynastyHint" className="edhint">
+              In the {n.dynasty} dynasty. It has one head and one heir, so
+              choosing either here takes it from whoever has it now.
+            </div>
+          )}
+        </>
+      )}
       <label>Game pack</label>
       <div className="ro">{n.pack || '—'}</div>
       <label>Original household</label>

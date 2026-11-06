@@ -1,6 +1,6 @@
 import { TREE_NAMES } from '../../data/treeNames.ts';
 import { AGES_H } from '../constants.ts';
-import type { PairTag } from '../../types/whiteboard.ts';
+import type { DynastyRole, PairTag } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
@@ -27,6 +27,12 @@ export type ParsedSaveSim = {
    * no such source.
    */
   generated?: true;
+  /** The dynasty the sim belongs to (Royalty & Legacy), by name. */
+  dynasty?: string;
+  /** The game's id for that dynasty, as a decimal string. */
+  dynastyId?: string;
+  /** Head, heir or outcast of that dynasty; plain members have none. */
+  dynastyRole?: DynastyRole;
 };
 
 export type ParsedSaveRel = {
@@ -73,6 +79,11 @@ export type ParsedSave = {
   pairs?: ParsedSavePair[];
   /** Family-tree people with no sim; `rels` link them like sims. */
   relatives?: ParsedTreeRelative[];
+  /**
+   * The save keeps dynasties (Royalty & Legacy), so a sim without one has
+   * none in the game. Older saves leave this out and say nothing either way.
+   */
+  dynasties?: true;
 };
 
 /**
@@ -565,6 +576,42 @@ function parseWorldIndex(saveGame: Uint8Array): {
   };
 }
 
+/**
+ * Dynasties (Royalty & Legacy) are gameplay field 60: one record (1) per
+ * dynasty with its id (1), its name (2), its head's sim id (4) and its heir's (5, 0 when
+ * there is none), and each member (6) as a sim id (1) and a flag (6) the
+ * game sets on outcasts. A member's field 4 is the order they joined, not a
+ * rank: Marilla Cuthbert heads her dynasty as its third. Read from a save
+ * with 34 dynasties on 2026-11-06, where the flag was on Virgilio Capp and
+ * Johnny Zest (in the Landgraabs') alone. An outcast is never the heir.
+ */
+type DynastyPlace = { dynasty: string; dynastyId: string; role?: DynastyRole };
+
+function parseDynasties(gameplay: Uint8Array | null): Map<string, DynastyPlace> | null {
+  const list = gameplay ? firstBytes(gameplay, 60) : null;
+  if (!list) return null;
+  const out = new Map<string, DynastyPlace>();
+  for (const rec of decodeFields(list)) {
+    if (rec.field !== 1 || !rec.bytes) continue;
+    const fields = decodeFields(rec.bytes);
+    const dynastyId = idField(fields, 1);
+    const dynasty = (utf8(fields.find((f) => f.field === 2 && f.bytes)?.bytes ?? null) ?? '').trim();
+    const head = idField(fields, 4);
+    const heir = idField(fields, 5);
+    for (const m of fields) {
+      if (m.field !== 6 || !m.bytes) continue;
+      const member = decodeFields(m.bytes);
+      const id = idField(member, 1);
+      if (!id) continue;
+      const outcast = member.some((f) => f.field === 6 && f.wire === 0 && f.int === 1n);
+      const role: DynastyRole | undefined =
+        id === head ? 'head' : id === heir ? 'heir' : outcast ? 'outcast' : undefined;
+      out.set(id, role ? { dynasty, dynastyId, role } : { dynasty, dynastyId });
+    }
+  }
+  return out;
+}
+
 function gameplayData(saveGame: Uint8Array): Uint8Array | null {
   const slot = firstBytes(saveGame, 2);
   return slot ? firstBytes(slot, 8) : null;
@@ -639,5 +686,23 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     pairs,
     secretParents,
   );
-  return { sims, rels, householdWorld, worlds, pairs, relatives };
+  const dynasties = parseDynasties(gameplay);
+  if (dynasties) {
+    for (const sim of sims) {
+      const d = dynasties.get(sim.saveSimId);
+      if (!d) continue;
+      if (d.dynasty) sim.dynasty = d.dynasty;
+      if (d.dynastyId) sim.dynastyId = d.dynastyId;
+      if (d.role) sim.dynastyRole = d.role;
+    }
+  }
+  return {
+    sims,
+    rels,
+    householdWorld,
+    worlds,
+    pairs,
+    relatives,
+    ...(dynasties ? { dynasties: true as const } : {}),
+  };
 }

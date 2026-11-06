@@ -1,6 +1,7 @@
 import { memo } from 'react';
-import { CARD_H, COL, OCC, SPECIES, UEDIT } from '../lib/constants.ts';
+import { CARD_H, CARD_MIN_W, COL, DYNASTY_ROLES, OCC, SPECIES, UEDIT } from '../lib/constants.ts';
 import { cardDetailLine } from '../lib/layout.ts';
+import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
@@ -63,6 +64,19 @@ export const SimNodeView = memo(function SimNodeView({
       : '';
   const detail = cardDetailLine(n);
   const h = n.h || CARD_H;
+  const role = n.dynastyRole ? DYNASTY_ROLES[n.dynastyRole] : null;
+  const name = `${role ? role.mark + ' ' : ''}${n.first} ${n.sur}`;
+  // The name stops short of the corner badges; a long one (a crown and
+  // "Anne-Shirley Cuthbert") is set a little smaller rather than run under them.
+  const corner = fromSave && (hasBadge || added) ? 48 : hasBadge || added || fromSave ? 27 : 10;
+  const room = (n.w || CARD_MIN_W) - 16 - corner;
+  const wide = labels ? textWidth(name, 13, 700) : 0;
+  const nameSize = wide > room ? Math.max(10, Math.floor((13 * room) / wide * 2) / 2) : 13;
+  const roleTitle = role
+    ? n.dynasty
+      ? `${role.noun} of the ${n.dynasty} dynasty`
+      : role.label
+    : null;
 
   return (
     <g
@@ -93,8 +107,9 @@ export const SimNodeView = memo(function SimNodeView({
       />
       {labels && (
         <>
-          <text x={16} y={32} fontSize={13} fontWeight={700} fill="#1b2b3a">
-            {n.first} {n.sur}
+          <text x={16} y={32} fontSize={nameSize} fontWeight={700} fill="#1b2b3a">
+            {roleTitle && <title>{roleTitle}</title>}
+            {name}
           </text>
           <text x={16} y={52} fontSize={10.5} fill="#5b6472">
             {n.age}

@@ -123,6 +123,9 @@ function nodeIdentity(n: SimNode) {
     saveSimId: n.saveSimId ?? null,
     fromSave: !!n.fromSave,
     marriedSur: n.marriedSur ?? null,
+    dynasty: n.dynasty ?? null,
+    dynastyId: n.dynastyId ?? null,
+    dynastyRole: n.dynastyRole ?? null,
     treeId: n.treeId ?? null,
   };
 }
