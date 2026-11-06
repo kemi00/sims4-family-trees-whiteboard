@@ -172,6 +172,10 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .pop__head{padding:6px 9px 4px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
 .pop--links{width:268px}
 .pop--links button{min-height:36px;padding-top:6px;padding-bottom:6px}
+/* More's entries for bar controls folded away on a phone: name over note,
+   in a menu as wide as the links one so the notes don't wrap word by word. */
+.pop--folded{width:268px}
+.pop .pop__noted{padding-top:6px;padding-bottom:6px}
 .pop__text{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;min-width:0;white-space:normal}
 .pop__text small{font-size:11.5px;font-weight:500;color:var(--ink-3);line-height:1.3}
 .pop button svg.pop__check{width:14px;height:14px;color:var(--accent-strong)}
@@ -207,7 +211,8 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 
 /* Narrow windows shed the wordmark, then padding, then labels, so the bar stays
    one row. Re-measured after Log: wordmark off by 1160, labels off by 940.
-   Wrap is reserved for the 640px compact search overlay. */
+   At 640 Organise, Log, the layers and the save chip fold into More (see the
+   compact block below). Wrap is reserved for the compact search overlay. */
 @media (max-width:1160px){ .brand__name{display:none} }
 @media (max-width:1000px){
  .appbar{gap:4px;padding:0 8px 0 10px}
@@ -795,6 +800,12 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 @media (max-width:640px){
  #stage{--minimap-w:160px;--minimap-h:100px}
  .appbar{height:auto;min-height:calc(var(--bar-h) + env(safe-area-inset-top,0px))}
+ /* Phones keep the edit tools, Filters, search and More: seven 44px targets
+    and the plumbob fit 360px. The rest folds into More, in the bar's order. */
+ .appbar{gap:2px;padding-left:8px}
+ .appbar__wide-only,.appbar__rule{display:none}
+ .appbar__spacer{min-width:0}
+ .brand{margin-right:4px}
  .appbar--searching{flex-wrap:wrap;row-gap:6px;padding-bottom:6px}
  .search--bar{display:none}
  .appbar__compact-only{display:flex}
@@ -815,6 +826,15 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  #legend.legend--sheet .legend-card--links{flex:0 0 auto}
  .tool[data-tone=danger]:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 }
+/* Touch: labelled tools lose their labels at 940 and drop to 32px wide; on a
+   phone every bar control is a full 44px square. */
+@media (pointer:coarse) and (max-width:640px){
+ .appbar .tool{width:44px;padding:0}
+}
+/* Narrower than any current phone: scroll the bar rather than cut off More. */
+@media (max-width:359px){
+ .appbar{overflow-x:auto}
+}
 
 
 /* ── save chip: the game clock and aging options from the last save ─────── */
@@ -825,8 +845,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .savechip__row dt{color:var(--ink-3);font-weight:600;flex:0 0 auto}
 .savechip__row dd{margin:0;color:var(--ink);font-weight:600;text-align:right;min-width:0}
 .savechip__note{margin:6px 9px 0;font-size:11px;line-height:1.4;color:var(--ink-3)}
-/* Phones: the bar has no room; the sim editor names the lifespan instead. */
-@media (max-width:640px){ .overflow--save{display:none} }
 .save-import__card .save-import__game{margin:-4px 0 10px;padding:7px 10px;border-radius:8px;background:#f4f7fb;font-size:12px;line-height:1.45;color:var(--ink-2)}
 .save-import__card .save-import__game--changed{background:#fff7e6;color:#7a5200}
 .save-import__game ul{margin:3px 0;padding-left:18px}

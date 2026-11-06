@@ -6,12 +6,23 @@ import {
   Info,
   Megaphone,
   UploadSimple,
+  type Icon,
 } from '../icons.ts';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { CONTACT_EMAIL, CONTACT_MAILTO } from '../lib/credits.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import { CreditsPanel } from './CreditsPanel.tsx';
 import { ToolButton } from './ToolButton.tsx';
+
+/** A bar control that phones fold into this menu, listed above the file actions. */
+export type FoldedItem = {
+  id: string;
+  icon: Icon;
+  label: string;
+  /** A second line: what the control does, or what it is set to. */
+  note?: string;
+  onSelect: () => void;
+};
 
 type Props = {
   onSave: () => void;
@@ -22,6 +33,12 @@ type Props = {
   onDevUpdates: () => void;
   /** Marks the entry with a dot until the visitor has read the newest change. */
   devUpdatesUnseen: boolean;
+  /** The button's name and tooltip. */
+  label?: string;
+  /** Bar controls with no room on a phone; empty on wider screens. */
+  folded?: FoldedItem[];
+  /** The menu's wrapper, so a popover opened from a folded item can hang off it. */
+  wrapRef?: RefObject<HTMLDivElement | null>;
 };
 
 /** File actions, kept out of the bar because they are used rarely. */
@@ -33,10 +50,14 @@ export function OverflowMenu({
   canResetBoard = true,
   onDevUpdates,
   devUpdatesUnseen,
+  label = 'Save, load, contact, and credits',
+  folded = [],
+  wrapRef: outerWrapRef,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const ownWrapRef = useRef<HTMLDivElement>(null);
+  const wrapRef = outerWrapRef ?? ownWrapRef;
   const fileRef = useRef<HTMLInputElement>(null);
   const saveRef = useRef<HTMLInputElement>(null);
   const firstItemRef = useRef<HTMLButtonElement>(null);
@@ -63,7 +84,7 @@ export function OverflowMenu({
       document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [open, creditsOpen]);
+  }, [open, creditsOpen, wrapRef]);
 
   useEffect(() => {
     if (open) firstItemRef.current?.focus();
@@ -78,20 +99,37 @@ export function OverflowMenu({
     <div className="overflow" ref={wrapRef}>
       <ToolButton
         icon={DotsThreeVertical}
-        label="Save, load, contact, and credits"
+        label={label}
         expanded={open}
         onClick={() => setOpen((o) => !o)}
       />
       {open && (
         <div
           ref={popRef}
-          className="pop"
+          className={folded.length ? 'pop pop--folded' : 'pop'}
           role="menu"
           aria-label="More actions"
           style={popStyle}
         >
+          {folded.map(({ id, icon: Glyph, label: name, note, onSelect }, i) => (
+            <button
+              key={id}
+              ref={i === 0 ? firstItemRef : undefined}
+              type="button"
+              role="menuitem"
+              className="pop__noted"
+              onClick={() => run(onSelect)}
+            >
+              <Glyph aria-hidden="true" />
+              <span className="pop__text">
+                {name}
+                {note && <small>{note}</small>}
+              </span>
+            </button>
+          ))}
+          {folded.length > 0 && <span className="pop__rule" aria-hidden="true" />}
           <button
-            ref={firstItemRef}
+            ref={folded.length ? undefined : firstItemRef}
             type="button"
             role="menuitem"
             onClick={() => run(onSave)}
