@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "3b88803",
+   "date": "2026-11-06",
+   "text": "A premade who came in under a married name loses the save badge once the board knows them by their own name again."
+  },
+  {
    "sha": "217b101",
    "date": "2026-11-06",
    "text": "When the game, or a mod such as MC Command Center, gives a married sim their spouse's surname, the board keeps their own: Cassandra stays Cassandra Goth after marrying Caleb Vatore. The editor shows the married name, Find a sim finds either name, and typing the married name in the editor puts it on the card."
