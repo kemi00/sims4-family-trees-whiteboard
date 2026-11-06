@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "5f41333",
+   "date": "2026-11-06",
+   "text": "Cards mark dynasties: 👑 the head, ⚜️ the heir and 🥀 an outcast, read from a Royalty & Legacy save or set in the editor's new Dynasty role field. Hover over a marked name to see its dynasty. The legend explains the marks."
+  },
+  {
    "sha": "7101113",
    "date": "2026-11-06",
    "text": "The chip on a selected link joins names with a plus: Ignacio Robles + Jade Rosa → Heir Rosa."
