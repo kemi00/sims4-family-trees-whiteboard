@@ -41,7 +41,7 @@ import {
   yearText,
 } from '../lib/lifeClock.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
-import { OverflowMenu } from './OverflowMenu.tsx';
+import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
 function bloodlineToolLabel(wb: WhiteboardApi): string {
@@ -75,16 +75,48 @@ function linksToolLabel(wb: WhiteboardApi): string {
   return wb.linksView === 'none' ? 'Family links: hidden' : 'Family links: all';
 }
 
-/** Close a popover on a press outside `ref` or on Escape. */
+/**
+ * The canvas layers in words, for their More entry on a phone, where the
+ * bar's pressed buttons that show them are folded away.
+ */
+function layersNote(wb: WhiteboardApi): string {
+  const links = wb.familyFocus
+    ? 'Highlighting a family'
+    : wb.linksView === 'inside'
+      ? 'Links inside households'
+      : wb.linksView === 'none'
+        ? 'Links hidden'
+        : 'All links';
+  const { groups, worlds } = wb.show;
+  const boxes =
+    groups && worlds
+      ? 'household and world boxes'
+      : groups
+        ? 'household boxes'
+        : worlds
+          ? 'world boxes'
+          : 'no boxes';
+  return `${links} · ${boxes}`;
+}
+
+/**
+ * Where a popover was opened from: its own button in the bar, or, on a
+ * phone, the More menu that the button is folded into.
+ */
+type OpenedFrom = 'bar' | 'more';
+
+/** Close a popover on a press outside `ref` (or `popRef`, if set) or on Escape. */
 function useDismiss(
   open: boolean,
   ref: RefObject<HTMLElement | null>,
   close: () => void,
+  popRef?: RefObject<HTMLElement | null>,
 ) {
   useEffect(() => {
     if (!open) return;
     const onPointer = (ev: PointerEvent) => {
-      if (!ref.current?.contains(ev.target as Node)) close();
+      const t = ev.target as Node;
+      if (!ref.current?.contains(t) && !popRef?.current?.contains(t)) close();
     };
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key !== 'Escape') return;
@@ -97,7 +129,7 @@ function useDismiss(
       document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [open, ref, close]);
+  }, [open, ref, close, popRef]);
 }
 
 /** "Nov 7, 12:10 AM" for when the board read the save. */
@@ -178,19 +210,26 @@ export function AppBar({
     filtersOpen,
     filtersRef,
   );
-  const [linksOpen, setLinksOpen] = useState(false);
+  /** The More menu's wrapper: what popovers opened from it hang off. */
+  const moreRef = useRef<HTMLDivElement>(null);
+  const [linksFrom, setLinksFrom] = useState<OpenedFrom | null>(null);
+  const linksOpen = linksFrom !== null;
   const linksRef = useRef<HTMLDivElement>(null);
   const { popRef: linksPopRef, style: linksPopStyle } = useDropdownPosition(
     linksOpen,
-    linksRef,
+    linksFrom === 'more' ? moreRef : linksRef,
   );
-  const closeLinks = useCallback(() => setLinksOpen(false), []);
-  useDismiss(linksOpen, linksRef, closeLinks);
-  const [saveOpen, setSaveOpen] = useState(false);
+  const closeLinks = useCallback(() => setLinksFrom(null), []);
+  useDismiss(linksOpen, linksRef, closeLinks, linksPopRef);
+  const [saveFrom, setSaveFrom] = useState<OpenedFrom | null>(null);
+  const saveOpen = saveFrom !== null;
   const saveRef = useRef<HTMLDivElement>(null);
-  const { popRef: savePopRef, style: savePopStyle } = useDropdownPosition(saveOpen, saveRef);
-  const closeSave = useCallback(() => setSaveOpen(false), []);
-  useDismiss(saveOpen, saveRef, closeSave);
+  const { popRef: savePopRef, style: savePopStyle } = useDropdownPosition(
+    saveOpen,
+    saveFrom === 'more' ? moreRef : saveRef,
+  );
+  const closeSave = useCallback(() => setSaveFrom(null), []);
+  useDismiss(saveOpen, saveRef, closeSave, savePopRef);
 
   // A game switched off with no sims on the board hides nothing, so it is
   // not an active filter (Games lists it, off, all the same).
@@ -247,8 +286,8 @@ export function AppBar({
       return;
     }
     wb.setLogOpen(false);
-    setLinksOpen(false);
-    setSaveOpen(false);
+    closeLinks();
+    closeSave();
     setFiltersOpen((o) => {
       if (!o) trackAction('/action/filters');
       return !o;
@@ -291,6 +330,159 @@ export function AppBar({
     wb.toggleHideSecrets();
     setFiltersOpen(false);
   };
+  const organise = () => {
+    const { w, h } = svgSize();
+    wb.organiseBoard(w, h);
+  };
+  const toggleLinks = (from: OpenedFrom) => {
+    setFiltersOpen(false);
+    closeSave();
+    setLinksFrom((f) => (f ? null : from));
+  };
+  const toggleSave = (from: OpenedFrom) => {
+    setFiltersOpen(false);
+    closeLinks();
+    setSaveFrom((f) => {
+      if (!f) trackAction('/action/save-details');
+      return f ? null : from;
+    });
+  };
+
+  // A phone has room for the edit tools, Filters, search and More. The rest
+  // of the bar folds into More, in the bar's order, each with the words its
+  // tooltip or pressed state gives on a wider screen.
+  const folded: FoldedItem[] = compact
+    ? [
+        {
+          id: 'organise',
+          icon: MagicWand,
+          label: 'Organise',
+          note: 'Arrange the board like the starter one',
+          onSelect: organise,
+        },
+        {
+          id: 'log',
+          icon: Scroll,
+          label: wb.connectionLog.length ? `Log (${wb.connectionLog.length})` : 'Log',
+          note: 'Links and household moves you added',
+          onSelect: openLog,
+        },
+        {
+          id: 'layers',
+          icon: TreeStructure,
+          label: 'Family links and boxes',
+          note: layersNote(wb),
+          onSelect: () => toggleLinks('more'),
+        },
+        ...(wb.saveGame
+          ? [
+              {
+                id: 'save',
+                icon: CalendarBlank,
+                label: 'Your save',
+                note: saveChipText(wb.saveGame),
+                onSelect: () => toggleSave('more'),
+              },
+            ]
+          : []),
+      ]
+    : [];
+
+  const linksMenu = (
+    <div
+      ref={linksPopRef}
+      className="pop pop--links"
+      role="menu"
+      aria-label={linksFrom === 'more' ? 'Family links and boxes' : 'Family links'}
+      style={linksPopStyle}
+    >
+      <div className="pop__head" aria-hidden="true">
+        Show family links
+      </div>
+      {LINK_VIEWS.map(({ view, icon: Glyph, label, note }) => {
+        const on = wb.linksView === view;
+        return (
+          <button
+            key={view}
+            type="button"
+            role="menuitemradio"
+            aria-checked={on}
+            onClick={() => {
+              wb.setLinksView(view);
+              closeLinks();
+            }}
+          >
+            <Glyph aria-hidden="true" />
+            <span className="pop__text">
+              {label}
+              {note && <small>{note}</small>}
+            </span>
+            {on && <Check className="pop__check" aria-hidden="true" />}
+          </button>
+        );
+      })}
+      <span className="pop__rule" aria-hidden="true" />
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={wb.familyFocus}
+        onClick={() => {
+          wb.setFamilyFocus(!wb.familyFocus);
+          closeLinks();
+        }}
+      >
+        <UsersFour aria-hidden="true" />
+        <span className="pop__text">
+          Highlight a sim's family
+          <small>Select any sim; pick close or extended family on the banner</small>
+        </span>
+        {wb.familyFocus && <Check className="pop__check" aria-hidden="true" />}
+      </button>
+      {/* The bar's box toggles sit beside its links button; on a phone they
+          are folded away with it, so they come along here. */}
+      {linksFrom === 'more' && (
+        <>
+          <span className="pop__rule" aria-hidden="true" />
+          <div className="pop__head" aria-hidden="true">
+            Show boxes
+          </div>
+          {(
+            [
+              ['groups', House, 'Household boxes'],
+              ['worlds', Globe, 'World boxes'],
+            ] as const
+          ).map(([layer, Glyph, label]) => (
+            <button
+              key={layer}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={wb.show[layer]}
+              onClick={() => {
+                wb.toggleShow(layer);
+                closeLinks();
+              }}
+            >
+              <Glyph aria-hidden="true" />
+              <span className="pop__text">{label}</span>
+              {wb.show[layer] && <Check className="pop__check" aria-hidden="true" />}
+            </button>
+          ))}
+        </>
+      )}
+    </div>
+  );
+
+  const saveMenu = wb.saveGame && (
+    <div
+      ref={savePopRef}
+      className="pop pop--save"
+      role="dialog"
+      aria-label="Your save"
+      style={savePopStyle}
+    >
+      <SaveDetails game={wb.saveGame} />
+    </div>
+  );
 
   return (
     <header
@@ -326,10 +518,8 @@ export function AppBar({
       <ToolButton
         icon={MagicWand}
         label="Arrange the board like the starter one"
-        onClick={() => {
-          const { w, h } = svgSize();
-          wb.organiseBoard(w, h);
-        }}
+        className="appbar__wide-only"
+        onClick={organise}
       >
         Organise
       </ToolButton>
@@ -354,6 +544,7 @@ export function AppBar({
         pressed={wb.logOpen}
         count={wb.connectionLog.length}
         expanded={wb.logOpen}
+        className="appbar__wide-only"
         onClick={openLog}
       >
         Log
@@ -361,72 +552,17 @@ export function AppBar({
 
       <span className="appbar__rule" aria-hidden="true" />
 
-      <span className="segment" role="group" aria-label="Canvas layers">
+      <span className="segment appbar__wide-only" role="group" aria-label="Canvas layers">
         <div className="overflow" ref={linksRef}>
           <ToolButton
             icon={TreeStructure}
             label={linksToolLabel(wb)}
             menu
             pressed={wb.linksView !== 'none' || wb.familyFocus}
-            expanded={linksOpen}
-            onClick={() => {
-              setFiltersOpen(false);
-              setSaveOpen(false);
-              setLinksOpen((o) => !o);
-            }}
+            expanded={linksFrom === 'bar'}
+            onClick={() => toggleLinks('bar')}
           />
-          {linksOpen && (
-            <div
-              ref={linksPopRef}
-              className="pop pop--links"
-              role="menu"
-              aria-label="Family links"
-              style={linksPopStyle}
-            >
-              <div className="pop__head" aria-hidden="true">
-                Show family links
-              </div>
-              {LINK_VIEWS.map(({ view, icon: Glyph, label, note }) => {
-                const on = wb.linksView === view;
-                return (
-                  <button
-                    key={view}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={on}
-                    onClick={() => {
-                      wb.setLinksView(view);
-                      setLinksOpen(false);
-                    }}
-                  >
-                    <Glyph aria-hidden="true" />
-                    <span className="pop__text">
-                      {label}
-                      {note && <small>{note}</small>}
-                    </span>
-                    {on && <Check className="pop__check" aria-hidden="true" />}
-                  </button>
-                );
-              })}
-              <span className="pop__rule" aria-hidden="true" />
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={wb.familyFocus}
-                onClick={() => {
-                  wb.setFamilyFocus(!wb.familyFocus);
-                  setLinksOpen(false);
-                }}
-              >
-                <UsersFour aria-hidden="true" />
-                <span className="pop__text">
-                  Highlight a sim's family
-                  <small>Select any sim; pick close or extended family on the banner</small>
-                </span>
-                {wb.familyFocus && <Check className="pop__check" aria-hidden="true" />}
-              </button>
-            </div>
-          )}
+          {linksFrom === 'bar' && linksMenu}
         </div>
         <ToolButton
           icon={House}
@@ -445,7 +581,7 @@ export function AppBar({
       <span className="appbar__spacer" />
 
       {wb.saveGame && (
-        <div className="overflow overflow--save" ref={saveRef}>
+        <div className="overflow overflow--save appbar__wide-only" ref={saveRef}>
           <button
             type="button"
             className="tool tool--menu savechip"
@@ -453,31 +589,14 @@ export function AppBar({
             data-tooltip={`Your save: ${clockText(wb.saveGame.clock)}`}
             aria-label={`Your save: ${saveChipText(wb.saveGame)}`}
             aria-haspopup="dialog"
-            aria-expanded={saveOpen}
-            onClick={() => {
-              setFiltersOpen(false);
-              setLinksOpen(false);
-              setSaveOpen((o) => {
-                if (!o) trackAction('/action/save-details');
-                return !o;
-              });
-            }}
+            aria-expanded={saveFrom === 'bar'}
+            onClick={() => toggleSave('bar')}
           >
             <CalendarBlank aria-hidden="true" />
             <span className="tool__label">{saveChipText(wb.saveGame)}</span>
             <CaretDown className="tool__caret" weight="bold" aria-hidden="true" />
           </button>
-          {saveOpen && (
-            <div
-              ref={savePopRef}
-              className="pop pop--save"
-              role="dialog"
-              aria-label="Your save"
-              style={savePopStyle}
-            >
-              <SaveDetails game={wb.saveGame} />
-            </div>
-          )}
+          {saveFrom === 'bar' && saveMenu}
         </div>
       )}
 
@@ -611,7 +730,12 @@ export function AppBar({
         }}
         onDevUpdates={onDevUpdates}
         devUpdatesUnseen={devUpdatesUnseen}
+        label={compact ? 'More: organise, log, links, save, load, and credits' : undefined}
+        folded={folded}
+        wrapRef={moreRef}
       />
+      {linksFrom === 'more' && linksMenu}
+      {saveFrom === 'more' && saveMenu}
 
       {compact && searchOpen && (
         <div className="search-overlay">

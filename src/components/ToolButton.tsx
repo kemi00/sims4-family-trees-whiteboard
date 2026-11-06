@@ -22,6 +22,8 @@ type Props = {
    */
   menu?: boolean;
   id?: string;
+  /** Extra classes, e.g. `appbar__wide-only` for a control phones fold into More. */
+  className?: string;
   ref?: Ref<HTMLButtonElement>;
   onClick?: () => void;
 };
@@ -37,6 +39,7 @@ export function ToolButton({
   expanded,
   menu,
   id,
+  className,
   ref,
   onClick,
 }: Props) {
@@ -45,7 +48,7 @@ export function ToolButton({
       id={id}
       ref={ref}
       type="button"
-      className={`${children ? 'tool' : 'tool tool--icon'}${menu ? ' tool--menu' : ''}`}
+      className={`${children ? 'tool' : 'tool tool--icon'}${menu ? ' tool--menu' : ''}${className ? ` ${className}` : ''}`}
       data-tone={tone}
       data-pressed={pressed === undefined ? undefined : String(pressed)}
       data-tooltip={label}
