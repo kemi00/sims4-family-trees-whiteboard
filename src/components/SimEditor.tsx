@@ -26,7 +26,7 @@ import {
   yearText,
   type LifeView,
 } from '../lib/lifeClock.ts';
-import { gapText, partnerCandidates } from '../lib/partners.ts';
+import { gapText, partnerCandidates, type PartnerCandidate } from '../lib/partners.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
@@ -141,8 +141,19 @@ function TipButton({
 
 const PARTNER_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
 
-/** Partners listed before "Show more". */
-const PARTNERS_SHOWN = 4;
+/** Partners listed in each life stage before its "Show more". */
+const PARTNERS_SHOWN = 3;
+
+/** A life stage as a group heading: "Young adults". */
+const STAGE_PLURAL: Record<string, string> = {
+  Infant: 'Infants',
+  Toddler: 'Toddlers',
+  Child: 'Children',
+  Teen: 'Teens',
+  'Young Adult': 'Young adults',
+  Adult: 'Adults',
+  Elder: 'Elders',
+};
 
 /** The Generation menu's choice for counting from the oldest known ancestor. */
 const AUTO_ROOT = '__oldest';
@@ -290,7 +301,8 @@ export function SimEditor({
     );
   }, [n.id, n.dynasty, n.dynastyId, n.dynastyRole, dynastyRole, nodes]);
   const [partnerGender, setPartnerGender] = useState('');
-  const [allPartners, setAllPartners] = useState(false);
+  /** Life stages whose whole partner list is open. */
+  const [openStages, setOpenStages] = useState<ReadonlySet<string>>(new Set());
   // Worked out on every tab, so the Family tab's height is known before it opens.
   const partners = useMemo(
     () =>
@@ -299,7 +311,25 @@ export function SimEditor({
         : partnerCandidates({ id: n.id, nodes, edges, game: saveGame, gender: partnerGender || undefined }),
     [isPet, n.id, nodes, edges, saveGame, partnerGender],
   );
-  const shownPartners = allPartners ? partners : partners.slice(0, PARTNERS_SHOWN);
+  /**
+   * Partners by life stage, so a young adult's adults and elders show
+   * rather than sitting below every other young adult. The stage with the
+   * closest partner comes first: their own, usually.
+   */
+  const partnerStages = useMemo(() => {
+    const by = new Map<string, PartnerCandidate[]>();
+    for (const c of partners) {
+      const age = byId[c.id]?.age ?? '';
+      by.set(age, [...(by.get(age) ?? []), c]);
+    }
+    return [...by];
+  }, [partners, byId]);
+  const toggleStage = (age: string) =>
+    setOpenStages((open) => {
+      const next = new Set(open);
+      if (!next.delete(age)) next.add(age);
+      return next;
+    });
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef<HTMLInputElement>(null);
@@ -417,7 +447,7 @@ export function SimEditor({
 
   useEffect(() => {
     onLayout();
-  }, [tab, moveOpen, allPartners, tips, onLayout]);
+  }, [tab, moveOpen, openStages, tips, onLayout]);
 
   useEffect(() => {
     if (!compact) return;
@@ -709,7 +739,7 @@ export function SimEditor({
                 value={partnerGender}
                 onChange={(e) => {
                   setPartnerGender(e.target.value);
-                  setAllPartners(false);
+                  setOpenStages(new Set());
                 }}
               >
                 <option value="">Anyone</option>
@@ -721,43 +751,64 @@ export function SimEditor({
               </select>
             </div>
             <div id="edPartnersHint" className="edhint" hidden={!tips.partners}>
-              Closest in life first: living sims who aren't blood relatives or married. Click one to
-              find them on the board.
+              Young adults, adults and elders are suggested to each other; teens to teens, children
+              to children, and infants and toddlers together. Closest in life first: living sims who
+              aren't blood relatives or married. Click one to find them on the board.
             </div>
-            {partners.length ? (
-              <ul className="partners" aria-labelledby="edPartnersLabel">
-                {shownPartners.map((c) => {
-                  const p = byId[c.id];
-                  if (!p) return null;
-                  const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
-                  const flags = [
-                    c.frozen ? 'not aging now' : '',
-                    c.taken ? 'in a romance' : '',
-                    p.dynasty ? `${p.dynasty} dynasty` : '',
-                  ].filter(Boolean);
-                  return (
-                    <li key={c.id}>
-                      <button type="button" onClick={() => onPickPartner(c.id)}>
-                        <span className="partners__name">
-                          {mark}
-                          {p.first} {p.sur}
-                        </span>
-                        <span className="partners__meta">
-                          {p.age} · {gapText(c)} · {p.hh}
-                        </span>
-                        {flags.length > 0 && <span className="partners__flags">{flags.join(' · ')}</span>}
+            {partnerStages.length ? (
+              partnerStages.map(([age, list]) => {
+                const open = openStages.has(age);
+                const headId = `edPartners-${age.replace(/\s+/g, '')}`;
+                return (
+                  <section key={age} className="partners__stage" aria-labelledby={headId}>
+                    <h5 id={headId}>
+                      {STAGE_PLURAL[age] ?? age} <span className="partners__count">{list.length}</span>
+                    </h5>
+                    <ul className="partners">
+                      {(open ? list : list.slice(0, PARTNERS_SHOWN)).map((c) => {
+                        const p = byId[c.id];
+                        if (!p) return null;
+                        const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
+                        const flags = [
+                          c.frozen ? 'not aging now' : '',
+                          c.taken ? 'in a romance' : '',
+                          p.dynasty ? `${p.dynasty} dynasty` : '',
+                        ].filter(Boolean);
+                        return (
+                          <li key={c.id}>
+                            <button type="button" onClick={() => onPickPartner(c.id)}>
+                              <span className="partners__name">
+                                {mark}
+                                {p.first} {p.sur}
+                              </span>
+                              <span className="partners__meta">
+                                {gapText(c)} · {p.hh}
+                                {flags.length > 0 && (
+                                  <span className="partners__flags"> · {flags.join(' · ')}</span>
+                                )}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {list.length > PARTNERS_SHOWN && (
+                      <button
+                        type="button"
+                        className="edlink edlink--more"
+                        aria-expanded={open}
+                        onClick={() => toggleStage(age)}
+                      >
+                        {open
+                          ? 'Show fewer'
+                          : `Show ${list.length - PARTNERS_SHOWN} more ${(STAGE_PLURAL[age] ?? age).toLowerCase()}`}
                       </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                    )}
+                  </section>
+                );
+              })
             ) : (
               <div className="edhint">No one on the board fits.</div>
-            )}
-            {partners.length > PARTNERS_SHOWN && (
-              <button type="button" className="edlink edlink--more" onClick={() => setAllPartners(!allPartners)}>
-                {allPartners ? 'Show fewer' : `Show ${partners.length - PARTNERS_SHOWN} more`}
-              </button>
             )}
           </div>
         )}

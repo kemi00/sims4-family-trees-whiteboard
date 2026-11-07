@@ -32,11 +32,34 @@ describe('possible partners', () => {
 
   it('ranks living, unmarried non-relatives by how close they are in life', () => {
     const list = partnerCandidates({ id: 'Heir', nodes, edges, game: { importedAt: '', clock: 0, lifespan: 'Short' } });
-    assert.deepEqual(list.map((c) => c.id), ['Close', 'Frozen', 'Guess', 'Far']);
+    // Far is a young adult: a teen is suggested teens only.
+    assert.deepEqual(list.map((c) => c.id), ['Close', 'Frozen', 'Guess']);
     assert.deepEqual([list[0]!.gapDays, list[1]!.frozen, list[2]!.approx], [0.5, 'inactive', true]);
     assert.equal(gapText(list[0]!), 'same age');
     assert.equal(gapText({ ...list[1]!, gapDays: -1 }), '1 day younger');
-    assert.equal(gapText(list[3]!), '18 days older');
+    assert.equal(gapText({ ...list[0]!, gapDays: 18.4 }), '18 days older');
+  });
+
+  it('suggests grown-ups to grown-ups, and keeps teens, children and the littlest apart', () => {
+    const all = [
+      sim('YA', 'Young Adult'),
+      sim('Ad', 'Adult'),
+      sim('El', 'Elder'),
+      sim('Tn', 'Teen'),
+      sim('Ch', 'Child'),
+      sim('Tod', 'Toddler'),
+      sim('Inf', 'Infant'),
+      sim('Unk', 'Unknown'),
+    ];
+    const pick = (id: string) => partnerCandidates({ id, nodes: all, edges: [] }).map((c) => c.id).sort();
+    assert.deepEqual(pick('YA'), ['Ad', 'El']);
+    assert.deepEqual(pick('El'), ['Ad', 'YA']);
+    assert.deepEqual(pick('Tn'), []);
+    assert.deepEqual(pick('Ch'), []);
+    assert.deepEqual(pick('Inf'), ['Tod']);
+    assert.deepEqual(pick('Tod'), ['Inf']);
+    assert.deepEqual(pick('Unk'), []);
+    assert.equal(partnerCandidates({ id: 'YA', nodes: all, edges: [], limit: 1 }).length, 1);
   });
 
   it('narrows to one gender', () => {

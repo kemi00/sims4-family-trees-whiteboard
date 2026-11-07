@@ -49,6 +49,23 @@ export type PartnerCandidate = {
   taken: boolean;
 };
 
+/**
+ * Who is suggested to whom: grown-ups (young adults, adults and elders) to
+ * each other, teens to teens, children to children, and infants and
+ * toddlers together. A newborn is an infant.
+ */
+export const PARTNER_BANDS: readonly (readonly string[])[] = [
+  ['Young Adult', 'Adult', 'Elder'],
+  ['Teen'],
+  ['Child'],
+  ['Infant', 'Toddler'],
+];
+
+/** The life stages a sim of `age` is suggested partners from; none for an unknown age. */
+export function partnerBand(age: string): readonly string[] | undefined {
+  return PARTNER_BANDS.find((b) => b.includes(age));
+}
+
 /** Days a card has lived as far as the board can tell, in Normal days. */
 function placeInLife(n: SimNode): { days: number; approx: boolean } | null {
   if (n.life && n.life.stage === n.age) {
@@ -61,7 +78,9 @@ function placeInLife(n: SimNode): { days: number; approx: boolean } | null {
 
 /**
  * Sims who could partner `id`, closest in life first: living, not pets, not
- * blood relatives, not married (to anyone). `gender` narrows to one gender.
+ * blood relatives, not married (to anyone), and in the same band of life
+ * stages (PARTNER_BANDS). `gender` narrows to one gender; `limit` to the
+ * closest few (all by default).
  */
 export function partnerCandidates(opts: {
   id: string;
@@ -73,8 +92,9 @@ export function partnerCandidates(opts: {
 }): PartnerCandidate[] {
   const focus = opts.nodes.find((n) => n.id === opts.id);
   if (!focus || focus.species) return [];
+  const band = partnerBand(focus.age);
   const me = placeInLife(focus);
-  if (!me) return [];
+  if (!band || !me) return [];
   const blood = bloodRelatives(focus.id, opts.edges);
   const married = new Set<string>();
   const romance = new Set<string>();
@@ -93,6 +113,7 @@ export function partnerCandidates(opts: {
     if (n.id === focus.id || n.species || n.state === DECEASED_STATE) continue;
     if (blood.has(n.id) || married.has(n.id)) continue;
     if (opts.gender && n.gender !== opts.gender) continue;
+    if (!band.includes(n.age)) continue;
     const them = placeInLife(n);
     if (!them) continue;
     const diff = them.days - me.days;
@@ -106,7 +127,7 @@ export function partnerCandidates(opts: {
     });
   }
   out.sort((a, b) => a.gap - b.gap || Number(a.approx) - Number(b.approx) || a.id.localeCompare(b.id));
-  return out.slice(0, opts.limit ?? 12);
+  return opts.limit ? out.slice(0, opts.limit) : out;
 }
 
 /** "same age" (under a day apart), "2 days older", "about 5 days younger". */
