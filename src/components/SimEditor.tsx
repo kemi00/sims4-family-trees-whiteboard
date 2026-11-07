@@ -662,7 +662,7 @@ export function SimEditor({
               <input
                 id="edPlanLabel"
                 value={planLabel}
-                placeholder="Heir 1, Spare 1…"
+                placeholder="e.g. Firstborn, Future spouse"
                 autoComplete="off"
                 aria-describedby="edPlanLabelHint"
                 onChange={(e) => setPlanLabel(e.target.value)}
