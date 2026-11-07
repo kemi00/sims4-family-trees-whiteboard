@@ -296,8 +296,9 @@ export const EdgeLayer = memo(function EdgeLayer({
         );
       })}
       {unions.map((u) => {
-        const lineCol =
-          u.type === 'divorced' ? UEDIT : u.isUser ? UEDIT : COL.marriage;
+        // Violet means planned, not in the save yet, for divorces as for
+        // every couple: a divorce from the save is gray like a marriage.
+        const lineCol = u.isUser ? UEDIT : COL.marriage;
         const pillCol = u.type === 'romance' ? COL.romance : lineCol;
         const sq = isSelLink([u.edgeId]);
         const lc = sq ? '#1b6cd6' : lineCol;

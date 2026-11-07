@@ -321,8 +321,8 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
             />
             <KeyRow
               sample={
-                <PillSample label="Broken rings" line={UEDIT}>
-                  <DivorcePill x={0} y={0} color={UEDIT} />
+                <PillSample label="Broken rings">
+                  <DivorcePill x={0} y={0} color={COL.marriage} />
                 </PillSample>
               }
               label="Divorced"
