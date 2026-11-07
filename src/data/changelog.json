@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "79c513b",
+   "date": "2026-11-07",
+   "text": "Divorces from your save are drawn gray, like marriages. Violet now always means planned on the board and not in your save yet, divorces included."
+  },
+  {
    "sha": "167d61c",
    "date": "2026-11-07",
    "text": "The legend's Links card is now the Key, grouped into family lines, couples, card marks and your plans, with each mark drawn as the board draws it. Click Key to fold it away once you know the marks; it stays folded. On phones the legend scrolls as one sheet with larger text."
