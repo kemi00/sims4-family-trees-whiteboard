@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "167d61c",
+   "date": "2026-11-07",
+   "text": "The legend's Links card is now the Key, grouped into family lines, couples, card marks and your plans, with each mark drawn as the board draws it. Click Key to fold it away once you know the marks; it stays folded. On phones the legend scrolls as one sheet with larger text."
+  },
+  {
    "sha": "ca8a0ca",
    "date": "2026-11-07",
    "text": "The sim editor has tabs: Sim for life stage, gender, life state, playability and moving house; Family for dynasty role, generation and possible partners; Details for the age facts from your save, where the sim comes from and their sim ID. The name stays at the top and Save at the bottom, so you no longer scroll to reach it. The editor opens on the tab you used last."
