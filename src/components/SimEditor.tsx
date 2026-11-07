@@ -27,6 +27,16 @@ import {
   type LifeView,
 } from '../lib/lifeClock.ts';
 import { gapText, partnerBand, partnerCandidates, type PartnerCandidate } from '../lib/partners.ts';
+import {
+  GENDER_NOT_KNOWN,
+  NOT_YET_AGE,
+  cardName,
+  conflictText,
+  isPlannedSim,
+  notYetText,
+  type PlanChoice,
+  type PlanConflict,
+} from '../lib/plan.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
@@ -211,12 +221,23 @@ type Props = {
     dynastyRole: DynastyRole | undefined;
     /** Count this dynasty's generations from another Gen 1 (null: the oldest known ancestor). */
     genRoot?: { key: string; id: string | null };
+    /** A planned sim's role in the plan; undefined clears it. */
+    planLabel?: string;
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   onLayout: () => void;
   onClose: () => void;
   /** Focus the first name, selected, so a sim just added can be named straight away. */
   focusName?: boolean;
+  /** Every plan the game went against (planConflicts); the editor shows this sim's. */
+  planIssues: PlanConflict[];
+  /** A planned sim with planned parents: "Not born yet" rather than "Not in the game yet". */
+  plannedChild: boolean;
+  onResolvePlan: (edgeId: string, choice: PlanChoice) => void;
+  /** A sim from the save fills this planned sim (linkPlannedSim). */
+  onLinkPlanned: (realId: string) => void;
+  /** This sim stops filling the planned sim it filled (unlinkPlannedSim). */
+  onUnlinkPlanned: () => void;
 };
 
 export function SimEditor({
@@ -236,13 +257,22 @@ export function SimEditor({
   onLayout,
   onClose,
   focusName,
+  planIssues,
+  plannedChild,
+  onResolvePlan,
+  onLinkPlanned,
+  onUnlinkPlanned,
 }: Props) {
   const compact = useCompactChrome();
   const isPet = !!n.species;
   // Pets have no dynasty and no partners: no Family tab.
   const tabs: Tab[] = isPet ? ['sim', 'details'] : ['sim', 'family', 'details'];
+  /** This sim's plans the game went against. */
+  const myIssues = planIssues.filter((c) => c.a === n.id || c.b === n.id || c.children.includes(n.id));
+  const planned = isPlannedSim(n);
+  // An off-plan sim opens where its plan is decided.
   const [tab, setTabState] = useState<Tab>(() =>
-    focusName || !tabs.includes(lastTab) ? 'sim' : lastTab,
+    focusName || !tabs.includes(lastTab) ? 'sim' : myIssues.length && !isPet ? 'family' : lastTab,
   );
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
   const setTab = (t: Tab) => {
@@ -255,6 +285,10 @@ export function SimEditor({
   // "Thebe V", not one field split at its first space.
   const [first, setFirst] = useState(n.first);
   const [sur, setSur] = useState(n.sur);
+  /** A planned sim's role in the plan: "Heir 1". */
+  const [planLabel, setPlanLabel] = useState(n.planLabel ?? '');
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkQuery, setLinkQuery] = useState('');
   /** The game's surname from a spouse, when the card shows another. */
   const married =
     n.marriedSur && n.marriedSur.trim().toLowerCase() !== n.sur.trim().toLowerCase()
@@ -291,6 +325,42 @@ export function SimEditor({
           `${a.first} ${a.sur}`.localeCompare(`${b.first} ${b.sur}`),
       );
   }, [gen, generations, byId]);
+  /** A sim's name as the board shows it, for plan sentences. */
+  const planName = (id: string) => (byId[id] ? cardName(byId[id]!) : 'someone');
+  /**
+   * Sims from the save that could fill this planned sim: its planned parents'
+   * children and its planned partners' partners first, or anyone by name.
+   */
+  const linkChoices = useMemo(() => {
+    if (!planned || !linkOpen) return [];
+    const couple = (e: Edge) => e.type === 'marriage' || e.type === 'romance';
+    const plannedParents = new Set(edges.filter((e) => e.type === 'parent' && e.b === n.id).map((e) => e.a));
+    const plannedPartners = new Set(
+      edges.filter((e) => couple(e) && (e.a === n.id || e.b === n.id)).map((e) => (e.a === n.id ? e.b : e.a)),
+    );
+    // How many of the planned parents (or partners) each sim shares: a child
+    // of both comes before a half-sibling.
+    const score = new Map<string, number>();
+    const bump = (id: string) => score.set(id, (score.get(id) ?? 0) + 1);
+    for (const e of edges) {
+      if (e.type === 'parent' && plannedParents.has(e.a)) bump(e.b);
+      if (couple(e) && plannedPartners.has(e.a)) bump(e.b);
+      if (couple(e) && plannedPartners.has(e.b)) bump(e.a);
+    }
+    const best = Math.max(0, ...score.values());
+    const q = linkQuery.trim().toLowerCase();
+    return nodes
+      .filter(
+        (x) =>
+          !!x.saveSimId &&
+          !x.species &&
+          x.id !== n.id &&
+          (q ? cardName(x).toLowerCase().includes(q) : score.has(x.id)),
+      )
+      .map((x) => ({ sim: x, score: score.get(x.id) ?? 0, likely: best > 0 && score.get(x.id) === best }))
+      .sort((a, b) => b.score - a.score || cardName(a.sim).localeCompare(cardName(b.sim)))
+      .slice(0, 8);
+  }, [planned, linkOpen, edges, nodes, n.id, linkQuery]);
   const nameOf = (id: string | undefined) => {
     const x = id ? byId[id] : undefined;
     return x ? `${x.first} ${x.sur}`.trim() : 'someone not on the board';
@@ -391,7 +461,9 @@ export function SimEditor({
   const save = () => {
     onSave({
       // A sim always has a first name; a last name can be blank (Mayor Whiskers).
-      first: first.trim() || n.first,
+      // A planned sim may have no name yet; its plan label stands in.
+      first: first.trim() || (planned ? '' : n.first),
+      planLabel: planned ? planLabel.trim() || undefined : n.planLabel,
       sur: sur.trim(),
       age,
       gender,
@@ -414,8 +486,8 @@ export function SimEditor({
     if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.keyCode === 229) return;
     const t = e.target as HTMLElement;
     if (t.closest('button, a, textarea')) return;
-    // The move form handles its own Enter.
-    if (t.closest('#edMove')) return;
+    // The move form and the link search handle their own Enter.
+    if (t.closest('#edMove, #edLink')) return;
     e.preventDefault();
     save();
   };
@@ -477,7 +549,7 @@ export function SimEditor({
 
   useEffect(() => {
     onLayout();
-  }, [tab, moveOpen, allPartners, partnerStage, tips, onLayout]);
+  }, [tab, moveOpen, linkOpen, allPartners, partnerStage, tips, onLayout]);
 
   useEffect(() => {
     if (!compact) return;
@@ -513,7 +585,7 @@ export function SimEditor({
       id="editor"
       className={compact ? 'editor editor--sheet' : 'editor'}
       role="dialog"
-      aria-label={`Edit ${n.first} ${n.sur}`.trim()}
+      aria-label={`Edit ${cardName(n)}`}
       onKeyDown={onKeyDown}
       style={
         compact
@@ -584,6 +656,23 @@ export function SimEditor({
       <div className="ed__body">
         {/* Hidden panels stay mounted, so a half-filled move form survives a look at another tab. */}
         <div role="tabpanel" id="edPanel-sim" aria-labelledby="edTab-sim" hidden={tab !== 'sim'}>
+          {planned && (
+            <>
+              <label htmlFor="edPlanLabel">Plan label</label>
+              <input
+                id="edPlanLabel"
+                value={planLabel}
+                placeholder="Heir 1, Spare 1…"
+                autoComplete="off"
+                aria-describedby="edPlanLabelHint"
+                onChange={(e) => setPlanLabel(e.target.value)}
+              />
+              <div id="edPlanLabelHint" className="edhint">
+                Their role in your plan, on the card until they have a first name. Leave what you
+                don't know yet: the game fills it in.
+              </div>
+            </>
+          )}
           <div className="edpair">
             <div>
               <label htmlFor="edAge">Life stage</label>
@@ -593,25 +682,28 @@ export function SimEditor({
                 aria-describedby={life ? 'edLifeSum' : undefined}
                 onChange={(e) => setAge(e.target.value)}
               >
+                {planned && <option value={NOT_YET_AGE}>{notYetText(plannedChild)}</option>}
                 {AGES.map((a) => (
                   <option key={a} value={a}>
                     {a}
                   </option>
                 ))}
-                {!AGES.includes(age as (typeof AGES)[number]) && <option value={age}>{age}</option>}
+                {!AGES.includes(age as (typeof AGES)[number]) && !(planned && age === NOT_YET_AGE) && (
+                  <option value={age}>{age}</option>
+                )}
               </select>
             </div>
             <div>
               <label htmlFor="edGender">Gender</label>
               <select id="edGender" value={gender} onChange={(e) => setGender(e.target.value)}>
+                {planned && <option value={GENDER_NOT_KNOWN}>Not known yet</option>}
                 {GENDERS.map((g) => (
                   <option key={g} value={g}>
                     {g}
                   </option>
                 ))}
-                {!GENDERS.includes(gender as (typeof GENDERS)[number]) && (
-                  <option value={gender}>{gender}</option>
-                )}
+                {!GENDERS.includes(gender as (typeof GENDERS)[number]) &&
+                  !(planned && gender === GENDER_NOT_KNOWN) && <option value={gender}>{gender}</option>}
               </select>
             </div>
           </div>
@@ -680,10 +772,96 @@ export function SimEditor({
               />
             </div>
           )}
+          {planned && (
+            <>
+              <button
+                type="button"
+                className="movebtn linkbtn"
+                aria-expanded={linkOpen}
+                aria-controls="edLink"
+                onClick={() => setLinkOpen(!linkOpen)}
+              >
+                ↔ This is a sim from my save…
+              </button>
+              {linkOpen && (
+                <div id="edLink">
+                  <label htmlFor="edLinkQuery">Who fills {cardName(n)}?</label>
+                  <input
+                    id="edLinkQuery"
+                    type="search"
+                    value={linkQuery}
+                    placeholder="Type a name"
+                    autoComplete="off"
+                    onChange={(e) => setLinkQuery(e.target.value)}
+                  />
+                  {linkChoices.length ? (
+                    <ul className="partners">
+                      {linkChoices.map(({ sim: x, likely }) => (
+                        <li key={x.id}>
+                          <button type="button" onClick={() => onLinkPlanned(x.id)}>
+                            <span className="partners__name">{cardName(x)}</span>
+                            <span className="partners__meta">
+                              {x.age} · {x.hh}
+                              {likely ? ' · likely' : ''}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="edhint">
+                      {linkQuery.trim() ? 'No sim from your save by that name.' : 'Type the name the game gave them.'}
+                    </div>
+                  )}
+                  <div className="edhint">
+                    Their card takes over this planned sim's links, and keeps the name, gender and
+                    age from your save. Unlink in their Family tab if it's the wrong one.
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {!isPet && (
           <div role="tabpanel" id="edPanel-family" aria-labelledby="edTab-family" hidden={tab !== 'family'}>
+            {(myIssues.length > 0 || n.plannedAs) && (
+              <section className="edplan" aria-labelledby="edPlanHead">
+                <div className="edlabel">
+                  <span className="edlabel__text" id="edPlanHead">
+                    Your plan
+                  </span>
+                </div>
+                {myIssues.map((c) => (
+                  <div key={c.edgeId} className="edplan__issue">
+                    <p>
+                      <b>⚠ Off plan.</b> {conflictText(c, planName)}
+                    </p>
+                    <div className="edplan__actions">
+                      <button type="button" className="edplan__go" onClick={() => onResolvePlan(c.edgeId, 'follow')}>
+                        Follow the game
+                      </button>
+                      <button type="button" onClick={() => onResolvePlan(c.edgeId, 'keep')}>
+                        Keep my plan
+                      </button>
+                      <button type="button" onClick={() => onResolvePlan(c.edgeId, 'drop')}>
+                        Drop it
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {n.plannedAs && (
+                  <div className="edplan__was">
+                    <span>
+                      Planned as <b>{n.plannedAs.label}</b>
+                    </span>
+                    <button type="button" className="edlink" onClick={onUnlinkPlanned}>
+                      Unlink
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
             <label htmlFor="edDynasty">Dynasty role</label>
             <select
               id="edDynasty"

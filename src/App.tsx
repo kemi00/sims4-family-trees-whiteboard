@@ -225,6 +225,9 @@ export default function App() {
           <div ref={logPanelRef}>
             <ConnectionLogPanel
               entries={wb.connectionLog}
+              offPlanEdgeIds={wb.offPlan.edges}
+              doneEdgeIds={wb.doneEdgeIds}
+              planStats={wb.planStats}
               anchorRect={
                 logBtnRef.current?.getBoundingClientRect() ?? null
               }
@@ -263,10 +266,12 @@ export default function App() {
             summary={wb.saveImport.merge.summary}
             game={wb.saveImport.merge.saveGame}
             starter={wb.saveImport.starter}
+            plan={wb.saveImport.plan}
+            planned={wb.plannedCounts}
             onCancel={wb.cancelSaveImport}
-            onMerge={() => {
+            onMerge={(choices) => {
               const r = svgRef.current?.getBoundingClientRect();
-              wb.confirmSaveImport(r?.width ?? 800, r?.height ?? 600);
+              wb.confirmSaveImport(r?.width ?? 800, r?.height ?? 600, choices);
             }}
             onReplace={() => {
               const r = svgRef.current?.getBoundingClientRect();

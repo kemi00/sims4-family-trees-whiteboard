@@ -17,6 +17,21 @@ import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type Lo
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import { householdMovePlan, moveDestination, type MoveDestination } from '../lib/householdMove.ts';
 import {
+  GENDER_NOT_KNOWN,
+  NOT_YET_AGE,
+  cardName,
+  isPlannedSim,
+  linkPlannedSim,
+  moveToUndo,
+  offPlanMarks,
+  planConflicts,
+  planProgress,
+  resolvePlanConflict,
+  unlinkPlannedSim,
+  type PlanChoice,
+} from '../lib/plan.ts';
+import { planNote, planReview, type PlanChoices, type SavePlanReview } from '../lib/planReview.ts';
+import {
   bbox,
   cardOriginAtViewportCenter,
   coreOffsetsAfterImportSeparation,
@@ -54,7 +69,7 @@ import {
   householdPlace,
   simName,
 } from '../lib/connectionLog.ts';
-import { fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
+import { edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -320,6 +335,8 @@ export function useWhiteboard() {
     parsed: ParsedSave;
     /** The board is still the starter roster, so Replace is picked. */
     starter: boolean;
+    /** Your plan against this save, for the import's review step. */
+    plan: SavePlanReview;
   } | null>(null);
   const [pendingLoadJson, setPendingLoadJson] = useState<{
     file: File;
@@ -779,9 +796,11 @@ export function useWhiteboard() {
   const clearSel = useCallback(() => setSel(null), []);
 
   const pinCardsToCurrentPlaces = useCallback(
-    (nextEdges: Edge[], nextCore: SimNode[] = nodesCore) => {
+    (nextEdges: Edge[], nextCore: SimNode[] = nodesCore, free?: ReadonlySet<string>) => {
       const bases = layoutBases(nextCore, worlds, nextEdges);
       const next = nextCore.map((n) => {
+        // A card that changed box takes its new box's place, not its old one.
+        if (free?.has(n.id)) return n;
         const p = byid[n.id];
         const base = bases.get(n.id);
         if (!p || !base) return n;
@@ -1092,6 +1111,34 @@ export function useWhiteboard() {
   /** Each dynasty member's generation, counted from the first head. */
   const dynastyGens = useMemo(() => dynastyGenerations(nodesCore, edges), [nodesCore, edges]);
 
+  /** Planned links the game went against (see planConflicts). */
+  const planIssues = useMemo(() => planConflicts(nodesCore, edges), [nodesCore, edges]);
+  const nameOfCore = useCallback(
+    (id: string) => {
+      const n = nodesCore.find((x) => x.id === id);
+      return n ? cardName(n) : 'someone';
+    },
+    [nodesCore],
+  );
+  /** Off-plan links and each sim's reason, for the board. */
+  const offPlan = useMemo(() => offPlanMarks(planIssues, nameOfCore), [planIssues, nameOfCore]);
+  /** Planned sims with planned parents: "Not born yet" rather than "Not in the game yet". */
+  const plannedChildIds = useMemo(() => {
+    const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
+    return new Set(edges.filter((e) => e.type === 'parent' && planned.has(e.b)).map((e) => e.b));
+  }, [nodesCore, edges]);
+  const planStats = useMemo(() => planProgress(edges, planIssues), [edges, planIssues]);
+  /** Links a save confirmed after they were planned: the plan done. */
+  const doneEdgeIds = useMemo(() => new Set(edges.filter((e) => e.wasPlanned).map((e) => e.id)), [edges]);
+  /** The plan Replace would drop: planned links and planned sims. */
+  const plannedCounts = useMemo(
+    () => ({
+      links: edges.filter((e) => edgeSourceOf(e) === 'planned').length,
+      sims: nodesCore.filter(isPlannedSim).length,
+    }),
+    [edges, nodesCore],
+  );
+
   const updateNode = useCallback((id: string, patch: Partial<SimNode>) => {
     const prev = nodesCore.find((n) => n.id === id);
     const reflow =
@@ -1326,14 +1373,15 @@ export function useWhiteboard() {
             color: host.color,
           };
       const id = 'new' + eidcRef.current++;
+      // A planned child: no made-up name, gender or stage until the game has them.
       const infant: SimNode = {
         id,
         gid: dest.gid,
-        first: 'New',
-        sur: 'Sim',
-        age: 'Infant',
+        first: '',
+        sur: host.sur || 'Sim',
+        age: NOT_YET_AGE,
         state: 'Sim',
-        gender: randomNewSimGender(),
+        gender: GENDER_NOT_KNOWN,
         hh: dest.hh,
         world: dest.world,
         nb: dest.nb,
@@ -1406,7 +1454,7 @@ export function useWhiteboard() {
       setInfantHouseMenu(null);
       trackAction('/action/add-infant');
       flashStatus(
-        `Linked ✓ — Infant added under ${byid[pa]?.first ?? ''} ＋ ${byid[pb]?.first ?? ''}.`,
+        `Planned a child of ${byid[pa]?.first ?? ''} ＋ ${byid[pb]?.first ?? ''}: not born yet. Give them a plan label in the editor.`,
       );
     },
     [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap],
@@ -1684,10 +1732,12 @@ export function useWhiteboard() {
         .filter(
           (n) =>
             nodeVis(n) &&
-            // The game's married name finds the sim too (Cassandra Vatore).
-            [n.sur, n.marriedSur].some(
+            // The game's married name finds the sim too (Cassandra Vatore),
+            // and a planned sim's plan label ("Heir 1").
+            ([n.sur, n.marriedSur].some(
               (sur) => sur !== undefined && `${n.first} ${sur}`.toLowerCase().includes(query),
-            ),
+            ) ||
+              (isPlannedSim(n) && cardName(n).toLowerCase().includes(query))),
         )
         .map((n) => n.id);
       if (!hits.length) {
@@ -2176,7 +2226,7 @@ export function useWhiteboard() {
       flashStatus(
         mode === 'replace'
           ? `Board replaced from save — ${result.nodes.length} cards.${games} Download JSON to keep it.`
-          : `Save merged — ${s.matched} updated, ${s.added} added.${games} Download JSON to keep this merge.`,
+          : `Save merged — ${s.matched} updated, ${s.added} added.${planNote(s.slotsFilled.length, planConflicts(result.nodes, result.edges).length)}${games} Download JSON to keep this merge.`,
       );
       fitWhenLaidOut(svgWidth, svgHeight);
     },
@@ -2206,7 +2256,12 @@ export function useWhiteboard() {
           now: new Date().toISOString(),
           nextEdgeId: () => 'v' + n++,
         });
-        setSaveImport({ merge, parsed, starter: isStarterBoard(nodesCore, seed.nodes) });
+        setSaveImport({
+          merge,
+          parsed,
+          starter: isStarterBoard(nodesCore, seed.nodes),
+          plan: planReview(merge, parsed, nodesCore, edges, householdMoves),
+        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not read that save';
         alert(msg);
@@ -2216,11 +2271,140 @@ export function useWhiteboard() {
   }, [nodesCore, edges, groups, worlds, pairStatus, saveGame, seed.nodes, seed.edges, householdMoves]);
 
   const confirmSaveImport = useCallback(
-    (svgWidth: number, svgHeight: number) => {
+    (svgWidth: number, svgHeight: number, choices?: PlanChoices) => {
       if (!saveImport) return;
-      applySaveBoard(saveImport.merge, svgWidth, svgHeight, 'merge');
+      const matches = Object.entries(choices?.matches ?? {}).filter(([, save]) => !!save);
+      const resolve = Object.entries(choices?.resolve ?? {}).filter(
+        (x): x is [string, PlanChoice] => x[1] !== 'later',
+      );
+      if (!matches.length && !resolve.length) {
+        applySaveBoard(saveImport.merge, svgWidth, svgHeight, 'merge');
+        return;
+      }
+      // Following the game takes back a move made for the plan: the merge
+      // then puts them where the save has them.
+      const undone = resolve.flatMap(([edgeId, choice]) => {
+        const m = choice === 'follow' ? saveImport.plan.moves[edgeId] : undefined;
+        return m ? [m] : [];
+      });
+      const released = new Set(undone.map((m) => m.simId));
+      let n = eidcRef.current;
+      const merged = mergeSaveIntoBoard({
+        nodes: nodesCore,
+        edges,
+        groups,
+        worlds,
+        pairStatus,
+        parsed: saveImport.parsed,
+        seedNameKeys: seedNameKeysFromNodes(seed.nodes),
+        packReference: seed.nodes,
+        rosterEdges: seed.edges,
+        movedByHand: new Set(householdMoves.filter((m) => !released.has(m.simId)).map((m) => m.simId)),
+        slotMatches: new Map(matches.map(([slot, save]) => [save, slot])),
+        game: saveGame,
+        fileName: saveImport.merge.saveGame?.fileName,
+        now: new Date().toISOString(),
+        nextEdgeId: () => 'v' + n++,
+      });
+      // Then what you chose for each plan the game went against.
+      const now = new Date().toISOString();
+      let nodesR = merged.nodes;
+      let edgesR = merged.edges;
+      for (const [edgeId, choice] of resolve) {
+        const c = planConflicts(nodesR, edgesR).find((x) => x.edgeId === edgeId);
+        if (!c) continue;
+        const r = resolvePlanConflict(nodesR, edgesR, c, choice, () => 'u' + n++, now);
+        nodesR = r.nodes;
+        edgesR = r.edges;
+      }
+      eidcRef.current = n;
+      applySaveBoard(
+        { ...merged, nodes: nodesR, edges: edgesR, rehomed: [...merged.rehomed, ...released] },
+        svgWidth,
+        svgHeight,
+        'merge',
+      );
+      if (undone.length) {
+        const ids = new Set(undone.map((m) => m.id));
+        setHouseholdMoves((ms) => ms.filter((m) => !ids.has(m.id)));
+      }
     },
-    [saveImport, applySaveBoard],
+    [saveImport, applySaveBoard, nodesCore, edges, groups, worlds, pairStatus, seed.nodes, seed.edges, householdMoves, saveGame],
+  );
+
+  /**
+   * An off-plan link, resolved in the editor (see resolvePlanConflict).
+   * Following the game also takes back a move into the planned partner's
+   * household.
+   */
+  const resolvePlanItem = useCallback(
+    (edgeId: string, choice: PlanChoice) => {
+      const c = planIssues.find((x) => x.edgeId === edgeId);
+      if (!c) return;
+      pushUndo();
+      let n = eidcRef.current;
+      const r = resolvePlanConflict(nodesCore, edges, c, choice, () => 'u' + n++, new Date().toISOString());
+      eidcRef.current = n;
+      let nextCore = r.nodes;
+      const free = new Set<string>();
+      const back = choice === 'follow' ? moveToUndo(c, nodesCore, householdMoves) : null;
+      const home = back ? groups.find((g) => g.gid === back.fromGid) : undefined;
+      if (back && home) {
+        nextCore = nextCore.map((x) =>
+          x.id === back.simId
+            ? toCore({ ...x, gid: home.gid, hh: home.hh, world: home.world, nb: home.nb, color: home.color, ox: 0, oy: 0 })
+            : x,
+        );
+        free.add(back.simId);
+        setHouseholdMoves((ms) => ms.filter((m) => m.id !== back.id));
+      }
+      setEdges(r.edges);
+      pinCardsToCurrentPlaces(r.edges, nextCore, free);
+      flashStatus(
+        choice === 'keep'
+          ? 'Plan kept: it stays violet.'
+          : choice === 'drop'
+            ? 'Plan dropped.'
+            : `Following your game${back && home ? `: ${nameOfCore(back.simId)} is back in ${home.hh}` : ''}.`,
+      );
+    },
+    [planIssues, pushUndo, nodesCore, edges, householdMoves, groups, pinCardsToCurrentPlaces, flashStatus, nameOfCore],
+  );
+
+  /** "This is …": a sim from the save fills a planned sim by hand. */
+  const linkPlanned = useCallback(
+    (slotId: string, realId: string) => {
+      const slot = nodesCore.find((x) => x.id === slotId);
+      const real = nodesCore.find((x) => x.id === realId);
+      if (!slot || !real) return;
+      pushUndo();
+      const r = linkPlannedSim(nodesCore, edges, slotId, realId, new Date().toISOString());
+      setEdges(r.edges);
+      setHouseholdMoves((ms) => ms.filter((m) => m.simId !== slotId));
+      if (bloodlineId === slotId) setBloodlineId(realId);
+      pinCardsToCurrentPlaces(r.edges, r.nodes);
+      setSel({ type: 'node', id: realId });
+      setEditNodeId(null);
+      flashStatus(`${cardName(real)} now fills ${cardName(slot)}.`);
+    },
+    [nodesCore, edges, pushUndo, bloodlineId, pinCardsToCurrentPlaces, flashStatus],
+  );
+
+  /** Undoes a fill: the planned sim comes back beside the real one. */
+  const unlinkPlanned = useCallback(
+    (id: string) => {
+      const real = nodesCore.find((x) => x.id === id);
+      if (!real?.plannedAs) return;
+      pushUndo();
+      let n = eidcRef.current;
+      const r = unlinkPlannedSim(nodesCore, edges, id, () => 'new' + n++, () => 'u' + n++);
+      eidcRef.current = n;
+      setEdges(r.edges);
+      pinCardsToCurrentPlaces(r.edges, r.nodes, r.plannedId ? new Set([r.plannedId]) : undefined);
+      setEditNodeId(null);
+      flashStatus(`${real.plannedAs.label} is planned again; ${cardName(real)} stays as in your save.`);
+    },
+    [nodesCore, edges, pushUndo, pinCardsToCurrentPlaces, flashStatus],
   );
 
   const confirmSaveReplace = useCallback(
@@ -2621,6 +2805,15 @@ export function useWhiteboard() {
     updateNode,
     setDynastyGenRoot,
     dynastyGens,
+    planIssues,
+    offPlan,
+    plannedChildIds,
+    planStats,
+    doneEdgeIds,
+    plannedCounts,
+    resolvePlanItem,
+    linkPlanned,
+    unlinkPlanned,
     pushUndo,
     canUndo,
     undo,

@@ -75,6 +75,7 @@ import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
+import { isPlannedSim, notYetText } from '../lib/plan.ts';
 import type { DynastyGeneration } from '../lib/generations.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { SimNodeView } from './SimNode.tsx';
@@ -1628,6 +1629,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             worldById={worldById}
             gidById={gidById}
             focusEdgeIds={wb.family?.edgeIds}
+            offPlanEdgeIds={wb.offPlan.edges}
             userEdgeIds={userEdgeIds.current}
             isSelLink={wb.isSelLink}
             connectMode={wb.connectMode}
@@ -1719,6 +1721,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 }
                 hiAges={wb.hiAges}
                 hiSingle={wb.hiSingle}
+                offPlan={wb.offPlan.sims.get(n.id)}
+                notYet={
+                  isPlannedSim(n) ? notYetText(wb.plannedChildIds.has(n.id)) : undefined
+                }
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.familyIds}
@@ -1996,6 +2002,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           }}
           onClose={() => wb.setEditNodeId(null)}
           focusName={nameFocusId === editNode.id}
+          planIssues={wb.planIssues}
+          plannedChild={wb.plannedChildIds.has(editNode.id)}
+          onResolvePlan={(edgeId, choice) => wb.resolvePlanItem(edgeId, choice)}
+          onLinkPlanned={(realId) => {
+            wb.linkPlanned(editNode.id, realId);
+            wb.setEditNodeId(null);
+          }}
+          onUnlinkPlanned={() => wb.unlinkPlanned(editNode.id)}
         />
       )}
     </div>

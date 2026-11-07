@@ -19,6 +19,12 @@ type Props = {
   onPick: (entry: ConnectionLogEntry) => void;
   onFocusSim: (id: string) => void;
   onClose: () => void;
+  /** Planned links the game went against (planConflicts). */
+  offPlanEdgeIds?: ReadonlySet<string>;
+  /** Links a save confirmed after they were planned. */
+  doneEdgeIds?: ReadonlySet<string>;
+  /** How the plan stands (planProgress). */
+  planStats?: { planned: number; done: number; offPlan: number };
 };
 
 function LogParts({
@@ -80,18 +86,30 @@ export function ConnectionLogPanel({
   onPick,
   onFocusSim,
   onClose,
+  offPlanEdgeIds,
+  doneEdgeIds,
+  planStats,
 }: Props) {
   const sheet = usePanelSheet();
   const pos = panelPosition(anchorRect, CONNECTION_LOG_PANEL_W);
   const [newestFirst, setNewestFirst] = useState(true);
-  const [origin, setOrigin] = useState<'all' | 'planned' | 'save'>('all');
+  const [origin, setOrigin] = useState<'all' | 'planned' | 'off' | 'save'>('all');
+  /** Off plan beats planned and done: it is the one that needs you. */
+  const statusOf = (e: ConnectionLogEntry): 'off' | 'done' | 'planned' | 'save' => {
+    if (e.edgeIds.some((id) => offPlanEdgeIds?.has(id))) return 'off';
+    if (e.edgeIds.some((id) => doneEdgeIds?.has(id))) return 'done';
+    return (e.origin ?? 'planned') === 'save' ? 'save' : 'planned';
+  };
   const filtered = useMemo(
     () =>
       origin === 'all'
         ? entries
-        : entries.filter((e) => (e.origin ?? 'planned') === origin),
-    [entries, origin],
+        : origin === 'off'
+          ? entries.filter((e) => e.edgeIds.some((id) => offPlanEdgeIds?.has(id)))
+          : entries.filter((e) => (e.origin ?? 'planned') === origin),
+    [entries, origin, offPlanEdgeIds],
   );
+  const hasPlan = !!planStats && planStats.planned + planStats.done + planStats.offPlan > 0;
   const rows = useMemo(
     () => connectionLogRows(sortConnectionLog(filtered, newestFirst)),
     [filtered, newestFirst],
@@ -130,11 +148,23 @@ export function ConnectionLogPanel({
           </button>
         </span>
       </div>
+      {hasPlan && (
+        <p className="connection-log__progress">
+          Your plan: <b>{planStats!.planned}</b> planned · <b>{planStats!.done}</b> done
+          {planStats!.offPlan > 0 && (
+            <>
+              {' · '}
+              <b className="connection-log__progress-off">⚠ {planStats!.offPlan} off plan</b>
+            </>
+          )}
+        </p>
+      )}
       <div className="connection-log__filters" role="tablist" aria-label="Log source">
         {(
           [
             ['all', 'All'],
             ['planned', 'Planned'],
+            ...(planStats?.offPlan ? ([['off', `Off plan (${planStats.offPlan})`]] as const) : []),
             ['save', 'In save'],
           ] as const
         ).map(([id, label]) => (
@@ -183,7 +213,9 @@ export function ConnectionLogPanel({
             const classes = ['connection-log__item'];
             if (stripe % 2 === 1) classes.push('connection-log__item--alt');
             if (selected) classes.push('connection-log__item--on');
-            const tag = entry.origin === 'save' ? 'in save' : 'planned';
+            const status = statusOf(entry);
+            const tag =
+              status === 'off' ? '⚠ off plan' : status === 'done' ? 'done' : status === 'save' ? 'in save' : 'planned';
             return (
               <li key={row.key}>
                 <div
@@ -191,13 +223,7 @@ export function ConnectionLogPanel({
                   aria-current={selected ? 'true' : undefined}
                   onClick={() => onPick(entry)}
                 >
-                  <span
-                    className={
-                      entry.origin === 'save'
-                        ? 'connection-log__tag connection-log__tag--save'
-                        : 'connection-log__tag connection-log__tag--planned'
-                    }
-                  >
+                  <span className={`connection-log__tag connection-log__tag--${status}`}>
                     {tag}
                   </span>
                   <LogParts

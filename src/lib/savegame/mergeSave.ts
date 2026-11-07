@@ -1,4 +1,5 @@
 import { DECEASED_STATE, UNHOUSED_HH } from '../constants.ts';
+import { cardName, isPlannedSim, plannedSnapshot } from '../plan.ts';
 import { rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
 import { everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
@@ -53,6 +54,8 @@ export type SaveMergeSummary = {
   relativesNamed: string[];
   /** Cards for such relatives, already on the board, now marked deceased. */
   relativesDied: string[];
+  /** Planned sims a sim from the save filled: "Heir Dreamer → Helena Capp". */
+  slotsFilled: string[];
   /**
    * Married sims the board shows under their own surname, with the one the
    * game gives them from their spouse (see withOwnSurnames).
@@ -85,6 +88,11 @@ export type SaveMergeInput = {
   rosterEdges?: Edge[];
   /** Sims the player moved to another household by hand; Merge keeps them there. */
   movedByHand?: ReadonlySet<string>;
+  /**
+   * Planned sims to fill, chosen in Your plan: save sim id → the planned
+   * sim's card. That save sim takes the card over (see slotSuggestions).
+   */
+  slotMatches?: ReadonlyMap<string, string>;
   /** The game clock and options from the board's last import. */
   game?: SaveGameInfo | null;
   /** The save file's name, for the save details. */
@@ -954,7 +962,34 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     input.rosterEdges ?? [],
     seedNameKeys,
   );
+  const filledSlots: string[] = [];
+  const slotsFilled: string[] = [];
   for (const sim of sims) {
+    // A planned sim chosen for this one in Your plan: it fills that card.
+    const slotId = input.slotMatches?.get(sim.saveSimId);
+    const slot = slotId
+      ? nodes.find((n) => n.id === slotId && isPlannedSim(n) && !claimed.has(n.id))
+      : undefined;
+    if (slot) {
+      const i = nodes.indexOf(slot);
+      const patched = patchMatched(slot, sim, true, rosterOf(sim), !!parsed.dynasties);
+      patched.plannedAs = plannedSnapshot(slot, now);
+      delete patched.planLabel;
+      nodes[i] = patched;
+      claimed.add(patched.id);
+      bySaveId.set(sim.saveSimId, patched);
+      saveIdToBoard.set(sim.saveSimId, patched.id);
+      if (patched.gid !== slot.gid) filledSlots.push(patched.id);
+      slotsFilled.push(`${cardName(slot)} → ${sim.first} ${sim.last}`.trim());
+      if (sim.householdId && sim.householdId !== '0' && !sim.unhoused) {
+        const list = byHousehold.get(sim.householdId) ?? [];
+        list.push({ sim, id: patched.id });
+        byHousehold.set(sim.householdId, list);
+      }
+      matched += 1;
+      fromSaveCount += 1;
+      continue;
+    }
     const found = matchSaveSim(sim, bySaveId, byName, byNameHh, byLast, claimed);
     if (found === 'ambiguous') {
       skipped.push(`${sim.first} ${sim.last}`.trim());
@@ -1151,7 +1186,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     saveIdToBoard.set(r.treeId, id);
   }
 
-  const rehomed = [...rehomedSims, ...relativesMoved];
+  const rehomed = [...rehomedSims, ...relativesMoved, ...filledSlots];
   const vacated = new Set(
     rehomed.map((id) => input.nodes.find((n) => n.id === id)!.gid),
   );
@@ -1180,6 +1215,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       if (existing) {
         if (existing.source === 'planned') {
           existing.source = 'save';
+          existing.wasPlanned = true;
           confirmed += 1;
         }
         if (rel.secret) existing.secret = true;
@@ -1216,6 +1252,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     if (settled.length) {
       if (planned.length) {
         drop(planned);
+        settled[0]!.wasPlanned = true;
         confirmed += planned.length;
       }
       if (rel.secret) {
@@ -1226,6 +1263,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     if (planned.length) {
       const keep = planned[0]!;
       keep.source = 'save';
+      keep.wasPlanned = true;
+      delete keep.plan;
       keep.type = type;
       if (rel.secret) keep.secret = true;
       confirmed += 1;
@@ -1367,6 +1406,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       relatives: relativesAdded.map(nameOf),
       relativesNamed: relativesNamed.map(nameOf),
       relativesDied: relativesDied.map(nameOf),
+      slotsFilled,
       ownSurnames: sims.flatMap((sim) => {
         const id = saveIdToBoard.get(sim.saveSimId);
         if (!id || !sim.marriedLast || foldName(sim.marriedLast) === foldName(sim.last)) return [];

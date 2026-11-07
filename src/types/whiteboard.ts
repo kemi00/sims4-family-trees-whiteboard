@@ -33,6 +33,16 @@ export interface SimNode {
   breed?: string;
   /** Present on user-added sims (editor). */
   added?: boolean;
+  /**
+   * A planned sim's role in the plan ("Heir 1", "Spare 1"), shown when it has
+   * no name yet. Kept in `plannedAs` once a sim from the save fills it.
+   */
+  planLabel?: string;
+  /**
+   * What this card was while planned, before a sim from the save filled it:
+   * the editor's "Planned as Heir 1", and what Unlink restores.
+   */
+  plannedAs?: PlannedAs;
   /** Sims 4 sim id from an imported .save, as a decimal string. */
   saveSimId?: string;
   /** In the save and not on the shipped xlsx roster. */
@@ -68,6 +78,26 @@ export interface SimNode {
    * tree, with no sim and no name (an "Unknown" card), as a decimal string.
    */
   treeId?: string;
+}
+
+/** A planned sim as it was before a sim from the save filled it. */
+export interface PlannedAs {
+  /** Its plan label, or its name when it had none. */
+  label: string;
+  first: string;
+  sur: string;
+  gender: string;
+  age: string;
+  /** Its plan label, to restore on Unlink. */
+  planLabel?: string;
+  /** Its household box, to return to on Unlink. */
+  gid: string;
+  hh: string;
+  world: string;
+  nb: string;
+  color: string;
+  /** ISO time it was filled. */
+  at: string;
 }
 
 /** The game's Sim Lifespan option. */
@@ -158,6 +188,13 @@ export interface Edge {
   createdAt?: string;
   /** Shared by parent links created together (child of a couple). */
   bundleId?: string;
+  /**
+   * A planned link the game went against, kept anyway ("Keep my plan"): it
+   * stays violet and stops being flagged off plan.
+   */
+  plan?: 'kept';
+  /** Was planned on the board before a save confirmed it: a plan done. */
+  wasPlanned?: true;
   /**
    * The save keeps this link secret: on a parent link, a secret parent the
    * family tree does not list; on a romance link, secret lovers.

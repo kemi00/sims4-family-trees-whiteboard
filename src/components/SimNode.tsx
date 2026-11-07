@@ -3,6 +3,7 @@ import { CARD_H, CARD_MIN_W, COL, DECEASED_STATE, DYNASTY_ROLES, OCC, SPECIES, U
 import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch } from '../lib/utils.ts';
+import { NOT_YET_AGE, cardName, isPlannedSim } from '../lib/plan.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 type Props = {
@@ -23,6 +24,10 @@ type Props = {
   familyIds?: Set<string> | null;
   /** Their dynasty generation ("Gen 2"), added to the dynasty mark's hover. */
   generation?: string;
+  /** Why their plan is off track ("Off plan: Beatrice married Adekoya…"): a ⚠ before the name. */
+  offPlan?: string;
+  /** A planned sim not in the game yet: "Not born yet" in place of the life stage. */
+  notYet?: string;
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
@@ -40,6 +45,8 @@ export const SimNodeView = memo(function SimNodeView({
   bloodlineIds,
   familyIds = null,
   generation,
+  offPlan,
+  notYet,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -68,7 +75,8 @@ export const SimNodeView = memo(function SimNodeView({
   const detail = cardDetailLine(n);
   const h = n.h || CARD_H;
   const role = n.dynastyRole ? DYNASTY_ROLES[n.dynastyRole] : null;
-  const name = `${role ? role.mark + ' ' : ''}${n.first} ${n.sur}`;
+  const name = `${offPlan ? '⚠ ' : ''}${role ? role.mark + ' ' : ''}${cardName(n)}`;
+  const stage = isPlannedSim(n) && n.age === NOT_YET_AGE && notYet ? notYet : n.age;
   // The name stops short of the corner badges; a long one (a crown and
   // "Anne-Shirley Cuthbert") is set a little smaller rather than run under them.
   const corner = fromSave && (hasBadge || added) ? 48 : hasBadge || added || fromSave ? 27 : 10;
@@ -108,12 +116,20 @@ export const SimNodeView = memo(function SimNodeView({
       />
       {labels && (
         <>
-          <text x={16} y={32} fontSize={nameSize} fontWeight={700} fill="#1b2b3a">
-            {roleTitle && <title>{roleTitle}</title>}
-            {name}
+          <text
+            x={16}
+            y={32}
+            fontSize={nameSize}
+            fontWeight={700}
+            fill="#1b2b3a"
+            fontStyle={isPlannedSim(n) && !n.first.trim() ? 'italic' : undefined}
+          >
+            {(roleTitle || offPlan) && <title>{[offPlan, roleTitle].filter(Boolean).join('\n')}</title>}
+            {offPlan && <tspan fill="#b45309">⚠ </tspan>}
+            {name.slice(offPlan ? 2 : 0)}
           </text>
           <text x={16} y={52} fontSize={10.5} fill="#5b6472">
-            {n.age}
+            {stage}
             {n.gender && n.gender !== '-' ? ` · ${n.gender}` : ''}
             {n.species ? ` · ${n.species}` : ''}
           </text>

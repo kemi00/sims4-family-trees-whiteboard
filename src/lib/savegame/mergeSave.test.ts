@@ -1570,3 +1570,75 @@ describe('ages, game options and first heads from the save', () => {
     assert.equal(of(next, 'Cassandra').firstHeadOf, undefined);
   });
 });
+
+describe('planned sims a save fills', () => {
+  const worlds = [{ name: 'Willow Creek', color: '#4e79a7' }, { name: 'Not in any world', color: '#9aa0a6' }];
+  const mum = sim({ id: 'mum', first: 'Bella', sur: 'Pancakes', gender: 'Female', saveSimId: '1' });
+  const dad = sim({ id: 'dad', first: 'Bob', sur: 'Pancakes', saveSimId: '2' });
+  // Planned in the box they hoped for, with a name the game will never use.
+  const heir = sim({
+    id: 'new9',
+    first: 'Heir1',
+    sur: 'Pancakes',
+    age: 'Infant',
+    gender: 'Female',
+    added: true,
+    hh: 'Hopes',
+    gid: 'Willow Creek||Hopes',
+  });
+  const edges: Edge[] = [
+    { id: 'u1', a: 'mum', b: 'new9', type: 'parent', source: 'planned' },
+    { id: 'u2', a: 'dad', b: 'new9', type: 'parent', source: 'planned' },
+  ];
+  const parsed: ParsedSave = {
+    sims: [
+      { saveSimId: '1', householdId: '5', first: 'Bella', last: 'Pancakes', household: 'Pancakes', age: 'Young Adult', gender: 'Female' },
+      { saveSimId: '2', householdId: '5', first: 'Bob', last: 'Pancakes', household: 'Pancakes', age: 'Young Adult', gender: 'Male' },
+      { saveSimId: '3', householdId: '5', first: 'Oscar', last: 'Pancakes', household: 'Pancakes', age: 'Infant', gender: 'Male' },
+    ],
+    rels: [
+      { a: '1', b: '3', type: 'parent' },
+      { a: '2', b: '3', type: 'parent' },
+    ],
+  };
+  const merge = (slotMatches?: Map<string, string>) =>
+    mergeSaveIntoBoard({
+      nodes: [mum, dad, heir],
+      edges,
+      groups: [],
+      worlds,
+      parsed,
+      seedNameKeys: new Set(),
+      now: 'then',
+      nextEdgeId: (() => {
+        let n = 0;
+        return () => `v${n++}`;
+      })(),
+      ...(slotMatches ? { slotMatches } : {}),
+    });
+
+  it('without a match, the real baby is a new card beside the planned one', () => {
+    const r = merge();
+    assert.ok(r.nodes.some((n) => n.id === 'new9' && n.added));
+    assert.ok(r.nodes.some((n) => n.first === 'Oscar' && n.id !== 'new9'));
+  });
+
+  it('with a match, the real baby takes the planned card: the save’s facts, the plan done', () => {
+    const r = merge(new Map([['3', 'new9']]));
+    const card = r.nodes.find((n) => n.id === 'new9')!;
+    assert.deepEqual(
+      [card.first, card.gender, card.saveSimId, card.added, card.hh, card.plannedAs?.label, card.plannedAs?.gid],
+      ['Oscar', 'Male', '3', undefined, 'Pancakes', 'Heir1 Pancakes', 'Willow Creek||Hopes'],
+    );
+    assert.equal(r.nodes.filter((n) => n.first === 'Oscar').length, 1);
+    assert.deepEqual(
+      r.edges.filter((e) => e.b === 'new9').map((e) => [e.id, e.source, e.wasPlanned]),
+      [
+        ['u1', 'save', true],
+        ['u2', 'save', true],
+      ],
+    );
+    assert.deepEqual(r.summary.slotsFilled, ['Heir1 Pancakes → Oscar Pancakes']);
+    assert.ok(r.rehomed.includes('new9'));
+  });
+});

@@ -3,7 +3,9 @@ import {
   COL,
   LINK_STROKE,
   LINK_STROKE_ACROSS,
+  OFF_PLAN,
   PILL_H,
+  PILL_HALF_W,
   PILL_W,
   UEDIT,
   linkDash,
@@ -123,6 +125,29 @@ export function DivorcePill({ x, y, color }: { x: number; y: number; color: stri
   );
 }
 
+/** An off-plan couple: an amber ring round the badge and a ⚠ at its corner. */
+export function OffPlanMark({ x, y }: { x: number; y: number }) {
+  return (
+    <g pointerEvents="none">
+      <title>Off plan: your game went another way</title>
+      <rect
+        x={x - PILL_HALF_W - 2}
+        y={y - PILL_H / 2 - 2}
+        width={PILL_HALF_W * 2 + 4}
+        height={PILL_H + 4}
+        rx={PILL_H / 2 + 2}
+        fill="none"
+        stroke={OFF_PLAN}
+        strokeWidth={2}
+      />
+      <circle cx={x + PILL_HALF_W} cy={y - PILL_H / 2} r={7} fill={OFF_PLAN} stroke="#fff" strokeWidth={1.4} />
+      <text x={x + PILL_HALF_W} y={y - PILL_H / 2 + 3.6} fontSize={10} fontWeight={800} textAnchor="middle" fill="#fff">
+        !
+      </text>
+    </g>
+  );
+}
+
 function AddInfantPlus({
   x,
   y,
@@ -188,6 +213,8 @@ type Props = {
   gidById?: ReadonlyMap<string, string>;
   /** A highlighted family's links (familyOf): the rest fade behind them. */
   focusEdgeIds?: ReadonlySet<string> | null;
+  /** Planned couples the game went against: their badge gets an amber ring and a ⚠. */
+  offPlanEdgeIds?: ReadonlySet<string>;
 };
 
 const STROKE = LINK_STROKE;
@@ -253,6 +280,7 @@ export const EdgeLayer = memo(function EdgeLayer({
   worldById,
   gidById,
   focusEdgeIds,
+  offPlanEdgeIds,
 }: Props) {
   return (
     <g id="lEdges">
@@ -345,6 +373,7 @@ export const EdgeLayer = memo(function EdgeLayer({
               {u.type === 'marriage' && (
                 <RingPill x={u.rx} y={u.ry} color={pc} />
               )}
+              {offPlanEdgeIds?.has(u.edgeId) && <OffPlanMark x={u.rx} y={u.ry} />}
               <AddInfantPlus
                 x={u.rx}
                 y={u.ry + PILL_H}

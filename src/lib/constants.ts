@@ -200,6 +200,9 @@ export const PLAYABILITY = [
 /** User-made link colour (id starts with "u"). */
 export const UEDIT = '#7c3aed';
 
+/** A plan your game went against: the ⚠ on cards and couple badges. */
+export const OFF_PLAN = '#b45309';
+
 /**
  * Family links inside one household are strong solid lines, a household's
  * own tree; links between households are thin and dashed, so they recede

@@ -11,7 +11,7 @@ import {
   UEDIT,
   linkDash,
 } from '../lib/constants.ts';
-import { DivorcePill, HeartPill, RingPill, SecretLoversPill } from './EdgeLayer.tsx';
+import { DivorcePill, HeartPill, OffPlanMark, RingPill, SecretLoversPill } from './EdgeLayer.tsx';
 import { LockGlyph } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
@@ -361,6 +361,16 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
             <KeyRow
               sample={<LineSample label="Violet dashed line" color={UEDIT} dash="4 2.6" />}
               label="Other link"
+            />
+            <KeyRow
+              sample={
+                <PillSample label="Couple badge with an amber ring" line={UEDIT}>
+                  <RingPill x={0} y={0} color={UEDIT} />
+                  <OffPlanMark x={0} y={0} />
+                </PillSample>
+              }
+              label="⚠ Off plan"
+              note="your game went another way"
             />
           </ul>
         </div>

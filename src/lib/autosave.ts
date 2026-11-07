@@ -139,6 +139,8 @@ function nodeIdentity(n: SimNode) {
     firstHeadOf: n.firstHeadOf ?? null,
     genRootOf: n.genRootOf ?? null,
     life: n.life ?? null,
+    planLabel: n.planLabel ?? null,
+    plannedAs: n.plannedAs ?? null,
   };
 }
 
@@ -152,6 +154,8 @@ function edgeIdentity(e: Edge) {
     createdAt: e.createdAt ?? null,
     bundleId: e.bundleId ?? null,
     secret: !!e.secret,
+    plan: e.plan ?? null,
+    wasPlanned: !!e.wasPlanned,
   };
 }
 

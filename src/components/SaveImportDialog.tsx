@@ -1,7 +1,15 @@
 import { useState, type SyntheticEvent } from 'react';
 import { agingSummary, clockText } from '../lib/lifeClock.ts';
+import {
+  AUTO_MATCH_KEY,
+  initialPlanChoices,
+  readAutoMatch,
+  type PlanChoices,
+  type SavePlanReview,
+} from '../lib/planReview.ts';
 import type { SaveMergeSummary } from '../lib/savegame/mergeSave.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
+import { PlanReview } from './PlanReview.tsx';
 
 type Props = {
   summary: SaveMergeSummary;
@@ -9,7 +17,11 @@ type Props = {
   game?: SaveGameInfo | null;
   /** The board is still the starter roster (see isStarterBoard): Replace is picked. */
   starter: boolean;
-  onMerge: () => void;
+  /** Your plan against this save: Merge reviews it first when there is anything to. */
+  plan: SavePlanReview;
+  /** The board's planned links and planned sims, which Replace drops. */
+  planned: { links: number; sims: number };
+  onMerge: (choices?: PlanChoices) => void;
   onReplace: () => void;
   onCancel: () => void;
 };
@@ -34,11 +46,34 @@ export function SaveImportDialog({
   summary,
   game,
   starter,
+  plan,
+  planned,
   onMerge,
   onReplace,
   onCancel,
 }: Props) {
   const [mode, setMode] = useState<'merge' | 'replace'>(starter ? 'replace' : 'merge');
+  /** Merge has a second step when the save fills planned sims or goes against the plan. */
+  const reviewable = plan.suggestions.length > 0 || plan.conflicts.length > 0;
+  const [step, setStep] = useState<'choose' | 'plan'>('choose');
+  const [auto, setAutoState] = useState(readAutoMatch);
+  const [choices, setChoices] = useState<PlanChoices>(() => initialPlanChoices(plan, auto));
+  const setAuto = (on: boolean) => {
+    setAutoState(on);
+    try {
+      localStorage.setItem(AUTO_MATCH_KEY, on ? '1' : '0');
+    } catch {
+      // Private mode: it is forgotten when the page closes.
+    }
+    // Sure matches go in or out; a pick you made yourself stays.
+    const sure = initialPlanChoices(plan, true).matches;
+    const matches = { ...choices.matches };
+    for (const [slot, save] of Object.entries(sure)) {
+      if (on && !matches[slot]) matches[slot] = save;
+      if (!on && matches[slot] === save) delete matches[slot];
+    }
+    setChoices({ ...choices, matches });
+  };
   const hasDetails =
     summary.rejoined.length > 0 ||
     summary.relatives.length > 0 ||
@@ -68,8 +103,18 @@ export function SaveImportDialog({
     >
       <div className="save-import__card" onClick={(e) => e.stopPropagation()}>
         <h2 id="save-import-title">Load save game</h2>
-        <p>Choose how this save meets the board.</p>
-        {game && (
+        {step === 'plan' ? (
+          <p>
+            Step 2 of 2 · <b>Your plan</b>: how your plan meets this save. Nothing changes until
+            you press Proceed.
+          </p>
+        ) : (
+          <p>
+            Choose how this save meets the board.
+            {reviewable && mode === 'merge' ? ' Next, you’ll review your plan.' : ''}
+          </p>
+        )}
+        {step === 'choose' && game && (
           <p className="save-import__game">
             This save: <b>{clockText(game.clock)}</b>
             {game.lifespan && (
@@ -87,7 +132,7 @@ export function SaveImportDialog({
             {agingSummary(game) && <> · {agingSummary(game)}</>}.
           </p>
         )}
-        {summary.gameChanges.length > 0 && (
+        {step === 'choose' && summary.gameChanges.length > 0 && (
           <div className="save-import__game save-import__game--changed">
             Changed in Game Options since your last import:
             <ul>
@@ -98,12 +143,24 @@ export function SaveImportDialog({
             Days to the next life stage follow the new options.
           </div>
         )}
-        {game?.allAgingSince !== undefined && game.allAgingSince === game.clock && (
+        {step === 'choose' && game?.allAgingSince !== undefined && game.allAgingSince === game.clock && (
           <p className="save-import__game save-import__game--changed">
             Every household ages from here: sims at the same place in life now grow older together.
           </p>
         )}
         {/* Scrolls on its own, so the title and Proceed stay in view. */}
+        {step === 'plan' ? (
+          <div className="save-import__body">
+            <PlanReview
+              plan={plan}
+              stillPlanned={plan.stillPlanned}
+              choices={choices}
+              auto={auto}
+              onAuto={setAuto}
+              onChange={setChoices}
+            />
+          </div>
+        ) : (
         <div className="save-import__body">
           <fieldset className="save-import__choices">
             <legend className="save-import__lead">What to do</legend>
@@ -211,6 +268,16 @@ export function SaveImportDialog({
                   Discards the current board and builds a new one from the save
                   alone.
                 </span>
+                {planned.links + planned.sims > 0 && (
+                  <span className="save-import__choice-note planrev__drops">
+                    Drops your plan: {planned.links} planned{' '}
+                    {planned.links === 1 ? 'link' : 'links'}
+                    {planned.sims > 0
+                      ? ` and ${planned.sims} planned ${sims(planned.sims)}`
+                      : ''}
+                    . Merge keeps them.
+                  </span>
+                )}
                 {starter && (
                   <span className="save-import__choice-note save-import__pick">
                     Picked for you: this board is still the starter roster.
@@ -298,16 +365,26 @@ export function SaveImportDialog({
             </details>
           )}
         </div>
+        )}
         <div className="save-import__actions">
           <button type="button" onClick={onCancel}>
             Cancel
           </button>
+          {step === 'plan' && (
+            <button type="button" onClick={() => setStep('choose')}>
+              Back
+            </button>
+          )}
           <button
             type="button"
             className="save-import__ok"
-            onClick={mode === 'merge' ? onMerge : onReplace}
+            onClick={() => {
+              if (mode === 'replace') onReplace();
+              else if (step === 'choose' && reviewable) setStep('plan');
+              else onMerge(step === 'plan' ? choices : undefined);
+            }}
           >
-            Proceed
+            {mode === 'merge' && step === 'choose' && reviewable ? 'Next: your plan' : 'Proceed'}
           </button>
         </div>
       </div>
