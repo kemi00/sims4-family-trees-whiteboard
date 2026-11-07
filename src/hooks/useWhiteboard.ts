@@ -58,6 +58,7 @@ import {
   layoutBases,
   measureCard,
   OTHER_WORLD,
+  packingKey,
   rowPitch,
   spawnChildOrigin,
 } from '../lib/layout.ts';
@@ -170,18 +171,6 @@ type BoardSnap = {
   /** Set only by actions that change filters, so only their undo restores them. */
   filters?: BoardFilters;
 };
-
-/** Fields that change packing (generation rows, household tiles, world columns). */
-const LAYOUT_PIN_KEYS: (keyof SimNode)[] = [
-  'gid',
-  'world',
-  'hh',
-  'age',
-  'breed',
-  'oplay',
-  // Living sims are counted to order the world columns.
-  'state',
-];
 
 export function useWhiteboard() {
   const seed = seedData as WhiteboardData;
@@ -1141,11 +1130,9 @@ export function useWhiteboard() {
 
   const updateNode = useCallback((id: string, patch: Partial<SimNode>) => {
     const prev = nodesCore.find((n) => n.id === id);
-    const reflow =
-      !!prev &&
-      LAYOUT_PIN_KEYS.some(
-        (k) => patch[k] !== undefined && patch[k] !== prev[k],
-      );
+    // Anything packing reads, a name included, can move other cards: naming
+    // one of two planned kids reorders them. Pin every card where it is.
+    const reflow = !!prev && packingKey(prev) !== packingKey({ ...prev, ...patch });
     // A dynasty has one head and one heir: naming one takes the role from
     // whoever held it, as the game does.
     const sole =

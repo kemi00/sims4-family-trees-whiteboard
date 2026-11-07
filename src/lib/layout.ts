@@ -63,11 +63,15 @@ function rectsOverlap(a: SpawnRect, b: SpawnRect): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
+/** How far along the siblings' row a new child looks for room, each way. */
+const SIBLING_ROW_TRIES = 4;
+
 /**
  * Where a new infant card should land. First child sits on the tile row
  * immediately under the parents; later children share that row, one tile
- * to the right of the rightmost sibling. Nudges down by a tile if the
- * slot is already occupied.
+ * to the right of the rightmost sibling, or left of the leftmost when that
+ * is taken, a card further out each try. Only when the row has no room
+ * near them does it nudge down a tile at a time, so siblings stay together.
  */
 export function spawnChildOrigin(
   parentY: number,
@@ -78,18 +82,29 @@ export function spawnChildOrigin(
   snap = true,
 ): { x: number; y: number } {
   const size = { w: cardW, h: CARD_H };
+  const at = (x: number, y: number) => (snap ? tileSnapOrigin(x, y) : { x, y });
+  const free = (p: { x: number; y: number }) =>
+    !occupied.some((o) => rectsOverlap({ ...p, ...size }, o));
   let x = pillX - cardW / 2;
   let y = parentY + CARD_H;
   if (siblings.length) {
-    x = Math.max(...siblings.map((s) => s.x + s.w)) + TILE;
+    const right = Math.max(...siblings.map((s) => s.x + s.w)) + TILE;
+    const left = Math.min(...siblings.map((s) => s.x)) - TILE - cardW;
+    const step = cardW + TILE;
     y = Math.min(...siblings.map((s) => s.y));
+    for (let i = 0; i < SIBLING_ROW_TRIES; i++) {
+      for (const tryX of [right + i * step, left - i * step]) {
+        const p = at(tryX, y);
+        if (free(p)) return p;
+      }
+    }
+    x = right;
   }
   for (let i = 0; i < occupied.length + 1; i++) {
-    const next = { x, y, ...size };
-    if (!occupied.some((o) => rectsOverlap(next, o))) break;
+    if (free(at(x, y))) break;
     y += TILE;
   }
-  return snap ? tileSnapOrigin(x, y) : { x, y };
+  return at(x, y);
 }
 
 type PlacedCard = { id: string; x: number; y: number; w: number; h: number };
@@ -2196,6 +2211,29 @@ function placeWorldsInColumns(
  * Packing identity — membership, names, neighbourhoods, ages, and edges. Visual `ox`/`oy`
  * (and derived x/y/w/h) do not change packed bases.
  */
+/**
+ * What packing reads from one sim. An edit that changes it can move cards
+ * that weren't edited: siblings are sorted by name, so naming one reorders
+ * them. Callers pin cards to their places when it changes.
+ */
+export function packingKey(n: SimNode): string {
+  return [
+    n.id,
+    n.gid,
+    n.world || '',
+    n.hh,
+    // Part of the household's name tag, which packing leaves room for.
+    n.nb,
+    n.age,
+    // Living sims are counted to order the world columns.
+    n.state,
+    // Cards are sorted by name.
+    n.first,
+    n.sur,
+    n.gender,
+  ].join('\0');
+}
+
 export function packingSignature(
   nodes: SimNode[],
   worlds: World[],
@@ -2203,22 +2241,7 @@ export function packingSignature(
 ): string {
   const parts: string[] = [];
   for (const w of worlds) parts.push('w', w.name);
-  for (const n of nodes) {
-    parts.push(
-      n.id,
-      n.gid,
-      n.world || '',
-      n.hh,
-      // Part of the household's name tag, which packing leaves room for.
-      n.nb,
-      n.age,
-      // Living sims are counted to order the world columns.
-      n.state,
-      n.first,
-      n.sur,
-      n.gender,
-    );
-  }
+  for (const n of nodes) parts.push(packingKey(n));
   for (const e of edges) parts.push(e.id, e.a, e.b, e.type);
   return parts.join('\0');
 }

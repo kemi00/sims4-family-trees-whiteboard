@@ -5,6 +5,7 @@ import {
   computeLayout,
   householdAddSpot,
   layoutBases,
+  packingKey,
   packingSignature,
   LAYOUT,
   OTHER_WORLD,
@@ -270,6 +271,63 @@ describe('tile-native household packing', () => {
     const p = spawnChildOrigin(500, 250, CARD_MIN_W, [sibling], [sibling]);
     assert.equal(p.y, sibling.y);
     assert.equal(p.x, sibling.x + CARD_MIN_W + TILE);
+  });
+
+  const card = (x: number, y = 600) => ({ x, y, w: CARD_MIN_W, h: CARD_H });
+  const step = CARD_MIN_W + TILE;
+
+  it('keeps a later child beside its siblings, on the left when the right is taken', () => {
+    const sibling = card(1000);
+    const p = spawnChildOrigin(500, 1100, CARD_MIN_W, [sibling], [sibling, card(1000 + step)]);
+    assert.deepEqual(p, { x: 1000 - step, y: 600 });
+  });
+
+  it('looks further along the siblings’ row before leaving it', () => {
+    const sibling = card(1000);
+    const taken = [sibling, card(1000 + step), card(1000 - step)];
+    const p = spawnChildOrigin(500, 1100, CARD_MIN_W, [sibling], taken);
+    assert.deepEqual(p, { x: 1000 + 2 * step, y: 600 });
+  });
+
+  it('drops below the row only when there is no room along it', () => {
+    const sibling = card(1000);
+    const row = [-4, -3, -2, -1, 1, 2, 3, 4].map((i) => card(1000 + i * step));
+    const p = spawnChildOrigin(500, 1100, CARD_MIN_W, [sibling], [sibling, ...row]);
+    assert.deepEqual(p, { x: 1000 + step, y: 600 + CARD_H });
+  });
+});
+
+describe('naming a planned child', () => {
+  const romeo = (id: string, extra: Partial<SimNode> = {}) =>
+    sim({ id, first: id, hh: 'Romeo', gid: 'Willow Creek||Romeo', ...extra });
+  const kid = (id: string) => romeo(id, { first: '', sur: 'Romeo', age: 'Not born yet' });
+  const nodes = [romeo('Sergio', { gender: 'Male' }), romeo('Siobhan'), kid('k1'), kid('k2')];
+  const edges = ['k1', 'k2'].flatMap((k) => [edge('Sergio', k, 'parent'), edge('Siobhan', k, 'parent')]);
+  edges.push(edge('Sergio', 'Siobhan', 'marriage'));
+  const named = nodes.map((n) => (n.id === 'k1' ? { ...n, first: 'Heir' } : n));
+
+  it('reorders the siblings, so the editor must pin the board first', () => {
+    const before = layoutBases(nodes, worlds, edges);
+    const after = layoutBases(named, worlds, edges);
+    // Siblings are sorted by name: "Heir Romeo" now comes after the unnamed one.
+    assert.ok(before.get('k1')!.x < before.get('k2')!.x);
+    assert.ok(after.get('k1')!.x > after.get('k2')!.x);
+    assert.notEqual(packingKey(nodes[2]!), packingKey(named[2]!));
+  });
+
+  it('leaves every card where it was once pinned to its current place', () => {
+    const shown = computeLayout(nodes, worlds, edges);
+    const bases = layoutBases(named, worlds, edges);
+    const pinned = named.map((n) => {
+      const was = shown.find((s) => s.id === n.id)!;
+      const base = bases.get(n.id)!;
+      return { ...n, ox: was.x - base.x, oy: was.y - base.y };
+    });
+    const now = computeLayout(pinned, worlds, edges);
+    assert.deepEqual(
+      now.map((n) => [n.id, n.x, n.y]),
+      shown.map((n) => [n.id, n.x, n.y]),
+    );
   });
 });
 
