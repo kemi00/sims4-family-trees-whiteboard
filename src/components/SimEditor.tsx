@@ -814,8 +814,8 @@ export function SimEditor({
                     </div>
                   )}
                   <div className="edhint">
-                    Their card takes over this planned sim's links, and keeps the name, gender and
-                    age from your save. Unlink in their Family tab if it's the wrong one.
+                    Their name, gender, age and parents come from your save; this planned sim's
+                    other links move to their card. Unlink in their Family tab if it's the wrong one.
                   </div>
                 </div>
               )}

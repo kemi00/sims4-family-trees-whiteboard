@@ -2,8 +2,10 @@ import { useState, type SyntheticEvent } from 'react';
 import { agingSummary, clockText } from '../lib/lifeClock.ts';
 import {
   AUTO_MATCH_KEY,
+  effectiveMatches,
   initialPlanChoices,
   readAutoMatch,
+  sureMatches,
   type PlanChoices,
   type SavePlanReview,
 } from '../lib/planReview.ts';
@@ -66,7 +68,7 @@ export function SaveImportDialog({
       // Private mode: it is forgotten when the page closes.
     }
     // Sure matches go in or out; a pick you made yourself stays.
-    const sure = initialPlanChoices(plan, true).matches;
+    const sure = sureMatches(plan, choices.resolve);
     const matches = { ...choices.matches };
     for (const [slot, save] of Object.entries(sure)) {
       if (on && !matches[slot]) matches[slot] = save;
@@ -153,7 +155,6 @@ export function SaveImportDialog({
           <div className="save-import__body">
             <PlanReview
               plan={plan}
-              stillPlanned={plan.stillPlanned}
               choices={choices}
               auto={auto}
               onAuto={setAuto}
@@ -381,7 +382,7 @@ export function SaveImportDialog({
             onClick={() => {
               if (mode === 'replace') onReplace();
               else if (step === 'choose' && reviewable) setStep('plan');
-              else onMerge(step === 'plan' ? choices : undefined);
+              else onMerge(step === 'plan' ? { ...choices, matches: effectiveMatches(plan, choices) } : undefined);
             }}
           >
             {mode === 'merge' && step === 'choose' && reviewable ? 'Next: your plan' : 'Proceed'}

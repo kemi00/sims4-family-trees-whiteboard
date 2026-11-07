@@ -1,5 +1,5 @@
 import { DECEASED_STATE, UNHOUSED_HH } from '../constants.ts';
-import { cardName, isPlannedSim, plannedSnapshot } from '../plan.ts';
+import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
 import { rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
 import { everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
@@ -964,6 +964,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   );
   const filledSlots: string[] = [];
   const slotsFilled: string[] = [];
+  /** Planned sims a sim from this save fills, by card id. */
+  const claimedSlots: string[] = [];
   for (const sim of sims) {
     // A planned sim chosen for this one in Your plan: it fills that card.
     const slotId = input.slotMatches?.get(sim.saveSimId);
@@ -976,6 +978,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       patched.plannedAs = plannedSnapshot(slot, now);
       delete patched.planLabel;
       nodes[i] = patched;
+      claimedSlots.push(patched.id);
       claimed.add(patched.id);
       bySaveId.set(sim.saveSimId, patched);
       saveIdToBoard.set(sim.saveSimId, patched.id);
@@ -1286,6 +1289,15 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   };
 
   for (const rel of parsed.rels) applyRel(rel);
+
+  // The save is the truth about a filled sim's parents: with two from it, a
+  // planned parent who is neither of them goes, remembered for Unlink.
+  for (const e of overruledParentLinks(edges, claimedSlots)) {
+    edges.splice(edges.indexOf(e as SourcedEdge), 1);
+    const i = nodes.findIndex((n) => n.id === e.b);
+    const was = nodes[i]!.plannedAs!;
+    nodes[i] = { ...nodes[i]!, plannedAs: { ...was, parents: [...(was.parents ?? []), e.a] } };
+  }
 
   // A secret the game has since revealed (or never had) drops its flag, but
   // only between sims in this save — the save says nothing about the rest —

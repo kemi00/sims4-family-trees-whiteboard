@@ -4,6 +4,7 @@ import type { Edge, HouseholdMove, SimNode } from '../types/whiteboard.ts';
 import {
   cardName,
   linkPlannedSim,
+  overruledParentLinks,
   moveToUndo,
   planConflicts,
   planProgress,
@@ -191,10 +192,11 @@ describe('planned sims a save can fill', () => {
     const linked = linkPlannedSim(all, withSave, 'Heir', 'Ana', 'now');
     assert.ok(!linked.nodes.some((x) => x.id === 'Heir'));
     const ana = linked.nodes.find((x) => x.id === 'Ana')!;
-    assert.equal(ana.plannedAs?.label, 'Heir X');
+    assert.deepEqual([ana.plannedAs?.label, ana.plannedAs?.parents, linked.overruled], ['Heir X', ['Dad'], ['Dad']]);
+    // The save gives Ana two parents, so Dad, planned as her father, goes.
     assert.deepEqual(
       linked.edges.map((e) => `${e.a}>${e.b}:${e.source}${e.wasPlanned ? ':done' : ''}`).sort(),
-      ['Dad>Ana:planned', 'Mum>Ana:save:done', 'Other>Ana:save'],
+      ['Mum>Ana:save:done', 'Other>Ana:save'],
     );
     let n = 0;
     const back = unlinkPlannedSim(linked.nodes, linked.edges, 'Ana', () => 'P', () => `u${n++}`);
@@ -204,6 +206,13 @@ describe('planned sims a save can fill', () => {
       back.edges.map((e) => `${e.a}>${e.b}:${e.source}${e.wasPlanned ? ':done' : ''}`).sort(),
       ['Dad>P:planned', 'Mum>Ana:save', 'Mum>P:planned', 'Other>Ana:save'],
     );
+  });
+
+  it('lets two parents from the save overrule a planned one, not one', () => {
+    const two = [link('p1', 'Mum', 'Kid', 'parent'), link('p2', 'Other', 'Kid', 'parent'), link('u1', 'Dad', 'Kid', 'parent', 'planned')];
+    assert.deepEqual(overruledParentLinks(two, ['Kid']).map((e) => e.id), ['u1']);
+    assert.deepEqual(overruledParentLinks(two.slice(1), ['Kid']), []);
+    assert.deepEqual(overruledParentLinks(two, ['Other']), []);
   });
 
   it('names a planned sim with no first name by its plan label', () => {

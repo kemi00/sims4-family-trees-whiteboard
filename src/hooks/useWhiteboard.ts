@@ -2385,7 +2385,13 @@ export function useWhiteboard() {
       pinCardsToCurrentPlaces(r.edges, r.nodes);
       setSel({ type: 'node', id: realId });
       setEditNodeId(null);
-      flashStatus(`${cardName(real)} now fills ${cardName(slot)}.`);
+      const over = r.overruled.map((id) => nodesCore.find((x) => x.id === id)).filter((x) => !!x);
+      flashStatus(
+        `${cardName(real)} now fills ${cardName(slot)}.` +
+          (over.length
+            ? ` Parents come from your save, so ${over.map(cardName).join(' & ')} ${over.length === 1 ? 'is' : 'are'} no longer a planned parent.`
+            : ''),
+      );
     },
     [nodesCore, edges, pushUndo, bloodlineId, pinCardsToCurrentPlaces, flashStatus],
   );

@@ -214,11 +214,18 @@ export type SlotCandidate = {
   why: string;
   /** The only one that fits, by both planned parents or a marriage. */
   sure: boolean;
+  gender: string;
+  /** A child's parents in the save, by save sim id. */
+  parents: string[];
+  /** A child of every planned parent; a spouse always is. */
+  all: boolean;
 };
 
 export type SlotSuggestion = {
   slotId: string;
   kind: 'child' | 'spouse';
+  /** Board ids of its planned parents, or of its planned partners. */
+  of: string[];
   candidates: SlotCandidate[];
 };
 
@@ -269,12 +276,8 @@ export function slotSuggestions(opts: {
   const out: SlotSuggestion[] = [];
   for (const slot of nodes) {
     if (!isPlannedSim(slot)) continue;
-    const plannedParents = new Set(
-      edges
-        .filter((e) => e.type === 'parent' && e.b === slot.id)
-        .map((e) => saveIdOf(e.a))
-        .filter((id): id is string => !!id),
-    );
+    const parentIds = edges.filter((e) => e.type === 'parent' && e.b === slot.id).map((e) => e.a);
+    const plannedParents = new Set(parentIds.map(saveIdOf).filter((id): id is string => !!id));
     const knownGender = (GENDERS as readonly string[]).includes(slot.gender) ? slot.gender : '';
     if (plannedParents.size) {
       const scored = fresh
@@ -298,11 +301,15 @@ export function slotSuggestions(opts: {
       out.push({
         slotId: slot.id,
         kind: 'child',
+        of: parentIds,
         candidates: scored.map((x) => ({
           saveSimId: x.s.saveSimId,
           name: fullName(x.s),
           why: `${x.s.gender === 'Female' ? 'Daughter' : x.s.gender === 'Male' ? 'Son' : 'Child'} of ${firstNames(x.parents)}`,
           sure: sureOne && x === top[0],
+          gender: x.s.gender,
+          parents: x.parents,
+          all: x.overlap === plannedParents.size,
         })),
       });
       continue;
@@ -323,10 +330,13 @@ export function slotSuggestions(opts: {
           name: fullName(s),
           why: `${x.married ? 'Married' : 'Partner of'} ${nameOf(pid)}`,
           sure,
+          gender: s.gender,
+          parents: [],
+          all: true,
         });
       }
     }
-    if (candidates.length) out.push({ slotId: slot.id, kind: 'spouse', candidates });
+    if (candidates.length) out.push({ slotId: slot.id, kind: 'spouse', of: partners, candidates });
   }
   return out;
 }
@@ -377,10 +387,31 @@ function collapseLinks(edges: Edge[]): Edge[] {
 }
 
 /**
+ * Planned parent links a save overrules. Your save is the truth about who a
+ * sim's parents are: once it gives a filled sim two, a planned parent who
+ * is neither of them goes (Dirk, planned father of the baby Beatrice had
+ * with Adekoya).
+ */
+export function overruledParentLinks(edges: Edge[], simIds: Iterable<string>): Edge[] {
+  const ids = new Set(simIds);
+  const into = new Map<string, Edge[]>();
+  for (const e of edges) {
+    if (e.type === 'parent' && ids.has(e.b)) into.set(e.b, [...(into.get(e.b) ?? []), e]);
+  }
+  const out: Edge[] = [];
+  for (const links of into.values()) {
+    if (links.filter((e) => edgeSourceOf(e) !== 'planned').length < 2) continue;
+    out.push(...links.filter((e) => edgeSourceOf(e) === 'planned'));
+  }
+  return out;
+}
+
+/**
  * "This is …": a sim from the save fills a planned sim by hand. The real
  * sim's card stays where the game puts them and takes over the planned
- * sim's links; theirs from the save win where both have one. The planned
- * card goes, remembered in `plannedAs` for Unlink.
+ * sim's links; theirs from the save win where both have one, and a planned
+ * parent they overrule goes (`overruled`). The planned card goes,
+ * remembered in `plannedAs` for Unlink.
  */
 export function linkPlannedSim(
   nodes: SimNode[],
@@ -388,24 +419,31 @@ export function linkPlannedSim(
   slotId: string,
   realId: string,
   now: string,
-): { nodes: SimNode[]; edges: Edge[] } {
+): { nodes: SimNode[]; edges: Edge[]; overruled: string[] } {
   const slot = nodes.find((n) => n.id === slotId);
   const real = nodes.find((n) => n.id === realId);
-  if (!slot || !real || !isPlannedSim(slot) || isPlannedSim(real) || slotId === realId) return { nodes, edges };
+  if (!slot || !real || !isPlannedSim(slot) || isPlannedSim(real) || slotId === realId) {
+    return { nodes, edges, overruled: [] };
+  }
   const swap = (id: string) => (id === slotId ? realId : id);
-  const next = collapseLinks(edges.map((e) => (e.a === slotId || e.b === slotId ? { ...e, a: swap(e.a), b: swap(e.b) } : e)));
+  const moved = collapseLinks(edges.map((e) => (e.a === slotId || e.b === slotId ? { ...e, a: swap(e.a), b: swap(e.b) } : e)));
+  const gone = overruledParentLinks(moved, [realId]);
+  const overruled = gone.map((e) => e.a);
+  const snapshot = plannedSnapshot(slot, now);
+  if (overruled.length) snapshot.parents = overruled;
   return {
     nodes: nodes
       .filter((n) => n.id !== slotId)
-      .map((n) => (n.id === realId ? { ...n, plannedAs: plannedSnapshot(slot, now) } : n)),
-    edges: next,
+      .map((n) => (n.id === realId ? { ...n, plannedAs: snapshot } : n)),
+    edges: gone.length ? moved.filter((e) => !gone.includes(e)) : moved,
+    overruled,
   };
 }
 
 /**
  * Undoes a fill: the planned sim comes back, with the planned links on this
- * sim and a planned copy of each the save confirmed. The sim from the save
- * stays as they are.
+ * sim, a planned copy of each the save confirmed, and the planned parents
+ * the save overruled. The sim from the save stays as they are.
  */
 export function unlinkPlannedSim(
   nodes: SimNode[],
@@ -460,6 +498,11 @@ export function unlinkPlannedSim(
     } else {
       next.push(e);
     }
+  }
+  const alive = new Set(nodes.map((n) => n.id));
+  for (const p of was.parents ?? []) {
+    if (!alive.has(p) || next.some((e) => e.type === 'parent' && e.a === p && e.b === pid)) continue;
+    next.push({ id: makeEdgeId(), a: p, b: pid, type: 'parent', source: 'planned' });
   }
   const { plannedAs: _was, ...rest } = real;
   return {

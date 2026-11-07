@@ -96,6 +96,12 @@ export interface PlannedAs {
   world: string;
   nb: string;
   color: string;
+  /**
+   * Its planned parents the save overruled: the real sim has two other
+   * parents (Dirk, planned father of the baby Beatrice had with Adekoya).
+   * Unlink plans them again.
+   */
+  parents?: string[];
   /** ISO time it was filled. */
   at: string;
 }

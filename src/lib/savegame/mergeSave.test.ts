@@ -1641,4 +1641,27 @@ describe('planned sims a save fills', () => {
     assert.deepEqual(r.summary.slotsFilled, ['Heir1 Pancakes → Oscar Pancakes']);
     assert.ok(r.rehomed.includes('new9'));
   });
+
+  it('the save’s two parents overrule a planned third, remembered for Unlink', () => {
+    const dirk = sim({ id: 'dirk', first: 'Dirk', sur: 'Dreamer', saveSimId: '4' });
+    const r = mergeSaveIntoBoard({
+      nodes: [mum, dad, dirk, heir],
+      edges: [edges[0]!, { id: 'u3', a: 'dirk', b: 'new9', type: 'parent', source: 'planned' }],
+      groups: [],
+      worlds,
+      parsed,
+      seedNameKeys: new Set(),
+      now: 'then',
+      nextEdgeId: (() => {
+        let n = 0;
+        return () => `v${n++}`;
+      })(),
+      slotMatches: new Map([['3', 'new9']]),
+    });
+    assert.deepEqual(
+      r.edges.filter((e) => e.b === 'new9').map((e) => `${e.a}:${e.source}`).sort(),
+      ['dad:save', 'mum:save'],
+    );
+    assert.deepEqual(r.nodes.find((n) => n.id === 'new9')!.plannedAs?.parents, ['dirk']);
+  });
 });
