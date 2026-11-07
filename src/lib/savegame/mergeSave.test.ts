@@ -1091,6 +1091,30 @@ describe('family-tree relatives with no sim', () => {
     assert.equal(again(mine).nodes.find((n) => n.treeId === 'g1')!.first, 'Otto');
   });
 
+  it('marks a card deceased when a later save says so, but not a life state set by hand', () => {
+    const once = merge([]);
+    assert.equal(once.nodes.find((n) => n.treeId === 'g1')!.state, 'Sim');
+    const died: ParsedSave = { ...parsed, relatives: [{ treeId: 'g1', gender: 'Male', deceased: true }] };
+    const again = (nodes: SimNode[]) =>
+      mergeSaveIntoBoard({
+        nodes,
+        edges: [],
+        groups: [],
+        worlds,
+        parsed: died,
+        seedNameKeys: new Set(),
+        now: 'x',
+        nextEdgeId: () => 'w',
+      });
+    const r = again(once.nodes);
+    assert.equal(r.nodes.find((n) => n.treeId === 'g1')!.state, 'Deceased');
+    assert.deepEqual(r.summary.relativesDied, ['Unknown Hoffman']);
+    const ghost = once.nodes.map((n) => (n.treeId === 'g1' ? { ...n, state: 'Ghost' } : n));
+    const kept = again(ghost);
+    assert.equal(kept.nodes.find((n) => n.treeId === 'g1')!.state, 'Ghost');
+    assert.deepEqual(kept.summary.relativesDied, []);
+  });
+
   it('leaves out one who links nobody else', () => {
     assert.ok(!merge([]).nodes.some((n) => n.treeId === 'g2'));
   });

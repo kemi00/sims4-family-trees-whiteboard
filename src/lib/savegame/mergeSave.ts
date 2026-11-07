@@ -51,6 +51,8 @@ export type SaveMergeSummary = {
   relatives: string[];
   /** Unknown cards for such relatives that now have the game's name for them. */
   relativesNamed: string[];
+  /** Cards for such relatives, already on the board, now marked deceased. */
+  relativesDied: string[];
   /**
    * Married sims the board shows under their own surname, with the one the
    * game gives them from their spouse (see withOwnSurnames).
@@ -1056,6 +1058,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const relativesAdded: string[] = [];
   const relativesMoved: string[] = [];
   const relativesNamed: string[] = [];
+  const relativesDied: string[] = [];
   const cardAt = new Map(nodes.map((n, i) => [n.id, i]));
   const simOnBoard = (saveId: string) => {
     const id = saveIdToBoard.get(saveId);
@@ -1098,6 +1101,17 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
           ...(r.deceased ? { state: DECEASED_STATE } : {}),
         };
         relativesNamed.push(id);
+      }
+    }
+    // A card from an earlier import, alive then: the save, or what
+    // inferTreeDeaths works out from it, now says they died. A life state
+    // chosen by hand (a ghost, say) stays.
+    if (id && r.deceased) {
+      const i = cardAt.get(id)!;
+      const card = nodes[i]!;
+      if (!card.state || card.state === 'Sim') {
+        nodes[i] = { ...card, state: DECEASED_STATE };
+        relativesDied.push(id);
       }
     }
     if (!id) {
@@ -1352,6 +1366,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       toNotInWorld: toNotInWorld.map(nameOf),
       relatives: relativesAdded.map(nameOf),
       relativesNamed: relativesNamed.map(nameOf),
+      relativesDied: relativesDied.map(nameOf),
       ownSurnames: sims.flatMap((sim) => {
         const id = saveIdToBoard.get(sim.saveSimId);
         if (!id || !sim.marriedLast || foldName(sim.marriedLast) === foldName(sim.last)) return [];

@@ -43,6 +43,7 @@ export function SaveImportDialog({
     summary.rejoined.length > 0 ||
     summary.relatives.length > 0 ||
     summary.relativesNamed.length > 0 ||
+    summary.relativesDied.length > 0 ||
     summary.ownSurnames.length > 0 ||
     summary.toNotInWorld.length > 0 ||
     summary.skipped.length > 0 ||
@@ -163,6 +164,14 @@ export function SaveImportDialog({
                       <b>{summary.relativesNamed.length}</b> Unknown{' '}
                       {verb(summary.relativesNamed.length, 'relative gets', 'relatives get')}{' '}
                       the game's name for them
+                    </li>
+                  )}
+                  {summary.relativesDied.length > 0 && (
+                    <li>
+                      <b>{summary.relativesDied.length}</b>{' '}
+                      {verb(summary.relativesDied.length, 'relative', 'relatives')} from the family
+                      tree {verb(summary.relativesDied.length, 'is', 'are')} now marked deceased:{' '}
+                      {listPreview(summary.relativesDied, 4)}
                     </li>
                   )}
                   {summary.ownSurnames.length > 0 && (

@@ -88,6 +88,11 @@ export type DynastyGeneration = {
   planned?: true;
   /** On the line to the first head, but not a dynasty member (an ancestor). */
   forebear?: true;
+  /**
+   * The other dynasties' lines this sim is also an ancestor on: the Darongs'
+   * great-grandmother is Gen 1 of the Darong line and of the Dreamer line.
+   */
+  also?: DynastyGeneration[];
 };
 
 /**
@@ -151,6 +156,8 @@ function oldestAncestor(
  */
 export function dynastyGenerations(nodes: SimNode[], edges: Edge[]): Map<string, DynastyGeneration> {
   const out = new Map<string, DynastyGeneration>();
+  /** A forebear's place on each line they are on, gathered before choosing. */
+  const lines = new Map<string, DynastyGeneration[]>();
   const heads = firstHeads(nodes);
   if (!heads.size) return out;
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -234,11 +241,25 @@ export function dynastyGenerations(nodes: SimNode[], edges: Edge[]): Map<string,
       }
     }
     // The line itself: the first head's ancestors from Gen 1 down.
-    for (const a of [root, ...ancestorsOf(first)]) {
+    for (const a of new Set([root, ...ancestorsOf(first)])) {
       const g = gen.get(a);
-      if (!g || memberIds.has(a) || out.has(a)) continue;
-      out.set(a, { ...base, gen: g.gen, forebear: true });
+      if (!g || memberIds.has(a)) continue;
+      lines.set(a, [...(lines.get(a) ?? []), { ...base, gen: g.gen, forebear: true }]);
     }
+  }
+  // An ancestor shared by several dynasties is on each of their lines. Their
+  // own dynasty comes first if they belong to one, then the line whose name
+  // they carry (Unknown Darong: the Darong line), then the first counted.
+  for (const [id, found] of lines) {
+    const own = out.get(id);
+    const word = (d: string) => d.trim().toLowerCase();
+    const carries = (g: DynastyGeneration) => {
+      const w = word(g.dynasty);
+      return !!w && nameOf(id).toLowerCase().includes(w);
+    };
+    const ranked = [...found].sort((a, b) => Number(carries(b)) - Number(carries(a)));
+    const [main, ...rest] = own ? [own, ...ranked] : ranked;
+    out.set(id, rest.length ? { ...main!, also: rest } : main!);
   }
   return out;
 }

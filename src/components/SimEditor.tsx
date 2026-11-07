@@ -193,7 +193,7 @@ type Props = {
   onMove: (world: string, houseGid: string, newName: string) => void;
   onLayout: () => void;
   onClose: () => void;
-  /** Focus the name, selected, so a sim just added can be named straight away. */
+  /** Focus the first name, selected, so a sim just added can be named straight away. */
   focusName?: boolean;
 };
 
@@ -229,7 +229,10 @@ export function SimEditor({
     trackAction(`/action/editor/${t}`);
     setTabState(t);
   };
-  const [name, setName] = useState(`${n.first} ${n.sur}`);
+  // First and last name apart, as the game keeps them: "Cordelia" and
+  // "Thebe V", not one field split at its first space.
+  const [first, setFirst] = useState(n.first);
+  const [sur, setSur] = useState(n.sur);
   /** The game's surname from a spouse, when the card shows another. */
   const married =
     n.marriedSur && n.marriedSur.trim().toLowerCase() !== n.sur.trim().toLowerCase()
@@ -326,12 +329,10 @@ export function SimEditor({
   };
 
   const save = () => {
-    const parts = name.trim().split(' ');
-    const first = parts.shift() || name;
-    const sur = parts.join(' ');
     onSave({
-      first,
-      sur,
+      // A sim always has a first name; a last name can be blank (Mayor Whiskers).
+      first: first.trim() || n.first,
+      sur: sur.trim(),
       age,
       gender,
       state,
@@ -465,20 +466,36 @@ export function SimEditor({
         <button type="button" className="edx" title="Close without saving" aria-label="Close" onClick={onClose}>
           ✕
         </button>
-        <label htmlFor="edName">Name</label>
-        <input
-          id="edName"
-          ref={nameRef}
-          className="edname"
-          value={name}
-          enterKeyHint="done"
-          aria-describedby={married ? 'edMarried' : undefined}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <div className="edpair edpair--name">
+          <div>
+            <label htmlFor="edFirst">First name</label>
+            <input
+              id="edFirst"
+              ref={nameRef}
+              className="edname"
+              value={first}
+              autoComplete="off"
+              enterKeyHint="done"
+              onChange={(e) => setFirst(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="edLast">Last name</label>
+            <input
+              id="edLast"
+              className="edname"
+              value={sur}
+              autoComplete="off"
+              enterKeyHint="done"
+              aria-describedby={married ? 'edMarried' : undefined}
+              onChange={(e) => setSur(e.target.value)}
+            />
+          </div>
+        </div>
         {married && (
           <div id="edMarried" className="edhint">
-            In the game: {n.first} {married}, their spouse's surname. Type it here to show it on
-            the card.
+            In the game: {n.first} {married}, their spouse's surname. Type {married} as the last
+            name to show it on the card.
           </div>
         )}
         <div className="edtabs" role="tablist" aria-label="Sections">
@@ -642,6 +659,15 @@ export function SimEditor({
                 <div className="ro edgen" id="edGen">
                   {genLine ?? `No number: no family link to ${nameOf(gen.rootId)}`}
                   {gen.planned && <span className="edgen__planned"> · through a planned link</span>}
+                  {/* An ancestor shared by more than one dynasty's line. */}
+                  {gen.also?.map((g) => {
+                    const t = generationText(g, dynastyLabel(g, generations, byId));
+                    return t ? (
+                      <div key={g.key} className="edgen__also">
+                        Also {t}
+                      </div>
+                    ) : null;
+                  })}
                 </div>
                 <select
                   id="edGenRoot"

@@ -86,8 +86,10 @@ export type ParsedSaveRel = {
 export type ParsedTreeRelative = {
   treeId: string;
   gender: string;
-  /** The tree records how they died. */
+  /** The tree records how they died, or inferTreeDeaths works it out. */
   deceased?: true;
+  /** No death in the tree: worked out from their children (inferTreeDeaths). */
+  deathInferred?: true;
   /** Key of their full name in the game's text, as a decimal uint32. */
   nameKey?: string;
   /** Their full name ("Cordelia Thebe II"), when TREE_NAMES knows the key. */
@@ -470,6 +472,47 @@ function parseTreeRelatives(graph: Uint8Array, simIds: ReadonlySet<string>): Par
   return out;
 }
 
+/**
+ * Deaths the family tree leaves out. A relative with no sim in the save is
+ * not in the game world, and the tree records how most of them died, but not
+ * all: the ancestors the game itself calls Unknown carry no death (the
+ * Darongs' and the Altos' great-grandmothers). One is taken as dead when a
+ * child of theirs is an elder, or when they had children and every one is
+ * dead, as recorded or worked out here, so it climbs the tree. The absent
+ * fathers of young premades (Felix Hoffman's, the Behrs') keep no death:
+ * they may well be alive.
+ */
+export function inferTreeDeaths(
+  relatives: ParsedTreeRelative[],
+  rels: ParsedSaveRel[],
+  sims: Pick<ParsedSaveSim, 'saveSimId' | 'age'>[],
+): ParsedTreeRelative[] {
+  const isRelative = new Set(relatives.map((r) => r.treeId));
+  const ageOf = new Map(sims.map((s) => [s.saveSimId, s.age]));
+  const kids = new Map<string, string[]>();
+  for (const r of rels) {
+    if (r.type !== 'parent' || !isRelative.has(r.a)) continue;
+    kids.set(r.a, [...(kids.get(r.a) ?? []), r.b]);
+  }
+  const dead = new Set(relatives.filter((r) => r.deceased).map((r) => r.treeId));
+  const inferred = new Set<string>();
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const r of relatives) {
+      const list = kids.get(r.treeId);
+      if (dead.has(r.treeId) || !list?.length) continue;
+      if (!list.some((k) => ageOf.get(k) === 'Elder') && !list.every((k) => dead.has(k))) continue;
+      dead.add(r.treeId);
+      inferred.add(r.treeId);
+      changed = true;
+    }
+  }
+  if (!inferred.size) return relatives;
+  return relatives.map((r) =>
+    inferred.has(r.treeId) ? { ...r, deceased: true as const, deathInferred: true as const } : r,
+  );
+}
+
 function parseTreeRels(graph: Uint8Array): ParsedSaveRel[] {
   const rels: ParsedSaveRel[] = [];
   const seen = new Set<string>();
@@ -798,7 +841,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
   const gameplay = gameplayData(data);
   const graph = familyTreeGraph(gameplay);
   const treeRels = graph ? parseTreeRels(graph) : [];
-  const relatives = graph ? parseTreeRelatives(graph, seen) : [];
+  const treeRelatives = graph ? parseTreeRelatives(graph, seen) : [];
   const relData = gameplay ? firstBytes(gameplay, 13) : null;
   const { pairs, secretParents, familyParents } = relData
     ? parseRelationships(relData)
@@ -808,6 +851,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     pairs,
     secretParents,
   );
+  const relatives = inferTreeDeaths(treeRelatives, rels, sims);
   const dynasties = parseDynasties(gameplay);
   if (dynasties) {
     for (const sim of sims) {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
-import { pairTagsFromBits, parseSaveGame, readableHouseholdName } from './parseSave.ts';
+import { inferTreeDeaths, pairTagsFromBits, parseSaveGame, readableHouseholdName } from './parseSave.ts';
 import { decodeFields, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
 
@@ -547,6 +547,45 @@ describe('parseSaveGame', () => {
     ]);
     assert.ok(parsed.rels.some((r) => r.type === 'parent' && r.a === '9' && r.b === '1'));
     assert.deepEqual(parseSaveGame(tinySave()).relatives, []);
+  });
+
+  it('works out deaths the tree leaves out, from the children', () => {
+    // The Darongs: an Unknown great-grandmother with no death, her two dead
+    // children; an Unknown father of an elder; an absent father of a teen.
+    const relatives = [
+      { treeId: 'gg', gender: 'Female' },
+      { treeId: 'ade', gender: 'Male', deceased: true as const },
+      { treeId: 'lina', gender: 'Female', deceased: true as const },
+      { treeId: 'eldersDad', gender: 'Male' },
+      { treeId: 'teensDad', gender: 'Male' },
+      { treeId: 'childless', gender: 'Male' },
+      // Her son, dead only by inference from his own: it climbs the tree.
+      { treeId: 'top', gender: 'Male' },
+    ];
+    const rels = [
+      { a: 'gg', b: 'ade', type: 'parent' as const },
+      { a: 'gg', b: 'lina', type: 'parent' as const },
+      { a: 'top', b: 'gg', type: 'parent' as const },
+      { a: 'eldersDad', b: 'arnessa', type: 'parent' as const },
+      { a: 'teensDad', b: 'yuki', type: 'parent' as const },
+      { a: 'teensDad', b: 'arnessa', type: 'marriage' as const },
+    ];
+    const sims = [
+      { saveSimId: 'arnessa', age: 'Elder' },
+      { saveSimId: 'yuki', age: 'Teen' },
+    ];
+    const out = inferTreeDeaths(relatives, rels, sims);
+    const dead = (id: string) => out.find((r) => r.treeId === id)!;
+    assert.deepEqual(
+      ['gg', 'top', 'eldersDad'].map((id) => [dead(id).deceased, dead(id).deathInferred]),
+      [[true, true], [true, true], [true, true]],
+    );
+    assert.deepEqual(dead('ade'), { treeId: 'ade', gender: 'Male', deceased: true });
+    assert.equal(dead('teensDad').deceased, undefined);
+    assert.equal(dead('childless').deceased, undefined);
+    // Nothing to work out: the same list back.
+    const none = relatives.slice(3, 6);
+    assert.equal(inferTreeDeaths(none, [], sims), none);
   });
 
   it("names a relative from the game's text when the board knows the key", () => {

@@ -106,6 +106,56 @@ describe('dynasty generations', () => {
   });
 });
 
+describe('an ancestor on more than one line', () => {
+  // Unknown Darong: through Ade, Gen 1 of the Darong line; through Lina,
+  // Delilah and Darren, Gen 1 of the Dreamer line. Neither her dynasty.
+  const darong = (id: string, extra: Partial<SimNode> = {}) =>
+    sim(id, { sur: 'Darong', dynasty: 'Darong', dynastyId: '1', ...extra });
+  const dreamer = (id: string, extra: Partial<SimNode> = {}) =>
+    sim(id, { sur: 'Dreamer', dynasty: 'Dreamer', dynastyId: '2', ...extra });
+  const free = { dynasty: undefined, dynastyId: undefined };
+  const nodes = [
+    // The Dreamers come first on the board, as they did in the save.
+    dreamer('Dirk', { dynastyRole: 'head' }),
+    sim('Unknown', { sur: 'Darong', ...free }),
+    sim('Ade', { sur: 'Darong', ...free }),
+    sim('Lina', { sur: 'Darong', ...free }),
+    sim('Delilah', { sur: 'Dreamer', ...free }),
+    sim('Darren', { sur: 'Dreamer', ...free }),
+    darong('Adekoya', { dynastyRole: 'head' }),
+  ];
+  const edges = [
+    parent('Unknown', 'Ade'),
+    parent('Unknown', 'Lina'),
+    parent('Ade', 'Adekoya'),
+    parent('Lina', 'Delilah'),
+    parent('Delilah', 'Darren'),
+    parent('Darren', 'Dirk'),
+  ];
+
+  it('puts the line whose name they carry first, and keeps the other', () => {
+    const g = dynastyGenerations(nodes, edges);
+    const her = g.get('Unknown')!;
+    assert.equal(generationText(her, her.dynasty), 'Gen 1 of the Darong line');
+    assert.deepEqual(
+      her.also?.map((x) => generationText(x, x.dynasty)),
+      ['Gen 1 of the Dreamer line'],
+    );
+    assert.equal(g.get('Dirk')!.gen, 5);
+    assert.equal(g.get('Adekoya')!.gen, 3);
+    assert.equal(g.get('Ade')!.also, undefined);
+  });
+
+  it('keeps a member’s own dynasty first', () => {
+    const g = dynastyGenerations(
+      nodes.map((n) => (n.id === 'Unknown' ? { ...n, sur: 'Dreamer', dynasty: 'Darong', dynastyId: '1' } : n)),
+      edges,
+    );
+    const her = g.get('Unknown')!;
+    assert.deepEqual([her.dynasty, her.forebear, her.also?.[0]?.dynasty], ['Darong', undefined, 'Dreamer']);
+  });
+});
+
 describe('first heads', () => {
   it('remembers each dynasty’s head once, and moves a name key to the game’s id', () => {
     const nodes = [sim('Mortimer', { dynastyRole: 'head' }), sim('Cassandra', { dynastyRole: 'heir' })];
