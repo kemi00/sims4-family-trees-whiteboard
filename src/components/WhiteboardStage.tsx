@@ -1949,7 +1949,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         <InfantHouseMenu
           left={wb.infantHouseMenu.x}
           top={wb.infantHouseMenu.y}
-          options={wb.infantHouseChoices}
+          question={wb.infantHouseChoices.question}
+          options={wb.infantHouseChoices.options}
           onPick={wb.confirmInfantHouse}
           onCancel={() => wb.setInfantHouseMenu(null)}
         />

@@ -132,6 +132,29 @@ export function householdMovePlan(
   return { patches, moves };
 }
 
+/**
+ * The last names a sim joining household `hh` could take, the likeliest
+ * first. A baby takes a parent's (`parents`, in order), never a roommate's;
+ * anyone else takes one of the household's. The household's own name wins
+ * when it is one of them (the Munch household: Munch); then the one more of
+ * its `members` share. More than one back means a tie the board can't settle,
+ * like Munch and Fyres in a household called Love Nest: ask, as the game
+ * does at a birth. Empty when no one has a last name.
+ */
+export function householdSurnames(
+  members: Pick<SimNode, 'sur'>[],
+  hh: string,
+  parents: string[] = [],
+): string[] {
+  const names = (list: string[]) => [...new Set(list.map((s) => s.trim()).filter(Boolean))];
+  const pool = names(parents).length ? names(parents) : names(members.map((m) => m.sur));
+  const own = pool.find((s) => s.toLowerCase() === hh.trim().toLowerCase());
+  if (own || pool.length < 2) return own ? [own] : pool;
+  const count = (s: string) => members.filter((m) => m.sur.trim() === s).length;
+  const most = Math.max(...pool.map(count));
+  return pool.filter((s) => count(s) === most);
+}
+
 /** The world most of these sims live in, for the picker to start on. */
 export function commonWorld(sims: SimNode[], worlds: World[]): string {
   const counts = new Map<string, number>();

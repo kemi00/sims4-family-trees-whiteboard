@@ -7,6 +7,7 @@ import {
   householdMovePlan,
   householdNamed,
   householdOptions,
+  householdSurnames,
   moveDestination,
 } from './householdMove.ts';
 
@@ -133,5 +134,41 @@ describe('moving sims to a household', () => {
     });
     const toNew = moveDestination(groups, board, worlds, 'Willow Creek', NEW_HOUSEHOLD, 'Heirs')!;
     assert.equal(householdMovePlan(board, ['Heir'], toNew).patches.get('Heir')?.onb, '-');
+  });
+});
+
+describe('a planned baby\'s last name', () => {
+  const sur = (...names: string[]) => names.map((s) => ({ sur: s }));
+
+  it('takes the household\'s own name when a parent has it', () => {
+    assert.deepEqual(householdSurnames(sur('Munch', 'Fyres'), 'Munch', ['Fyres', 'Munch']), ['Munch']);
+    assert.deepEqual(householdSurnames(sur('Munch', 'Fyres'), 'fyres', ['Munch', 'Fyres']), ['Fyres']);
+  });
+
+  it('otherwise takes the parent\'s name more of the household shares', () => {
+    assert.deepEqual(householdSurnames(sur('Munch', 'Fyres', 'Munch'), 'Love Nest', ['Fyres', 'Munch']), ['Munch']);
+  });
+
+  it('never takes a roommate\'s name, however many share it', () => {
+    const home = sur('Munch', 'Fyres', 'Pancakes', 'Pancakes');
+    assert.deepEqual(householdSurnames(home, 'Love Nest', ['Munch', 'Fyres']), ['Munch', 'Fyres']);
+  });
+
+  it('leaves a tie open, parents in order, for you to pick', () => {
+    assert.deepEqual(householdSurnames(sur('Munch', 'Fyres'), 'Love Nest', ['Munch', 'Fyres']), ['Munch', 'Fyres']);
+  });
+
+  it('has nothing to ask when the parents share a name', () => {
+    assert.deepEqual(householdSurnames(sur('Munch', 'Munch'), 'Love Nest', ['Munch', ' Munch ']), ['Munch']);
+  });
+
+  it('goes with the parent who lives there when the other does not', () => {
+    // Akira Kibo's household; Diego Lobo lives elsewhere.
+    assert.deepEqual(householdSurnames(sur('Kibo', 'Ojo'), 'Karaoke Legends', ['Kibo', 'Lobo']), ['Kibo']);
+  });
+
+  it('gives anyone else the household\'s most shared name', () => {
+    assert.deepEqual(householdSurnames(sur('Ojo', 'Kibo', 'Kibo'), 'Karaoke Legends'), ['Kibo']);
+    assert.deepEqual(householdSurnames(sur('', ''), 'Karaoke Legends'), []);
   });
 });

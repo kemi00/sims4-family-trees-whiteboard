@@ -15,7 +15,13 @@ import { trackAction } from '../lib/analytics.ts';
 import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, separateLoadOverlaps, shouldRepackOffsets, withReadableHouseholdNames } from '../lib/loadLayout.ts';
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
-import { householdMovePlan, moveDestination, type MoveDestination } from '../lib/householdMove.ts';
+import { isUnhousedGid } from '../lib/unhoused.ts';
+import {
+  householdMovePlan,
+  householdSurnames,
+  moveDestination,
+  type MoveDestination,
+} from '../lib/householdMove.ts';
 import {
   GENDER_NOT_KNOWN,
   NOT_YET_AGE,
@@ -1023,9 +1029,7 @@ export function useWhiteboard() {
       pushUndo();
       trackAction('/action/add-household-sim');
       const id = 'new' + eidcRef.current++;
-      const surnames = new Map<string, number>();
-      for (const m of home) if (m.sur) surnames.set(m.sur, (surnames.get(m.sur) ?? 0) + 1);
-      const sur = [...surnames].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Sim';
+      const sur = householdSurnames(home, g.hh)[0] ?? 'Sim';
       const n: SimNode = {
         id,
         gid,
@@ -1336,8 +1340,22 @@ export function useWhiteboard() {
     [byid, cancelConnect, flashStatus, freezeAfterEdgeChange, parentCycleReason, pushUndo],
   );
 
+  /**
+   * Last names a planned baby of `a` and `b` could take in household `gid`
+   * (householdSurnames): more than one is a tie to ask about. The townies'
+   * and added sims' boxes aren't families, so there only the parents count.
+   */
+  const babySurnames = useCallback(
+    (a: SimNode, b: SimNode, gid: string) => {
+      const bucket = isUnhousedGid(gid) || gid.endsWith(`||${ADDED_HOUSEHOLD}`);
+      const home = nodes.filter((n) => n.gid === gid && (!bucket || n.id === a.id || n.id === b.id));
+      return householdSurnames(home, bucket ? '' : (home[0]?.hh ?? ''), [a.sur, b.sur]);
+    },
+    [nodes],
+  );
+
   const addInfantOfCouple = useCallback(
-    (pa: string, pb: string, destGid: string, rx: number, _ry: number) => {
+    (pa: string, pb: string, destGid: string, sur: string, rx: number, _ry: number) => {
       const a = byid[pa];
       const b = byid[pb];
       if (!a || !b) return;
@@ -1365,7 +1383,7 @@ export function useWhiteboard() {
         id,
         gid: dest.gid,
         first: '',
-        sur: host.sur || 'Sim',
+        sur: sur || 'Sim',
         age: NOT_YET_AGE,
         state: 'Sim',
         gender: GENDER_NOT_KNOWN,
@@ -1441,7 +1459,7 @@ export function useWhiteboard() {
       setInfantHouseMenu(null);
       trackAction('/action/add-infant');
       flashStatus(
-        `Planned a child of ${byid[pa]?.first ?? ''} ＋ ${byid[pb]?.first ?? ''}: not born yet. Give them a plan label in the editor.`,
+        `Planned a child of ${byid[pa]?.first ?? ''} ＋ ${byid[pb]?.first ?? ''}: a ${sur || 'Sim'}, not born yet. Give them a plan label in the editor.`,
       );
     },
     [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap],
@@ -1459,22 +1477,25 @@ export function useWhiteboard() {
       const a = byid[pa];
       const b = byid[pb];
       if (!a || !b) return;
-      if (a.gid === b.gid) {
-        addInfantOfCouple(pa, pb, a.gid, rx, ry);
+      // One household and one last name: nothing to ask.
+      const surs = a.gid === b.gid ? babySurnames(a, b, a.gid) : [];
+      if (a.gid === b.gid && surs.length < 2) {
+        addInfantOfCouple(pa, pb, a.gid, surs[0] ?? a.sur, rx, ry);
         return;
       }
       setInfantHouseMenu({ pa, pb, rx, ry, x: menuX, y: menuY });
     },
-    [byid, addInfantOfCouple],
+    [byid, addInfantOfCouple, babySurnames],
   );
 
   const confirmInfantHouse = useCallback(
-    (gid: string) => {
+    (gid: string, sur: string) => {
       if (!infantHouseMenu) return;
       addInfantOfCouple(
         infantHouseMenu.pa,
         infantHouseMenu.pb,
         gid,
+        sur,
         infantHouseMenu.rx,
         infantHouseMenu.ry,
       );
@@ -1482,19 +1503,37 @@ export function useWhiteboard() {
     [infantHouseMenu, addInfantOfCouple],
   );
 
-  const infantHouseChoices = useMemo(() => {
-    if (!infantHouseMenu) return [];
+  /**
+   * The baby menu's question and answers: which household when the parents
+   * live apart, each with the last name the baby takes there; which last
+   * name when they live together and the household can't settle it.
+   */
+  const infantHouseChoices = useMemo((): { question: string; options: { gid: string; sur: string; label: string }[] } => {
+    const none = { question: '', options: [] };
+    if (!infantHouseMenu) return none;
     const a = byid[infantHouseMenu.pa];
     const b = byid[infantHouseMenu.pb];
-    if (!a || !b) return [];
-    const choice = (n: SimNode) => ({
-      gid: n.gid,
-      label: `${simName(n)} — ${householdPlace(n.hh, n.nb, n.world)}`,
+    if (!a || !b) return none;
+    const homes = a.gid === b.gid ? [a] : [a, b];
+    const options = homes.flatMap((n) => {
+      const surs = babySurnames(a, b, n.gid);
+      return (surs.length ? surs : [n.sur]).map((sur) => {
+        const like = [a, b].filter((p) => p.sur.trim() === sur).map((p) => p.first);
+        return {
+          gid: n.gid,
+          sur,
+          label:
+            homes.length > 1
+              ? `${simName(n)} — ${householdPlace(n.hh, n.nb, n.world)} · a ${sur}`
+              : `${sur}${like.length ? `, like ${like.join(' and ')}` : ''}`,
+        };
+      });
     });
-    const opts = [choice(a)];
-    if (b.gid !== a.gid) opts.push(choice(b));
-    return opts;
-  }, [infantHouseMenu, byid]);
+    return {
+      question: homes.length > 1 ? 'Where will the baby live?' : 'Which last name will the baby have?',
+      options,
+    };
+  }, [infantHouseMenu, byid, babySurnames]);
 
   const handleConnectClick = useCallback(
     (n: SimNode, clientX: number, clientY: number, stageRect: DOMRect) => {
