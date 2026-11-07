@@ -26,7 +26,7 @@ import {
   yearText,
   type LifeView,
 } from '../lib/lifeClock.ts';
-import { gapText, partnerCandidates, type PartnerCandidate } from '../lib/partners.ts';
+import { gapText, partnerBand, partnerCandidates, type PartnerCandidate } from '../lib/partners.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
@@ -141,8 +141,19 @@ function TipButton({
 
 const PARTNER_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
 
-/** Partners listed in each life stage before its "Show more". */
-const PARTNERS_SHOWN = 3;
+/** Partners listed before "Show more". */
+const PARTNERS_SHOWN = 4;
+
+/** Where this browser remembers the partner list's "Hide sims with no home". */
+const HOUSED_ONLY_KEY = 'partners-housed-only';
+
+function readHousedOnly(): boolean {
+  try {
+    return localStorage.getItem(HOUSED_ONLY_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 /** A life stage as a group heading: "Young adults". */
 const STAGE_PLURAL: Record<string, string> = {
@@ -301,35 +312,54 @@ export function SimEditor({
     );
   }, [n.id, n.dynasty, n.dynastyId, n.dynastyRole, dynastyRole, nodes]);
   const [partnerGender, setPartnerGender] = useState('');
-  /** Life stages whose whole partner list is open. */
-  const [openStages, setOpenStages] = useState<ReadonlySet<string>>(new Set());
+  /** The life stage picked in the partner list's Age menu; none yet picked. */
+  const [stagePick, setStagePick] = useState<string | null>(null);
+  const [allPartners, setAllPartners] = useState(false);
+  /** Leave out townies with no home lot; kept for the next sim too. */
+  const [housedOnly, setHousedOnlyState] = useState(readHousedOnly);
+  const setHousedOnly = (on: boolean) => {
+    setHousedOnlyState(on);
+    setAllPartners(false);
+    try {
+      localStorage.setItem(HOUSED_ONLY_KEY, on ? '1' : '0');
+    } catch {
+      // Private mode: it is forgotten when the page closes.
+    }
+  };
   // Worked out on every tab, so the Family tab's height is known before it opens.
   const partners = useMemo(
     () =>
       isPet
         ? []
-        : partnerCandidates({ id: n.id, nodes, edges, game: saveGame, gender: partnerGender || undefined }),
-    [isPet, n.id, nodes, edges, saveGame, partnerGender],
+        : partnerCandidates({
+            id: n.id,
+            nodes,
+            edges,
+            game: saveGame,
+            gender: partnerGender || undefined,
+            housedOnly,
+          }),
+    [isPet, n.id, nodes, edges, saveGame, partnerGender, housedOnly],
   );
-  /**
-   * Partners by life stage, so a young adult's adults and elders show
-   * rather than sitting below every other young adult. The stage with the
-   * closest partner comes first: their own, usually.
-   */
-  const partnerStages = useMemo(() => {
+  /** Partners by life stage, for the Age menu and its counts. */
+  const partnersByStage = useMemo(() => {
     const by = new Map<string, PartnerCandidate[]>();
     for (const c of partners) {
       const age = byId[c.id]?.age ?? '';
       by.set(age, [...(by.get(age) ?? []), c]);
     }
-    return [...by];
+    return by;
   }, [partners, byId]);
-  const toggleStage = (age: string) =>
-    setOpenStages((open) => {
-      const next = new Set(open);
-      if (!next.delete(age)) next.add(age);
-      return next;
-    });
+  /** The stages this sim is suggested partners from, in life order. */
+  const partnerStages = partnerBand(n.age) ?? [];
+  // Their own stage until another is picked, or the first with anyone in it.
+  const partnerStage =
+    stagePick ??
+    (partnersByStage.get(n.age)?.length
+      ? n.age
+      : (partnerStages.find((st) => partnersByStage.get(st)?.length) ?? n.age));
+  const stagePartners = partnersByStage.get(partnerStage) ?? [];
+  const shownPartners = allPartners ? stagePartners : stagePartners.slice(0, PARTNERS_SHOWN);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef<HTMLInputElement>(null);
@@ -447,7 +477,7 @@ export function SimEditor({
 
   useEffect(() => {
     onLayout();
-  }, [tab, moveOpen, openStages, tips, onLayout]);
+  }, [tab, moveOpen, allPartners, partnerStage, tips, onLayout]);
 
   useEffect(() => {
     if (!compact) return;
@@ -733,16 +763,35 @@ export function SimEditor({
                 controls="edPartnersHint"
                 about="possible partners"
               />
+            </div>
+            {/* Two ways of narrowing one list, side by side. A teen or a child
+                has one stage to choose from, so no Age menu. */}
+            <div className="edfilters">
+              {partnerStages.length > 1 && (
+                <select
+                  aria-label="Partners' life stage"
+                  value={partnerStage}
+                  onChange={(e) => {
+                    setStagePick(e.target.value);
+                    setAllPartners(false);
+                  }}
+                >
+                  {partnerStages.map((st) => (
+                    <option key={st} value={st}>
+                      {STAGE_PLURAL[st] ?? st} ({partnersByStage.get(st)?.length ?? 0})
+                    </option>
+                  ))}
+                </select>
+              )}
               <select
-                className="edlabel__select"
-                aria-label="Show partners of gender"
+                aria-label="Partners' gender"
                 value={partnerGender}
                 onChange={(e) => {
                   setPartnerGender(e.target.value);
-                  setOpenStages(new Set());
+                  setAllPartners(false);
                 }}
               >
-                <option value="">Anyone</option>
+                <option value="">Any gender</option>
                 {PARTNER_GENDERS.map((g) => (
                   <option key={g} value={g}>
                     {g}
@@ -750,65 +799,66 @@ export function SimEditor({
                 ))}
               </select>
             </div>
+            {/* On or off, so a checkbox rather than a third menu. Named as the
+                board names those places, so it is clear who goes. */}
+            <label className="edcheck">
+              <input
+                type="checkbox"
+                checked={housedOnly}
+                onChange={(e) => setHousedOnly(e.target.checked)}
+              />
+              Hide sims in Not in any world or Unhoused
+            </label>
             <div id="edPartnersHint" className="edhint" hidden={!tips.partners}>
               Young adults, adults and elders are suggested to each other; teens to teens, children
               to children, and infants and toddlers together. Closest in life first: living sims who
               aren't blood relatives or married. Click one to find them on the board.
             </div>
-            {partnerStages.length ? (
-              partnerStages.map(([age, list]) => {
-                const open = openStages.has(age);
-                const headId = `edPartners-${age.replace(/\s+/g, '')}`;
-                return (
-                  <section key={age} className="partners__stage" aria-labelledby={headId}>
-                    <h5 id={headId}>
-                      {STAGE_PLURAL[age] ?? age} <span className="partners__count">{list.length}</span>
-                    </h5>
-                    <ul className="partners">
-                      {(open ? list : list.slice(0, PARTNERS_SHOWN)).map((c) => {
-                        const p = byId[c.id];
-                        if (!p) return null;
-                        const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
-                        const flags = [
-                          c.frozen ? 'not aging now' : '',
-                          c.taken ? 'in a romance' : '',
-                          p.dynasty ? `${p.dynasty} dynasty` : '',
-                        ].filter(Boolean);
-                        return (
-                          <li key={c.id}>
-                            <button type="button" onClick={() => onPickPartner(c.id)}>
-                              <span className="partners__name">
-                                {mark}
-                                {p.first} {p.sur}
-                              </span>
-                              <span className="partners__meta">
-                                {gapText(c)} · {p.hh}
-                                {flags.length > 0 && (
-                                  <span className="partners__flags"> · {flags.join(' · ')}</span>
-                                )}
-                              </span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    {list.length > PARTNERS_SHOWN && (
-                      <button
-                        type="button"
-                        className="edlink edlink--more"
-                        aria-expanded={open}
-                        onClick={() => toggleStage(age)}
-                      >
-                        {open
-                          ? 'Show fewer'
-                          : `Show ${list.length - PARTNERS_SHOWN} more ${(STAGE_PLURAL[age] ?? age).toLowerCase()}`}
+            {stagePartners.length ? (
+              <ul className="partners" aria-labelledby="edPartnersLabel">
+                {shownPartners.map((c) => {
+                  const p = byId[c.id];
+                  if (!p) return null;
+                  const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
+                  const flags = [
+                    c.frozen ? 'not aging now' : '',
+                    c.taken ? 'in a romance' : '',
+                    p.dynasty ? `${p.dynasty} dynasty` : '',
+                  ].filter(Boolean);
+                  return (
+                    <li key={c.id}>
+                      <button type="button" onClick={() => onPickPartner(c.id)}>
+                        <span className="partners__name">
+                          {mark}
+                          {p.first} {p.sur}
+                        </span>
+                        <span className="partners__meta">
+                          {gapText(c)} · {p.hh}
+                        </span>
+                        {flags.length > 0 && <span className="partners__flags">{flags.join(' · ')}</span>}
                       </button>
-                    )}
-                  </section>
-                );
-              })
+                    </li>
+                  );
+                })}
+              </ul>
             ) : (
-              <div className="edhint">No one on the board fits.</div>
+              <div className="edhint">
+                {STAGE_PLURAL[partnerStage]
+                  ? `No ${partnerGender ? `${partnerGender.toLowerCase()} ` : ''}${STAGE_PLURAL[partnerStage]!.toLowerCase()}${housedOnly ? ' with a home' : ''} on the board fit.`
+                  : 'No one on the board fits.'}
+              </div>
+            )}
+            {stagePartners.length > PARTNERS_SHOWN && (
+              <button
+                type="button"
+                className="edlink edlink--more"
+                aria-expanded={allPartners}
+                onClick={() => setAllPartners(!allPartners)}
+              >
+                {allPartners
+                  ? 'Show fewer'
+                  : `Show ${stagePartners.length - PARTNERS_SHOWN} more`}
+              </button>
             )}
           </div>
         )}

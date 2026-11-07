@@ -1,5 +1,6 @@
-import { DECEASED_STATE } from './constants.ts';
+import { DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
 import { approxLifeDays, lifeDays, scaleOf } from './lifeClock.ts';
+import { isUnhousedGid } from './unhoused.ts';
 import type { Edge, SaveGameInfo, SimLife, SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -66,6 +67,14 @@ export function partnerBand(age: string): readonly string[] | undefined {
   return PARTNER_BANDS.find((b) => b.includes(age));
 }
 
+/**
+ * A sim with no home lot: in Not in any world, or in a world's Unhoused
+ * sims box. Townies the game made, mostly.
+ */
+export function hasNoHome(n: Pick<SimNode, 'world' | 'gid'>): boolean {
+  return n.world === NOT_IN_WORLD || isUnhousedGid(n.gid);
+}
+
 /** Days a card has lived as far as the board can tell, in Normal days. */
 function placeInLife(n: SimNode): { days: number; approx: boolean } | null {
   if (n.life && n.life.stage === n.age) {
@@ -79,8 +88,9 @@ function placeInLife(n: SimNode): { days: number; approx: boolean } | null {
 /**
  * Sims who could partner `id`, closest in life first: living, not pets, not
  * blood relatives, not married (to anyone), and in the same band of life
- * stages (PARTNER_BANDS). `gender` narrows to one gender; `limit` to the
- * closest few (all by default).
+ * stages (PARTNER_BANDS). `gender` narrows to one gender, `housedOnly`
+ * leaves out sims with no home (hasNoHome), and `limit` keeps the closest
+ * few (all by default).
  */
 export function partnerCandidates(opts: {
   id: string;
@@ -88,6 +98,7 @@ export function partnerCandidates(opts: {
   edges: Edge[];
   game?: SaveGameInfo | null;
   gender?: string;
+  housedOnly?: boolean;
   limit?: number;
 }): PartnerCandidate[] {
   const focus = opts.nodes.find((n) => n.id === opts.id);
@@ -114,6 +125,7 @@ export function partnerCandidates(opts: {
     if (blood.has(n.id) || married.has(n.id)) continue;
     if (opts.gender && n.gender !== opts.gender) continue;
     if (!band.includes(n.age)) continue;
+    if (opts.housedOnly && hasNoHome(n)) continue;
     const them = placeInLife(n);
     if (!them) continue;
     const diff = them.days - me.days;

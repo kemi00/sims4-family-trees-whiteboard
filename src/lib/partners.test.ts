@@ -62,6 +62,19 @@ describe('possible partners', () => {
     assert.equal(partnerCandidates({ id: 'YA', nodes: all, edges: [], limit: 1 }).length, 1);
   });
 
+  it('can leave out sims with no home: Not in any world, or a world’s Unhoused sims box', () => {
+    const all = [
+      sim('Me', 'Adult', { world: 'Oasis Springs', gid: 'Oasis Springs||Landgraab' }),
+      sim('Housed', 'Adult', { world: 'Oasis Springs', gid: 'Oasis Springs||Goth' }),
+      sim('Away', 'Adult', { world: 'Not in any world', gid: 'Not in any world||Capp' }),
+      sim('Townie', 'Adult', { world: 'Oasis Springs', gid: 'Oasis Springs||Unhoused sims' }),
+    ];
+    const ids = (housedOnly: boolean) =>
+      partnerCandidates({ id: 'Me', nodes: all, edges: [], housedOnly }).map((c) => c.id).sort();
+    assert.deepEqual(ids(false), ['Away', 'Housed', 'Townie']);
+    assert.deepEqual(ids(true), ['Housed']);
+  });
+
   it('narrows to one gender', () => {
     const list = partnerCandidates({ id: 'Heir', nodes: [...nodes, sim('Boy', 'Teen', { gender: 'Male', life: life('Teen', 4) })], edges, gender: 'Male' });
     assert.deepEqual(list.map((c) => c.id), ['Boy']);
