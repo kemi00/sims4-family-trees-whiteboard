@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "df425c4",
+   "date": "2026-11-07",
+   "text": "Your plan meets your save. Merging a save now has a Your plan step: planned sims the save can fill (a planned child matched by its parents, a planned spouse through their partner), and plans your game went against, like a planned couple where one married someone else. Choose Follow the game, Keep my plan, Drop it or Decide later; off-plan plans show ⚠ on the board and in the editor. A planned sim's editor can link it to a sim from your save by hand, and Unlink undoes it. Planned children start as \"Not born yet\" with a plan label instead of a made-up name, and the Log counts what is planned, done and off plan."
+  },
+  {
    "sha": "4cf7f85",
    "date": "2026-11-07",
    "text": "Possible partners has an Age menu beside Gender, with how many fit each life stage, and a checkbox to hide sims in Not in any world or Unhoused, remembered from sim to sim. Long partner rows wrap, so the sim editor no longer scrolls sideways."
