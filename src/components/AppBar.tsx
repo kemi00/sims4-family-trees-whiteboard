@@ -26,23 +26,15 @@ import {
 } from '../icons.ts';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
 import type { LinksView } from '../lib/family.ts';
-import {
-  agingSummary,
-  clockText,
-  dayOf,
-  dayText,
-  playedAgingText,
-  saveChipText,
-  yearOf,
-  yearText,
-} from '../lib/lifeClock.ts';
-import type { SaveGameInfo } from '../types/whiteboard.ts';
+import { saveChipText } from '../lib/lifeClock.ts';
 import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
+import { SaveDetails } from './SaveStatus.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
 function bloodlineToolLabel(wb: WhiteboardApi): string {
@@ -133,57 +125,6 @@ function useDismiss(
   }, [open, ref, close, popRef]);
 }
 
-/** "Nov 7, 12:10 AM" for when the board read the save. */
-function readAt(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
-
-/**
- * What the board knows of the save it last read: the game time, then the
- * options that decide ages. Read only: they change in the game.
- */
-function SaveDetails({ game }: { game: SaveGameInfo }) {
-  const day = dayOf(game.clock);
-  const rows: [string, string][] = [
-    ['Game time', `${clockText(game.clock)}${game.seasonDays ? ` · ${yearText(yearOf(day, game.seasonDays))}` : ''}`],
-    ['Sim Lifespan', game.lifespan ?? 'Unknown'],
-    [
-      'Season Length',
-      game.seasonDays ? `${game.seasonDays} days (a year is ${game.seasonDays * 4} days)` : 'Not in this save',
-    ],
-    ['Auto Age (Played)', playedAgingText(game.playedAging)],
-    [
-      'Auto Age (Unplayed)',
-      game.unplayedAging === undefined ? 'Unknown' : game.unplayedAging ? 'On' : 'Off',
-    ],
-  ];
-  if (game.activeHousehold) rows.push(['Active household', game.activeHousehold]);
-  if (game.allAgingSince !== undefined) rows.push(['Everyone ages since', dayText(dayOf(game.allAgingSince))]);
-  const who = agingSummary(game);
-  const read = readAt(game.importedAt);
-  return (
-    <>
-      <div className="pop__head">From your save</div>
-      <dl className="savechip__list">
-        {rows.map(([k, v]) => (
-          <div key={k} className="savechip__row">
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="savechip__note">
-        {who ? `In this save ${who}. ` : ''}Ages in the sim editor come from{' '}
-        {game.fileName ?? 'this save'}
-        {read ? `, read ${read}` : ''}. To change these options, use Game Options in the game,
-        then load the save again.
-      </p>
-    </>
-  );
-}
-
 type Props = {
   wb: WhiteboardApi;
   svgRef: RefObject<SVGSVGElement | null>;
@@ -202,6 +143,12 @@ export function AppBar({
   devUpdatesUnseen,
 }: Props) {
   const compact = useCompactChrome();
+  /**
+   * At sheet widths (900px and under) search is a button that opens a field
+   * the width of the window, as on a phone: squeezed into the bar beside
+   * everything else, it would leave no room to read what you type.
+   */
+  const searchCollapsed = usePanelSheet();
   const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
@@ -222,15 +169,14 @@ export function AppBar({
   );
   const closeLinks = useCallback(() => setLinksFrom(null), []);
   useDismiss(linksOpen, linksRef, closeLinks, linksPopRef);
-  const [saveFrom, setSaveFrom] = useState<OpenedFrom | null>(null);
-  const saveOpen = saveFrom !== null;
-  const saveRef = useRef<HTMLDivElement>(null);
-  const { popRef: savePopRef, style: savePopStyle } = useDropdownPosition(
-    saveOpen,
-    saveFrom === 'more' ? moreRef : saveRef,
-  );
-  const closeSave = useCallback(() => setSaveFrom(null), []);
-  useDismiss(saveOpen, saveRef, closeSave, savePopRef);
+  /**
+   * A phone's status bar has no room for the save, so More lists it and its
+   * details hang off the More button; wider screens show it in the status bar.
+   */
+  const [saveOpen, setSaveOpen] = useState(false);
+  const { popRef: savePopRef, style: savePopStyle } = useDropdownPosition(saveOpen, moreRef);
+  const closeSave = useCallback(() => setSaveOpen(false), []);
+  useDismiss(saveOpen, moreRef, closeSave, savePopRef);
 
   // A game switched off with no sims on the board hides nothing, so it is
   // not an active filter (Games lists it, off, all the same).
@@ -264,13 +210,13 @@ export function AppBar({
   };
 
   useEffect(() => {
-    if (!searchOpen || !compact) return;
+    if (!searchOpen || !searchCollapsed) return;
     compactSearchRef.current?.focus();
-  }, [searchOpen, compact]);
+  }, [searchOpen, searchCollapsed]);
 
   useEffect(() => {
-    if (!compact) setSearchOpen(false);
-  }, [compact]);
+    if (!searchCollapsed) setSearchOpen(false);
+  }, [searchCollapsed]);
 
   const closeFilters = useCallback(() => setFiltersOpen(false), []);
   useDismiss(filtersOpen, filtersRef, closeFilters);
@@ -345,14 +291,6 @@ export function AppBar({
     closeSave();
     setLinksFrom((f) => (f ? null : from));
   };
-  const toggleSave = (from: OpenedFrom) => {
-    setFiltersOpen(false);
-    closeLinks();
-    setSaveFrom((f) => {
-      if (!f) trackAction('/action/save-details');
-      return f ? null : from;
-    });
-  };
 
   // A phone has room for the edit tools, Filters, search and More. The rest
   // of the bar folds into More, in the bar's order, each with the words its
@@ -387,7 +325,14 @@ export function AppBar({
                 icon: CalendarBlank,
                 label: 'Your save',
                 note: saveChipText(wb.saveGame),
-                onSelect: () => toggleSave('more'),
+                onSelect: () => {
+                  setFiltersOpen(false);
+                  closeLinks();
+                  setSaveOpen((o) => {
+                    if (!o) trackAction('/action/save-details');
+                    return !o;
+                  });
+                },
               },
             ]
           : []),
@@ -478,22 +423,10 @@ export function AppBar({
     </div>
   );
 
-  const saveMenu = wb.saveGame && (
-    <div
-      ref={savePopRef}
-      className="pop pop--save"
-      role="dialog"
-      aria-label="Your save"
-      style={savePopStyle}
-    >
-      <SaveDetails game={wb.saveGame} />
-    </div>
-  );
-
   return (
     <header
       className={
-        compact && searchOpen ? 'appbar appbar--searching' : 'appbar'
+        searchCollapsed && searchOpen ? 'appbar appbar--searching' : 'appbar'
       }
     >
       <span className="brand">
@@ -524,7 +457,7 @@ export function AppBar({
       <ToolButton
         icon={MagicWand}
         label="Arrange the board like the starter one"
-        className="appbar__wide-only"
+        className="appbar__wide-only tool--secondary"
         onClick={organise}
       >
         Organise
@@ -550,7 +483,7 @@ export function AppBar({
         pressed={wb.logOpen}
         count={wb.connectionLog.length}
         expanded={wb.logOpen}
-        className="appbar__wide-only"
+        className="appbar__wide-only tool--secondary"
         onClick={openLog}
       >
         Log
@@ -585,26 +518,6 @@ export function AppBar({
       </span>
 
       <span className="appbar__spacer" />
-
-      {wb.saveGame && (
-        <div className="overflow overflow--save appbar__wide-only" ref={saveRef}>
-          <button
-            type="button"
-            className="tool tool--menu savechip"
-            data-tone="neutral"
-            data-tooltip={`Your save: ${clockText(wb.saveGame.clock)}`}
-            aria-label={`Your save: ${saveChipText(wb.saveGame)}`}
-            aria-haspopup="dialog"
-            aria-expanded={saveFrom === 'bar'}
-            onClick={() => toggleSave('bar')}
-          >
-            <CalendarBlank aria-hidden="true" />
-            <span className="tool__label">{saveChipText(wb.saveGame)}</span>
-            <CaretDown className="tool__caret" weight="bold" aria-hidden="true" />
-          </button>
-          {saveFrom === 'bar' && saveMenu}
-        </div>
-      )}
 
       <div className="overflow" ref={filtersRef}>
         <ToolButton
@@ -756,9 +669,19 @@ export function AppBar({
         wrapRef={moreRef}
       />
       {linksFrom === 'more' && linksMenu}
-      {saveFrom === 'more' && saveMenu}
+      {compact && saveOpen && wb.saveGame && (
+        <div
+          ref={savePopRef}
+          className="pop pop--save"
+          role="dialog"
+          aria-label="Your save"
+          style={savePopStyle}
+        >
+          <SaveDetails game={wb.saveGame} />
+        </div>
+      )}
 
-      {compact && searchOpen && (
+      {searchCollapsed && searchOpen && (
         <div className="search-overlay">
           <MagnifyingGlass className="search__icon" aria-hidden="true" />
           <input

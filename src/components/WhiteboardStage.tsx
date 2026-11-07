@@ -63,6 +63,7 @@ import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
 import { FamilyBanner } from './FamilyBanner.tsx';
 import { HighlightBanner } from './HighlightBanner.tsx';
+import { SaveStatus } from './SaveStatus.tsx';
 import { SelectionBar } from './SelectionBar.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
@@ -1813,6 +1814,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         >
           {wb.boardSourceLabel}
         </span>
+        {wb.saveGame && (
+          <>
+            <span className="autosave-cue__sep savestatus-sep" aria-hidden="true">
+              ·
+            </span>
+            <SaveStatus game={wb.saveGame} />
+          </>
+        )}
         <button
           type="button"
           className="autosave-cue__reset"
