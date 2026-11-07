@@ -511,7 +511,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .bloodline-banner button:hover{background:var(--accent-strong)}
 .bloodline-banner button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 /* Legend column on the right: two cards (worlds scroll; links stay put). */
-#legend{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:8px;width:150px;max-height:calc(100% - 24px);padding:0;border:none;background:transparent;box-shadow:none;overflow:hidden;font-size:10px}
+#legend{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:8px;width:172px;max-height:calc(100% - 24px);padding:0;border:none;background:transparent;box-shadow:none;overflow:hidden;font-size:10px}
 .legend-card{background:#fffdf8f2;border:1px solid var(--line);border-radius:var(--r-surface);padding:8px 10px;box-shadow:var(--lift);min-width:0}
 .legend-card--worlds{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .legend-card__body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain}
@@ -519,11 +519,34 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 #legend h3{margin:0 0 4px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#8a7f63}
 .lg{display:flex;align-items:center;gap:5px;margin:1.5px 0}
 .lg i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
-.lg--dynasty{flex-wrap:wrap;gap:2px 10px}
-.lg--notes{margin-top:6px;align-items:flex-start}
 .lg-key{margin:0 0 5px;color:#6f6a5c;line-height:1.4}
 .lg-key svg{display:inline-block;width:10px;height:10px;vertical-align:-1px;color:#8a7f63}
-.lg__swatch{width:12px;height:12px;border-radius:50%;background:#7c3aed;flex:0 0 auto;margin-top:1px}
+/*
+ * The key: what each board mark means, in four groups (family lines,
+ * couples, cards, plans). Every sample is drawn the same size, so the
+ * meanings line up in one column; a note under a meaning is quieter.
+ */
+.legend-toggle{display:flex;align-items:center;gap:4px;width:calc(100% + 8px);margin:-3px -4px;padding:3px 4px;border:0;border-radius:5px;background:none;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer}
+.legend-toggle:hover{background:var(--hover)}
+.legend-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
+.legend-toggle__caret{width:9px;height:9px;margin-left:auto;transition:transform .15s ease}
+.legend-toggle[aria-expanded=false] .legend-toggle__caret{transform:rotate(-90deg)}
+#legend .legend-card--links h3{margin-bottom:0}
+.lgk-groups{margin-top:4px}
+.lgk-groups h4{margin:8px 0 2px;font-size:10px;font-weight:700;color:#3b4757}
+.lgk-groups h4:first-child{margin-top:2px}
+.lgk-groups ul{list-style:none;margin:0;padding:0}
+.lgk{display:flex;align-items:flex-start;gap:6px;padding:1px 0;line-height:15px;color:#3f4756}
+.lgk--marks{flex-wrap:wrap;gap:1px 10px}
+.lgk__mark{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.lgk__sample{flex:0 0 26px;display:flex;justify-content:center;align-items:center;height:15px}
+.lgk__svg{display:block;overflow:visible}
+.lgk__emoji{font-size:11px;line-height:1}
+.lgk__text{min-width:0}
+.lgk__note{display:block;margin-top:-1px;font-size:9.5px;line-height:1.3;color:#7a8491}
+.lgk-groups h4.lgk__plans{color:#7c3aed}
+.lgk__lead{margin:0 0 3px;font-size:9.5px;line-height:1.35;color:#7a8491}
+@media (prefers-reduced-motion:reduce){ .legend-toggle__caret{transition:none} }
 /* World rows are buttons: picking one frames that world on the canvas. */
 .lg--world{width:100%;margin:1.5px -4px;padding:1.5px 4px;border:0;border-radius:5px;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .lg--world:hover:not(:disabled){background:var(--hover)}
@@ -875,8 +898,21 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  #legend.legend--sheet{
   left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;max-width:none;max-height:70dvh;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
  }
- #legend.legend--sheet .legend-card--worlds{flex:1 1 auto;max-height:min(42dvh, 320px)}
+ /* Over the board's own corner controls (minimap, zoom, tips, all at 6–7) while open. */
+ #legend.legend--sheet{z-index:9}
+ /* Close stays in reach while the key below is scrolled into view. */
+ #legend.legend--sheet .legend-close{position:sticky;top:-4px;z-index:1;padding:4px 10px;border-radius:999px;background:var(--chrome);box-shadow:0 0 0 1px var(--line)}
+ /* The sheet scrolls as a whole, so neither card is squeezed to fit it. */
+ #legend.legend--sheet .legend-card--worlds{flex:0 0 auto;max-height:min(36dvh, 280px)}
  #legend.legend--sheet .legend-card--links{flex:0 0 auto}
+ /* Phone-sized text: 10px is for the corner of a desktop board. */
+ #legend.legend--sheet{font-size:12px}
+ #legend.legend--sheet h3{font-size:10.5px}
+ #legend.legend--sheet .lgk-groups h4{margin-top:10px;font-size:12px}
+ #legend.legend--sheet .lgk{padding:2.5px 0;line-height:18px}
+ #legend.legend--sheet .lgk__sample{height:18px}
+ #legend.legend--sheet .lgk__note,#legend.legend--sheet .lgk__lead{font-size:11px}
+ #legend.legend--sheet .lgk__emoji{font-size:13px}
  .tool[data-tone=danger]:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 }
 /* Touch: labelled tools lose their labels at 940 and drop to 32px wide; on a
@@ -923,7 +959,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .node.dead{opacity:.48}
 .node.dead.agedim{opacity:.14}
 .node.dead.sel,.node.dead.msel,.node.dead.agehl,.node.dead.searchhit,.node.dead.searchcur{opacity:.85}
-.lg__dead{display:inline-block;width:16px;height:9px;margin-right:4px;border:1.5px solid #8a94a0;border-radius:3px;background:#fff;opacity:.48;vertical-align:-1px}
 
 /* ── highlight count: in the Highlight panel and on the board ──────────── */
 .hlsum{margin:0 4px 4px;padding:6px 8px;border-radius:8px;background:#fff8e6;font-size:12px;line-height:1.4;color:#5c4a12}

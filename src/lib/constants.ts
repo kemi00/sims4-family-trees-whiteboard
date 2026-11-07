@@ -200,6 +200,24 @@ export const PLAYABILITY = [
 /** User-made link colour (id starts with "u"). */
 export const UEDIT = '#7c3aed';
 
+/**
+ * Family links inside one household are strong solid lines, a household's
+ * own tree; links between households are thin and dashed, so they recede
+ * and the eye can still follow each tree. Selected links keep their dash.
+ * The legend draws its samples with the same widths.
+ */
+export const LINK_STROKE = 2.3;
+export const LINK_STROKE_ACROSS = 1.3;
+
+/**
+ * Dashes in proportion to the stroke. A selected link is drawn a fixed
+ * screen width, so zoomed out it grew wider than fixed dashes were long and
+ * they turned into a comb of ticks; scaled to the width they keep their shape.
+ */
+export function linkDash(width: number): string {
+  return `${width * 3.8} ${width * 3}`;
+}
+
 export const RGAP = 16;
 export const BAND = 170;
 export const STUB = 26;

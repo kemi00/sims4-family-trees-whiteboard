@@ -1,5 +1,13 @@
 import { memo, type PointerEvent as ReactPointerEvent } from 'react';
-import { COL, PILL_H, PILL_W, UEDIT } from '../lib/constants.ts';
+import {
+  COL,
+  LINK_STROKE,
+  LINK_STROKE_ACROSS,
+  PILL_H,
+  PILL_W,
+  UEDIT,
+  linkDash,
+} from '../lib/constants.ts';
 import { sharedChromeValue } from '../lib/liveScene.ts';
 import { ptsStr } from '../lib/utils.ts';
 import type { BloodPath, BloodVert, SecretMark, UnionRender } from '../types/whiteboard.ts';
@@ -31,7 +39,7 @@ function PillBg({
   );
 }
 
-function RingPill({ x, y, color }: { x: number; y: number; color: string }) {
+export function RingPill({ x, y, color }: { x: number; y: number; color: string }) {
   return (
     <>
       <PillBg x={x} y={y} w={PILL_W.marriage} color={color} />
@@ -45,7 +53,7 @@ function RingPill({ x, y, color }: { x: number; y: number; color: string }) {
 const HEART_D =
   'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z';
 
-function HeartPill({ x, y, color }: { x: number; y: number; color: string }) {
+export function HeartPill({ x, y, color }: { x: number; y: number; color: string }) {
   return (
     <>
       <PillBg x={x} y={y} w={PILL_W.romance} color={color} />
@@ -60,7 +68,7 @@ function HeartPill({ x, y, color }: { x: number; y: number; color: string }) {
 }
 
 /** Secret lovers: the romance heart with a padlock beside it. */
-function SecretLoversPill({ x, y, color }: { x: number; y: number; color: string }) {
+export function SecretLoversPill({ x, y, color }: { x: number; y: number; color: string }) {
   return (
     <>
       <PillBg x={x} y={y} w={PILL_W.secret} color={color} />
@@ -85,7 +93,7 @@ function SecretBadge({ x, y, color }: { x: number; y: number; color: string }) {
   );
 }
 
-function DivorcePill({ x, y, color }: { x: number; y: number; color: string }) {
+export function DivorcePill({ x, y, color }: { x: number; y: number; color: string }) {
   return (
     <>
       <PillBg x={x} y={y} w={PILL_W.divorced} color={color} />
@@ -182,22 +190,9 @@ type Props = {
   focusEdgeIds?: ReadonlySet<string> | null;
 };
 
-/**
- * Family links inside one household are strong solid lines, a household's
- * own tree; links between households are thin and dashed, so they recede
- * and the eye can still follow each tree. Selected links keep their dash.
- */
-const STROKE = 2.3;
-const STROKE_ACROSS = 1.3;
-
-/**
- * Dashes in proportion to the stroke. A selected link is drawn a fixed
- * screen width, so zoomed out it grew wider than fixed dashes were long and
- * they turned into a comb of ticks; scaled to the width they keep their shape.
- */
-function dashFor(width: number): string {
-  return `${width * 3.8} ${width * 3}`;
-}
+const STROKE = LINK_STROKE;
+const STROKE_ACROSS = LINK_STROKE_ACROSS;
+const dashFor = linkDash;
 
 /** Link class: selected, or faded behind a highlighted family. */
 function linkClass(

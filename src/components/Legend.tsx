@@ -1,32 +1,153 @@
 import { useEffect, useState } from 'react';
-import type { Ref } from 'react';
-import type { World } from '../types/whiteboard.ts';
+import type { ReactNode, Ref } from 'react';
+import type { DynastyRole, World } from '../types/whiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import { House, User } from '../icons.ts';
-import { COL, DYNASTY_ROLES } from '../lib/constants.ts';
-import { InlineLock as LegendLock } from './LockGlyph.tsx';
+import { CaretDown, House, User } from '../icons.ts';
+import {
+  COL,
+  DYNASTY_ROLES,
+  LINK_STROKE,
+  LINK_STROKE_ACROSS,
+  UEDIT,
+  linkDash,
+} from '../lib/constants.ts';
+import { DivorcePill, HeartPill, RingPill, SecretLoversPill } from './EdgeLayer.tsx';
+import { LockGlyph } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
-/** A short stretch of family link, as the board draws it (EdgeLayer). */
-function LineSample({ across = false }: { across?: boolean }) {
+/** Width and height of every sample, so the meanings line up in one column. */
+const SW = 26;
+const SH = 15;
+
+/** A drawn sample of a board mark; its label is read out before the meaning. */
+function Sample({
+  label,
+  viewBox = `0 0 ${SW} ${SH}`,
+  children,
+}: {
+  label: string;
+  viewBox?: string;
+  children: ReactNode;
+}) {
   return (
-    <svg
-      viewBox="0 0 18 6"
-      aria-hidden="true"
-      style={{ width: 18, height: 6, display: 'inline-block', flex: '0 0 auto' }}
-    >
-      <line
-        x1={1}
-        y1={3}
-        x2={17}
-        y2={3}
-        stroke={COL.blood}
-        strokeWidth={across ? 1.1 : 2}
-        strokeDasharray={across ? '3 2.5' : undefined}
-        strokeLinecap={across ? 'butt' : 'round'}
-      />
+    <svg className="lgk__svg" viewBox={viewBox} width={SW} height={SH} role="img" aria-label={label}>
+      {children}
     </svg>
   );
+}
+
+/** A short stretch of family link, as the board draws it (EdgeLayer). */
+function LineSample({
+  label,
+  color = COL.blood,
+  across = false,
+  dash,
+}: {
+  label: string;
+  color?: string;
+  across?: boolean;
+  /** Its own dash, for the dashed "other link". */
+  dash?: string;
+}) {
+  const width = across ? LINK_STROKE_ACROSS : LINK_STROKE;
+  return (
+    <Sample label={label}>
+      <line
+        x1={3}
+        y1={SH / 2}
+        x2={SW - 3}
+        y2={SH / 2}
+        stroke={color}
+        strokeWidth={width}
+        strokeDasharray={dash ?? (across ? linkDash(width) : undefined)}
+        strokeLinecap={across || dash ? 'butt' : 'round'}
+      />
+    </Sample>
+  );
+}
+
+/** A family shape in board lines: ┳ parents to children, ⊔, ⊓. */
+function ShapeSample({ label, d }: { label: string; d: string }) {
+  return (
+    <Sample label={label}>
+      <path d={d} fill="none" stroke={COL.blood} strokeWidth={1.7} strokeLinejoin="round" strokeLinecap="round" />
+    </Sample>
+  );
+}
+
+/** A couple's badge on the line between them, drawn by the board's own pills. */
+function PillSample({
+  label,
+  line = COL.marriage,
+  children,
+}: {
+  label: string;
+  line?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Sample label={label} viewBox="-22 -13 44 26">
+      <line x1={-22} y1={0} x2={22} y2={0} stroke={line} strokeWidth={LINK_STROKE} />
+      {children}
+    </Sample>
+  );
+}
+
+/** A household colour for the card samples. */
+const SAMPLE_HH = '#5b8bd6';
+
+/** A small card: faded for the deceased, violet and dashed for one you added. */
+function CardSample({ label, kind }: { label: string; kind: 'dead' | 'added' }) {
+  const added = kind === 'added';
+  const edge = added ? UEDIT : '#8a94a0';
+  return (
+    <Sample label={label}>
+      <g opacity={added ? 1 : 0.48}>
+        <rect
+          x={2}
+          y={1.5}
+          width={20}
+          height={12}
+          rx={3}
+          fill={added ? '#f4efff' : '#fff'}
+          stroke={edge}
+          strokeWidth={1.3}
+          strokeDasharray={added ? '2.6 1.6' : undefined}
+        />
+        <rect x={2.65} y={2.2} width={2.4} height={10.6} rx={1} fill={edge} />
+      </g>
+      {added && (
+        <>
+          <circle cx={21} cy={4} r={4.3} fill={UEDIT} stroke="#fff" strokeWidth={1} />
+          <path d="M21 2.2 V5.8 M19.2 4 H22.8" stroke="#fff" strokeWidth={1.2} />
+        </>
+      )}
+    </Sample>
+  );
+}
+
+/** One row: the sample, then what it means, with an optional note under it. */
+function KeyRow({ sample, label, note }: { sample: ReactNode; label: ReactNode; note?: string }) {
+  return (
+    <li className="lgk">
+      <span className="lgk__sample">{sample}</span>
+      <span className="lgk__text">
+        {label}
+        {note && <span className="lgk__note">{note}</span>}
+      </span>
+    </li>
+  );
+}
+
+/** Whether the key is open, kept for this browser (default open). */
+const KEY_OPEN = 'legend-key-open';
+
+function readKeyOpen(): boolean {
+  try {
+    return localStorage.getItem(KEY_OPEN) !== '0';
+  } catch {
+    return true;
+  }
 }
 
 type Props = {
@@ -42,6 +163,7 @@ type Props = {
 export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) {
   const compact = useCompactChrome();
   const [expanded, setExpanded] = useState(!compact);
+  const [keyOpen, setKeyOpen] = useState(readKeyOpen);
 
   useEffect(() => {
     if (compact) setExpanded(false);
@@ -121,69 +243,126 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
         className="legend-card legend-card--links"
         aria-labelledby="legend-links-h"
       >
-        <h3 id="legend-links-h">Links</h3>
-        <div className="lg">
-          <LineSample /> inside a household
-        </div>
-        <div className="lg">
-          <LineSample across /> between households
-        </div>
-        <div className="lg">
-          <span style={{ fontSize: 13, lineHeight: 1, color: '#3f4756' }}>⊥</span>{' '}
-          parent → child
-        </div>
-        <div className="lg">
-          <span style={{ fontSize: 13, lineHeight: 1, color: '#3f4756' }}>⊔</span>{' '}
-          parents who aren't a couple
-        </div>
-        <div className="lg">
-          <LegendLock color={COL.blood} /> on a child's line = a secret parent
-        </div>
-        <div className="lg">
-          <span style={{ fontSize: 12, lineHeight: 1 }}>⊓</span> siblings
-        </div>
-        <div className="lg">
-          <span style={{ fontSize: 13, lineHeight: 1, color: '#e0365f' }}>❤</span>{' '}
-          romance / partners (dating, engaged, affair)
-        </div>
-        <div className="lg">
-          <span style={{ fontSize: 13, lineHeight: 1, color: COL.romance }}>❤</span>
-          <LegendLock color={COL.romance} /> secret lovers
-        </div>
-        <div className="lg">
-          <span style={{ fontSize: 13, lineHeight: 1 }}>⚭</span> married
-        </div>
-        <div className="lg">
-          <span style={{ fontSize: 13, lineHeight: 1, color: '#7c3aed' }}>⚮</span>{' '}
-          divorced
-        </div>
-        <div className="lg lg--dynasty">
-          {(Object.keys(DYNASTY_ROLES) as (keyof typeof DYNASTY_ROLES)[]).map((r) => (
-            <span key={r}>
-              <span aria-hidden="true">{DYNASTY_ROLES[r].mark}</span>{' '}
-              {r === 'head' ? DYNASTY_ROLES[r].label.toLowerCase() : r}
-            </span>
-          ))}
-        </div>
-        <div className="lg">
-          <span className="lg__dead" aria-hidden="true" />
-          faded card = deceased (Filters → Hide deceased)
-        </div>
-        <div className="lg lg--notes">
-          <span className="lg__swatch" aria-hidden="true" />
-          <span>
-            <b style={{ color: '#7c3aed' }}>violet</b> = planned, not in the save
-            yet
-            <br />
-            <span style={{ color: '#8a7f63' }}>
-              gray canon colours = in the save, or original roster links
-            </span>
-            <br />
-            <span style={{ color: '#5b6472' }}>
-              <b>S</b> on a card = in your save, not on the original spreadsheet
-              <br />＋ / violet dash = you added on the board, not in the save yet
-            </span>
-          </span>
+        {/* Needed while you learn the marks, in the way once you know them. */}
+        <h3 id="legend-links-h">
+          <button
+            type="button"
+            className="legend-toggle"
+            aria-expanded={keyOpen}
+            aria-controls="legend-key"
+            onClick={() => {
+              const next = !keyOpen;
+              setKeyOpen(next);
+              try {
+                localStorage.setItem(KEY_OPEN, next ? '1' : '0');
+              } catch {
+                // Private mode: it opens again next time.
+              }
+            }}
+          >
+            Key
+            <CaretDown className="legend-toggle__caret" weight="bold" aria-hidden="true" />
+          </button>
+        </h3>
+        <div id="legend-key" className="lgk-groups" hidden={!keyOpen}>
+          <h4>Family lines</h4>
+          <ul>
+            <KeyRow sample={<LineSample label="Solid line" />} label="Same household" />
+            <KeyRow sample={<LineSample label="Thin dashed line" across />} label="Different households" />
+            <KeyRow
+              sample={<ShapeSample label="Fork" d="M13 1.5 V6 M5 13.5 V6 H21 V13.5" />}
+              label="Parents to children"
+            />
+            <KeyRow
+              sample={<ShapeSample label="U shape" d="M5 1.5 V6 H21 V1.5 M13 6 V13.5" />}
+              label="Parents, not a couple"
+            />
+            <KeyRow
+              sample={<ShapeSample label="Bracket" d="M5 13.5 V3 H21 V13.5" />}
+              label="Siblings"
+            />
+            <KeyRow
+              sample={
+                <Sample label="Padlock on a child's line">
+                  <line x1={13} y1={0} x2={13} y2={SH} stroke={COL.blood} strokeWidth={LINK_STROKE} />
+                  <circle cx={13} cy={SH / 2} r={6} fill="#fff" stroke={`${COL.blood}55`} strokeWidth={1} />
+                  <LockGlyph x={13} y={SH / 2} color={COL.blood} size={7} />
+                </Sample>
+              }
+              label="Secret parent"
+            />
+          </ul>
+          <h4>Couples</h4>
+          <ul>
+            <KeyRow
+              sample={
+                <PillSample label="Rings">
+                  <RingPill x={0} y={0} color={COL.marriage} />
+                </PillSample>
+              }
+              label="Married"
+            />
+            <KeyRow
+              sample={
+                <PillSample label="Heart">
+                  <HeartPill x={0} y={0} color={COL.romance} />
+                </PillSample>
+              }
+              label="Romance"
+              note="dating, engaged, affair"
+            />
+            <KeyRow
+              sample={
+                <PillSample label="Heart and padlock">
+                  <SecretLoversPill x={0} y={0} color={COL.romance} />
+                </PillSample>
+              }
+              label="Secret lovers"
+            />
+            <KeyRow
+              sample={
+                <PillSample label="Broken rings" line={UEDIT}>
+                  <DivorcePill x={0} y={0} color={UEDIT} />
+                </PillSample>
+              }
+              label="Divorced"
+            />
+          </ul>
+          <h4>On cards</h4>
+          <ul>
+            {/* The three dynasty marks share a line: one idea, three values. */}
+            <li className="lgk lgk--marks" aria-label="Dynasty marks: crown head, fleur-de-lis heir, wilted rose outcast">
+              {(Object.keys(DYNASTY_ROLES) as DynastyRole[]).map((r) => (
+                <span key={r} className="lgk__mark" aria-hidden="true">
+                  <span className="lgk__emoji">{DYNASTY_ROLES[r].mark}</span>
+                  {DYNASTY_ROLES[r].noun}
+                </span>
+              ))}
+            </li>
+            <KeyRow sample={<CardSample label="Faded card" kind="dead" />} label="Deceased" />
+            <KeyRow
+              sample={
+                <Sample label="S badge">
+                  <circle cx={13} cy={SH / 2} r={6} fill={SAMPLE_HH} stroke="#fff" strokeWidth={1} />
+                  <text x={13} y={SH / 2 + 3} fontSize={8} fontWeight={700} textAnchor="middle" fill="#fff">
+                    S
+                  </text>
+                </Sample>
+              }
+              label="From your save"
+              note="not on the original roster"
+            />
+          </ul>
+          <h4 className="lgk__plans">Your plans</h4>
+          <p className="lgk__lead">Violet: not in your save yet</p>
+          <ul>
+            <KeyRow sample={<LineSample label="Violet line" color={UEDIT} />} label="A link you planned" />
+            <KeyRow sample={<CardSample label="Violet dashed card" kind="added" />} label="A sim you added" />
+            <KeyRow
+              sample={<LineSample label="Violet dashed line" color={UEDIT} dash="4 2.6" />}
+              label="Other link"
+            />
+          </ul>
         </div>
       </section>
     </div>
