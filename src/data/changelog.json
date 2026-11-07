@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "a27c5ee",
+   "date": "2026-11-07",
+   "text": "A planned baby's last name follows its household, not the parent you clicked first: the household's own name when a parent has it, else the parent's name more of the household shares, never a roommate's. When the parents tie, like a Sterling and a Rico in a new household, the couple's + asks which last name, as the game does at a birth. When the parents live apart, each household choice says the last name it brings."
+  },
+  {
    "sha": "6f24f79",
    "date": "2026-11-07",
    "text": "Naming a planned kid no longer swaps it with its sibling: any edit that changes how the board sorts cards, a first name included, now keeps every card where it is. A new planned kid lands beside its siblings on their row, right or left, instead of dropping further down the board when the spot next to them is taken."
