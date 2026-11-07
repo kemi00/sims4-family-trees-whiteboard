@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "6f24f79",
+   "date": "2026-11-07",
+   "text": "Naming a planned kid no longer swaps it with its sibling: any edit that changes how the board sorts cards, a first name included, now keeps every card where it is. A new planned kid lands beside its siblings on their row, right or left, instead of dropping further down the board when the spot next to them is taken."
+  },
+  {
    "sha": "65ee4c4",
    "date": "2026-11-07",
    "text": "A planned sim's Plan label suggests \"e.g. Firstborn, Future spouse\" instead of one player's own \"Heir 1, Spare 1\" system. Name your planned sims however you like."
