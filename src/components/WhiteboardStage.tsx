@@ -476,7 +476,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     const pad = 8;
     const gap = 12;
     const ew = editorRef.current?.offsetWidth ?? 272;
-    const eh = editorRef.current?.offsetHeight ?? 420;
+    // Room for the editor's tallest tab (SimEditor sets data-reserve), so
+    // switching tabs leaves it where it is.
+    const eh = Math.min(
+      Number(editorRef.current?.dataset.reserve) || editorRef.current?.offsetHeight || 420,
+      window.innerHeight - 16,
+    );
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 

@@ -716,12 +716,47 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu button:disabled:hover{background:#f5f6f8}
 .menu__why{display:block;margin-top:3px;font-size:11px;font-weight:400;color:#6b7684}
 .menu__section{margin:8px 4px 2px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7a8594}
-.editor{padding:10px;width:252px;max-height:calc(100vh - 16px);overflow:auto;overscroll-behavior:contain}
+/*
+ * The sim editor: the name and tabs stay at the top and Save at the bottom,
+ * while the section between them scrolls. See SimEditor.tsx.
+ */
+.editor{padding:0;width:300px;max-height:calc(100vh - 16px);overflow:hidden;flex-direction:column}
+.editor .ed__head{flex:none;padding:10px 10px 0;border-bottom:1px solid #e4e7eb}
+.editor .ed__head label{margin-top:0}
+.editor .edname{padding:6px 7px;font-size:13px;font-weight:600;color:#22304a}
+.editor .ed__body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:2px 10px 12px}
+.editor .ed__foot{flex:none;padding:8px 10px 10px;border-top:1px solid #e4e7eb}
+/* Holds its first label's margin, so measuring a tab counts it. */
+.editor [role=tabpanel]:not([hidden]){display:flow-root}
+.editor .edsave{width:100%;padding:8px 11px;border:none;background:#1b6cd6;color:#fff;border-radius:8px;font-size:12px;font-weight:600}
+.editor .edsave:hover{background:#155bb8}
+.editor .edtabs{display:flex;margin:8px -4px -1px}
+.editor .edtab{flex:1 1 0;padding:7px 4px 8px;border:none;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#5a6673;font-size:12px;font-weight:600}
+.editor .edtab:hover{background:transparent;color:#22304a}
+.editor .edtab:active{transform:none}
+.editor .edtab[aria-selected=true]{color:#1b6cd6;border-bottom-color:#1b6cd6}
+.editor .edtab:focus-visible{border-radius:6px 6px 0 0}
+.editor .edpair{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}
+.editor .edpair>div{min-width:0}
+.editor .edlabel{display:flex;align-items:center;gap:2px;margin:9px 0 2px}
+.editor .edlabel label{margin:0}
+.editor .edlabel__text{font-size:10px;color:#667;text-transform:uppercase;letter-spacing:.3px}
+.editor select.edlabel__select{width:auto;margin-left:auto;padding:2px 4px;font-size:11px}
+.editor .edtip{width:24px;height:24px;margin:-5px 0;padding:0;border:none;border-radius:50%;background:transparent;color:#7a8491}
+.editor .edtip svg{width:14px;height:14px}
+.editor .edtip:hover,.editor .edtip[aria-expanded=true]{background:#eef1f4;color:#1b6cd6}
+.editor .edsum{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-top:5px;padding:5px 8px;border-radius:6px;background:#f2f4f7;font-size:11px;line-height:1.35;color:#33415a}
+.editor .edsum__text{min-width:0}
+.editor .edsum__frozen{display:block;font-size:10.5px;color:#8a5a00}
+.editor .edlink{flex:none;padding:0;border:none;background:none;color:#1b6cd6;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.editor .edlink:hover{background:none;color:#155bb8}
+.editor .edlink--more{margin:6px 2px 0}
+.editor .edhint--warn{color:#8a5a00}
+.editor .edfacts{margin:0;padding:5px 8px}
+.editor .edfacts dt{color:#6b7480}
+.editor .edfacts dd{margin:0;min-width:0;font-weight:600;color:#22304a;text-align:right;overflow-wrap:anywhere}
 .editor label{display:block;font-size:10px;color:#667;margin:7px 0 2px;text-transform:uppercase;letter-spacing:.3px}
 .editor input,.editor select{width:100%;padding:5px;border:1px solid #cdd3da;border-radius:6px;font-size:12px;box-sizing:border-box}
-.editor .row{display:flex;gap:6px;margin-top:10px}
-.editor .row button{flex:1;padding:6px;border:1px solid #cdd3da;background:#fff;border-radius:7px;cursor:pointer}
-.editor .row button:hover{background:#f0f2f5}
 .editor .ro{font-size:11px;color:#33415a;background:#f2f4f7;border:1px solid #e4e7eb;border-radius:6px;padding:6px 8px;line-height:1.4}
 .editor .ro--muted{color:#7a8491;font-style:italic}
 .editor .edhint{font-size:10.5px;color:#6b7480;margin:3px 2px 0;line-height:1.35}
@@ -772,6 +807,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .search-overlay input{width:100%;height:36px;padding:0 10px 0 29px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:16px}
  .search-overlay .search__icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--ink-3);pointer-events:none}
  .search-overlay .search__nav{right:8px;top:50%;transform:translateY(-50%)}
+ /* Room for the match counter, so the field's clear ✕ sits beside it, not under it. */
+ .search-overlay:has(.search__nav) input{padding-right:84px}
 }
 
 .legend-chip{position:absolute;right:12px;top:12px;z-index:6;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--chrome);color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;box-shadow:var(--lift);cursor:pointer}
@@ -784,6 +821,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .appbar{min-height:calc(var(--bar-h) + env(safe-area-inset-top,0px));height:auto}
  .menu button,.gpanel .grow,.gpanel .connection-log__item,.agechips button,.pop button,.pop a{min-height:44px}
  .gpanel .connection-log__sim{min-height:0;padding:0}
+ .editor .edtab,.editor .edsave{min-height:44px}
+ .editor .edtip{width:32px;height:32px;margin:-9px -2px}
  #hintClose,#hintIcon{width:44px;height:44px}
  #hintIcon svg{width:20px;height:20px}
 }
@@ -793,7 +832,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .gpanel--sheet,.menu--sheet,.editor--sheet{
   position:fixed;left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;max-width:none;max-height:70dvh;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
  }
- .editor--sheet{width:auto;max-height:min(70dvh,100%)}
+ .editor--sheet{width:auto;max-height:min(70dvh,100%);padding:0;overflow:hidden;gap:0}
+ .editor--sheet .ed__head{padding:12px 12px 0}
+ .editor--sheet .ed__body{padding:2px 12px 12px}
+ .editor--sheet .ed__foot{padding:8px 12px calc(10px + env(safe-area-inset-bottom,0px))}
  .menu--sheet{z-index:70;position:fixed}
  #hint.hint--sheet{
   position:fixed;
@@ -869,11 +911,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edlife__note--frozen{color:#8a5a00}
 .editor .edgen{margin-bottom:5px;font-weight:600}
 .editor .edgen__planned{font-weight:400;color:#6b5bd6}
-.editor .partnerbtn{border-color:#e3b3c8;background:#fdf1f6;color:#b0306b}
-.editor .partnerbtn:hover{background:#fbe4ee}
-.editor #edPartners{margin-top:6px;padding:8px;border:1px solid #f0d4e1;border-radius:8px;background:#fffafc}
-.editor #edPartners label{margin-top:0}
-.editor .partners{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.editor .partners{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
 .editor .partners button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:5px 7px;border:1px solid #eadde3;border-radius:7px;background:#fff;text-align:left;cursor:pointer;font:inherit}
 .editor .partners button:hover{background:#fdf1f6;border-color:#e3b3c8}
 .editor .partners button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}

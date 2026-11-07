@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -8,6 +9,8 @@ import {
 } from 'react';
 import { AGES, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
+import { Info } from '../icons.ts';
+import { trackAction } from '../lib/analytics.ts';
 import {
   dynastyLabel,
   generationText,
@@ -54,6 +57,24 @@ function bornText(v: LifeView): string {
   return `${dayText(v.bornDay)}, before play${year ? ` (${year})` : ''}`;
 }
 
+/** "Not aging now: …" as a line of its own. */
+function frozenLine(frozen: NonNullable<LifeView['frozen']>): string {
+  const t = frozenText(frozen);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** The age in one line, under the life stage: "2% through · Adult in 13 days". */
+function lifeSummary(v: LifeView): string {
+  if (v.elderDays !== undefined) return `Elder for ${daysText(v.elderDays)}`;
+  const parts: string[] = [];
+  if (v.newborn) parts.push('Newborn');
+  if (v.through !== undefined) parts.push(`${Math.round(v.through * 100)}% through`);
+  if (v.next && v.daysToNext !== undefined) {
+    parts.push(`${v.next} in ${wholeDaysText(v.daysToNext)}${v.frozen ? ' of aging' : ''}`);
+  }
+  return parts.join(' · ');
+}
+
 /**
  * The sim's age from the last save import: born, days alive, how far into
  * the stage and the days to the next, on the save's lifespan. Read only.
@@ -87,13 +108,61 @@ function LifeFacts({ v }: { v: LifeView }) {
   );
 }
 
+/**
+ * An ⓘ beside a field's label that shows or hides its explanation, so the
+ * paragraphs are there when wanted and out of the way the rest of the time.
+ * A press, not a hover: it works the same with touch and the keyboard.
+ */
+function TipButton({
+  open,
+  onToggle,
+  controls,
+  about,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  controls: string;
+  about: string;
+}) {
+  return (
+    <button
+      type="button"
+      className="edtip"
+      aria-expanded={open}
+      aria-controls={controls}
+      aria-label={`About ${about}`}
+      title={`About ${about}`}
+      onClick={onToggle}
+    >
+      <Info weight={open ? 'fill' : 'regular'} aria-hidden="true" />
+    </button>
+  );
+}
+
 const PARTNER_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
+
+/** Partners listed before "Show more". */
+const PARTNERS_SHOWN = 4;
 
 /** The Generation menu's choice for counting from the oldest known ancestor. */
 const AUTO_ROOT = '__oldest';
 
 const LIFE_STATE_OPTIONS = pinnedAlpha(LIFE_STATES, 'Sim');
 const PLAYABILITY_OPTIONS = pinnedAlpha(PLAYABILITY, 'Resident');
+
+/**
+ * The editor's sections, by what you came to do: change the sim, see their
+ * place in the family, or look up where they come from.
+ */
+type Tab = 'sim' | 'family' | 'details';
+
+const TAB_LABELS: Record<Tab, string> = { sim: 'Sim', family: 'Family', details: 'Details' };
+
+/**
+ * The tab last used, so going through sims to check one thing (each one's
+ * generation, say) keeps you on it. For this visit only, not saved.
+ */
+let lastTab: Tab = 'sim';
 
 type Props = {
   node: SimNode;
@@ -147,6 +216,19 @@ export function SimEditor({
   focusName,
 }: Props) {
   const compact = useCompactChrome();
+  const isPet = !!n.species;
+  // Pets have no dynasty and no partners: no Family tab.
+  const tabs: Tab[] = isPet ? ['sim', 'details'] : ['sim', 'family', 'details'];
+  const [tab, setTabState] = useState<Tab>(() =>
+    focusName || !tabs.includes(lastTab) ? 'sim' : lastTab,
+  );
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
+  const setTab = (t: Tab) => {
+    if (t === tab) return;
+    lastTab = t;
+    trackAction(`/action/editor/${t}`);
+    setTabState(t);
+  };
   const [name, setName] = useState(`${n.first} ${n.sur}`);
   /** The game's surname from a spouse, when the card shows another. */
   const married =
@@ -159,6 +241,9 @@ export function SimEditor({
   const [oplay, setOplay] = useState(n.oplay || 'Resident');
   const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
   const [moveOpen, setMoveOpen] = useState(false);
+  /** Explanations opened with ⓘ, by field. */
+  const [tips, setTips] = useState<Record<string, boolean>>({});
+  const toggleTip = (k: string) => setTips((t) => ({ ...t, [k]: !t[k] }));
   const boardHasSave = useMemo(() => nodes.some((x) => x.saveSimId), [nodes]);
   const byId = useMemo(() => Object.fromEntries(nodes.map((x) => [x.id, x])), [nodes]);
   const life = useMemo(() => lifeView(n, saveGame), [n, saveGame]);
@@ -185,15 +270,33 @@ export function SimEditor({
     const x = id ? byId[id] : undefined;
     return x ? `${x.first} ${x.sur}`.trim() : 'someone not on the board';
   };
-  const [partnersOpen, setPartnersOpen] = useState(false);
+  /**
+   * Who loses the role on Save: a dynasty has one head and one heir, so
+   * naming one here takes it from whoever has it (as updateNode does).
+   */
+  const roleHolder = useMemo(() => {
+    if (!n.dynasty || (dynastyRole !== 'head' && dynastyRole !== 'heir')) return null;
+    if (dynastyRole === n.dynastyRole) return null;
+    return (
+      nodes.find(
+        (x) =>
+          x.id !== n.id &&
+          x.dynastyRole === dynastyRole &&
+          (n.dynastyId && x.dynastyId ? x.dynastyId === n.dynastyId : x.dynasty === n.dynasty),
+      ) ?? null
+    );
+  }, [n.id, n.dynasty, n.dynastyId, n.dynastyRole, dynastyRole, nodes]);
   const [partnerGender, setPartnerGender] = useState('');
+  const [allPartners, setAllPartners] = useState(false);
+  // Worked out on every tab, so the Family tab's height is known before it opens.
   const partners = useMemo(
     () =>
-      partnersOpen
-        ? partnerCandidates({ id: n.id, nodes, edges, game: saveGame, gender: partnerGender || undefined })
-        : [],
-    [partnersOpen, n.id, nodes, edges, saveGame, partnerGender],
+      isPet
+        ? []
+        : partnerCandidates({ id: n.id, nodes, edges, game: saveGame, gender: partnerGender || undefined }),
+    [isPet, n.id, nodes, edges, saveGame, partnerGender],
   );
+  const shownPartners = allPartners ? partners : partners.slice(0, PARTNERS_SHOWN);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef<HTMLInputElement>(null);
@@ -256,6 +359,25 @@ export function SimEditor({
     save();
   };
 
+  /** Arrow keys, Home and End move between tabs, as in any tab list. */
+  const onTabKey = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const i = tabs.indexOf(tab);
+    const next =
+      e.key === 'ArrowRight'
+        ? tabs[(i + 1) % tabs.length]
+        : e.key === 'ArrowLeft'
+          ? tabs[(i - 1 + tabs.length) % tabs.length]
+          : e.key === 'Home'
+            ? tabs[0]
+            : e.key === 'End'
+              ? tabs[tabs.length - 1]
+              : null;
+    if (!next) return;
+    e.preventDefault();
+    setTab(next);
+    tabRefs.current[next]?.focus();
+  };
+
   const mid =
     n.onb && n.onb !== '-'
       ? n.onb
@@ -265,9 +387,36 @@ export function SimEditor({
           ? 'Townie'
           : '—';
 
+  /**
+   * The height the tallest tab needs, in data-reserve, for placing the
+   * editor: placed for that, switching tabs never moves the tab bar from
+   * under the pointer. Measured once, as it opens: what opens inside a tab
+   * later (an ⓘ, more partners, the move form) scrolls within the editor
+   * rather than moving it. Hidden tabs are shown just long enough to measure.
+   */
+  useLayoutEffect(() => {
+    const el = editorRef.current;
+    const body = el?.querySelector<HTMLElement>('.ed__body');
+    if (!el || !body) return;
+    let tallest = 0;
+    for (const p of body.querySelectorAll<HTMLElement>('[role=tabpanel]')) {
+      const hidden = p.hidden;
+      if (hidden) p.hidden = false;
+      tallest = Math.max(tallest, p.offsetHeight);
+      if (hidden) p.hidden = true;
+    }
+    const cs = getComputedStyle(body);
+    const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const reserve = Math.ceil(el.offsetHeight - body.offsetHeight + pad + tallest);
+    el.dataset.reserve = String(reserve);
+    // The phone sheet rises from the bottom, so a shorter tab would drop the
+    // tab bar: it keeps the tallest tab's height instead (within its cap).
+    el.style.minHeight = compact ? `min(${reserve}px, 70dvh)` : '';
+  }, [editorRef, compact]);
+
   useEffect(() => {
     onLayout();
-  }, [moveOpen, partnersOpen, onLayout]);
+  }, [tab, moveOpen, allPartners, tips, onLayout]);
 
   useEffect(() => {
     if (!compact) return;
@@ -288,259 +437,369 @@ export function SimEditor({
     };
   }, [compact, editorRef]);
 
+  /** Why the age has no days, when it has none. */
+  const noLifeNote = isPet
+    ? ''
+    : n.life && n.life.stage !== n.age
+      ? 'Life stage changed on the board since your save, so its days are hidden. Load the save again to see them.'
+      : !saveGame
+        ? 'Load your save to see when they were born and how long they have lived.'
+        : 'Your save has no age for this sim.';
+
   return (
     <div
       ref={editorRef}
       id="editor"
       className={compact ? 'editor editor--sheet' : 'editor'}
+      role="dialog"
+      aria-label={`Edit ${n.first} ${n.sur}`.trim()}
       onKeyDown={onKeyDown}
       style={
         compact
-          ? { display: 'block' }
-          : { display: 'block', left, top }
+          ? { display: 'flex' }
+          : // Down to the window's foot from where it was placed, then the tab scrolls.
+            { display: 'flex', left, top, maxHeight: `calc(100vh - ${Math.round(top) + 8}px)` }
       }
     >
-      <button className="edx" title="close" onClick={onClose}>
-        ✕
-      </button>
-      <label>Name</label>
-      <input
-        ref={nameRef}
-        value={name}
-        enterKeyHint="done"
-        aria-describedby={married ? 'edMarried' : undefined}
-        onChange={(e) => setName(e.target.value)}
-      />
-      {married && (
-        <div id="edMarried" className="edhint">
-          In the game: {n.first} {married}, their spouse's surname. Type it here to
-          show it on the card.
+      <div className="ed__head">
+        <button type="button" className="edx" title="Close without saving" aria-label="Close" onClick={onClose}>
+          ✕
+        </button>
+        <label htmlFor="edName">Name</label>
+        <input
+          id="edName"
+          ref={nameRef}
+          className="edname"
+          value={name}
+          enterKeyHint="done"
+          aria-describedby={married ? 'edMarried' : undefined}
+          onChange={(e) => setName(e.target.value)}
+        />
+        {married && (
+          <div id="edMarried" className="edhint">
+            In the game: {n.first} {married}, their spouse's surname. Type it here to show it on
+            the card.
+          </div>
+        )}
+        <div className="edtabs" role="tablist" aria-label="Sections">
+          {tabs.map((t) => (
+            <button
+              key={t}
+              ref={(el) => {
+                tabRefs.current[t] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`edTab-${t}`}
+              className="edtab"
+              aria-selected={tab === t}
+              aria-controls={`edPanel-${t}`}
+              tabIndex={tab === t ? 0 : -1}
+              onClick={() => setTab(t)}
+              onKeyDown={onTabKey}
+            >
+              {TAB_LABELS[t]}
+            </button>
+          ))}
         </div>
-      )}
-      <label>Age / life stage</label>
-      <select value={age} onChange={(e) => setAge(e.target.value)}>
-        {AGES.map((a) => (
-          <option key={a} value={a}>
-            {a}
-          </option>
-        ))}
-        {!AGES.includes(age as (typeof AGES)[number]) && (
-          <option value={age}>{age}</option>
-        )}
-      </select>
-      {life && <LifeFacts v={life} />}
-      {!life && n.life && !n.species && n.life.stage !== n.age && (
-        <div className="edhint">
-          Life stage changed on the board since your save, so its days are hidden. Load the
-          save again to see them.
-        </div>
-      )}
-      <label>Gender</label>
-      <select value={gender} onChange={(e) => setGender(e.target.value)}>
-        {GENDERS.map((g) => (
-          <option key={g} value={g}>
-            {g}
-          </option>
-        ))}
-        {!GENDERS.includes(gender as (typeof GENDERS)[number]) && (
-          <option value={gender}>{gender}</option>
-        )}
-      </select>
-      <label>Life state</label>
-      <select value={state} onChange={(e) => setState(e.target.value)}>
-        {LIFE_STATE_OPTIONS.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-        {!LIFE_STATES.includes(state as (typeof LIFE_STATES)[number]) && (
-          <option value={state}>{state}</option>
-        )}
-      </select>
-      <label>Playability</label>
-      <select value={oplay} onChange={(e) => setOplay(e.target.value)}>
-        {PLAYABILITY_OPTIONS.map((p) => (
-          <option key={p} value={p}>
-            {p}
-          </option>
-        ))}
-        {!PLAYABILITY.includes(oplay as (typeof PLAYABILITY)[number]) && (
-          <option value={oplay}>{oplay}</option>
-        )}
-      </select>
-      {!n.species && (
-        <>
-          <label htmlFor="edDynasty">Dynasty role</label>
-          <select
-            id="edDynasty"
-            value={dynastyRole}
-            aria-describedby={n.dynasty ? 'edDynastyHint' : undefined}
-            onChange={(e) => setDynastyRole(e.target.value as DynastyRole | '')}
-          >
-            <option value="">None</option>
-            {(Object.keys(DYNASTY_ROLES) as DynastyRole[]).map((r) => (
-              <option key={r} value={r}>
-                {DYNASTY_ROLES[r].mark} {DYNASTY_ROLES[r].noun}
-              </option>
-            ))}
-          </select>
-          {n.dynasty && (
-            <div id="edDynastyHint" className="edhint">
-              In the {n.dynasty} dynasty. It has one head and one heir, so
-              choosing either here takes it from whoever has it now.
+      </div>
+
+      <div className="ed__body">
+        {/* Hidden panels stay mounted, so a half-filled move form survives a look at another tab. */}
+        <div role="tabpanel" id="edPanel-sim" aria-labelledby="edTab-sim" hidden={tab !== 'sim'}>
+          <div className="edpair">
+            <div>
+              <label htmlFor="edAge">Life stage</label>
+              <select
+                id="edAge"
+                value={age}
+                aria-describedby={life ? 'edLifeSum' : undefined}
+                onChange={(e) => setAge(e.target.value)}
+              >
+                {AGES.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+                {!AGES.includes(age as (typeof AGES)[number]) && <option value={age}>{age}</option>}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="edGender">Gender</label>
+              <select id="edGender" value={gender} onChange={(e) => setGender(e.target.value)}>
+                {GENDERS.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+                {!GENDERS.includes(gender as (typeof GENDERS)[number]) && (
+                  <option value={gender}>{gender}</option>
+                )}
+              </select>
+            </div>
+          </div>
+          {life && (
+            <div id="edLifeSum" className="edsum">
+              <span className="edsum__text">
+                {lifeSummary(life)}
+                {life.frozen && <span className="edsum__frozen">{frozenLine(life.frozen)}</span>}
+              </span>
+              <button type="button" className="edlink" onClick={() => setTab('details')}>
+                Age details
+              </button>
             </div>
           )}
-          {gen && (
-            <>
-              <label htmlFor="edGenRoot">Generation</label>
-              <div className="ro edgen" id="edGen">
-                {genLine ?? `No number: no family link to ${nameOf(gen.rootId)}`}
-                {gen.planned && <span className="edgen__planned"> · through a planned link</span>}
+          {!life && n.life && !isPet && n.life.stage !== n.age && (
+            <div className="edhint">Changed since your save: load it again to see its days.</div>
+          )}
+          <div className="edpair">
+            <div>
+              <label htmlFor="edState">Life state</label>
+              <select id="edState" value={state} onChange={(e) => setState(e.target.value)}>
+                {LIFE_STATE_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+                {!LIFE_STATES.includes(state as (typeof LIFE_STATES)[number]) && (
+                  <option value={state}>{state}</option>
+                )}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="edPlay">Playability</label>
+              <select id="edPlay" value={oplay} onChange={(e) => setOplay(e.target.value)}>
+                {PLAYABILITY_OPTIONS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+                {!PLAYABILITY.includes(oplay as (typeof PLAYABILITY)[number]) && (
+                  <option value={oplay}>{oplay}</option>
+                )}
+              </select>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="movebtn"
+            aria-expanded={moveOpen}
+            aria-controls="edMove"
+            onClick={() => setMoveOpen(!moveOpen)}
+          >
+            ↪ Move to another household
+          </button>
+          {moveOpen && (
+            <div id="edMove">
+              <HouseholdMoveForm
+                idPrefix="edMove"
+                worlds={worlds}
+                groups={groups}
+                nodes={nodes}
+                initialWorld={n.oworld || n.world || worlds[0]?.name || ''}
+                exclude={n.gid}
+                submitLabel={`Move ${n.first || 'this sim'} here`}
+                onMove={onMove}
+              />
+            </div>
+          )}
+        </div>
+
+        {!isPet && (
+          <div role="tabpanel" id="edPanel-family" aria-labelledby="edTab-family" hidden={tab !== 'family'}>
+            <label htmlFor="edDynasty">Dynasty role</label>
+            <select
+              id="edDynasty"
+              value={dynastyRole}
+              aria-describedby={n.dynasty ? 'edDynastyHint' : undefined}
+              onChange={(e) => setDynastyRole(e.target.value as DynastyRole | '')}
+            >
+              <option value="">None</option>
+              {(Object.keys(DYNASTY_ROLES) as DynastyRole[]).map((r) => (
+                <option key={r} value={r}>
+                  {DYNASTY_ROLES[r].mark} {DYNASTY_ROLES[r].noun}
+                </option>
+              ))}
+            </select>
+            {n.dynasty && (
+              <div id="edDynastyHint" className={roleHolder ? 'edhint edhint--warn' : 'edhint'}>
+                {roleHolder && (dynastyRole === 'head' || dynastyRole === 'heir')
+                  ? `Saving makes ${n.first || 'them'} the ${DYNASTY_ROLES[dynastyRole].noun.toLowerCase()} instead of ${roleHolder.first} ${roleHolder.sur}: a dynasty has one.`
+                  : `In the ${n.dynasty} dynasty.`}
               </div>
+            )}
+            {gen && (
+              <>
+                <div className="edlabel">
+                  <label htmlFor="edGenRoot">Generation</label>
+                  <TipButton
+                    open={!!tips.gen}
+                    onToggle={() => toggleTip('gen')}
+                    controls="edGenRootHint"
+                    about="how generations are counted"
+                  />
+                </div>
+                <div className="ro edgen" id="edGen">
+                  {genLine ?? `No number: no family link to ${nameOf(gen.rootId)}`}
+                  {gen.planned && <span className="edgen__planned"> · through a planned link</span>}
+                </div>
+                <select
+                  id="edGenRoot"
+                  value={genRoot}
+                  aria-describedby="edGenRootHint"
+                  onChange={(e) => setGenRootPick(e.target.value)}
+                >
+                  <option value={AUTO_ROOT}>Count from the oldest ancestor: {nameOf(gen.autoRootId)}</option>
+                  {rootChoices.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      Count from {x.first} {x.sur}
+                      {x.id === gen.firstHeadId ? ' (first head)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <div id="edGenRootHint" className="edhint" hidden={!tips.gen}>
+                  {gen.rootPicked
+                    ? `Gen 1 is ${nameOf(gen.rootId)}, picked here. `
+                    : gen.autoRootId === gen.firstHeadId
+                      ? `Gen 1 is ${nameOf(gen.firstHeadId)}, the ${genLabel} dynasty's first head: the board knows none of their parents. `
+                      : `Gen 1 is ${nameOf(gen.autoRootId)}, the oldest known ancestor of ${nameOf(gen.firstHeadId)}, the ${genLabel} dynasty's first head. `}
+                  Each child is one more, counting the deceased and family-tree relatives.
+                </div>
+              </>
+            )}
+            <div className="edlabel">
+              <span className="edlabel__text" id="edPartnersLabel">
+                Possible partners
+              </span>
+              <TipButton
+                open={!!tips.partners}
+                onToggle={() => toggleTip('partners')}
+                controls="edPartnersHint"
+                about="possible partners"
+              />
               <select
-                id="edGenRoot"
-                value={genRoot}
-                aria-describedby="edGenRootHint"
-                onChange={(e) => setGenRootPick(e.target.value)}
+                className="edlabel__select"
+                aria-label="Show partners of gender"
+                value={partnerGender}
+                onChange={(e) => {
+                  setPartnerGender(e.target.value);
+                  setAllPartners(false);
+                }}
               >
-                <option value={AUTO_ROOT}>Count from the oldest ancestor: {nameOf(gen.autoRootId)}</option>
-                {rootChoices.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    Count from {x.first} {x.sur}
-                    {x.id === gen.firstHeadId ? ' (first head)' : ''}
+                <option value="">Anyone</option>
+                {PARTNER_GENDERS.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
                   </option>
                 ))}
               </select>
-              <div id="edGenRootHint" className="edhint">
-                {gen.rootPicked
-                  ? `Gen 1 is ${nameOf(gen.rootId)}, picked here. `
-                  : gen.autoRootId === gen.firstHeadId
-                    ? `Gen 1 is ${nameOf(gen.firstHeadId)}, the ${genLabel} dynasty's first head: the board knows none of their parents. `
-                    : `Gen 1 is ${nameOf(gen.autoRootId)}, the oldest known ancestor of ${nameOf(gen.firstHeadId)}, the ${genLabel} dynasty's first head. `}
-                Each child is one more, counting the deceased and family-tree relatives.
-              </div>
+            </div>
+            <div id="edPartnersHint" className="edhint" hidden={!tips.partners}>
+              Closest in life first: living sims who aren't blood relatives or married. Click one to
+              find them on the board.
+            </div>
+            {partners.length ? (
+              <ul className="partners" aria-labelledby="edPartnersLabel">
+                {shownPartners.map((c) => {
+                  const p = byId[c.id];
+                  if (!p) return null;
+                  const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
+                  const flags = [
+                    c.frozen ? 'not aging now' : '',
+                    c.taken ? 'in a romance' : '',
+                    p.dynasty ? `${p.dynasty} dynasty` : '',
+                  ].filter(Boolean);
+                  return (
+                    <li key={c.id}>
+                      <button type="button" onClick={() => onPickPartner(c.id)}>
+                        <span className="partners__name">
+                          {mark}
+                          {p.first} {p.sur}
+                        </span>
+                        <span className="partners__meta">
+                          {p.age} · {gapText(c)} · {p.hh}
+                        </span>
+                        {flags.length > 0 && <span className="partners__flags">{flags.join(' · ')}</span>}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="edhint">No one on the board fits.</div>
+            )}
+            {partners.length > PARTNERS_SHOWN && (
+              <button type="button" className="edlink edlink--more" onClick={() => setAllPartners(!allPartners)}>
+                {allPartners ? 'Show fewer' : `Show ${partners.length - PARTNERS_SHOWN} more`}
+              </button>
+            )}
+          </div>
+        )}
+
+        <div role="tabpanel" id="edPanel-details" aria-labelledby="edTab-details" hidden={tab !== 'details'}>
+          {!isPet && (
+            <>
+              <label id="edLifeLabel">Age from your save</label>
+              {life ? (
+                <LifeFacts v={life} />
+              ) : (
+                <div className="ro ro--muted" aria-labelledby="edLifeLabel">
+                  {noLifeNote}
+                </div>
+              )}
             </>
           )}
-        </>
-      )}
-      <label>Game pack</label>
-      <div className="ro">{n.pack || '—'}</div>
-      <label>Original household</label>
-      <div className="ro">
-        {n.oworld || '—'} · {mid} · {n.ohh || '—'}
-      </div>
-      <label id="edSimIdLabel" htmlFor={n.saveSimId ? 'edSimId' : undefined}>
-        Sim ID
-      </label>
-      {/* The game's own id for the sim: shown, never edited. */}
-      {n.saveSimId ? (
-        <div className="idrow">
-          <input
-            id="edSimId"
-            ref={idRef}
-            className="ro ro--id"
-            readOnly
-            value={n.saveSimId}
-            onFocus={(e) => e.currentTarget.select()}
-          />
-          <button type="button" className="copybtn" onClick={copySimId}>
-            {copied ? 'Copied ✓' : 'Copy ID'}
-          </button>
-          <span className="sr-only" role="status">
-            {copied ? 'Sim ID copied' : ''}
-          </span>
-        </div>
-      ) : (
-        <div className="ro ro--muted" aria-labelledby="edSimIdLabel" aria-disabled="true">
-          {noSimIdNote(n, boardHasSave)}
-        </div>
-      )}
-      <button
-        className="movebtn"
-        aria-expanded={moveOpen}
-        aria-controls="edMove"
-        onClick={() => setMoveOpen(!moveOpen)}
-      >
-        ↪ Move to another household
-      </button>
-      {!n.species && (
-        <button
-          type="button"
-          className="movebtn partnerbtn"
-          aria-expanded={partnersOpen}
-          aria-controls="edPartners"
-          onClick={() => setPartnersOpen(!partnersOpen)}
-        >
-          ♡ Possible partners
-        </button>
-      )}
-      {partnersOpen && (
-        <div id="edPartners">
-          <label htmlFor="edPartnerGender">Show</label>
-          <select
-            id="edPartnerGender"
-            value={partnerGender}
-            onChange={(e) => setPartnerGender(e.target.value)}
-          >
-            <option value="">Anyone</option>
-            {PARTNER_GENDERS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-          <div className="edhint">
-            Closest in life first: living sims who aren't blood relatives or married. Click one to
-            find them on the board.
-          </div>
-          {partners.length ? (
-            <ul className="partners">
-              {partners.map((c) => {
-                const p = byId[c.id];
-                if (!p) return null;
-                const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
-                const flags = [
-                  c.frozen ? 'not aging now' : '',
-                  c.taken ? 'in a romance' : '',
-                  p.dynasty ? `${p.dynasty} dynasty` : '',
-                ].filter(Boolean);
-                return (
-                  <li key={c.id}>
-                    <button type="button" onClick={() => onPickPartner(c.id)}>
-                      <span className="partners__name">
-                        {mark}
-                        {p.first} {p.sur}
-                      </span>
-                      <span className="partners__meta">
-                        {p.age} · {gapText(c)} · {p.hh}
-                      </span>
-                      {flags.length > 0 && <span className="partners__flags">{flags.join(' · ')}</span>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+          <label id="edOriginLabel">Where they come from</label>
+          <dl className="ro edfacts" aria-labelledby="edOriginLabel">
+            <div className="edlife__row">
+              <dt>Game pack</dt>
+              <dd>{n.pack || '—'}</dd>
+            </div>
+            <div className="edlife__row">
+              <dt>Household</dt>
+              <dd>{n.ohh || '—'}</dd>
+            </div>
+            <div className="edlife__row">
+              <dt>World</dt>
+              <dd>
+                {n.oworld || '—'}
+                {mid !== '—' ? ` · ${mid}` : ''}
+              </dd>
+            </div>
+          </dl>
+          <label id="edSimIdLabel" htmlFor={n.saveSimId ? 'edSimId' : undefined}>
+            Sim ID
+          </label>
+          {/* The game's own id for the sim: shown, never edited. */}
+          {n.saveSimId ? (
+            <div className="idrow">
+              <input
+                id="edSimId"
+                ref={idRef}
+                className="ro ro--id"
+                readOnly
+                value={n.saveSimId}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <button type="button" className="copybtn" onClick={copySimId}>
+                {copied ? 'Copied ✓' : 'Copy ID'}
+              </button>
+              <span className="sr-only" role="status">
+                {copied ? 'Sim ID copied' : ''}
+              </span>
+            </div>
           ) : (
-            <div className="edhint">No one on the board fits.</div>
+            <div className="ro ro--muted" aria-labelledby="edSimIdLabel" aria-disabled="true">
+              {noSimIdNote(n, boardHasSave)}
+            </div>
           )}
         </div>
-      )}
-      {moveOpen && (
-        <div id="edMove">
-          <HouseholdMoveForm
-            idPrefix="edMove"
-            worlds={worlds}
-            groups={groups}
-            nodes={nodes}
-            initialWorld={n.oworld || n.world || worlds[0]?.name || ''}
-            exclude={n.gid}
-            submitLabel={`Move ${n.first || 'this sim'} here`}
-            onMove={onMove}
-          />
-        </div>
-      )}
-      <div className="row">
-        <button onClick={save}>Save</button>
+      </div>
+
+      <div className="ed__foot">
+        <button type="button" className="edsave" onClick={save}>
+          Save
+        </button>
       </div>
     </div>
   );
