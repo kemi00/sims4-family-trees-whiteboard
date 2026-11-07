@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "4cf7f85",
+   "date": "2026-11-07",
+   "text": "Possible partners has an Age menu beside Gender, with how many fit each life stage, and a checkbox to hide sims in Not in any world or Unhoused, remembered from sim to sim. Long partner rows wrap, so the sim editor no longer scrolls sideways."
+  },
+  {
    "sha": "6bd23f9",
    "date": "2026-11-07",
    "text": "Possible partners keep to age groups: young adults, adults and elders are suggested to each other, teens to teens, children to children, and infants and toddlers together. The list is split by life stage, with the closest three in each and a Show more for the rest."
