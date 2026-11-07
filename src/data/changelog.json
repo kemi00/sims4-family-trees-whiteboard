@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "ca8a0ca",
+   "date": "2026-11-07",
+   "text": "The sim editor has tabs: Sim for life stage, gender, life state, playability and moving house; Family for dynasty role, generation and possible partners; Details for the age facts from your save, where the sim comes from and their sim ID. The name stays at the top and Save at the bottom, so you no longer scroll to reach it. The editor opens on the tab you used last."
+  },
+  {
    "sha": "14afbab",
    "date": "2026-11-07",
    "text": "Search has room to type again on laptop screens. Your save's lifespan and season length move from the top bar to the status bar at the bottom, beside Autosave, and still open the game time and Auto Age options. Search widens while you type, and on narrower windows the top bar drops labels step by step instead of squeezing the search field."
