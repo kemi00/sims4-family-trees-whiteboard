@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "33c54ee",
+   "date": "2026-11-08",
+   "text": "In the Dynasties panel, open a planned dynasty to Rename it or Remove it. Remove asks first and takes the dynasty off all its members, leaving their cards, and Undo brings it back."
+  },
+  {
    "sha": "705deb1",
    "date": "2026-11-08",
    "text": "A Dynasties button (the crown, beside Up next) lists every dynasty, in your game and planned, with how many sims each has, its head and heir. Hover one to light up its members on the board, wherever they live; open it to see who they are and click one to go to them. Search by dynasty or by a sim's name. On a phone, Up next and Dynasties are in the More menu, and the top bar no longer runs off the edge at some window widths."
