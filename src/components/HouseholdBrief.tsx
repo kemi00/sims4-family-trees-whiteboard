@@ -91,7 +91,7 @@ export function HouseholdBrief({
       </header>
       {!items.length && (
         <p className="brief__empty">
-          Nothing planned for this household yet. Plan a sim with the + on its tag, a baby with a couple’s +, or a
+          Nothing planned for this household yet. Plan a sim with the + on its tag, a baby with the + under a couple or a sim, or a
           couple with Connect.
         </p>
       )}

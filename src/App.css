@@ -574,6 +574,12 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .node__more:hover .node__more-bg{fill:#eef1f4}
 .node.sel .node__more{fill:#1b6cd6}
 .node.sel .node__more:hover .node__more-bg{fill:#d6e5fb}
+/* A card's ＋ (plan a baby of this sim), shown as a couple's is: on hover
+   and while selected, so it never clutters the board. */
+.node__baby{opacity:0;pointer-events:none;cursor:pointer;transition:opacity .12s ease}
+.node:hover .node__baby,.node.sel .node__baby{opacity:1;pointer-events:auto}
+.node__baby:hover circle{filter:brightness(1.12)}
+.node__baby text{pointer-events:none}
 .node.sel>rect:first-of-type{stroke:#1b6cd6!important;stroke-width:4.5px!important;fill:#e9f2ff!important}
 .node.sel{filter:drop-shadow(0 0 0 #1b6cd6) drop-shadow(0 0 7px rgba(27,108,214,.9))}
 /* Soft membership highlight when a parent world/household is multi-selected. */

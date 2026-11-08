@@ -13,6 +13,7 @@ import { householdChrome, tileSnapOrigin } from '../lib/tiles.ts';
 import {
   CARD_H,
   CARD_MIN_W,
+  DECEASED_STATE,
   DRAG_SLOP_PX,
   EDGE_HIT_SCREEN_PX,
   EDGE_SEL_SCREEN_PX,
@@ -161,6 +162,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     armed: boolean;
     /** Pressed on the card's ⠇: a click opens the editor at once. */
     more: boolean;
+    /** Pressed on the card's ＋: a click plans a baby of this sim. */
+    baby: boolean;
     /** Shift-click, or any click in Select: a click adds the sim to the selection or takes them out. */
     toggle: boolean;
   } | null>(null);
@@ -1181,10 +1184,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     n: SimNode,
     more = false,
     toggle = false,
+    baby = false,
   ) => {
     // The drop already wrote the snapped spot via moveNodesByIds. wb.byid is
     // still the pre-drag render, so snapping it here put the sim back.
     if (wasMoved) return;
+    if (baby) {
+      // The ＋ on the card's foot: a planned baby of this sim alone.
+      lastClickRef.current = null;
+      wb.requestInfantOfSim(n.id);
+      return;
+    }
     if (toggle) {
       lastClickRef.current = null;
       wb.toggleSimInSelection(n.id);
@@ -1332,7 +1342,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         );
       }
       dragRef.current = null;
-      finishNodePointer(wasMoved, n, d.more, d.toggle);
+      finishNodePointer(wasMoved, n, d.more, d.toggle, d.baby);
       return;
     }
     if (panRef.current) {
@@ -1386,9 +1396,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       }
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const more = !!(ev.target as Element).closest?.('.node__more');
+      const baby = !!(ev.target as Element).closest?.('.node__baby');
       // Shift (⌘ or Ctrl too) picks sims one by one; in Select any click does.
       const toggle =
-        !more && (ev.shiftKey || ev.metaKey || ev.ctrlKey || wbNow.selectMode);
+        !more && !baby && (ev.shiftKey || ev.metaKey || ev.ctrlKey || wbNow.selectMode);
       if (multiSelContainsNode(wbNow.multiSel, n.id) && wbNow.multiSel) {
         beginMultiDragRef.current(wbNow.multiSel, wx, wy, ev);
         if (toggle && multiDragRef.current) multiDragRef.current.toggleId = n.id;
@@ -1409,11 +1420,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         base: { [n.id]: { ox: n.ox ?? 0, oy: n.oy ?? 0 } },
         armed: false,
         more,
+        baby,
         toggle,
       };
       movedRef.current = false;
       clearLongPress();
-      if (ev.pointerType !== 'mouse') {
+      if (ev.pointerType !== 'mouse' && !baby) {
         longPressRef.current = setTimeout(() => {
           longPressRef.current = null;
           if (!dragRef.current || dragRef.current.armed) return;
@@ -1755,6 +1767,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                   isPlannedSim(n) ? notYetText(wb.plannedChildIds.has(n.id)) : undefined
                 }
                 parents={n.first.trim() ? undefined : plannedParentsOf(n.id)}
+                babyPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.briefHover ?? wb.familyIds}

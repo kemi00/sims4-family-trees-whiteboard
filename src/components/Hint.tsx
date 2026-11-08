@@ -257,7 +257,8 @@ export function Hint({ introReady = false }: Props) {
         <h3 className="hint__heading">Add children</h3>
         <p className="hint__body">
           Tap a couple’s ring or heart on the board, then <b>+</b>, to add a
-          baby. Or tap a ring/heart link, then a Sim, to make that Sim the
+          baby. For a baby with one parent, tap the Sim, then the <b>+</b>
+          under their card. Or tap a ring/heart link, then a Sim, to make that Sim the
           child of both partners. For two Sims who had a child without being
           a couple, pick <b>Co-parents</b> in Connect, then tap the child.
         </p>

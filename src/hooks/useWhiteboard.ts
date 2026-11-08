@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import seedData from '../data/whiteboard.json';
-import { ADDED_HOUSEHOLD, AGES_H, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT } from '../lib/constants.ts';
+import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT } from '../lib/constants.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
@@ -1407,13 +1407,19 @@ export function useWhiteboard() {
     [nodes],
   );
 
-  const addInfantOfCouple = useCallback(
-    (pa: string, pb: string, destGid: string, sur: string, rx: number, _ry: number) => {
-      const a = byid[pa];
-      const b = byid[pb];
-      if (!a || !b) return;
+  /**
+   * A planned baby of `parentIds` (a couple, or one sim alone) in household
+   * `destGid`, taking last name `sur`, placed under `rx` beside its full
+   * siblings: those with the same parents, and no other.
+   */
+  const addPlannedBaby = useCallback(
+    (parentIds: string[], destGid: string, sur: string, rx: number) => {
+      const ps = parentIds.map((id) => byid[id]);
+      if (!ps.length || ps.some((p) => !p)) return;
+      const parents = ps as SimNode[];
+      const a = parents[0]!;
       pushUndo();
-      const host = a.gid === destGid ? a : b.gid === destGid ? b : a;
+      const host = parents.find((p) => p.gid === destGid) ?? a;
       const g = groups.find((x) => x.gid === destGid);
       const dest = g
         ? {
@@ -1460,16 +1466,12 @@ export function useWhiteboard() {
       };
       const size = measureCard(infant);
       const siblings = nodes.filter((n) => {
-        const fromA = edges.some(
-          (e) => e.type === 'parent' && e.a === pa && e.b === n.id,
-        );
-        const fromB = edges.some(
-          (e) => e.type === 'parent' && e.a === pb && e.b === n.id,
-        );
-        return fromA && fromB;
+        const mine = new Set(edges.filter((e) => e.type === 'parent' && e.b === n.id).map((e) => e.a));
+        // A couple's: children of both. One sim's: children of theirs alone.
+        return parentIds.every((p) => mine.has(p)) && (parentIds.length > 1 || mine.size === 1);
       });
       const { x, y } = spawnChildOrigin(
-        Math.min(a.y, b.y),
+        Math.min(...parents.map((p) => p.y)),
         rx,
         size.w,
         siblings,
@@ -1479,7 +1481,7 @@ export function useWhiteboard() {
       const bundleId = 'b' + eidcRef.current++;
       const createdAt = new Date().toISOString();
       const nextEdges: Edge[] = [...edges];
-      [pa, pb].forEach((p) => {
+      parentIds.forEach((p) => {
         nextEdges.push({
           id: 'u' + eidcRef.current++,
           a: p,
@@ -1510,12 +1512,36 @@ export function useWhiteboard() {
       setEdges(nextEdges);
       setSel({ type: 'node', id });
       setInfantHouseMenu(null);
-      trackAction('/action/add-infant');
+      trackAction(parentIds.length > 1 ? '/action/add-infant' : '/action/add-infant-one-parent');
+      const who = parents.map((p) => p.first || cardName(p)).join(' ＋ ');
       flashStatus(
-        `Planned a child of ${byid[pa]?.first ?? ''} ＋ ${byid[pb]?.first ?? ''}: a ${sur || 'Sim'}, not born yet. Give them a plan label in the editor.`,
+        parentIds.length > 1
+          ? `Planned a child of ${who}: a ${sur || 'Sim'}, not born yet. Give them a plan label in the editor.`
+          : `Planned a child of ${who}: a ${sur || 'Sim'}, not born yet. Link another parent with Connect if there is one.`,
       );
     },
     [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap],
+  );
+
+  const addInfantOfCouple = useCallback(
+    (pa: string, pb: string, destGid: string, sur: string, rx: number, _ry: number) =>
+      addPlannedBaby([pa, pb], destGid, sur, rx),
+    [addPlannedBaby],
+  );
+
+  /**
+   * A planned baby of one sim, with no other parent (yet): in their
+   * household, with their last name (a household has no say: a baby takes
+   * a parent's), under their card. Its parents come later, with Connect.
+   */
+  const requestInfantOfSim = useCallback(
+    (id: string) => {
+      const a = byid[id];
+      if (!a) return;
+      const sur = babySurnames(a, a, a.gid)[0] ?? a.sur;
+      addPlannedBaby([id], a.gid, sur, a.x + (a.w || CARD_MIN_W) / 2);
+    },
+    [byid, addPlannedBaby, babySurnames],
   );
 
   const requestInfantOfCouple = useCallback(
@@ -2861,6 +2887,7 @@ export function useWhiteboard() {
     setInfantHouseMenu,
     infantHouseChoices,
     requestInfantOfCouple,
+    requestInfantOfSim,
     confirmInfantHouse,
     logOpen,
     setLogOpen,

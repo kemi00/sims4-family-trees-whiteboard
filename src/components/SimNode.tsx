@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { CARD_H, CARD_MIN_W, COL, DECEASED_STATE, DYNASTY_ROLES, OCC, SPECIES, UEDIT } from '../lib/constants.ts';
+import { CARD_H, CARD_MIN_W, COL, DECEASED_STATE, DYNASTY_ROLES, OCC, PILL_H, SPECIES, UEDIT } from '../lib/constants.ts';
 import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch } from '../lib/utils.ts';
@@ -33,6 +33,11 @@ type Props = {
    * the card's last line so planned siblings and cousins tell apart.
    */
   parents?: { lines: string[]; title: string };
+  /**
+   * A ＋ on the card's foot, as a couple has under its ring: it plans a baby
+   * of this sim alone. Shown on hover and while the card is selected.
+   */
+  babyPlus?: boolean;
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
@@ -61,6 +66,7 @@ export const SimNodeView = memo(function SimNodeView({
   offPlan,
   notYet,
   parents,
+  babyPlus = false,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -220,6 +226,17 @@ export const SimNodeView = memo(function SimNodeView({
           {[-5, 0, 5].map((dy) => (
             <circle key={dy} cy={dy} r={1.7} />
           ))}
+        </g>
+      )}
+      {/* Where a child's line leaves the card, so it reads as "a child
+          below"; the same ＋ as a couple's. Clicked through WhiteboardStage. */}
+      {labels && babyPlus && (
+        <g className="node__baby" transform={`translate(${(n.w || CARD_MIN_W) / 2},${h})`}>
+          <title>Plan a baby of {cardName(n)}</title>
+          <circle r={PILL_H / 2} fill={UEDIT} stroke="#fff" strokeWidth={1.4} />
+          <text y={4.5} fontSize={13} fontWeight={700} textAnchor="middle" fill="#fff">
+            ＋
+          </text>
         </g>
       )}
       {fromSave && (
