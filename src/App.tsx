@@ -87,6 +87,7 @@ export default function App() {
         }         else if (wb.connectMode) wb.setConnectMode(false);
         else if (wb.multiSel) wb.clearMultiSel();
         else if (wb.selectMode) wb.setSelectMode(false);
+        else if (wb.dynastyFocus) wb.setDynastyFocus(null);
         else if (wb.familyFocus) wb.setFamilyFocus(false);
         else if (wb.bloodlineId) wb.setBloodlineId(null);
       }
@@ -336,6 +337,12 @@ export default function App() {
               onHover={wb.setBriefHover}
               onRename={wb.renameDynasty}
               onRemove={wb.removeDynasty}
+              litKey={wb.dynastyFocus}
+              onLight={(key) => {
+                wb.setDynastyFocus(key);
+                // A phone's sheet covers the board: it gets out of the way.
+                if (key && isPanelSheet()) wb.setDynastiesOpen(false);
+              }}
             />
           </div>
         )}

@@ -62,6 +62,7 @@ import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
+import { DynastyBanner } from './DynastyBanner.tsx';
 import { FamilyBanner } from './FamilyBanner.tsx';
 import { HighlightBanner } from './HighlightBanner.tsx';
 import { SaveStatus } from './SaveStatus.tsx';
@@ -1770,7 +1771,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 babyPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
-                familyIds={wb.briefHover ?? wb.familyIds}
+                familyIds={wb.briefHover ?? wb.dynastyFocusIds ?? wb.familyIds}
                 generation={generationTitle(wb.dynastyGens.get(n.id))}
                 onPointerDown={onNodePointerDown}
               />
@@ -1915,6 +1916,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       {!wb.staleTab &&
         !wb.bloodlineId &&
         !wb.familyFocus &&
+        !wb.dynastyFocusIds &&
         !wb.agesOpen &&
         highlightActive(wb.hiAges, wb.hiSingle) && (
           <HighlightBanner
@@ -1937,6 +1939,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             }}
           />
         )}
+      {!wb.staleTab && wb.dynastyFocusIds && (
+        <DynastyBanner
+          ids={wb.dynastyFocusIds}
+          byid={wb.byid}
+          onShowAll={() => {
+            const r = svgRef.current?.getBoundingClientRect();
+            wb.frameSims(wb.dynastyFocusIds ?? [], r?.width ?? 800, r?.height ?? 600);
+          }}
+          onDone={() => wb.setDynastyFocus(null)}
+        />
+      )}
       {wb.familyFocus && (
         <FamilyBanner
           family={wb.family}

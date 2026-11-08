@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import seedData from '../data/whiteboard.json';
-import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT } from '../lib/constants.ts';
+import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
@@ -733,8 +733,32 @@ export function useWhiteboard() {
     if (!on) return;
     // One sim's relatives at a time: a family highlight replaces Bloodline.
     setBloodlineId(null);
+    setDynastyFocusState(null);
     trackAction('/action/family');
   }, []);
+
+  /**
+   * A dynasty kept lit on the board from the Dynasties panel (its key), its
+   * members glowing and everyone else dimmed. One highlight at a time: it
+   * replaces a family highlight or Bloodline.
+   */
+  const [dynastyFocus, setDynastyFocusState] = useState<string | null>(null);
+  const setDynastyFocus = useCallback((key: string | null) => {
+    setDynastyFocusState(key);
+    if (!key) return;
+    setFamilyFocusState(false);
+    setBloodlineId(null);
+    trackAction('/action/dynasty-highlight');
+  }, []);
+  const dynastyFocusIds = useMemo(() => {
+    if (!dynastyFocus) return null;
+    const ids = nodesCore.filter((n) => !n.species && dynastyKey(n) === dynastyFocus).map((n) => n.id);
+    return ids.length ? new Set(ids) : null;
+  }, [dynastyFocus, nodesCore]);
+  // A dynasty removed (or left by its last member) lights nothing: let go.
+  useEffect(() => {
+    if (dynastyFocus && !dynastyFocusIds) setDynastyFocusState(null);
+  }, [dynastyFocus, dynastyFocusIds]);
 
   const setConnectMode = useCallback(
     (on: boolean) => {
@@ -1131,6 +1155,8 @@ export function useWhiteboard() {
       const count = nodesCore.filter((n) => n.dynasty === from && !n.dynastyId && !n.species).length;
       pushUndo();
       setNodesCore(next);
+      // A lit dynasty stays lit under its new name.
+      setDynastyFocusState((k) => (k === `name:${from}` ? `name:${name}` : k));
       trackAction('/action/rename-dynasty');
       flashStatus(`Renamed the ${from} dynasty to ${name}, on ${count === 1 ? 'its 1 sim' : `all ${count} of its sims`}.`);
       return true;
@@ -1852,6 +1878,34 @@ export function useWhiteboard() {
       if (n) frameSim(n, svgWidth, svgHeight);
     },
     [edges, byid, frameSim],
+  );
+
+  /**
+   * Fits sims on screen together, however far apart they live: a dynasty's
+   * members across worlds. Never closer in than a single sim is shown.
+   */
+  const frameSims = useCallback(
+    (ids: Iterable<string>, svgWidth: number, svgHeight: number) => {
+      const cards = [...ids].map((id) => byid[id]).filter((n): n is SimNode => !!n);
+      if (!cards.length) return;
+      const x0 = Math.min(...cards.map((n) => n.x));
+      const y0 = Math.min(...cards.map((n) => n.y));
+      const x1 = Math.max(...cards.map((n) => n.x + n.w));
+      const y1 = Math.max(...cards.map((n) => n.y + n.h));
+      // Clear of what floats over the board: the banner on top and, on a
+      // wide screen, the key down the right and the minimap at the bottom.
+      const wide = svgWidth > 700;
+      const pad = { l: 40, r: wide ? 210 : 24, t: 110, b: wide ? 90 : 120 };
+      const w = Math.max(1, svgWidth - pad.l - pad.r);
+      const h = Math.max(1, svgHeight - pad.t - pad.b);
+      const k = Math.max(ZOOM_MIN, Math.min(FOCUS_SIM_K, w / (x1 - x0), h / (y1 - y0)));
+      setViewport({
+        k,
+        tx: pad.l + w / 2 - ((x0 + x1) / 2) * k,
+        ty: pad.t + h / 2 - ((y0 + y1) / 2) * k,
+      });
+    },
+    [byid],
   );
 
   const focusSim = useCallback(
@@ -2784,6 +2838,7 @@ export function useWhiteboard() {
         setBloodlineId(sel.id);
         // One sim's relatives at a time: Bloodline replaces a family highlight.
         setFamilyFocusState(false);
+        setDynastyFocusState(null);
         trackAction('/action/bloodline');
       }
       return;
@@ -2903,6 +2958,10 @@ export function useWhiteboard() {
     linksView,
     setLinksView,
     familyFocus,
+    dynastyFocus,
+    setDynastyFocus,
+    dynastyFocusIds,
+    frameSims,
     setFamilyFocus,
     familyScope,
     setFamilyScope,

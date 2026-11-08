@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Highlighter } from '../icons.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { DYNASTY_ROLES } from '../lib/constants.ts';
@@ -23,6 +24,10 @@ type Props = {
   onRename: (from: string, to: string) => boolean;
   /** Takes a planned dynasty off all its members; false when refused. */
   onRemove: (name: string) => boolean;
+  /** The dynasty kept lit on the board (its key), if any. */
+  litKey: string | null;
+  /** Keep a dynasty lit on the board, or none. */
+  onLight: (key: string | null) => void;
 };
 
 /** What a planned dynasty's card is asking: a new name, or whether to remove it. */
@@ -62,7 +67,19 @@ function memberMeta(m: DynastyMember, home: string): string {
  * members up on the board wherever they are, and opening it lists them,
  * each a click from their card.
  */
-export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFind, onHover, onRename, onRemove }: Props) {
+export function DynastiesPanel({
+  rows,
+  labelOf,
+  nameOf,
+  homeOf,
+  anchorRect,
+  onFind,
+  onHover,
+  onRename,
+  onRemove,
+  litKey,
+  onLight,
+}: Props) {
   const sheet = usePanelSheet();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
@@ -262,13 +279,16 @@ export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFi
                 const parts = partsText(r);
                 const ids = new Set(r.members.map((m) => m.id));
                 const listId = `dynp-m-${r.key.replace(/[^\w-]/g, '_')}`;
+                const lit = litKey === r.key;
+                const label = labelOf(r);
                 return (
                   <li
                     key={r.key}
-                    className="dynp__row"
+                    className={lit ? 'dynp__row dynp__row--lit' : 'dynp__row'}
                     onPointerEnter={() => onHover(ids)}
                     onPointerLeave={() => onHover(null)}
                   >
+                    <div className="dynp__rowhead">
                     <button
                       type="button"
                       className="dynp__head"
@@ -295,6 +315,18 @@ export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFi
                       </span>
                       {parts && <span className="dynp__parts">{parts}</span>}
                     </button>
+                    {/* Hovering only previews; this keeps them lit after. */}
+                    <button
+                      type="button"
+                      className="dynp__lite"
+                      aria-pressed={lit}
+                      aria-label={lit ? `Stop highlighting the ${label} dynasty` : `Highlight the ${label} dynasty on the board`}
+                      title={lit ? 'Stop highlighting' : 'Highlight on the board'}
+                      onClick={() => onLight(lit ? null : r.key)}
+                    >
+                      <Highlighter weight={lit ? 'fill' : 'regular'} />
+                    </button>
+                    </div>
                     {expanded && (
                       <div id={listId}>
                       <ul className="dynp__members" aria-label={`${labelOf(r)} members`}>
@@ -331,8 +363,9 @@ export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFi
         ))
       )}
       <p className="upnext__rules">
-        Hover a dynasty to light up its members on the board, in any world; open it to see who they are, or to
-        rename or remove a planned one. Counts take in the deceased and sims only planned into it.
+        Hover a dynasty to light up its members on the board, in any world, or click its highlighter to keep them
+        lit. Open it to see who they are, or to rename or remove a planned one. Counts take in the deceased and
+        sims only planned into it.
       </p>
     </div>
   );
