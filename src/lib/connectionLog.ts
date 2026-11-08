@@ -88,7 +88,7 @@ export function simName(n: SimNode): string {
 }
 
 /** `{neighbourhood}, {world}` — skip a missing neighbourhood. */
-function livingPlace(nb: string, world: string): string {
+export function livingPlace(nb: string, world: string): string {
   return [nb && nb !== '-' ? nb : '', world && world !== '-' ? world : '']
     .map((s) => s.trim())
     .filter(Boolean)

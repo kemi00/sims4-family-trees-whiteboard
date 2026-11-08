@@ -16,6 +16,7 @@ import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, 
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
+import { householdPlans, planTallies } from '../lib/householdPlan.ts';
 import {
   householdMovePlan,
   householdSurnames,
@@ -293,6 +294,13 @@ export function useWhiteboard() {
   const [fastRoute, setFastRoute] = useState(false);
   const [skipRoute, setSkipRoute] = useState(false);
   const [editNodeId, setEditNodeId] = useState<string | null>(null);
+  /** The household whose plan is open (HouseholdBrief), and the sims a hovered line of it lights up. */
+  const [briefGid, setBriefGidState] = useState<string | null>(null);
+  const [briefHover, setBriefHover] = useState<Set<string> | null>(null);
+  const setBriefGid = useCallback((gid: string | null) => {
+    setBriefGidState(gid);
+    setBriefHover(null);
+  }, []);
   const [gamesOpen, setGamesOpen] = useState(false);
   const [agesOpen, setAgesOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
@@ -1121,6 +1129,12 @@ export function useWhiteboard() {
     return new Set(edges.filter((e) => e.type === 'parent' && planned.has(e.b)).map((e) => e.b));
   }, [nodesCore, edges]);
   const planStats = useMemo(() => planProgress(edges, planIssues), [edges, planIssues]);
+  /** Every household's plan items (householdPlan.ts): the brief, the tag badges and Up next read these. */
+  const planItems = useMemo(
+    () => householdPlans({ nodes: nodesCore, edges, conflicts: planIssues, pairStatus, saveGame }),
+    [nodesCore, edges, planIssues, pairStatus, saveGame],
+  );
+  const planTally = useMemo(() => planTallies(planItems), [planItems]);
   /** Links a save confirmed after they were planned: the plan done. */
   const doneEdgeIds = useMemo(() => new Set(edges.filter((e) => e.wasPlanned).map((e) => e.id)), [edges]);
   /** The plan Replace would drop: planned links and planned sims. */
@@ -2782,6 +2796,12 @@ export function useWhiteboard() {
     fastRoute,
     editNodeId,
     setEditNodeId,
+    briefGid,
+    setBriefGid,
+    briefHover,
+    setBriefHover,
+    planItems,
+    planTally,
     gamesOpen,
     setGamesOpen,
     agesOpen,

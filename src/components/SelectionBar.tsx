@@ -15,6 +15,8 @@ type Props = {
   nodes: SimNode[];
   onMove: (world: string, houseGid: string, newName: string) => void;
   onClear: () => void;
+  /** Set when one household is picked: open its plan. */
+  onPlan?: () => void;
 };
 
 const NAMES_SHOWN = 3;
@@ -44,6 +46,7 @@ export function SelectionBar({
   nodes,
   onMove,
   onClear,
+  onPlan,
 }: Props) {
   const [open, setOpen] = useState(false);
   const count = sims.length;
@@ -81,6 +84,11 @@ export function SelectionBar({
             </>
           )}
         </p>
+        {onPlan && (
+          <button type="button" className="selbar__alt" onClick={onPlan}>
+            See its plan
+          </button>
+        )}
         <button
           type="button"
           className="selbar__go"

@@ -99,6 +99,13 @@ export function oldAgeEarliest(stageDays: number, lifespan?: Lifespan): number {
   return Math.max(0, ELDER_MIN_DAYS - stageDays) * scaleOf(lifespan);
 }
 
+/** "old age in 4+ days", "old age in under a day", "old age any day now". */
+export function oldAgeSoonText(oldAgeIn: number | undefined): string {
+  if (!oldAgeIn) return 'old age any day now';
+  const n = Math.floor(oldAgeIn);
+  return n < 1 ? 'old age in under a day' : `old age in ${n}+ ${n === 1 ? 'day' : 'days'}`;
+}
+
 /**
  * Best guess for a card with no save facts: the middle of its life stage.
  * Null for pets and unknown stages.

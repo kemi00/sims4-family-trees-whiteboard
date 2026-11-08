@@ -60,6 +60,7 @@ export default function App() {
         else if (wb.agesOpen) wb.setAgesOpen(false);
         else if (wb.logOpen) wb.setLogOpen(false);
         else if (wb.editNodeId) wb.setEditNodeId(null);
+        else if (wb.briefGid) wb.setBriefGid(null);
         else if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
         else if (wb.connectMenu) {
           wb.setConnectMenu(null);

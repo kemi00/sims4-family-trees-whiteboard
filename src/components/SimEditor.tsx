@@ -21,6 +21,7 @@ import {
   dayText,
   daysText,
   frozenText,
+  oldAgeSoonText,
   lifeView,
   wholeDaysText,
   yearText,
@@ -37,6 +38,7 @@ import {
   type PlanChoice,
   type PlanConflict,
 } from '../lib/plan.ts';
+import { isUnhousedGid } from '../lib/unhoused.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
@@ -86,15 +88,7 @@ function oldAgeText(v: LifeView): string {
 
 /** The age in one line, under the life stage: "2% through · Adult in 13 days". */
 function lifeSummary(v: LifeView): string {
-  if (v.elderDays !== undefined) {
-    const n = Math.floor(v.oldAgeIn ?? 0);
-    const soon = !v.oldAgeIn
-      ? 'old age any day now'
-      : n < 1
-        ? 'old age in under a day'
-        : `old age in ${n}+ ${n === 1 ? 'day' : 'days'}`;
-    return `Elder for ${daysText(v.elderDays)} · ${soon}`;
-  }
+  if (v.elderDays !== undefined) return `Elder for ${daysText(v.elderDays)} · ${oldAgeSoonText(v.oldAgeIn)}`;
   const parts: string[] = [];
   if (v.newborn) parts.push('Newborn');
   if (v.through !== undefined) parts.push(`${Math.round(v.through * 100)}% through`);
@@ -267,6 +261,8 @@ type Props = {
   onLinkPlanned: (realId: string) => void;
   /** This sim stops filling the planned sim it filled (unlinkPlannedSim). */
   onUnlinkPlanned: () => void;
+  /** Open this sim's household's plan (HouseholdBrief). */
+  onOpenPlan: () => void;
 };
 
 export function SimEditor({
@@ -291,6 +287,7 @@ export function SimEditor({
   onResolvePlan,
   onLinkPlanned,
   onUnlinkPlanned,
+  onOpenPlan,
 }: Props) {
   const compact = useCompactChrome();
   const isPet = !!n.species;
@@ -800,6 +797,11 @@ export function SimEditor({
                 onMove={onMove}
               />
             </div>
+          )}
+          {n.hh && !isUnhousedGid(n.gid) && (
+            <button type="button" className="edlink edlink--plan" onClick={onOpenPlan}>
+              See the {n.hh} household’s plan
+            </button>
           )}
           {planned && (
             <>

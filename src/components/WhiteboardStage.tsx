@@ -75,7 +75,9 @@ import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
-import { isPlannedSim, notYetText } from '../lib/plan.ts';
+import { cardName, isPlannedSim, notYetText } from '../lib/plan.ts';
+import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/householdPlan.ts';
+import { HouseholdBrief } from './HouseholdBrief.tsx';
 import type { DynastyGeneration } from '../lib/generations.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { SimNodeView } from './SimNode.tsx';
@@ -1309,6 +1311,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       } else if (world?.armed) {
         endDragPreview();
         wb.moveNodesByWorld(world.world, world.lastDx, world.lastDy, world.base);
+      } else if (hh && ev.type === 'pointerup') {
+        // A click on a household's name, not a drag: open its plan.
+        wb.setBriefGid(hh.gid);
       }
       hhDragRef.current = null;
       worldDragRef.current = null;
@@ -1469,6 +1474,24 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
   }
 
   const editNode = wb.editNodeId ? wb.byid[wb.editNodeId] : null;
+  // The open household plan (HouseholdBrief): its tag, or one made from a card when it has none.
+  const briefCard = wb.briefGid ? wb.nodes.find((n) => n.gid === wb.briefGid) : undefined;
+  const briefGroup = wb.briefGid
+    ? (wb.groups.find((g) => g.gid === wb.briefGid) ??
+      (briefCard
+        ? { gid: briefCard.gid, hh: briefCard.hh, world: briefCard.world, nb: briefCard.nb, color: briefCard.color, x: 0, y: 0, w: 0, h: 0 }
+        : undefined))
+    : undefined;
+  const nameOfSim = (id: string) => {
+    const n = wb.byid[id];
+    return n ? cardName(n) : 'someone';
+  };
+  const hhOf = (gid: string) => householdName(gid, wb.groups, wb.nodes);
+  const pickSim = (id: string) => {
+    const r = svgRef.current?.getBoundingClientRect();
+    wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
+  };
+  const oneHousehold = wb.multiSel?.kind === 'households' && wb.multiSel.gids.length === 1 ? wb.multiSel.gids[0] : undefined;
   const menu = wb.connectMenu;
   const connHighlight =
     typeof wb.connSrc === 'string' ? wb.connSrc : null;
@@ -1727,7 +1750,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 }
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
-                familyIds={wb.familyIds}
+                familyIds={wb.briefHover ?? wb.familyIds}
                 generation={generationTitle(wb.dynastyGens.get(n.id))}
                 onPointerDown={onNodePointerDown}
               />
@@ -1925,6 +1948,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             );
           }}
           onClear={() => wb.clearMultiSel()}
+          onPlan={oneHousehold ? () => wb.setBriefGid(oneHousehold) : undefined}
         />
       )}
       {menu && (
@@ -1959,7 +1983,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         ref={legendRef}
         worlds={wb.worlds}
         liveWorlds={wb.liveWorlds}
-        hidden={wb.gamesOpen || wb.playOpen || wb.agesOpen}
+        hidden={wb.gamesOpen || wb.playOpen || wb.agesOpen || !!briefGroup}
         onPickWorld={(world) => {
           const r = svgRef.current?.getBoundingClientRect();
           const lg = legendRef.current?.getBoundingClientRect();
@@ -1973,6 +1997,28 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       <Hint introReady={tipsReady} />
       <Minimap wb={wb} svgRef={svgRef} camera={liveCamera} />
       <ViewControls wb={wb} svgRef={svgRef} />
+      {briefGroup && (
+        <HouseholdBrief
+          key={briefGroup.gid}
+          group={briefGroup}
+          items={itemsFor(wb.planItems, briefGroup.gid)}
+          unblocks={unblockedBy(wb.planItems, briefGroup.gid)}
+          elders={eldersOf(wb.nodes, briefGroup.gid, wb.saveGame)}
+          nameOf={nameOfSim}
+          hhOf={hhOf}
+          fromSave={!!wb.saveGame}
+          onHover={(ids) => wb.setBriefHover(ids ? new Set(ids) : null)}
+          onPick={(item) => {
+            const first = item.sims[0];
+            if (!first) return;
+            pickSim(first);
+            // What the game did instead is settled in the sim's editor.
+            if (item.state === 'offPlan') wb.setEditNodeId(first);
+          }}
+          onPickSim={pickSim}
+          onClose={() => wb.setBriefGid(null)}
+        />
+      )}
       {editNode && (
         <SimEditor
           // One editor per sim: opening another resets the fields to theirs.
@@ -2011,6 +2057,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             wb.setEditNodeId(null);
           }}
           onUnlinkPlanned={() => wb.unlinkPlanned(editNode.id)}
+          onOpenPlan={() => {
+            wb.setEditNodeId(null);
+            wb.setBriefGid(editNode.gid);
+          }}
         />
       )}
     </div>
