@@ -1133,6 +1133,13 @@ export function useWhiteboard() {
     return new Set(edges.filter((e) => e.type === 'parent' && planned.has(e.b)).map((e) => e.b));
   }, [nodesCore, edges]);
   const planStats = useMemo(() => planProgress(edges, planIssues), [edges, planIssues]);
+  /** Each planned child's parents, for its card ("Child of Jules ＋ Bess"). */
+  const plannedParents = useMemo(() => {
+    const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
+    const out = new Map<string, string[]>();
+    for (const e of edges) if (e.type === 'parent' && planned.has(e.b)) out.set(e.b, [...(out.get(e.b) ?? []), e.a]);
+    return out;
+  }, [nodesCore, edges]);
   /** Every household's plan items (householdPlan.ts): the brief, the tag badges and Up next read these. */
   const planItems = useMemo(
     () => householdPlans({ nodes: nodesCore, edges, conflicts: planIssues, pairStatus, saveGame, moves: householdMoves }),
@@ -2894,6 +2901,7 @@ export function useWhiteboard() {
     planIssues,
     offPlan,
     plannedChildIds,
+    plannedParents,
     planStats,
     doneEdgeIds,
     plannedCounts,

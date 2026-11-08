@@ -5,6 +5,7 @@ import {
   cardName,
   linkPlannedSim,
   numberPlannedSims,
+  parentsLines,
   overruledParentLinks,
   moveToUndo,
   planConflicts,
@@ -59,6 +60,12 @@ describe('telling planned sims apart', () => {
   it('gives a fresh number to one whose number another of its new surname has', () => {
     const out = numberPlannedSims([kid('new1', 'Romeo', { planNo: 1 }), kid('new2', 'Romeo', { planNo: 1 })]);
     assert.deepEqual(out.map(cardName), ['Planned (1) Romeo', 'Planned (2) Romeo']);
+  });
+
+  it('says whose child an unnamed planned sim is, in short names', () => {
+    const lines = parentsLines([sim('Jules', { first: 'Jules' }), kid('new1', 'Le Chien', { planNo: 1 }), kid('new2', 'Romeo', { planLabel: 'Spouse' })]);
+    assert.deepEqual(lines, ['Child of Jules ＋ Le Chien (1) ＋ Spouse', 'Jules ＋ Le Chien (1) ＋ Spouse']);
+    assert.deepEqual(parentsLines([]), []);
   });
 
   it('prefers a plan label to the number', () => {

@@ -28,8 +28,21 @@ type Props = {
   offPlan?: string;
   /** A planned sim not in the game yet: "Not born yet" in place of the life stage. */
   notYet?: string;
+  /**
+   * An unnamed planned child's parents (parentsLines, longest first), on
+   * the card's last line so planned siblings and cousins tell apart.
+   */
+  parents?: { lines: string[]; title: string };
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
+
+/** The first line that fits `room`, else the last cut short with an ellipsis. */
+function fitLine(lines: string[], room: number): string {
+  for (const line of lines) if (textWidth(line, 10.5, 400) <= room) return line;
+  let s = lines[lines.length - 1] ?? '';
+  while (s.length > 1 && textWidth(`${s}…`, 10.5, 400) > room) s = s.slice(0, -1);
+  return `${s.trimEnd()}…`;
+}
 
 export const SimNodeView = memo(function SimNodeView({
   node: n,
@@ -47,6 +60,7 @@ export const SimNodeView = memo(function SimNodeView({
   generation,
   offPlan,
   notYet,
+  parents,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -136,7 +150,12 @@ export const SimNodeView = memo(function SimNodeView({
             {n.gender && n.gender !== '-' ? ` · ${n.gender}` : ''}
             {n.species ? ` · ${n.species}` : ''}
           </text>
-          {detail ? (
+          {parents ? (
+            <text x={16} y={72} fontSize={10.5} fill="#697380">
+              <title>{parents.title}</title>
+              {fitLine(parents.lines, (n.w || CARD_MIN_W) - 16 - 30)}
+            </text>
+          ) : detail ? (
             <text x={16} y={72} fontSize={10.5} fill="#697380">
               {detail}
             </text>

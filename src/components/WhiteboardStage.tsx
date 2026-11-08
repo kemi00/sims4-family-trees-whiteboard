@@ -75,7 +75,7 @@ import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
-import { cardName, isPlannedSim, notYetText } from '../lib/plan.ts';
+import { cardName, isPlannedSim, notYetText, parentsLines } from '../lib/plan.ts';
 import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/householdPlan.ts';
 import { HouseholdBrief } from './HouseholdBrief.tsx';
 import type { DynastyGeneration } from '../lib/generations.ts';
@@ -1491,6 +1491,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     const r = svgRef.current?.getBoundingClientRect();
     wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
   };
+  /** An unnamed planned child's parents, for its card. */
+  const plannedParentsOf = (id: string) => {
+    const list = (wb.plannedParents.get(id) ?? []).map((p) => wb.byid[p]).filter((p): p is SimNode => !!p);
+    if (!list.length) return undefined;
+    return { lines: parentsLines(list), title: `Child of ${list.map(cardName).join(' and ')}` };
+  };
   const oneHousehold = wb.multiSel?.kind === 'households' && wb.multiSel.gids.length === 1 ? wb.multiSel.gids[0] : undefined;
   const menu = wb.connectMenu;
   const connHighlight =
@@ -1748,6 +1754,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 notYet={
                   isPlannedSim(n) ? notYetText(wb.plannedChildIds.has(n.id)) : undefined
                 }
+                parents={n.first.trim() ? undefined : plannedParentsOf(n.id)}
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.briefHover ?? wb.familyIds}

@@ -36,6 +36,29 @@ export function cardName(n: Pick<SimNode, 'first' | 'sur' | 'planLabel' | 'planN
 }
 
 /**
+ * The shortest name that still tells a sim apart: their first name, else
+ * their plan label, else last name and number ("Le Chien (1)").
+ */
+export function shortName(n: Pick<SimNode, 'first' | 'sur' | 'planLabel' | 'planNo' | 'added' | 'saveSimId'>): string {
+  const first = n.first.trim();
+  if (first) return first;
+  const label = n.planLabel?.trim();
+  if (label) return label;
+  const sur = n.sur.trim();
+  return n.planNo && isPlannedSim(n) ? `${sur} (${n.planNo})` : sur;
+}
+
+/**
+ * Whose child a planned sim is, for its card, longest first so the card
+ * can take the first that fits: "Child of Jules ＋ Bess", "Jules ＋ Bess".
+ */
+export function parentsLines(parents: SimNode[]): string[] {
+  if (!parents.length) return [];
+  const who = parents.map(shortName).join(' ＋ ');
+  return [`Child of ${who}`, who];
+}
+
+/**
  * Numbers every planned sim that goes by its surname (no first name, no plan
  * label) and has no number yet, or one another planned sim of its surname
  * already has (after a rename): the next number for that surname, oldest
