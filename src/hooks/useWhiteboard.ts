@@ -1229,6 +1229,8 @@ export function useWhiteboard() {
       dy: number,
       base: Record<string, { ox: number; oy: number }>,
     ) => {
+      // A drop is one step back with ⌘Z, like any other change.
+      if (dx || dy) pushUndo();
       setNodesCore((ns) =>
         ns.map((n) => {
           const bb = base[n.id];
@@ -1238,7 +1240,7 @@ export function useWhiteboard() {
         }),
       );
     },
-    [],
+    [pushUndo],
   );
 
   const moveNodesByWorld = useCallback(
@@ -1248,6 +1250,7 @@ export function useWhiteboard() {
       dy: number,
       base: Record<string, { ox: number; oy: number }>,
     ) => {
+      if (dx || dy) pushUndo();
       setNodesCore((ns) =>
         ns.map((n) => {
           const bb = base[n.id];
@@ -1257,7 +1260,7 @@ export function useWhiteboard() {
         }),
       );
     },
-    [],
+    [pushUndo],
   );
 
   /** Rigid move for a multi-selection (worlds, households, or cards). */
@@ -1268,6 +1271,7 @@ export function useWhiteboard() {
       dy: number,
       base: Record<string, { ox: number; oy: number }>,
     ) => {
+      if (dx || dy) pushUndo();
       const set = new Set(ids);
       setNodesCore((ns) =>
         ns.map((n) => {
@@ -1278,7 +1282,7 @@ export function useWhiteboard() {
         }),
       );
     },
-    [],
+    [pushUndo],
   );
 
   const snapDragPosition = useCallback(
