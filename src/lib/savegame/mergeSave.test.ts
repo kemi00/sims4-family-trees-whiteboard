@@ -1164,7 +1164,7 @@ describe('relatives the save keeps nameless', () => {
   const saveSim = (id: string, first: string, last: string) => ({
     saveSimId: id, householdId: '4', first, last, household: 'Luna-Sullivan', age: 'Adult', gender: 'Female', world: 'San Sequoia',
   });
-  const merge = (rels: ParsedSave['rels'], nodes: SimNode[] = []) =>
+  const merge = (rels: ParsedSave['rels'], nodes: SimNode[] = [], ros = roster, rosEdges = rosterEdges) =>
     mergeSaveIntoBoard({
       nodes,
       edges: [],
@@ -1175,9 +1175,9 @@ describe('relatives the save keeps nameless', () => {
         rels,
         relatives: [{ treeId: 'g1', gender: 'Male' }],
       },
-      seedNameKeys: seedNameKeysFromNodes(roster),
-      packReference: roster,
-      rosterEdges,
+      seedNameKeys: seedNameKeysFromNodes(ros),
+      packReference: ros,
+      rosterEdges: rosEdges,
       now: 'x',
       nextEdgeId: (() => {
         let n = 0;
@@ -1208,6 +1208,36 @@ describe('relatives the save keeps nameless', () => {
     // Married to Eleanor here, her son on the roster: not Colin.
     const other = merge([{ a: 'g1', b: '2', type: 'parent' }, { a: '1', b: 'g1', type: 'marriage' }]);
     assert.equal(other.nodes.find((n) => n.treeId === 'g1')!.first, 'Unknown');
+  });
+
+  // The roster knows him only as a dead placeholder, as it does Rohan
+  // Elderberry's father: no name to give, but the story's death.
+  const placeholder = lunaSullivan('Unknown Luna', 'Unknown', 'Luna', { state: 'Deceased' });
+  const withPlaceholder = [roster[0]!, roster[1]!, placeholder];
+  const placeholderEdges: Edge[] = [
+    { id: 'r1', a: 'Eleanor Sullivan', b: 'Unknown Luna', type: 'parent', source: 'seed' },
+    { id: 'r2', a: 'Unknown Luna', b: 'Karmine Luna', type: 'parent', source: 'seed' },
+  ];
+
+  it("takes a roster placeholder's death, though it has no name to give", () => {
+    const card = merge(between, [], withPlaceholder, placeholderEdges).nodes.find((n) => n.treeId === 'g1')!;
+    assert.deepEqual([card.first, card.sur, card.state], ['Unknown', 'Luna', 'Deceased']);
+  });
+
+  it('marks dead the alive card an earlier import made for them', () => {
+    const before = merge(between, [], withPlaceholder, placeholderEdges).nodes.map((n) =>
+      n.treeId === 'g1' ? { ...n, state: 'Sim' } : n,
+    );
+    const after = merge(between, before, withPlaceholder, placeholderEdges);
+    assert.equal(after.nodes.find((n) => n.treeId === 'g1')!.state, 'Deceased');
+    assert.equal(after.summary.relativesDied.length, 1);
+  });
+
+  it('prefers a named roster card to a placeholder that also fits', () => {
+    const both = [...roster, { ...placeholder, state: 'Sim' }];
+    const edges = [...rosterEdges, ...placeholderEdges.map((e) => ({ ...e, id: `p${e.id}` }))];
+    const card = merge(between, [], both, edges).nodes.find((n) => n.treeId === 'g1')!;
+    assert.deepEqual([card.first, card.state], ['Colin', 'Deceased']);
   });
 });
 

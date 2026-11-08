@@ -316,6 +316,27 @@
    "oy": 0
   },
   {
+   "id": "Unknown Elderberry",
+   "gid": "Britechester||Elderberry",
+   "first": "Unknown",
+   "sur": "Elderberry",
+   "age": "Adult",
+   "state": "Deceased",
+   "gender": "Male",
+   "hh": "Elderberry",
+   "world": "Britechester",
+   "nb": "Gibbs Hill",
+   "color": "#59a14f",
+   "townie": true,
+   "oworld": "Britechester",
+   "onb": "Gibbs Hill",
+   "ohh": "Elderberry",
+   "oplay": "Townie",
+   "pack": "Discover University",
+   "ox": 0,
+   "oy": 0
+  },
+  {
    "id": "Angela Pleasant",
    "gid": "Britechester||Pleasant",
    "first": "Angela",
@@ -10614,13 +10635,13 @@
   {
    "id": "e87",
    "a": "Ekram Elderberry",
-   "b": "Rohan Elderberry",
+   "b": "Unknown Elderberry",
    "type": "parent"
   },
   {
    "id": "e88",
    "a": "Eleanore Elderberry",
-   "b": "Rohan Elderberry",
+   "b": "Unknown Elderberry",
    "type": "parent"
   },
   {
@@ -11557,6 +11578,12 @@
    "id": "e248",
    "a": "Jilliana Sage",
    "b": "Zehava Sage",
+   "type": "parent"
+  },
+  {
+   "id": "e249",
+   "a": "Unknown Elderberry",
+   "b": "Rohan Elderberry",
    "type": "parent"
   }
  ],

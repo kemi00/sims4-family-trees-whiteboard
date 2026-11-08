@@ -850,7 +850,9 @@ function treeRelatives(
  * links to the board's sims, matched by name, are all the relative's. The
  * save keeps Colin Sullivan only as Eleanor Sullivan's son and Karmine
  * Luna's father; the roster has him as both. It takes two links at least,
- * and one card alone, so a lone parent is never guessed at.
+ * and one card alone, so a lone parent is never guessed at. A named card
+ * comes before a roster placeholder ("Unknown Elderberry"), which names no
+ * one but can still say they died, as the premades' stories have it.
  */
 function rosterRelative(
   r: ShownRelative,
@@ -891,12 +893,9 @@ function rosterRelative(
     }
     perLink.push(here);
   }
-  const found = roster.filter(
-    (n) =>
-      perLink.every((ids) => ids.has(n.id)) &&
-      foldName(n.first) !== foldName(UNKNOWN_FIRST) &&
-      !inSave(n),
-  );
+  const found = roster.filter((n) => perLink.every((ids) => ids.has(n.id)) && !inSave(n));
+  const named = found.filter((n) => foldName(n.first) !== foldName(UNKNOWN_FIRST));
+  if (named.length) return named.length === 1 ? named[0] : undefined;
   return found.length === 1 ? found[0] : undefined;
 }
 
