@@ -1,6 +1,6 @@
 import { DECEASED_STATE, UNHOUSED_HH } from '../constants.ts';
 import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
-import { rememberFirstHeads } from '../generations.ts';
+import { dynastyKey, rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
 import { everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
 import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
@@ -545,12 +545,29 @@ function plainSaveNode(
  * violet link until a save shows it done: them in the planned dynasty with
  * the planned role, or, for one planned to leave, in none.
  */
-export function syncDynasty(next: SimNode, sim: Pick<ParsedSaveSim, 'dynasty' | 'dynastyId' | 'dynastyRole'>, saveHasDynasties: boolean): void {
+export function syncDynasty(
+  next: SimNode,
+  sim: Pick<ParsedSaveSim, 'dynasty' | 'dynastyId' | 'dynastyRole'>,
+  saveHasDynasties: boolean,
+  /**
+   * The game's dynasty ids the board had before this save. A dynasty planned
+   * apart from another of its name (`dynastyRef`) isn't one of them: a sim
+   * the save puts in one of those is in the other dynasty, not this one.
+   */
+  boardIds?: ReadonlySet<string>,
+): void {
   if (!saveHasDynasties) return;
   const plan = next.dynastyPlan
-    ? { kind: next.dynastyPlan, dynasty: next.dynasty, dynastyId: next.dynastyId, dynastyRole: next.dynastyRole }
+    ? {
+        kind: next.dynastyPlan,
+        dynasty: next.dynasty,
+        dynastyId: next.dynastyId,
+        dynastyRef: next.dynastyRef,
+        dynastyRole: next.dynastyRole,
+      }
     : null;
   delete next.dynastyPlan;
+  delete next.dynastyRef;
   if (sim.dynasty) next.dynasty = sim.dynasty;
   else delete next.dynasty;
   if (sim.dynastyId) next.dynastyId = sim.dynastyId;
@@ -566,7 +583,9 @@ export function syncDynasty(next: SimNode, sim: Pick<ParsedSaveSim, 'dynasty' | 
   const fold = (s?: string) => (s ?? '').trim().toLocaleLowerCase();
   const same =
     !!sim.dynasty &&
-    (plan.dynastyId && sim.dynastyId ? plan.dynastyId === sim.dynastyId : fold(plan.dynasty) === fold(sim.dynasty));
+    (plan.dynastyId && sim.dynastyId
+      ? plan.dynastyId === sim.dynastyId
+      : fold(plan.dynasty) === fold(sim.dynasty) && !(plan.dynastyRef && sim.dynastyId && boardIds?.has(sim.dynastyId)));
   if (same) {
     if ((sim.dynastyRole ?? undefined) === plan.dynastyRole) return;
     if (plan.dynastyRole) next.dynastyRole = plan.dynastyRole;
@@ -579,9 +598,47 @@ export function syncDynasty(next: SimNode, sim: Pick<ParsedSaveSim, 'dynasty' | 
   else delete next.dynasty;
   if (plan.dynastyId) next.dynastyId = plan.dynastyId;
   else delete next.dynastyId;
+  if (plan.dynastyRef) next.dynastyRef = plan.dynastyRef;
   if (plan.dynastyRole) next.dynastyRole = plan.dynastyRole;
   else delete next.dynastyRole;
   next.dynastyPlan = 'member';
+}
+
+/**
+ * A dynasty only planned on the board (keyed by its name, or by its own
+ * board id) that this save shows in the game: the members still only
+ * planned into it follow those the save has in it, to the game's id, and so
+ * does what is kept by its key (a first head, a picked Gen 1). Otherwise
+ * the save's members and the planned ones would be two dynasties.
+ */
+export function followGameDynasties(before: SimNode[], after: SimNode[]): SimNode[] {
+  const fold = (s?: string) => (s ?? '').trim().toLocaleLowerCase();
+  const was = new Map<string, SimNode>();
+  for (const n of before) if (n.dynasty && !n.dynastyId) was.set(n.id, n);
+  const moved = new Map<string, { id: string; name: string }>();
+  for (const n of after) {
+    const old = was.get(n.id);
+    if (!old || !n.dynastyId || !n.dynasty || n.dynastyPlan === 'member' || fold(old.dynasty) !== fold(n.dynasty)) continue;
+    const key = dynastyKey(old)!;
+    if (!moved.has(key)) moved.set(key, { id: n.dynastyId, name: n.dynasty });
+  }
+  if (!moved.size) return after;
+  return after.map((n) => {
+    const patch: Partial<SimNode> = {};
+    const to = n.dynastyPlan === 'member' && !n.dynastyId ? moved.get(dynastyKey(n) ?? '') : undefined;
+    if (to) {
+      patch.dynasty = to.name;
+      patch.dynastyId = to.id;
+    }
+    const head = n.firstHeadOf ? moved.get(n.firstHeadOf) : undefined;
+    if (head) patch.firstHeadOf = `id:${head.id}`;
+    const root = n.genRootOf ? moved.get(n.genRootOf) : undefined;
+    if (root) patch.genRootOf = `id:${root.id}`;
+    if (!Object.keys(patch).length) return n;
+    const out: SimNode = { ...n, ...patch };
+    if (to) delete out.dynastyRef;
+    return out;
+  });
 }
 
 function patchMatched(
@@ -591,6 +648,7 @@ function patchMatched(
   /** The premade's roster card, for a breed the board's card lacks. */
   roster?: SimNode,
   saveHasDynasties = false,
+  boardIds?: ReadonlySet<string>,
 ): SimNode {
   const next: SimNode = {
     ...n,
@@ -600,7 +658,7 @@ function patchMatched(
   };
   if (sim.marriedLast) next.marriedSur = sim.marriedLast;
   else delete next.marriedSur;
-  syncDynasty(next, sim, saveHasDynasties);
+  syncDynasty(next, sim, saveHasDynasties, boardIds);
   if (sim.age) next.age = sim.age;
   if (sim.gender) next.gender = sim.gender;
   if (sim.species) {
@@ -946,6 +1004,8 @@ function relativeNode(r: ShownRelative, home: BoardHome): SimNode {
 export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const { parsed, seedNameKeys, now, nextEdgeId, worlds } = input;
   const nodes = input.nodes.map((n) => ({ ...n }));
+  /** The game's dynasties the board knows already, by id. */
+  const boardDynastyIds = new Set(input.nodes.flatMap((n) => (n.dynastyId ? [n.dynastyId] : [])));
   const bySaveId = new Map<string, SimNode>();
   const byName = new Map<string, SimNode[]>();
   const byNameHh = new Map<string, SimNode[]>();
@@ -1007,7 +1067,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       : undefined;
     if (slot) {
       const i = nodes.indexOf(slot);
-      const patched = patchMatched(slot, sim, true, rosterOf(sim), !!parsed.dynasties);
+      const patched = patchMatched(slot, sim, true, rosterOf(sim), !!parsed.dynasties, boardDynastyIds);
       patched.plannedAs = plannedSnapshot(slot, now);
       delete patched.planLabel;
       nodes[i] = patched;
@@ -1036,7 +1096,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         seedNameKeys.has(nameKey(found.first, found.sur)) ||
         seedNameKeys.has(nameKey(sim.first, sim.last));
       const i = nodes.findIndex((n) => n.id === found.id);
-      const patched = patchMatched(found, sim, !onRoster, rosterOf(sim), !!parsed.dynasties);
+      const patched = patchMatched(found, sim, !onRoster, rosterOf(sim), !!parsed.dynasties, boardDynastyIds);
       // A premade by the save's name has no from-save mark, whatever an
       // earlier import thought: one under a married name got it.
       if (seedNameKeys.has(nameKey(sim.first, sim.last))) delete patched.fromSave;
@@ -1405,6 +1465,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     }
   }
   if (parsed.dynasties) {
+    const followed = followGameDynasties(input.nodes, nodes);
+    if (followed !== nodes) nodes.splice(0, nodes.length, ...followed);
     const remembered = rememberFirstHeads(nodes);
     if (remembered !== nodes) nodes.splice(0, nodes.length, ...remembered);
   }

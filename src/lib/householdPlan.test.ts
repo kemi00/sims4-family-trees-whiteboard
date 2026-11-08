@@ -199,6 +199,21 @@ describe('planned dynasty roles', () => {
     );
   });
 
+  it('tell apart two dynasties of one name by their founder', () => {
+    const nodes = [
+      sim('Sara', 'Scott', { dynasty: 'Scott', dynastyId: '5', dynastyRole: 'head' }),
+      sim('Lia', 'Scott', { dynasty: 'Scott', dynastyId: '5', dynastyPlan: 'member' }),
+      sim('Travis', 'Scott', { dynasty: 'Scott', dynastyRef: 'r1', dynastyRole: 'head', dynastyPlan: 'member' }),
+    ];
+    assert.deepEqual(
+      plans(nodes, []).map((i) => i.text),
+      [
+        'Bring Lia Scott into the Scott dynasty (Sara’s line)',
+        'Start the Scott dynasty (Travis’s line) with Travis Scott as its head',
+      ],
+    );
+  });
+
   it('wait for a teen or a planned baby to grow up before they start a dynasty', () => {
     const nodes = [
       sim('Darling', 'Walsh', { age: 'Teen', dynasty: 'Walsh', dynastyRole: 'head', dynastyPlan: 'member' }),

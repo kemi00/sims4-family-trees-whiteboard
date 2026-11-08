@@ -8,6 +8,7 @@ import {
   mergeSaveIntoBoard,
   nameKey,
   seedNameKeysFromNodes,
+  followGameDynasties,
   syncDynasty,
 } from './mergeSave.ts';
 import type { ParsedSave } from './parseSave.ts';
@@ -1442,6 +1443,41 @@ describe('dynasty roles you planned', () => {
   it('leave roles the save gave alone', () => {
     const game = card({ dynasty: 'Dreamer', dynastyId: '7', dynastyRole: 'heir' });
     assert.deepEqual(sync(game, {}), [undefined, undefined, undefined, undefined]);
+  });
+
+  it('into a second dynasty of a name: done in a new one of that name, not in the one the board knew', () => {
+    const travis = card({ first: 'Travis', sur: 'Scott', dynasty: 'Scott', dynastyRef: 'r1', dynastyRole: 'head', dynastyPlan: 'member' });
+    const known = new Set(['5']);
+    const run = (sim: Parameters<typeof syncDynasty>[1]) => {
+      const next = { ...travis };
+      syncDynasty(next, sim, true, known);
+      return [next.dynastyId, next.dynastyRef, next.dynastyPlan];
+    };
+    // Sara's Scott dynasty, already on the board: not the one planned.
+    assert.deepEqual(run({ dynasty: 'Scott', dynastyId: '5', dynastyRole: 'head' }), [undefined, 'r1', 'member']);
+    assert.deepEqual(run({}), [undefined, 'r1', 'member']);
+    assert.deepEqual(run({ dynasty: 'Scott', dynastyId: '9', dynastyRole: 'head' }), ['9', undefined, undefined]);
+  });
+
+  it('bring the members still only planned along once the save has their dynasty', () => {
+    const sara = card({ id: 'sara', first: 'Sara', sur: 'Scott', dynasty: 'Scott', dynastyId: '5', dynastyRole: 'head' });
+    const travis = card({ id: 'travis', first: 'Travis', sur: 'Scott', dynasty: 'Scott', dynastyRef: 'r1', dynastyRole: 'head', dynastyPlan: 'member', firstHeadOf: 'ref:r1' });
+    const kid = card({ id: 'kid', first: 'Kid', sur: 'Scott', dynasty: 'Scott', dynastyRef: 'r1', dynastyPlan: 'member' });
+    const before = [sara, travis, kid];
+    // The save has Travis heading a new Scott dynasty, the kid in none yet.
+    const after = [sara, { ...travis, dynastyId: '9', dynastyPlan: undefined, dynastyRef: undefined }, kid];
+    const out = followGameDynasties(before, after);
+    assert.deepEqual(
+      out.map((n) => [n.id, n.dynastyId, n.dynastyRef, n.dynastyPlan, n.firstHeadOf]),
+      [
+        ['sara', '5', undefined, undefined, undefined],
+        ['travis', '9', undefined, undefined, 'id:9'],
+        ['kid', '9', undefined, 'member', undefined],
+      ],
+    );
+    assert.equal(out[0], sara);
+    // Nothing new in the game: the same array back.
+    assert.equal(followGameDynasties(before, before), before);
   });
 });
 

@@ -496,6 +496,7 @@ function plannedRoleFor(slot: SimNode, real: SimNode): Partial<SimNode> {
   return {
     dynasty: slot.dynasty,
     dynastyId: slot.dynastyId,
+    dynastyRef: slot.dynastyRef,
     dynastyRole: slot.dynastyRole,
     dynastyPlan: 'member',
   };

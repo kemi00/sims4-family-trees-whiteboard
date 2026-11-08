@@ -845,6 +845,11 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edrename label{margin-top:0}
 .editor .edrename__actions{display:flex;align-items:center;gap:14px;margin-top:8px}
 .editor .edrename__actions .movego{flex:1 1 auto;width:auto;margin-top:0}
+/* A new dynasty named like another: warned, not blocked, with a way to join that one. */
+.editor .edtwin{margin-top:6px;padding:7px 9px;border:1px solid #f0d3a8;border-left:3px solid #b45309;border-radius:8px;background:#fff}
+.editor .edtwin p{margin:0;font-size:11px;line-height:1.4;color:#5c4210}
+.editor .edtwin b{color:#1b2b3a}
+.editor .edtwin__actions{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:5px}
 .editor .movego:disabled,.editor .movego:disabled:hover{background:#aeb9c7;cursor:not-allowed}
 .hhmove label{display:block;font-size:10px;color:#667;margin:7px 0 2px;text-transform:uppercase;letter-spacing:.3px}
 .hhmove label:first-child{margin-top:0}
@@ -1001,7 +1006,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .dynp__form input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
 .dynp__form input[aria-invalid=true]{border-color:#c0392b;box-shadow:0 0 0 3px #c0392b33}
 .dynp__hint{margin:4px 1px 0;font-size:10.5px;line-height:1.4;color:var(--ink-3)}
-.dynp__hint--error{color:#b42318;font-weight:600}
+.dynp__hint--warn{color:#8a5a00}
 .dynp__hint--ask{margin-top:0;font-size:11.5px;color:var(--ink)}
 .dynp__formacts{display:flex;align-items:center;gap:8px;margin-top:8px}
 .dynp .dynp__go{padding:5px 12px;border:none;border-radius:var(--r-control);background:var(--accent);color:#fff;font-size:11.5px}
@@ -1143,6 +1148,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .ssel__opt{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;cursor:pointer;color:var(--ink)}
 .editor .ssel__opt--active{background:var(--accent-soft)}
 .editor .ssel__opt--create .ssel__label{font-weight:600;color:var(--accent)}
+.editor .ssel__opt--taken{margin-top:4px;border-top:1px solid var(--line);border-radius:0 0 6px 6px}
+.editor .ssel__opt--taken .ssel__label{color:#8a5a00}
 .editor .ssel__opt[aria-selected=true] .ssel__label{font-weight:700;color:var(--accent-strong)}
 .editor .ssel__opt[aria-selected=true] .ssel__label::after{content:" \2713"}
 .editor .ssel__text{display:flex;flex-direction:column;gap:1px;flex:1 1 auto;min-width:0}

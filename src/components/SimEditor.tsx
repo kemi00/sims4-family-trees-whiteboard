@@ -12,9 +12,12 @@ import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { Info } from '../icons.ts';
 import { trackAction } from '../lib/analytics.ts';
 import {
-  dynastyLabel,
   dynastyKey,
+  dynastyLabelText,
+  dynastyNames,
+  dynastyPhrase,
   generationText,
+  newDynastyRef,
   type DynastyGeneration,
   type FamilyGeneration,
 } from '../lib/generations.ts';
@@ -41,7 +44,14 @@ import {
   type PlanConflict,
 } from '../lib/plan.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
-import { dynastyNameTaken, familyDynasties, isPlannedOnlyDynasty } from '../lib/dynastyMenu.ts';
+import {
+  dynastiesNamed,
+  dynastyIndex,
+  familyDynasties,
+  isPlannedOnlyDynasty,
+  newDynastyFields,
+  renamePlannedDynasty,
+} from '../lib/dynastyMenu.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
 import { fold } from '../lib/utils.ts';
@@ -288,8 +298,8 @@ type Props = {
   onUnlinkPlanned: () => void;
   /** Open this sim's household's plan (HouseholdBrief). */
   onOpenPlan: () => void;
-  /** Renames a dynasty only the plan has, on all its members; false when refused. */
-  onRenameDynasty: (from: string, to: string) => boolean;
+  /** Renames a dynasty only the plan has (by key), on all its members: its key now, null when refused. */
+  onRenameDynasty: (key: string, to: string) => string | null;
 };
 
 export function SimEditor({
@@ -371,12 +381,14 @@ export function SimEditor({
   const boardHasSave = useMemo(() => nodes.some((x) => x.saveSimId), [nodes]);
   const byId = useMemo(() => Object.fromEntries(nodes.map((x) => [x.id, x])), [nodes]);
   const life = useMemo(() => lifeView(n, saveGame), [n, saveGame]);
-  /**
-   * The board's dynasties, to plan a sim into one: the game's, by key, named
-   * as the generation lines name them ("Ngata (Oliana’s line)").
-   */
+  /** What each dynasty is called: two of one name carry their founder's tag ("Ngata (Oliana’s line)"). */
+  const names = useMemo(() => dynastyNames(nodes), [nodes]);
+  /** The board's dynasties, to plan a sim into one, by key. */
   const dynasties = useMemo(() => {
-    const out = new Map<string, { key: string; dynasty: string; dynastyId?: string; label: string; inGame: boolean }>();
+    const out = new Map<
+      string,
+      { key: string; dynasty: string; dynastyId?: string; dynastyRef?: string; label: string; inGame: boolean }
+    >();
     for (const x of nodes) {
       const key = dynastyKey(x);
       if (!key || !x.dynasty) continue;
@@ -386,17 +398,18 @@ export function SimEditor({
         had.inGame ||= inGame;
         continue;
       }
-      const g = [...generations.values()].find((v) => v.key === key);
       out.set(key, {
         key,
         dynasty: x.dynasty,
-        ...(x.dynastyId ? { dynastyId: x.dynastyId } : {}),
-        label: g ? dynastyLabel(g, generations, byId) : x.dynasty,
+        ...(x.dynastyId ? { dynastyId: x.dynastyId } : x.dynastyRef ? { dynastyRef: x.dynastyRef } : {}),
+        label: dynastyLabelText(names.get(key) ?? { name: x.dynasty }),
         inGame,
       });
     }
     return [...out.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [nodes, generations, byId]);
+  }, [nodes, names]);
+  /** Each dynasty's members, head and heir, by key. */
+  const dynastyRows = useMemo(() => new Map(dynastyIndex(nodes).map((r) => [r.key, r])), [nodes]);
   /**
    * The dynasty they are in, or planned into: theirs; for a planned sim in
    * none, a parent's, else a partner's, the one their last name carries
@@ -426,9 +439,16 @@ export function SimEditor({
       const k = dynastyKey(x);
       if (k && !x.species) members.set(k, (members.get(k) ?? 0) + 1);
     }
+    // One of two of a name also says who heads it: pick by the people.
     const option = (d: (typeof dynasties)[number]): SearchOption => {
       const c = members.get(d.key) ?? 0;
-      return { value: d.key, label: d.label, aside: `${c} ${c === 1 ? 'sim' : 'sims'}` };
+      const head = dynastyRows.get(d.key)?.head;
+      const meta = names.get(d.key)?.tag
+        ? head && byId[head.id]
+          ? `Head: ${cardName(byId[head.id]!)}${head.planned ? ' (planned)' : ''}`
+          : 'No head yet'
+        : undefined;
+      return { value: d.key, label: d.label, aside: `${c} ${c === 1 ? 'sim' : 'sims'}`, ...(meta ? { meta } : {}) };
     };
     const near = new Set(family.map((f) => f.key));
     return [
@@ -448,7 +468,7 @@ export function SimEditor({
       { key: 'game', label: 'In your game', options: dynasties.filter((d) => d.inGame && !near.has(d.key)).map(option) },
       { key: 'planned', label: 'Planned', options: dynasties.filter((d) => !d.inGame && !near.has(d.key)).map(option) },
     ];
-  }, [nodes, byId, dynasties, family]);
+  }, [nodes, byId, dynasties, family, dynastyRows, names]);
   const [dynastyChoice, setDynastyChoice] = useState(() =>
     n.dynastyPlan === 'none' ? '' : (dynastyKey(n) ?? suggestedDynasty),
   );
@@ -456,38 +476,69 @@ export function SimEditor({
    * The picked dynasty's name when only the plan has it: it can be renamed
    * here, on every member at once. A game dynasty is named by the save.
    */
-  const renamable =
-    dynastyChoice.startsWith('name:') && isPlannedOnlyDynasty(nodes, dynastyChoice.slice(5)) ? dynastyChoice.slice(5) : '';
+  const picked = dynasties.find((d) => d.key === dynastyChoice);
+  const renamable = picked && isPlannedOnlyDynasty(nodes, picked.key) ? picked.dynasty : '';
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTo, setRenameTo] = useState('');
   const renameName = renameTo.trim();
-  const renameTaken = !!renameName && dynastyNameTaken(nodes, renameName, renamable);
-  /** The taken name as that dynasty spells it: "Goth" when "goth" was typed. */
-  const takenName = renameTaken
-    ? (nodes.find((x) => x.dynasty && x.dynasty !== renamable && fold(x.dynasty) === fold(renameName))?.dynasty ?? renameName)
-    : '';
-  const canRename = !!renamable && !!renameName && renameName !== renamable && !renameTaken;
+  /** Other dynasties that already have the name typed: allowed, told apart by founder. */
+  const renameTwins = renamable && renameName ? dynastiesNamed(nodes, renameName, dynastyChoice) : [];
+  /** The taken name as that dynasty spells it ("Goth" when "goth" was typed), and what this one would show as. */
+  const takenName = renameTwins.length ? (dynasties.find((d) => d.key === renameTwins[0])?.dynasty ?? renameName) : '';
+  const renameAs = (() => {
+    if (!renameTwins.length) return '';
+    const done = renamePlannedDynasty(nodes, dynastyChoice, renameName);
+    const d = dynastyNames(done.nodes).get(done.key);
+    return d ? dynastyLabelText(d) : renameName;
+  })();
+  const canRename = !!renamable && !!renameName && renameName !== renamable;
   const renameCount = nodes.filter((x) => dynastyKey(x) === dynastyChoice && !x.species).length;
   const doRename = () => {
-    if (!canRename || !onRenameDynasty(renamable, renameName)) return;
-    setDynastyChoice(`name:${renameName}`);
+    if (!canRename) return;
+    const key = onRenameDynasty(dynastyChoice, renameName);
+    if (!key) return;
+    setDynastyChoice(key);
     setRenameOpen(false);
   };
   /** What the closed Dynasty menu shows. */
   const dynastyDisplay = (() => {
     if (dynastyChoice === NEW_DYNASTY) return '➕ Create a new dynasty…';
-    const d = dynasties.find((x) => x.key === dynastyChoice);
-    return d ? `${d.label}${d.inGame ? '' : ' (planned)'}` : 'No dynasty';
+    return picked ? `${picked.label}${picked.inGame ? '' : ' · planned'}` : 'No dynasty';
   })();
+  /** A board id for the new dynasty, kept while the editor is open, should its name be taken. */
+  const [newRef] = useState(newDynastyRef);
   /** The dynasty picked, as a card would carry it; null for none. */
-  const target = useMemo((): { key: string; dynasty: string; dynastyId?: string } | null => {
+  const target = useMemo((): { key: string; dynasty: string; dynastyId?: string; dynastyRef?: string } | null => {
     if (dynastyChoice !== NEW_DYNASTY) return dynasties.find((d) => d.key === dynastyChoice) ?? null;
     const name = newDynasty.trim();
-    return name ? { key: `name:${name}`, dynasty: name } : null;
-  }, [dynastyChoice, newDynasty, dynasties]);
+    if (!name) return null;
+    // A name another dynasty has: a separate one, with its own board id.
+    const fields = newDynastyFields(nodes, name, newRef);
+    return { key: dynastyKey(fields)!, ...fields };
+  }, [dynastyChoice, newDynasty, dynasties, nodes, newRef]);
+  /**
+   * What the dynasties will be called once saved: a new Scott beside
+   * another, and that other, both carry their founder's tag.
+   */
+  const previewNames = useMemo(() => {
+    if (!target || target.key === dynastyKey(n)) return names;
+    const me: SimNode = {
+      ...n,
+      dynasty: target.dynasty,
+      dynastyId: target.dynastyId,
+      dynastyRef: target.dynastyRef,
+      dynastyRole: dynastyRole || undefined,
+      dynastyPlan: 'member',
+    };
+    return dynastyNames(nodes.map((x) => (x.id === n.id ? me : x)));
+  }, [names, nodes, n, target, dynastyRole]);
+  /** "Scott dynasty (Travis’s line)": the picked one, for sentences. */
+  const targetPhrase = target ? dynastyPhrase(previewNames.get(target.key) ?? { name: target.dynasty }) : '';
+  /** The other dynasties with the new dynasty's name: it is saved apart from them. */
+  const newTwins = dynastyChoice === NEW_DYNASTY && target ? dynastiesNamed(nodes, target.dynasty) : [];
   const gen = generations.get(n.id);
   const familyGen = isPet ? undefined : familyGenerations.get(n.id);
-  const genLabel = gen ? dynastyLabel(gen, generations, byId) : '';
+  const genLabel = gen ? dynastyLabelText(names.get(gen.key) ?? { name: gen.dynasty }) : '';
   const genLine = gen ? generationText(gen, genLabel) : null;
   /** Who is Gen 1 of the dynasty's count; changed here, applied on Save. */
   const [genRoot, setGenRootPick] = useState(gen?.rootPicked ? gen.rootId : AUTO_ROOT);
@@ -557,7 +608,7 @@ export function SimEditor({
         (x) =>
           x.id !== n.id &&
           x.dynastyRole === dynastyRole &&
-          (target.dynastyId && x.dynastyId ? x.dynastyId === target.dynastyId : x.dynasty === target.dynasty),
+          dynastyKey(x) === target.key,
       ) ?? null
     );
   }, [n, dynastyRole, nodes, target]);
@@ -678,20 +729,28 @@ export function SimEditor({
    * board: joining a dynasty ('member'), another role in theirs ('role'),
    * leaving it ('none', the game's dynasty kept until they do).
    */
-  function dynastyPatch(): Partial<Pick<SimNode, 'dynasty' | 'dynastyId' | 'dynastyRole' | 'dynastyPlan'>> {
+  function dynastyPatch(): Partial<Pick<SimNode, 'dynasty' | 'dynastyId' | 'dynastyRef' | 'dynastyRole' | 'dynastyPlan'>> {
     const role = target ? dynastyRole || undefined : undefined;
     const now = n.dynastyPlan === 'none' ? '' : (dynastyKey(n) ?? '');
     const want = target?.key ?? '';
     if (want === now && role === n.dynastyRole) return {};
     if (!target) {
       if (!n.dynasty) return { dynastyRole: undefined, dynastyPlan: undefined };
-      if (!inGameDynasty) return { dynasty: undefined, dynastyId: undefined, dynastyRole: undefined, dynastyPlan: undefined };
+      if (!inGameDynasty) {
+        return { dynasty: undefined, dynastyId: undefined, dynastyRef: undefined, dynastyRole: undefined, dynastyPlan: undefined };
+      }
       return { dynastyPlan: 'none' };
     }
     if (inGameDynasty && want === (dynastyKey(n) ?? '')) {
       return { dynastyRole: role, dynastyPlan: role === n.dynastyRole && n.dynastyPlan === 'none' ? undefined : 'role' };
     }
-    return { dynasty: target.dynasty, dynastyId: target.dynastyId, dynastyRole: role, dynastyPlan: 'member' };
+    return {
+      dynasty: target.dynasty,
+      dynastyId: target.dynastyId,
+      dynastyRef: target.dynastyRef,
+      dynastyRole: role,
+      dynastyPlan: 'member',
+    };
   }
 
   /** What the dynasty fields mean now: the game's, a suggestion, or a plan. */
@@ -711,13 +770,16 @@ export function SimEditor({
     if (suggestedDynasty && dynastyChoice === suggestedDynasty) {
       return `Suggested from their family: saving plans them into it. Pick No dynasty if they won’t join.${faded}`;
     }
-    if (!kind) return target ? `In the ${target.dynasty} dynasty in your save.` : '';
-    if (kind === 'none') return `A plan: ${who} leaves the ${n.dynasty} dynasty. Your save still has them in it.`;
-    if (kind === 'role') return `A plan: ${who} is in the ${target?.dynasty} dynasty in your save.${swap}${faded}`;
+    if (!kind) return target ? `In the ${targetPhrase} in your save.` : '';
+    if (kind === 'none') {
+      const theirs = dynastyPhrase(names.get(dynastyKey(n) ?? '') ?? { name: n.dynasty ?? '' });
+      return `A plan: ${who} leaves the ${theirs}. Your save still has them in it.`;
+    }
+    if (kind === 'role') return `A plan: ${who} is in the ${targetPhrase} in your save.${swap}${faded}`;
     const isNew = dynastyChoice === NEW_DYNASTY || !dynasties.find((d) => d.key === target?.key)?.inGame;
     const where = isNew
-      ? `the ${target?.dynasty} dynasty isn’t in your game yet.`
-      : `${who} isn’t in the ${target?.dynasty} dynasty in your save yet.`;
+      ? `the ${targetPhrase} isn’t in your game yet.`
+      : `${who} isn’t in the ${targetPhrase} in your save yet.`;
     return `A plan: ${where}${swap}${faded}`;
   }
 
@@ -1147,7 +1209,14 @@ export function SimEditor({
               searchLabel="Search dynasties"
               create={{
                 value: NEW_DYNASTY,
-                label: (q) => (q ? `➕ Create the “${titleCase(q)}” dynasty` : '➕ Create a new dynasty…'),
+                label: (q, taken) =>
+                  taken
+                    ? `➕ Start a separate “${titleCase(q)}” dynasty`
+                    : q
+                      ? `➕ Create the “${titleCase(q)}” dynasty`
+                      : '➕ Create a new dynasty…',
+                taken: (q) => dynastiesNamed(nodes, q).length > 0,
+                takenMeta: 'One by this name is listed above: pick it to join it.',
               }}
               onChange={(v, q) => {
                 setDynastyChoice(v);
@@ -1161,15 +1230,15 @@ export function SimEditor({
             {/* Applied at once, not on Save: it changes every member's card. */}
             {renameOpen && renamable && (
               <div id="edDynastyRename" className="edrename">
-                <label htmlFor="edDynastyRenameTo">New name for the {renamable} dynasty</label>
+                <label htmlFor="edDynastyRenameTo">
+                  New name for the {dynastyPhrase(names.get(dynastyChoice) ?? { name: renamable })}
+                </label>
                 <input
                   id="edDynastyRenameTo"
                   value={renameTo}
                   autoFocus
                   autoComplete="off"
                   spellCheck={false}
-                  className={renameTaken ? 'edname--missing' : undefined}
-                  aria-invalid={renameTaken || undefined}
                   aria-describedby="edDynastyRenameHint"
                   onChange={(e) => setRenameTo(e.target.value)}
                   onKeyDown={(e) => {
@@ -1185,11 +1254,11 @@ export function SimEditor({
                 />
                 <div
                   id="edDynastyRenameHint"
-                  className={renameTaken ? 'edhint edhint--error' : 'edhint'}
-                  role={renameTaken ? 'alert' : undefined}
+                  className={renameTwins.length ? 'edhint edhint--warn' : 'edhint'}
+                  role="status"
                 >
-                  {renameTaken
-                    ? `There’s already a ${takenName} dynasty. Pick it in the menu to join it, or choose another name.`
+                  {renameTwins.length
+                    ? `There’s already a ${takenName} dynasty. You can still use the name: to tell them apart, this one will show as ${renameAs}.`
                     : `Renames it on ${renameCount === 1 ? 'its 1 sim' : `all ${renameCount} of its sims`} right away. Use the name it will have in the game, so a save can match it.`}
                 </div>
                 <div className="edrename__actions">
@@ -1209,8 +1278,33 @@ export function SimEditor({
                   id="edDynastyNew"
                   value={newDynasty}
                   autoComplete="off"
+                  aria-describedby={newTwins.length ? 'edDynastyTwin' : undefined}
                   onChange={(e) => setNewDynasty(e.target.value)}
                 />
+                {/* Warned, not blocked: unrelated families share names in the game too. */}
+                {newTwins.length > 0 && target && (
+                  <div id="edDynastyTwin" className="edtwin" role="status">
+                    <p>
+                      {(() => {
+                        if (newTwins.length > 1) return `There are already ${newTwins.length} ${target.dynasty} dynasties.`;
+                        const row = dynastyRows.get(newTwins[0]!);
+                        const c = row?.members.length ?? 0;
+                        const head = row?.head && byId[row.head.id] ? cardName(byId[row.head.id]!) : '';
+                        return `There’s already a ${row?.name ?? target.dynasty} dynasty: ${c} ${c === 1 ? 'sim' : 'sims'}, ${head ? `headed by ${head}` : 'no head yet'}.`;
+                      })()}{' '}
+                      Saving starts a separate one, shown as{' '}
+                      <b>{dynastyLabelText(previewNames.get(target.key) ?? { name: target.dynasty })}</b> so you can tell
+                      them apart.
+                    </p>
+                    <div className="edtwin__actions">
+                      {newTwins.map((k) => (
+                        <button key={k} type="button" className="edlink" onClick={() => setDynastyChoice(k)}>
+                          Join {dynastyLabelText(previewNames.get(k) ?? { name: target.dynasty })} instead
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
             {target && (
@@ -1252,7 +1346,7 @@ export function SimEditor({
                   {gen.planned && <span className="edgen__planned"> · through a planned link</span>}
                   {/* An ancestor shared by more than one dynasty's line. */}
                   {gen.also?.map((g) => {
-                    const t = generationText(g, dynastyLabel(g, generations, byId));
+                    const t = generationText(g, dynastyLabelText(names.get(g.key) ?? { name: g.dynasty }));
                     return t ? (
                       <div key={g.key} className="edgen__also">
                         Also {t}
@@ -1404,7 +1498,7 @@ export function SimEditor({
                   const flags = [
                     c.frozen ? 'not aging now' : '',
                     c.taken ? 'in a romance' : '',
-                    p.dynasty ? `${p.dynasty} dynasty` : '',
+                    p.dynasty ? dynastyPhrase(names.get(dynastyKey(p) ?? '') ?? { name: p.dynasty }) : '',
                   ].filter(Boolean);
                   return (
                     <li key={c.id}>

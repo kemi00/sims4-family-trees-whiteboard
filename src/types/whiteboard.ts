@@ -63,6 +63,12 @@ export interface SimNode {
   dynasty?: string;
   /** The game's id for that dynasty: two can share a name (a second "Ngata"). */
   dynastyId?: string;
+  /**
+   * A dynasty planned on the board with a name another dynasty already has
+   * (a second "Scott"): its own board id, so the two stay apart until a
+   * save gives it the game's id. A dynasty with a name of its own has none.
+   */
+  dynastyRef?: string;
   /** Their place in it, marked on the card. Plain members have none. */
   dynastyRole?: DynastyRole;
   /**

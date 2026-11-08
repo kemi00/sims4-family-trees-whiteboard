@@ -4,7 +4,9 @@ import type { Edge, SimNode } from '../types/whiteboard.ts';
 import {
   dynastyGenerations,
   dynastyKey,
-  dynastyLabel,
+  dynastyLabelText,
+  dynastyNames,
+  dynastyPhrase,
   familyGenerations,
   firstHeads,
   generationText,
@@ -221,9 +223,11 @@ describe('first heads', () => {
     assert.equal(firstHeads(nodes).get('id:9'), 'Bella');
   });
 
-  it('keys a dynasty by the game’s id, else its name', () => {
-    assert.equal(dynastyKey({ dynasty: 'Goth', dynastyId: '9' }), 'id:9');
+  it('keys a dynasty by the game’s id, else its own board id, else its name', () => {
+    assert.equal(dynastyKey({ dynasty: 'Goth', dynastyId: '9', dynastyRef: 'r1' }), 'id:9');
+    assert.equal(dynastyKey({ dynasty: 'Goth', dynastyRef: 'r1' }), 'ref:r1');
     assert.equal(dynastyKey({ dynasty: 'Goth' }), 'name:Goth');
+    assert.equal(dynastyKey({ dynastyRef: 'r1' }), null);
     assert.equal(dynastyKey({}), null);
   });
 
@@ -233,9 +237,34 @@ describe('first heads', () => {
       sim('Leila', { sur: 'Ngata', dynasty: 'Ngata', dynastyId: '2', dynastyRole: 'head' }),
       sim('Mortimer', { dynastyRole: 'head' }),
     ];
-    const g = dynastyGenerations(nodes, []);
-    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
-    assert.equal(dynastyLabel(g.get('Oliana')!, g, byId), 'Ngata (Oliana’s line)');
-    assert.equal(dynastyLabel(g.get('Mortimer')!, g, byId), 'Goth');
+    const names = dynastyNames(nodes);
+    assert.equal(dynastyLabelText(names.get('id:1')!), 'Ngata (Oliana’s line)');
+    assert.equal(dynastyLabelText(names.get('id:2')!), 'Ngata (Leila’s line)');
+    assert.equal(dynastyLabelText(names.get('id:9')!), 'Goth');
+    assert.equal(dynastyPhrase(names.get('id:1')!), 'Ngata dynasty (Oliana’s line)');
+    assert.equal(dynastyPhrase(names.get('id:9')!), 'Goth dynasty');
+  });
+
+  it('tags a second planned one of a name, in any case, by its founder', () => {
+    const nodes = [
+      sim('Sara', { sur: 'Scott', dynasty: 'Scott', dynastyId: '5', dynastyRole: 'head' }),
+      sim('Simon', { sur: 'Scott', dynasty: 'Scott', dynastyId: '5' }),
+      // No head yet: the eldest living member founds it.
+      sim('Kid', { sur: 'scott', age: 'Child', dynasty: 'scott', dynastyId: undefined, dynastyRef: 'r1', dynastyPlan: 'member' }),
+      sim('Travis', { sur: 'Scott', age: 'Adult', dynasty: 'scott', dynastyId: undefined, dynastyRef: 'r1', dynastyPlan: 'member' }),
+    ];
+    const names = dynastyNames(nodes);
+    assert.deepEqual(names.get('id:5'), { name: 'Scott', tag: 'Sara’s line' });
+    assert.deepEqual(names.get('ref:r1'), { name: 'scott', tag: 'Travis’s line' });
+  });
+
+  it('uses full names when the founders share a first name', () => {
+    const nodes = [
+      sim('A', { first: 'Sam', sur: 'Scott', dynasty: 'Scott', dynastyId: '5', dynastyRole: 'head' }),
+      sim('B', { first: 'Sam', sur: 'Lee', dynasty: 'Scott', dynastyId: undefined, dynastyRef: 'r1', dynastyRole: 'head', dynastyPlan: 'member' }),
+    ];
+    const names = dynastyNames(nodes);
+    assert.equal(names.get('id:5')!.tag, 'Sam Scott’s line');
+    assert.equal(names.get('ref:r1')!.tag, 'Sam Lee’s line');
   });
 });

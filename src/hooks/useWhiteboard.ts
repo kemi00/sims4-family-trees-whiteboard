@@ -108,8 +108,15 @@ import type {
   WhiteboardData,
   World,
 } from '../types/whiteboard.ts';
-import { dynastyGenerations, dynastyKey, familyGenerations, setGenRoot } from '../lib/generations.ts';
-import { dynastyNameTaken, removePlannedDynasty, renamePlannedDynasty } from '../lib/dynastyMenu.ts';
+import {
+  dynastyGenerations,
+  dynastyKey,
+  dynastyNames,
+  dynastyPhrase,
+  familyGenerations,
+  setGenRoot,
+} from '../lib/generations.ts';
+import { removePlannedDynasty, renamePlannedDynasty } from '../lib/dynastyMenu.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
@@ -1142,47 +1149,53 @@ export function useWhiteboard() {
   );
 
   /**
-   * Renames a dynasty only the plan has on every current member's card at
-   * once (renamePlannedDynasty), undoably. A game dynasty, an empty name or
-   * one another dynasty has is refused: false back.
+   * Renames a dynasty only the plan has (by its key) on every current
+   * member's card at once (renamePlannedDynasty), undoably. A name another
+   * dynasty has is allowed: the founder's tag tells the two apart. Back: its
+   * key now, or null for a game dynasty or an empty name.
    */
   const renameDynasty = useCallback(
-    (from: string, to: string): boolean => {
+    (key: string, to: string): string | null => {
       const name = to.trim();
-      if (!name || dynastyNameTaken(nodesCore, name, from)) return false;
-      const next = renamePlannedDynasty(nodesCore, from, name);
-      if (next === nodesCore) return false;
-      const count = nodesCore.filter((n) => n.dynasty === from && !n.dynastyId && !n.species).length;
+      const was = nodesCore.find((n) => dynastyKey(n) === key)?.dynasty ?? '';
+      const from = dynastyPhrase(dynastyNames(nodesCore).get(key) ?? { name: was });
+      const done = renamePlannedDynasty(nodesCore, key, name);
+      if (done.nodes === nodesCore) return null;
+      const count = nodesCore.filter((n) => dynastyKey(n) === key && !n.species).length;
       pushUndo();
-      setNodesCore(next);
+      setNodesCore(done.nodes);
       // A lit dynasty stays lit under its new name.
-      setDynastyFocusState((k) => (k === `name:${from}` ? `name:${name}` : k));
+      setDynastyFocusState((k) => (k === key ? done.key : k));
       trackAction('/action/rename-dynasty');
-      flashStatus(`Renamed the ${from} dynasty to ${name}, on ${count === 1 ? 'its 1 sim' : `all ${count} of its sims`}.`);
-      return true;
+      flashStatus(`Renamed the ${from} to ${name}, on ${count === 1 ? 'its 1 sim' : `all ${count} of its sims`}.`);
+      return done.key;
     },
     [nodesCore, pushUndo, flashStatus],
   );
 
   /**
-   * Takes a dynasty only the plan has off every member's card at once
-   * (removePlannedDynasty), undoably; the cards stay. False for a game one.
+   * Takes a dynasty only the plan has (by its key) off every member's card at
+   * once (removePlannedDynasty), undoably; the cards stay. False for a game one.
    */
   const removeDynasty = useCallback(
-    (name: string): boolean => {
-      const next = removePlannedDynasty(nodesCore, name);
+    (key: string): boolean => {
+      const next = removePlannedDynasty(nodesCore, key);
       if (next === nodesCore) return false;
-      const count = nodesCore.filter((n) => n.dynasty === name && !n.dynastyId && !n.species).length;
+      const members = nodesCore.filter((n) => dynastyKey(n) === key && !n.species);
+      const phrase = dynastyPhrase(dynastyNames(nodesCore).get(key) ?? { name: members[0]?.dynasty ?? '' });
       pushUndo();
       setNodesCore(next);
       trackAction('/action/remove-dynasty');
       flashStatus(
-        `Removed the planned ${name} dynasty from ${count === 1 ? 'its 1 sim' : `its ${count} sims`}. Undo brings it back.`,
+        `Removed the planned ${phrase} from ${members.length === 1 ? 'its 1 sim' : `its ${members.length} sims`}. Undo brings it back.`,
       );
       return true;
     },
     [nodesCore, pushUndo, flashStatus],
   );
+
+  /** What each dynasty is called, by key: twins of one name carry their founder's tag. */
+  const dynastyNameMap = useMemo(() => dynastyNames(nodesCore), [nodesCore]);
 
   /** Each dynasty member's generation, counted from the first head. */
   const dynastyGens = useMemo(() => dynastyGenerations(nodesCore, edges), [nodesCore, edges]);
@@ -1259,8 +1272,7 @@ export function useWhiteboard() {
       (after.dynastyRole !== prev?.dynastyRole || dynastyKey(after) !== dynastyKey(prev!))
         ? after.dynastyRole
         : null;
-    const sameDynasty = (n: SimNode) =>
-      after?.dynastyId && n.dynastyId ? n.dynastyId === after.dynastyId : n.dynasty === after?.dynasty;
+    const sameDynasty = (n: SimNode) => !!after && dynastyKey(n) === dynastyKey(after);
     const loses = (n: SimNode) =>
       !!sole && n.dynastyRole === sole && sameDynasty(n) && (!after?.dynastyPlan || !!n.dynastyPlan);
     const apply = (ns: SimNode[]) =>
@@ -1268,7 +1280,7 @@ export function useWhiteboard() {
         if (n.id !== id) {
           if (!loses(n)) return n;
           // A sim only planned into the dynasty leaves it with the role.
-          const out = n.dynastyPlan === 'member' ? { dynasty: undefined, dynastyId: undefined } : {};
+          const out = n.dynastyPlan === 'member' ? { dynasty: undefined, dynastyId: undefined, dynastyRef: undefined } : {};
           return toCore({ ...n, ...out, dynastyRole: undefined, dynastyPlan: undefined });
         }
         const next: SimNode = { ...n, ...patch };
@@ -3042,6 +3054,7 @@ export function useWhiteboard() {
     updateNode,
     setDynastyGenRoot,
     dynastyGens,
+    dynastyNames: dynastyNameMap,
     planIssues,
     offPlan,
     plannedChildIds,

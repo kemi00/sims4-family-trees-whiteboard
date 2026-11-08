@@ -4,6 +4,8 @@ type Props = {
   /** The lit dynasty's members. */
   ids: ReadonlySet<string>;
   byid: Record<string, SimNode>;
+  /** "Scott dynasty", or "Scott dynasty (Travis’s line)" for one of two Scotts. */
+  phrase?: string;
   onShowAll: () => void;
   onDone: () => void;
 };
@@ -15,9 +17,9 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * members are spread, while the highlight is on. Its members can live in
  * several worlds, so Show all fits them on screen together.
  */
-export function DynastyBanner({ ids, byid, onShowAll, onDone }: Props) {
+export function DynastyBanner({ ids, byid, phrase, onShowAll, onDone }: Props) {
   const members = [...ids].map((id) => byid[id]).filter((n): n is SimNode => !!n);
-  const name = members.find((n) => n.dynasty)?.dynasty ?? 'This';
+  const name = phrase ?? `${members.find((n) => n.dynasty)?.dynasty ?? 'This'} dynasty`;
   const homes = new Set(members.map((n) => n.gid)).size;
   const worlds = new Set(members.map((n) => n.world)).size;
   return (
@@ -27,7 +29,7 @@ export function DynastyBanner({ ids, byid, onShowAll, onDone }: Props) {
       onPointerDown={(e) => e.stopPropagation()}
     >
       <p>
-        The {name} dynasty: <b>{plural(members.length, 'sim')}</b> in <b>{plural(homes, 'household')}</b>
+        The {name}: <b>{plural(members.length, 'sim')}</b> in <b>{plural(homes, 'household')}</b>
         {worlds > 1 ? (
           <>
             , across <b>{plural(worlds, 'world')}</b>

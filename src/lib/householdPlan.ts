@@ -3,6 +3,7 @@ import { cardName, conflictText, isPlannedSim, type PlanConflict } from './plan.
 import { isUnhousedGid } from './unhoused.ts';
 import { edgeSourceOf, uKey } from './utils.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE } from './constants.ts';
+import { dynastyKey, dynastyNames, dynastyPhrase } from './generations.ts';
 import type { Edge, Group, HouseholdMove, PairStatus, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -200,13 +201,16 @@ export function householdPlans(opts: {
   // A dynasty or role planned on the board: done in the game's dynasty
   // panel once the sim is in the game.
   const gameMember = new Set(
-    nodes.filter((x) => x.dynasty && x.dynastyPlan !== 'member').map((x) => (x.dynastyId ? `id:${x.dynastyId}` : `name:${x.dynasty}`)),
+    nodes.filter((x) => x.dynasty && x.dynastyPlan !== 'member').map((x) => dynastyKey(x)!),
   );
+  // Two of one name are told apart by their founder: "the Scott dynasty (Travis’s line)".
+  const dynastyName = dynastyNames(nodes);
   for (const n of nodes) {
     if (!n.dynastyPlan || n.species || !living(n)) continue;
     const name = cardName(n);
-    const the = n.dynasty ? `the ${n.dynasty} dynasty` : 'a dynasty';
-    const key = n.dynastyId ? `id:${n.dynastyId}` : `name:${n.dynasty}`;
+    const key = dynastyKey(n) ?? '';
+    const known = dynastyName.get(key);
+    const the = known ? `the ${dynastyPhrase(known)}` : n.dynasty ? `the ${n.dynasty} dynasty` : 'a dynasty';
     // A head of a dynasty the game doesn't have yet: they start it.
     const starts = n.dynastyPlan === 'member' && n.dynastyRole === 'head' && !gameMember.has(key);
     let text: string;

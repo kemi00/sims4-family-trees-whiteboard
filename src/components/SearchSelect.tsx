@@ -30,7 +30,19 @@ type Props = {
    * The first row, always shown: "➕ Create a new dynasty…", or with text
    * typed and no exact match, one named after it.
    */
-  create?: { value: string; label: (query: string) => string };
+  create?: {
+    value: string;
+    /** `taken`: the text typed is a name an option already has. */
+    label: (query: string, taken: boolean) => string;
+    /**
+     * The text typed is a name an option already has (a dynasty's, tags
+     * aside): the row then stays, last and marked, to make another of that
+     * name on purpose rather than by a slip.
+     */
+    taken?: (query: string) => boolean;
+    /** Its second line then: what to pick instead. */
+    takenMeta?: string;
+  };
   /** Picked: the option's value, and the text typed when it was picked. */
   onChange: (value: string, query: string) => void;
   /** What to say when nothing matches. */
@@ -86,12 +98,21 @@ export function SearchSelect({
       : groups;
     return found.filter((g) => g.options.length);
   }, [groups, q]);
+  const typed = query.trim();
+  const taken = !!q && !!create?.taken?.(typed);
   const exact = !!q && groups.some((g) => g.options.some((o) => fold(o.label) === q));
-  const createRow = create && !exact ? { value: create.value, label: create.label(query.trim()) } : null;
+  const createRow = create && !taken && !exact ? { value: create.value, label: create.label(typed, false) } : null;
+  // The name is taken: making another goes last, below the one to join.
+  const createLast =
+    create && taken
+      ? { value: create.value, label: create.label(typed, true), ...(create.takenMeta ? { meta: create.takenMeta } : {}) }
+      : null;
+  type Row = SearchOption & { query: string; create?: true };
   /** Every row the arrow keys move through, top to bottom. */
-  const rows: (SearchOption & { query: string })[] = [
-    ...(createRow ? [{ ...createRow, query: query.trim() }] : []),
+  const rows: Row[] = [
+    ...(createRow ? [{ ...createRow, query: typed, create: true as const }] : []),
     ...shown.flatMap((g) => g.options.map((o) => ({ ...o, query: '' }))),
+    ...(createLast ? [{ ...createLast, query: typed, create: true as const }] : []),
   ];
   const offset = createRow ? 1 : 0;
 
@@ -119,7 +140,7 @@ export function SearchSelect({
   // (Enter takes it), else creating one by the name typed.
   useEffect(() => {
     if (!open) return;
-    const cur = rows.findIndex((r, i) => i >= offset && r.value === value);
+    const cur = rows.findIndex((r) => !r.create && r.value === value);
     setActive(q ? (rows.length > offset ? offset : 0) : Math.max(0, cur));
     // On opening and on each change to the search only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,12 +194,12 @@ export function SearchSelect({
     }
   };
 
-  const row = (o: SearchOption & { query: string }, i: number, extra = '') => (
+  const row = (o: Row, i: number, extra = '') => (
     <li
       key={`${o.value}:${i}`}
       id={optId(i)}
       role="option"
-      aria-selected={o.value === value && i >= offset}
+      aria-selected={o.value === value && !o.create}
       className={`ssel__opt${i === active ? ' ssel__opt--active' : ''}${extra}`}
       // Keeps focus in the search box, so the list stays open to the click.
       onPointerDown={(e) => e.preventDefault()}
@@ -252,8 +273,9 @@ export function SearchSelect({
                 </li>
               );
             })}
+            {createLast && row(rows[rows.length - 1]!, rows.length - 1, ' ssel__opt--create ssel__opt--taken')}
           </ul>
-          {!shown.length && <div className="ssel__empty">{emptyText(query.trim())}</div>}
+          {!shown.length && <div className="ssel__empty">{emptyText(typed)}</div>}
         </div>
       )}
     </div>

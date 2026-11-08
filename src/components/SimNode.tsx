@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { CARD_H, CARD_MIN_W, COL, DECEASED_STATE, DYNASTY_ROLES, OCC, PILL_H, SPECIES, UEDIT } from '../lib/constants.ts';
+import { dynastyPhrase } from '../lib/generations.ts';
 import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch } from '../lib/utils.ts';
@@ -38,6 +39,11 @@ type Props = {
    * of this sim alone. Shown on hover and while the card is selected.
    */
   babyPlus?: boolean;
+  /**
+   * "Travis’s line" when another dynasty has the same name as theirs: the
+   * last line then reads "Scott dynasty (Travis’s line)".
+   */
+  dynastyTag?: string;
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
@@ -77,6 +83,7 @@ export const SimNodeView = memo(function SimNodeView({
   notYet,
   parents,
   babyPlus = false,
+  dynastyTag,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -113,7 +120,9 @@ export const SimNodeView = memo(function SimNodeView({
   const room = (n.w || CARD_MIN_W) - 16 - corner;
   const wide = labels ? textWidth(name, 13, 700) : 0;
   const nameSize = wide > room ? Math.max(10, Math.floor((13 * room) / wide * 2) / 2) : 13;
-  const roleText = role ? (n.dynasty ? `${role.noun} of the ${n.dynasty} dynasty` : role.label) : '';
+  /** "Scott dynasty", or "Scott dynasty (Travis’s line)" for one of two Scotts. */
+  const phrase = n.dynasty ? dynastyPhrase({ name: n.dynasty, ...(dynastyTag ? { tag: dynastyTag } : {}) }) : '';
+  const roleText = role ? (phrase ? `${role.noun} of the ${phrase}` : role.label) : '';
   // One planned to leave keeps the game's role until they do.
   const rolePlanned = n.dynastyPlan === 'member' || n.dynastyPlan === 'role';
   // A role planned on the board: its mark shows faded, like a plan not in the game yet.
@@ -126,28 +135,30 @@ export const SimNodeView = memo(function SimNodeView({
    * while planned to leave. Nothing for a sim in none. Where the line is
    * short of room, the dynasty is kept over "Resident"; a planned baby's
    * parents are kept over the dynasty, as they tell planned siblings apart.
+   * One of two dynasties of a name keeps its founder's tag over the word
+   * "dynasty": "Scott (Travis’s line)".
    */
-  const dyn: Part | null = n.dynasty && !n.species ? { text: `${n.dynasty} dynasty`, dyn: true } : null;
+  const dyn: Part | null = phrase && !n.species ? { text: phrase, dyn: true } : null;
+  const dynShort: Part | null = dyn && dynastyTag ? { text: `${n.dynasty} (${dynastyTag})`, dyn: true } : null;
   const dynTitle = !dyn
     ? ''
     : n.dynastyPlan === 'member'
-      ? `Planned into the ${n.dynasty} dynasty: not in your save yet`
+      ? `Planned into the ${phrase}: not in your save yet`
       : n.dynastyPlan === 'none'
-        ? `Planned to leave the ${n.dynasty} dynasty: your save still has them in it`
-        : `In the ${n.dynasty} dynasty`;
+        ? `Planned to leave the ${phrase}: your save still has them in it`
+        : `In the ${phrase}`;
   const sep: Part = { text: ' · ' };
+  const dyns = [dyn, dynShort].filter((p): p is Part => !!p);
   const lastLines: Part[][] = parents
     ? [
-        ...(dyn ? parents.lines.map((l) => [{ text: l }, sep, dyn]) : []),
+        ...dyns.flatMap((d) => parents.lines.map((l) => [{ text: l }, sep, d])),
         ...parents.lines.map((l) => [{ text: l }]),
       ]
     : detail
-      ? dyn
-        ? [[{ text: detail }, sep, dyn], [dyn]]
+      ? dyns.length
+        ? [...dyns.map((d) => [{ text: detail }, sep, d]), ...dyns.map((d) => [d])]
         : [[{ text: detail }]]
-      : dyn
-        ? [[dyn]]
-        : [];
+      : dyns.map((d) => [d]);
   const lastTitle = [parents?.title, dynTitle].filter(Boolean).join('\n');
 
   return (

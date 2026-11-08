@@ -2,13 +2,15 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 import {
+  dynastiesNamed,
   dynastyIndex,
-  dynastyNameTaken,
   familyDynasties,
   isPlannedOnlyDynasty,
+  newDynastyFields,
   removePlannedDynasty,
   renamePlannedDynasty,
 } from './dynastyMenu.ts';
+import { dynastyKey } from './generations.ts';
 
 const sim = (id: string, extra: Partial<SimNode> = {}): SimNode =>
   ({ id, first: id, sur: 'Luna', age: 'Adult', gender: 'Female', state: 'Sim', ...extra }) as SimNode;
@@ -66,7 +68,8 @@ describe('renaming a planned dynasty', () => {
   ];
 
   it('renames it on every member and on what is kept by its key', () => {
-    const out = renamePlannedDynasty(nodes, 'Moonwood', ' Moonshade ');
+    const { nodes: out, key } = renamePlannedDynasty(nodes, 'name:Moonwood', ' Moonshade ');
+    assert.equal(key, 'name:Moonshade');
     assert.deepEqual(
       out.map((n) => [n.id, n.dynasty, n.genRootOf ?? '']),
       [
@@ -81,15 +84,32 @@ describe('renaming a planned dynasty', () => {
   });
 
   it("leaves a game dynasty, one only some are planned into, and an empty name alone", () => {
-    assert.equal(isPlannedOnlyDynasty(nodes, 'Moonwood'), true);
-    assert.equal(isPlannedOnlyDynasty(nodes, 'Dreamer'), false);
-    assert.equal(isPlannedOnlyDynasty(nodes, 'Goth'), false);
-    assert.equal(renamePlannedDynasty(nodes, 'Dreamer', 'Dreamers'), nodes);
-    assert.equal(renamePlannedDynasty(nodes, 'Moonwood', '  '), nodes);
+    assert.equal(isPlannedOnlyDynasty(nodes, 'name:Moonwood'), true);
+    assert.equal(isPlannedOnlyDynasty(nodes, 'name:Dreamer'), false);
+    assert.equal(isPlannedOnlyDynasty(nodes, 'id:7'), false);
+    assert.equal(renamePlannedDynasty(nodes, 'name:Dreamer', 'Dreamers').nodes, nodes);
+    assert.equal(renamePlannedDynasty(nodes, 'name:Moonwood', '  ').nodes, nodes);
+  });
+
+  it('can be renamed to a name another dynasty has, kept apart by a board id of its own', () => {
+    const { nodes: out, key } = renamePlannedDynasty(nodes, 'name:Moonwood', 'Goth');
+    assert.match(key, /^ref:/);
+    assert.deepEqual(
+      out.map((n) => [n.id, n.dynasty, dynastyKey(n), n.genRootOf ?? '']),
+      [
+        ['Head', 'Goth', key, key],
+        ['Kid', 'Goth', key, ''],
+        ['Bella', 'Goth', 'id:7', ''],
+        ['Dirk', 'Dreamer', 'name:Dreamer', ''],
+        ['Plan', 'Dreamer', 'name:Dreamer', ''],
+      ],
+    );
+    // One with its own id keeps it when renamed again.
+    assert.equal(renamePlannedDynasty(out, key, 'Moonwood').key, key);
   });
 
   it('can be removed from every member, leaving their cards and other dynasties be', () => {
-    const out = removePlannedDynasty(nodes, 'Moonwood');
+    const out = removePlannedDynasty(nodes, 'name:Moonwood');
     assert.deepEqual(
       out.map((n) => [n.id, n.dynasty ?? '', n.dynastyRole ?? '', n.dynastyPlan ?? '', n.genRootOf ?? '']),
       [
@@ -100,14 +120,38 @@ describe('renaming a planned dynasty', () => {
         ['Plan', 'Dreamer', '', 'member', ''],
       ],
     );
-    assert.equal(removePlannedDynasty(nodes, 'Dreamer'), nodes);
-    assert.equal(removePlannedDynasty(nodes, 'Nowhere'), nodes);
+    assert.equal(removePlannedDynasty(nodes, 'name:Dreamer'), nodes);
+    assert.equal(removePlannedDynasty(nodes, 'name:Nowhere'), nodes);
   });
 
-  it('knows a name another dynasty has, in any case, but not its own', () => {
-    assert.equal(dynastyNameTaken(nodes, 'goth', 'Moonwood'), true);
-    assert.equal(dynastyNameTaken(nodes, 'MOONWOOD', 'Moonwood'), false);
-    assert.equal(dynastyNameTaken(nodes, 'Moonshade', 'Moonwood'), false);
+  it('knows the other dynasties with a name, in any case, but not its own', () => {
+    assert.deepEqual(dynastiesNamed(nodes, 'goth', 'name:Moonwood'), ['id:7']);
+    assert.deepEqual(dynastiesNamed(nodes, 'MOONWOOD', 'name:Moonwood'), []);
+    assert.deepEqual(dynastiesNamed(nodes, 'Moonshade'), []);
+  });
+});
+
+describe('a new dynasty', () => {
+  it('gets a board id of its own only when another dynasty has its name', () => {
+    const nodes = [sim('Sara', { sur: 'Scott', dynasty: 'Scott', dynastyRole: 'head', dynastyPlan: 'member' })];
+    assert.deepEqual(newDynastyFields(nodes, ' Scott ', 'r1'), { dynasty: 'Scott', dynastyRef: 'r1' });
+    assert.deepEqual(newDynastyFields(nodes, 'scott', 'r1'), { dynasty: 'scott', dynastyRef: 'r1' });
+    assert.deepEqual(newDynastyFields(nodes, 'Travis', 'r1'), { dynasty: 'Travis' });
+  });
+
+  it('stays apart from the other of its name, as a dynasty of its own', () => {
+    const nodes = [
+      sim('Sara', { sur: 'Scott', dynasty: 'Scott', dynastyRole: 'head', dynastyPlan: 'member' }),
+      sim('Travis', { sur: 'Scott', dynasty: 'Scott', dynastyRef: 'r1', dynastyRole: 'head', dynastyPlan: 'member' }),
+    ];
+    assert.deepEqual(
+      dynastyIndex(nodes).map((r) => [r.key, r.head?.id]),
+      [
+        ['name:Scott', 'Sara'],
+        ['ref:r1', 'Travis'],
+      ],
+    );
+    assert.equal(removePlannedDynasty(nodes, 'ref:r1')[0], nodes[0]);
   });
 });
 

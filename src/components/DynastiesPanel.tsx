@@ -12,6 +12,8 @@ type Props = {
   rows: DynastyRow[];
   /** "Ngata (Oliana’s line)" when two dynasties share a name, else the name. */
   labelOf: (row: DynastyRow) => string;
+  /** "Scott dynasty", or "Scott dynasty (Sara’s line)" for one of two Scotts: for sentences. */
+  phraseOf: (row: DynastyRow) => string;
   nameOf: (id: string) => string;
   /** "the Munch household · Willow Creek". */
   homeOf: (id: string) => string;
@@ -20,10 +22,12 @@ type Props = {
   onFind: (id: string) => void;
   /** Light up these sims on the board (a dynasty's members), or no one. */
   onHover: (ids: Set<string> | null) => void;
-  /** Renames a planned dynasty on all its members; false when refused. */
-  onRename: (from: string, to: string) => boolean;
-  /** Takes a planned dynasty off all its members; false when refused. */
-  onRemove: (name: string) => boolean;
+  /** Renames a planned dynasty (by key) on all its members: its key now, null when refused. */
+  onRename: (key: string, to: string) => string | null;
+  /** What a planned dynasty would show as renamed `to`: "Goth (Travis’s line)" when another is called Goth. */
+  renameLabel: (key: string, to: string) => string;
+  /** Takes a planned dynasty (by key) off all its members; false when refused. */
+  onRemove: (key: string) => boolean;
   /** The dynasty kept lit on the board (its key), if any. */
   litKey: string | null;
   /** Keep a dynasty lit on the board, or none. */
@@ -70,12 +74,14 @@ function memberMeta(m: DynastyMember, home: string): string {
 export function DynastiesPanel({
   rows,
   labelOf,
+  phraseOf,
   nameOf,
   homeOf,
   anchorRect,
   onFind,
   onHover,
   onRename,
+  renameLabel,
   onRemove,
   litKey,
   onLight,
@@ -115,24 +121,26 @@ export function DynastiesPanel({
     const sims = r.members.length === 1 ? 'its 1 sim' : `all ${r.members.length} of its sims`;
     if (editing?.key === r.key && editing.mode === 'rename') {
       const to = editing.to.trim();
+      // Another dynasty has the name: allowed, and told apart by founder.
       const taken = to ? rows.find((x) => x.key !== r.key && fold(x.name) === fold(to)) : undefined;
-      const can = !!to && to !== r.name && !taken;
+      const can = !!to && to !== r.name;
       const submit = () => {
-        if (!can || !onRename(r.name, to)) return;
+        if (!can) return;
+        const key = onRename(r.key, to);
+        if (!key) return;
         // The card stays open under its new name.
-        setOpen((s) => new Set([...s].filter((k) => k !== r.key)).add(`name:${to}`));
+        setOpen((s) => new Set([...s].filter((k) => k !== r.key)).add(key));
         setEditing(null);
       };
       return (
         <div className="dynp__form">
-          <label htmlFor={`${formId}-to`}>New name for the {r.name} dynasty</label>
+          <label htmlFor={`${formId}-to`}>New name for the {phraseOf(r)}</label>
           <input
             id={`${formId}-to`}
             value={editing.to}
             autoFocus
             autoComplete="off"
             spellCheck={false}
-            aria-invalid={taken ? true : undefined}
             aria-describedby={`${formId}-hint`}
             onChange={(e) => setEditing({ ...editing, to: e.target.value })}
             onKeyDown={(e) => {
@@ -146,13 +154,9 @@ export function DynastiesPanel({
               }
             }}
           />
-          <p
-            id={`${formId}-hint`}
-            className={taken ? 'dynp__hint dynp__hint--error' : 'dynp__hint'}
-            role={taken ? 'alert' : undefined}
-          >
+          <p id={`${formId}-hint`} className={taken ? 'dynp__hint dynp__hint--warn' : 'dynp__hint'} role="status">
             {taken
-              ? `There’s already a ${taken.name} dynasty. Choose another name.`
+              ? `There’s already a ${taken.name} dynasty. You can still use the name: to tell them apart, this one will show as ${renameLabel(r.key, to)}.`
               : `Renames it on ${sims} right away. Use the name it will have in the game, so a save can match it.`}
           </p>
           <div className="dynp__formacts">
@@ -171,7 +175,7 @@ export function DynastiesPanel({
         <div
           className="dynp__form"
           role="group"
-          aria-label={`Remove the ${r.name} dynasty`}
+          aria-label={`Remove the ${phraseOf(r)}`}
           onKeyDown={(e) => {
             if (e.key !== 'Escape') return;
             e.stopPropagation();
@@ -179,7 +183,7 @@ export function DynastiesPanel({
           }}
         >
           <p className="dynp__hint dynp__hint--ask">
-            Remove the planned {r.name} dynasty from {sims}? Their cards stay: only the dynasty and their roles in
+            Remove the planned {phraseOf(r)} from {sims}? Their cards stay: only the dynasty and their roles in
             it go. Undo brings it back.
           </p>
           <div className="dynp__formacts">
@@ -188,7 +192,7 @@ export function DynastiesPanel({
               className="dynp__go dynp__go--danger"
               autoFocus
               onClick={() => {
-                if (!onRemove(r.name)) return;
+                if (!onRemove(r.key)) return;
                 setEditing(null);
                 onHover(null);
               }}

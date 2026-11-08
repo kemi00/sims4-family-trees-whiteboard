@@ -1,14 +1,22 @@
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { edgeSourceOf } from './utils.ts';
+import { DECEASED_STATE } from './constants.ts';
+import { edgeSourceOf, fold } from './utils.ts';
 
 /**
  * A dynasty's key on the board: the game's id when the card has one (two
- * dynasties can share a name), else its name (a dynasty set by hand).
+ * dynasties can share a name), else a planned one's own board id when it
+ * shares its name with another (`dynastyRef`), else its name.
  */
-export function dynastyKey(n: Pick<SimNode, 'dynasty' | 'dynastyId'>): string | null {
+export function dynastyKey(n: Pick<SimNode, 'dynasty' | 'dynastyId' | 'dynastyRef'>): string | null {
   if (n.dynastyId) return `id:${n.dynastyId}`;
+  if (n.dynastyRef && n.dynasty) return `ref:${n.dynastyRef}`;
   if (n.dynasty) return `name:${n.dynasty}`;
   return null;
+}
+
+/** A new board id for a planned dynasty that shares its name with another. */
+export function newDynastyRef(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 /**
@@ -327,15 +335,72 @@ export function dynastyGenerations(nodes: SimNode[], edges: Edge[]): Map<string,
   }
   return out;
 }
+export type DynastyName = {
+  name: string;
+  /**
+   * "Oliana’s line": only when another dynasty on the board has the same
+   * name, in any case. The board's own: the game knows them by name only.
+   */
+  tag?: string;
+};
+
+/** "Goth", or "Ngata (Oliana’s line)" for one of two Ngata dynasties. */
+export const dynastyLabelText = (d: DynastyName): string => (d.tag ? `${d.name} (${d.tag})` : d.name);
+
+/** "Goth dynasty", or "Ngata dynasty (Oliana’s line)": for sentences and cards. */
+export const dynastyPhrase = (d: DynastyName): string => (d.tag ? `${d.name} dynasty (${d.tag})` : `${d.name} dynasty`);
+
+const STAGES = ['Infant', 'Toddler', 'Child', 'Teen', 'Young Adult', 'Adult', 'Elder'];
+
 /**
- * "Goth", or "Ngata (Oliana’s line)" when another dynasty on the board has
- * the same name: told apart by the first head's first name.
+ * What every dynasty on the board is called, by key. Two with the same name
+ * (two Ngata in the game, or a second "Scott" planned on the board) are told
+ * apart by their founder: the first head, else the head planned, else for
+ * one with no head yet its eldest living member. Their first names, or their
+ * full names when those match too.
  */
-export function dynastyLabel(g: DynastyGeneration, all: Map<string, DynastyGeneration>, byId: Record<string, SimNode | undefined>): string {
-  const twin = [...all.values()].some((x) => x.key !== g.key && x.dynasty === g.dynasty);
-  if (!twin) return g.dynasty;
-  const head = byId[g.firstHeadId];
-  return head ? `${g.dynasty} (${head.first}’s line)` : g.dynasty;
+export function dynastyNames(nodes: SimNode[]): Map<string, DynastyName> {
+  const members = new Map<string, SimNode[]>();
+  for (const n of nodes) {
+    const key = dynastyKey(n);
+    if (key) members.set(key, [...(members.get(key) ?? []), n]);
+  }
+  const byName = new Map<string, string[]>();
+  for (const [key, list] of members) {
+    const w = fold(list[0]!.dynasty!);
+    byName.set(w, [...(byName.get(w) ?? []), key]);
+  }
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const heads = firstHeads(nodes);
+  const founder = (key: string): SimNode | undefined => {
+    const head = byId.get(heads.get(key) ?? '');
+    if (head) return head;
+    const sims = members.get(key)!.filter((n) => !n.species);
+    const living = sims.filter((n) => n.state !== DECEASED_STATE);
+    return [...(living.length ? living : sims)].sort(
+      (a, b) =>
+        STAGES.indexOf(b.age) - STAGES.indexOf(a.age) ||
+        `${a.first} ${a.sur}`.localeCompare(`${b.first} ${b.sur}`),
+    )[0];
+  };
+  const out = new Map<string, DynastyName>();
+  for (const keys of byName.values()) {
+    if (keys.length === 1) {
+      out.set(keys[0]!, { name: members.get(keys[0]!)![0]!.dynasty! });
+      continue;
+    }
+    const found = keys.map((key) => ({ key, sim: founder(key) }));
+    const first = (s?: SimNode) => (s ? s.first.trim() || `${s.first} ${s.sur}`.trim() : '');
+    const full = (s?: SimNode) => (s ? `${s.first} ${s.sur}`.trim() : '');
+    for (const { key, sim } of found) {
+      const name = members.get(key)![0]!.dynasty!;
+      const short = first(sim);
+      const same = found.some((o) => o.key !== key && first(o.sim) === short);
+      const who = same ? full(sim) : short;
+      out.set(key, who ? { name, tag: `${who}’s line` } : { name });
+    }
+  }
+  return out;
 }
 
 /**

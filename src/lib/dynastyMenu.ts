@@ -1,5 +1,6 @@
 import { DECEASED_STATE } from './constants.ts';
-import { dynastyKey } from './generations.ts';
+import { dynastyKey, newDynastyRef } from './generations.ts';
+import { fold } from './utils.ts';
 import { cardName } from './plan.ts';
 import type { DynastyRole, Edge, SimNode } from '../types/whiteboard.ts';
 
@@ -26,9 +27,9 @@ export function familyDynasties(id: string, nodes: SimNode[], edges: Edge[]): Fa
   const byId = new Map(nodes.map((x) => [x.id, x]));
   const me = byId.get(id);
   if (!me || me.species) return [];
-  const sur = me.sur.trim().toLowerCase();
+  const sur = fold(me.sur);
   const rank = (x: SimNode) =>
-    x.dynasty!.trim().toLowerCase() === sur ? 0 : x.dynastyRole === 'head' || x.dynastyRole === 'heir' ? 1 : 2;
+    fold(x.dynasty!) === sur ? 0 : x.dynastyRole === 'head' || x.dynastyRole === 'heir' ? 1 : 2;
   const kin = (types: Edge['type'][], other: (e: Edge) => string | null) =>
     edges
       .filter((e) => types.includes(e.type))
@@ -57,35 +58,56 @@ export function familyDynasties(id: string, nodes: SimNode[], edges: Edge[]): Fa
  * has it from a save. Only such a dynasty can be renamed on the board; a
  * game dynasty takes its name from the save.
  */
-export function isPlannedOnlyDynasty(nodes: SimNode[], name: string): boolean {
-  const key = `name:${name}`;
+export function isPlannedOnlyDynasty(nodes: SimNode[], key: string): boolean {
   const members = nodes.filter((n) => dynastyKey(n) === key);
   return members.length > 0 && members.every((n) => n.dynastyPlan === 'member');
 }
 
-/** Another dynasty on the board already goes by `name` (any case), so renaming one to it would merge them. */
-export function dynastyNameTaken(nodes: SimNode[], name: string, except: string): boolean {
-  const want = name.trim().toLowerCase();
-  return nodes.some((n) => !!n.dynasty && n.dynasty !== except && n.dynasty.trim().toLowerCase() === want);
+/** The other dynasties on the board that go by `name`, in any case: their keys. */
+export function dynastiesNamed(nodes: SimNode[], name: string, exceptKey = ''): string[] {
+  const want = fold(name);
+  if (!want) return [];
+  const keys = new Set<string>();
+  for (const n of nodes) {
+    const key = dynastyKey(n);
+    if (key && key !== exceptKey && fold(n.dynasty!) === want) keys.add(key);
+  }
+  return [...keys];
 }
 
 /**
- * Planned-only dynasty `from` renamed `to` on every current member's card,
- * and in what is kept by its key (a first head, a picked Gen 1). The same
- * array back when there is nothing to rename or the dynasty is the game's.
+ * The fields a card gets to start a new dynasty `name`: its own board id as
+ * well when another dynasty already has the name, so the two stay apart.
  */
-export function renamePlannedDynasty(nodes: SimNode[], from: string, to: string): SimNode[] {
+export function newDynastyFields(nodes: SimNode[], name: string, ref = newDynastyRef()): { dynasty: string; dynastyRef?: string } {
+  const dynasty = name.trim();
+  return dynastiesNamed(nodes, dynasty).length ? { dynasty, dynastyRef: ref } : { dynasty };
+}
+
+/**
+ * Planned-only dynasty `key` renamed `to` on every current member's card,
+ * and in what is kept by its key (a first head, a picked Gen 1). A name
+ * another dynasty has is allowed: the dynasty then gets its own board id,
+ * so the two stay apart. Back: the nodes and its key now; the same array
+ * when there is nothing to rename or the dynasty is the game's.
+ */
+export function renamePlannedDynasty(nodes: SimNode[], key: string, to: string): { nodes: SimNode[]; key: string } {
   const name = to.trim();
-  if (!name || name === from || !isPlannedOnlyDynasty(nodes, from)) return nodes;
-  const was = `name:${from}`;
-  const now = `name:${name}`;
-  return nodes.map((n) => {
+  const from = nodes.find((n) => dynastyKey(n) === key)?.dynasty;
+  if (!name || name === from || !isPlannedOnlyDynasty(nodes, key)) return { nodes, key };
+  const ref = key.startsWith('name:') && dynastiesNamed(nodes, name, key).length ? newDynastyRef() : '';
+  const now = ref ? `ref:${ref}` : key.startsWith('name:') ? `name:${name}` : key;
+  const out = nodes.map((n) => {
     const patch: Partial<SimNode> = {};
-    if (dynastyKey(n) === was) patch.dynasty = name;
-    if (n.firstHeadOf === was) patch.firstHeadOf = now;
-    if (n.genRootOf === was) patch.genRootOf = now;
+    if (dynastyKey(n) === key) {
+      patch.dynasty = name;
+      if (ref) patch.dynastyRef = ref;
+    }
+    if (now !== key && n.firstHeadOf === key) patch.firstHeadOf = now;
+    if (now !== key && n.genRootOf === key) patch.genRootOf = now;
     return Object.keys(patch).length ? { ...n, ...patch } : n;
   });
+  return { nodes: out, key: now };
 }
 
 export type DynastyMember = {
@@ -165,14 +187,13 @@ export function dynastyIndex(nodes: SimNode[]): DynastyRow[] {
 }
 
 /**
- * Planned-only dynasty `name` taken off every member's card, as picking No
+ * Planned-only dynasty `key` taken off every member's card, as picking No
  * dynasty takes it off one: the dynasty, its role and the plan go, and so
  * does what was kept by its key. The cards themselves stay. The same array
  * back when the dynasty is the game's or not on the board.
  */
-export function removePlannedDynasty(nodes: SimNode[], name: string): SimNode[] {
-  if (!isPlannedOnlyDynasty(nodes, name)) return nodes;
-  const key = `name:${name}`;
+export function removePlannedDynasty(nodes: SimNode[], key: string): SimNode[] {
+  if (!isPlannedOnlyDynasty(nodes, key)) return nodes;
   return nodes.map((n) => {
     const member = dynastyKey(n) === key;
     if (!member && n.firstHeadOf !== key && n.genRootOf !== key) return n;
@@ -180,6 +201,7 @@ export function removePlannedDynasty(nodes: SimNode[], name: string): SimNode[] 
     if (member) {
       delete out.dynasty;
       delete out.dynastyId;
+      delete out.dynastyRef;
       delete out.dynastyRole;
       delete out.dynastyPlan;
     }

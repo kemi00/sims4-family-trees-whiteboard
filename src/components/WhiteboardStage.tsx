@@ -80,7 +80,7 @@ import { SimEditor } from './SimEditor.tsx';
 import { cardName, isPlannedSim, notYetText, parentsLines } from '../lib/plan.ts';
 import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/householdPlan.ts';
 import { HouseholdBrief } from './HouseholdBrief.tsx';
-import type { DynastyGeneration } from '../lib/generations.ts';
+import { dynastyKey, dynastyPhrase, type DynastyGeneration } from '../lib/generations.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { SimNodeView } from './SimNode.tsx';
 import { ViewControls } from './ViewControls.tsx';
@@ -1768,6 +1768,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                   isPlannedSim(n) ? notYetText(wb.plannedChildIds.has(n.id)) : undefined
                 }
                 parents={n.first.trim() ? undefined : plannedParentsOf(n.id)}
+                dynastyTag={n.dynasty ? wb.dynastyNames.get(dynastyKey(n) ?? '')?.tag : undefined}
                 babyPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
@@ -1943,6 +1944,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         <DynastyBanner
           ids={wb.dynastyFocusIds}
           byid={wb.byid}
+          phrase={(() => {
+            const d = wb.dynastyFocus ? wb.dynastyNames.get(wb.dynastyFocus) : undefined;
+            return d ? dynastyPhrase(d) : undefined;
+          })()}
           onShowAll={() => {
             const r = svgRef.current?.getBoundingClientRect();
             wb.frameSims(wb.dynastyFocusIds ?? [], r?.width ?? 800, r?.height ?? 600);

@@ -18,8 +18,8 @@ import { GamesPanel } from './components/GamesPanel.tsx';
 import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { UpNextPanel } from './components/UpNextPanel.tsx';
 import { DynastiesPanel } from './components/DynastiesPanel.tsx';
-import { dynastyIndex, type DynastyRow } from './lib/dynastyMenu.ts';
-import { dynastyLabel } from './lib/generations.ts';
+import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
+import { dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
 import { isPanelSheet } from './lib/chrome.ts';
 import { householdPlace } from './lib/connectionLog.ts';
 import { householdName, upNext } from './lib/householdPlan.ts';
@@ -180,11 +180,21 @@ export default function App() {
   /** Every dynasty on the board, for the Dynasties panel: worked out only while it is open. */
   const dynastyRows = useMemo(() => (wb.dynastiesOpen ? dynastyIndex(wb.nodes) : []), [wb.dynastiesOpen, wb.nodes]);
   const dynastyLabelOf = useCallback(
-    (r: DynastyRow) => {
-      const g = [...wb.dynastyGens.values()].find((x) => x.key === r.key);
-      return g ? dynastyLabel(g, wb.dynastyGens, wb.byid) : r.name;
+    (r: DynastyRow) => dynastyLabelText(wb.dynastyNames.get(r.key) ?? { name: r.name }),
+    [wb.dynastyNames],
+  );
+  const dynastyPhraseOf = useCallback(
+    (r: DynastyRow) => dynastyPhrase(wb.dynastyNames.get(r.key) ?? { name: r.name }),
+    [wb.dynastyNames],
+  );
+  /** What a planned dynasty would show as if renamed: told apart by founder when the name is taken. */
+  const renamedLabel = useCallback(
+    (key: string, to: string) => {
+      const done = renamePlannedDynasty(wb.nodes, key, to);
+      const d = dynastyNames(done.nodes).get(done.key);
+      return d ? dynastyLabelText(d) : to.trim();
     },
-    [wb.dynastyGens, wb.byid],
+    [wb.nodes],
   );
   const nameOfSim = useCallback(
     (id: string) => {
@@ -322,6 +332,7 @@ export default function App() {
             <DynastiesPanel
               rows={dynastyRows}
               labelOf={dynastyLabelOf}
+              phraseOf={dynastyPhraseOf}
               nameOf={nameOfSim}
               homeOf={(id) => {
                 const n = wb.byid[id];
@@ -336,6 +347,7 @@ export default function App() {
               }}
               onHover={wb.setBriefHover}
               onRename={wb.renameDynasty}
+              renameLabel={renamedLabel}
               onRemove={wb.removeDynasty}
               litKey={wb.dynastyFocus}
               onLight={(key) => {
