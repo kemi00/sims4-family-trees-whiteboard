@@ -116,7 +116,7 @@ import {
   familyGenerations,
   setGenRoot,
 } from '../lib/generations.ts';
-import { removePlannedDynasty, renamePlannedDynasty } from '../lib/dynastyMenu.ts';
+import { dynastyIndex, removePlannedDynasty, renamePlannedDynasty, type DynastyRisk } from '../lib/dynastyMenu.ts';
 import { worldTotals } from '../lib/worldTag.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
@@ -1199,6 +1199,11 @@ export function useWhiteboard() {
 
   /** What each dynasty is called, by key: twins of one name carry their founder's tag. */
   const dynastyNameMap = useMemo(() => dynastyNames(nodesCore), [nodesCore]);
+  // Dynasties that could die out as planned (no heir, or 2 sims or fewer), by key: their members' cards say so.
+  const dynastyRisks = useMemo(
+    () => new Map(dynastyIndex(nodesCore).flatMap((r): [string, DynastyRisk][] => (r.risk ? [[r.key, r.risk]] : []))),
+    [nodesCore],
+  );
 
   /** Each dynasty member's generation, counted from the first head. */
   const dynastyGens = useMemo(() => dynastyGenerations(nodesCore, edges), [nodesCore, edges]);
@@ -3062,6 +3067,7 @@ export function useWhiteboard() {
     setDynastyGenRoot,
     dynastyGens,
     dynastyNames: dynastyNameMap,
+    dynastyRisks,
     planIssues,
     offPlan,
     plannedChildIds,

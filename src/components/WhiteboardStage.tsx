@@ -81,6 +81,7 @@ import { cardName, isPlannedSim, notYetText, parentsLines } from '../lib/plan.ts
 import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/householdPlan.ts';
 import { HouseholdBrief } from './HouseholdBrief.tsx';
 import { dynastyKey, dynastyPhrase, type DynastyGeneration } from '../lib/generations.ts';
+import { riskText } from '../lib/dynastyMenu.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { SimNodeView } from './SimNode.tsx';
 import { ViewControls } from './ViewControls.tsx';
@@ -1510,6 +1511,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     if (!list.length) return undefined;
     return { lines: parentsLines(list), title: `Child of ${list.map(cardName).join(' and ')}` };
   };
+  /** "no heir" when the sim's dynasty is at risk; nothing for the deceased or one planned to leave it. */
+  const dynastyRiskOf = (n: SimNode) => {
+    if (!n.dynasty || n.species || n.state === DECEASED_STATE || n.dynastyPlan === 'none') return undefined;
+    const risk = wb.dynastyRisks.get(dynastyKey(n) ?? '');
+    return risk ? riskText(risk) : undefined;
+  };
   const oneHousehold = wb.multiSel?.kind === 'households' && wb.multiSel.gids.length === 1 ? wb.multiSel.gids[0] : undefined;
   const menu = wb.connectMenu;
   const connHighlight =
@@ -1769,6 +1776,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 }
                 parents={n.first.trim() ? undefined : plannedParentsOf(n.id)}
                 dynastyTag={n.dynasty ? wb.dynastyNames.get(dynastyKey(n) ?? '')?.tag : undefined}
+                dynastyRisk={dynastyRiskOf(n)}
                 babyPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}

@@ -9,6 +9,7 @@ import {
   newDynastyFields,
   removePlannedDynasty,
   renamePlannedDynasty,
+  riskText,
 } from './dynastyMenu.ts';
 import { dynastyKey } from './generations.ts';
 
@@ -179,6 +180,47 @@ describe('the dynasty list', () => {
     assert.deepEqual(
       thebe!.members.map((m) => m.id),
       ['Cordelia', 'Heir', 'Abe', 'Arnessa', 'Queen'],
+    );
+  });
+});
+
+describe('dynasties at risk', () => {
+  const risk = (members: Partial<SimNode>[]) =>
+    dynastyIndex(members.map((m, i) => sim(`s${i}`, { dynasty: 'Lum', dynastyId: '7', ...m })))[0]!.risk;
+
+  it('are those with no heir, or 2 sims or fewer to carry them on', () => {
+    assert.deepEqual(risk([{ dynastyRole: 'head' }]), { noHeir: true, sims: 1 });
+    // A head and an heir alone, or a head and one more, are still at risk.
+    assert.deepEqual(risk([{ dynastyRole: 'head' }, { dynastyRole: 'heir' }]), { noHeir: false, sims: 2 });
+    assert.deepEqual(risk([{ dynastyRole: 'head' }, {}]), { noHeir: true, sims: 2 });
+    assert.deepEqual(risk([{ dynastyRole: 'head' }, {}, {}, {}]), { noHeir: true, sims: 4 });
+    assert.equal(risk([{ dynastyRole: 'head' }, { dynastyRole: 'heir' }, {}]), undefined);
+  });
+
+  it('count planned members and heirs, but not the deceased, outcasts or sims planned to leave', () => {
+    // A planned heir and a planned member make it safe in the plan.
+    assert.equal(risk([{ dynastyRole: 'head' }, { dynastyRole: 'heir', dynastyPlan: 'member' }, { dynastyPlan: 'member' }]), undefined);
+    assert.deepEqual(
+      risk([
+        { dynastyRole: 'head' },
+        { dynastyRole: 'heir', state: 'Deceased' },
+        { dynastyRole: 'outcast' },
+        { dynastyPlan: 'none' },
+        {},
+      ]),
+      { noHeir: true, sims: 2 },
+    );
+  });
+
+  it('say why in a few words', () => {
+    assert.deepEqual(
+      [
+        riskText({ noHeir: true, sims: 1 }),
+        riskText({ noHeir: true, sims: 4 }),
+        riskText({ noHeir: false, sims: 2 }),
+        riskText({ noHeir: true, sims: 0 }),
+      ],
+      ['no heir, and only 1 sim', 'no heir', 'only 2 sims', 'no sims left'],
     );
   });
 });

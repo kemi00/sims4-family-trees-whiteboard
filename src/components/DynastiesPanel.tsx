@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Highlighter } from '../icons.ts';
+import { Highlighter, Warning } from '../icons.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { DYNASTY_ROLES } from '../lib/constants.ts';
-import type { DynastyMember, DynastyRow } from '../lib/dynastyMenu.ts';
+import { riskText, type DynastyMember, type DynastyRow } from '../lib/dynastyMenu.ts';
 import { fold } from '../lib/utils.ts';
 
 const WIDTH = 330;
@@ -33,6 +33,26 @@ type Props = {
   /** Keep a dynasty lit on the board, or none. */
   onLight: (key: string | null) => void;
 };
+
+/** The list's order: by name, or by how many sims each has (the count on its card). */
+type Sort = 'name' | 'most' | 'fewest';
+
+const SORTS: { key: Sort; label: string; title: string }[] = [
+  { key: 'name', label: 'A–Z', title: 'By name, A to Z' },
+  { key: 'most', label: 'Most sims', title: 'The most sims first' },
+  { key: 'fewest', label: 'Fewest sims', title: 'The fewest sims first' },
+];
+
+/** The order you last picked, kept for this browser only. */
+const SORT_KEY = 'dynasties-sort';
+function readSort(): Sort {
+  try {
+    const v = localStorage.getItem(SORT_KEY);
+    return v === 'most' || v === 'fewest' ? v : 'name';
+  } catch {
+    return 'name';
+  }
+}
 
 /** What a planned dynasty's card is asking: a new name, or whether to remove it. */
 type Editing = { key: string; mode: 'rename' | 'remove'; to: string };
@@ -90,24 +110,40 @@ export function DynastiesPanel({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [sort, setSort] = useState<Sort>(readSort);
+  const [riskOnly, setRiskOnly] = useState(false);
+  const atRisk = useMemo(() => rows.filter((r) => r.risk).length, [rows]);
+  const pickSort = (next: Sort) => {
+    setSort(next);
+    try {
+      localStorage.setItem(SORT_KEY, next);
+    } catch {
+      // Private mode: the order holds until the panel closes.
+    }
+  };
   // Nothing stays lit once the panel closes.
   useEffect(() => () => onHover(null), [onHover]);
 
   const q = fold(query);
-  /** Rows matching the search, by their name or a member's; those found by a member open. */
+  /**
+   * Rows matching the search, by their name or a member's (those found by
+   * a member open), only those at risk when asked, in the order picked:
+   * by size, ties stay A to Z.
+   */
   const found = useMemo(() => {
-    if (!q) return { rows, byMember: new Set<string>() };
     const byMember = new Set<string>();
     const out = rows.filter((r) => {
-      if (fold(labelOf(r)).includes(q)) return true;
+      if (riskOnly && !r.risk) return false;
+      if (!q || fold(labelOf(r)).includes(q)) return true;
       if (r.members.some((m) => fold(nameOf(m.id)).includes(q))) {
         byMember.add(r.key);
         return true;
       }
       return false;
     });
+    if (sort !== 'name') out.sort((a, b) => (sort === 'most' ? -1 : 1) * (a.members.length - b.members.length));
     return { rows: out, byMember };
-  }, [rows, q, labelOf, nameOf]);
+  }, [rows, q, labelOf, nameOf, riskOnly, sort]);
 
   const pos = panelPosition(anchorRect, WIDTH);
   if (!pos) return null;
@@ -265,12 +301,48 @@ export function DynastiesPanel({
           }}
         />
       )}
+      {rows.length > 1 && (
+        <div className="dynp__tools">
+          <div className="dynp__sort" role="group" aria-label="Sort dynasties">
+            {SORTS.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                className="dynp__sortopt"
+                aria-pressed={sort === o.key}
+                title={o.title}
+                onClick={() => pickSort(o.key)}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {(atRisk > 0 || riskOnly) && (
+            <button
+              type="button"
+              className="dynp__riskonly"
+              aria-pressed={riskOnly}
+              title={riskOnly ? 'Show every dynasty' : 'Show only the dynasties at risk'}
+              onClick={() => setRiskOnly((v) => !v)}
+            >
+              <Warning size={13} weight="fill" aria-hidden />
+              {atRisk} at risk
+            </button>
+          )}
+        </div>
+      )}
       {!rows.length ? (
         <p className="dynp__empty">
           No dynasties yet. Upload a save with dynasties in it, or plan one from a sim’s Family tab.
         </p>
       ) : !groups.length ? (
-        <p className="dynp__empty">No dynasty or member matches “{query.trim()}”.</p>
+        <p className="dynp__empty">
+          {riskOnly
+            ? q
+              ? `No dynasty at risk matches “${query.trim()}”.`
+              : 'No dynasty is at risk.'
+            : `No dynasty or member matches “${query.trim()}”.`}
+        </p>
       ) : (
         groups.map((g) => (
           <section key={g.key} className="dynp__group" aria-labelledby={`dynp-${g.key}`}>
@@ -318,6 +390,12 @@ export function DynastiesPanel({
                         {holder(r.heir, 'heir')}
                       </span>
                       {parts && <span className="dynp__parts">{parts}</span>}
+                      {r.risk && (
+                        <span className="dynp__risk">
+                          <Warning size={13} weight="fill" aria-hidden />
+                          At risk: {riskText(r.risk)}
+                        </span>
+                      )}
                     </button>
                     {/* Hovering only previews; this keeps them lit after. */}
                     <button
@@ -369,7 +447,8 @@ export function DynastiesPanel({
       <p className="upnext__rules">
         Hover a dynasty to light up its members on the board, in any world, or click its highlighter to keep them
         lit. Open it to see who they are, or to rename or remove a planned one. Counts take in the deceased and
-        sims only planned into it.
+        sims only planned into it. A dynasty is at risk with no heir, or with 2 sims or fewer to carry it on: its
+        living members, planned ones too, but not outcasts or sims planned to leave.
       </p>
     </div>
   );

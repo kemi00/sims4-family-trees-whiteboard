@@ -44,11 +44,13 @@ type Props = {
    * last line then reads "Scott dynasty (Travis’s line)".
    */
   dynastyTag?: string;
+  /** Why their dynasty could die out ("no heir"): "at risk" follows the dynasty on the last line. */
+  dynastyRisk?: string;
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
-/** A piece of a card's last line; `dyn` marks the dynasty, styled by its plan. */
-type Part = { text: string; dyn?: true };
+/** A piece of a card's last line; `dyn` marks the dynasty, styled by its plan, and `risk` its warning. */
+type Part = { text: string; dyn?: true; risk?: true };
 
 /**
  * The first line (of parts) that fits `room`, else the last with its end
@@ -84,6 +86,7 @@ export const SimNodeView = memo(function SimNodeView({
   parents,
   babyPlus = false,
   dynastyTag,
+  dynastyRisk,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -142,14 +145,21 @@ export const SimNodeView = memo(function SimNodeView({
   const dynShort: Part | null = dyn && dynastyTag ? { text: `${n.dynasty} (${dynastyTag})`, dyn: true } : null;
   const dynTitle = !dyn
     ? ''
-    : n.dynastyPlan === 'member'
-      ? `Planned into the ${phrase}: not in your save yet`
-      : n.dynastyPlan === 'none'
-        ? `Planned to leave the ${phrase}: your save still has them in it`
-        : `In the ${phrase}`;
+    : `${
+        n.dynastyPlan === 'member'
+          ? `Planned into the ${phrase}: not in your save yet`
+          : n.dynastyPlan === 'none'
+            ? `Planned to leave the ${phrase}: your save still has them in it`
+            : `In the ${phrase}`
+      }${dynastyRisk ? `\nThe ${phrase} is at risk: ${dynastyRisk}` : ''}`;
   const sep: Part = { text: ' · ' };
   const dyns = [dyn, dynShort].filter((p): p is Part => !!p);
-  const lastLines: Part[][] = parents
+  /**
+   * A dynasty at risk says so after its name, kept over "Resident" (as the
+   * dynasty is), and given up only when the dynasty alone doesn't fit.
+   */
+  const risk: Part[] = dynastyRisk && dyn ? [sep, { text: 'at risk', risk: true }] : [];
+  const lines: Part[][] = parents
     ? [
         ...dyns.flatMap((d) => parents.lines.map((l) => [{ text: l }, sep, d])),
         ...parents.lines.map((l) => [{ text: l }]),
@@ -159,6 +169,9 @@ export const SimNodeView = memo(function SimNodeView({
         ? [...dyns.map((d) => [{ text: detail }, sep, d]), ...dyns.map((d) => [d])]
         : [[{ text: detail }]]
       : dyns.map((d) => [d]);
+  const lastLines: Part[][] = risk.length
+    ? [...lines.filter((l) => l.some((p) => p.dyn)).map((l) => [...l, ...risk]), ...lines]
+    : lines;
   const lastTitle = [parents?.title, dynTitle].filter(Boolean).join('\n');
 
   return (
@@ -212,7 +225,11 @@ export const SimNodeView = memo(function SimNodeView({
             <text x={16} y={72} fontSize={10.5} fill="#697380">
               {lastTitle && <title>{lastTitle}</title>}
               {fitParts(lastLines, (n.w || CARD_MIN_W) - 16 - 30).map((p, i) =>
-                p.dyn ? (
+                p.risk ? (
+                  <tspan key={i} fill="#b45309" fontWeight={600}>
+                    {p.text}
+                  </tspan>
+                ) : p.dyn ? (
                   <tspan
                     key={i}
                     fill="#3b4757"

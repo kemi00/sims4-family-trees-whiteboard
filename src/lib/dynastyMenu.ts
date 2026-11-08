@@ -133,7 +133,34 @@ export type DynastyRow = {
   joining: number;
   leaving: number;
   deceased: number;
+  /** Why it could die out, as planned (dynastyRisk); absent when it is safe. */
+  risk?: DynastyRisk;
 };
+
+/** With this many sims or fewer to carry it on, a dynasty is at risk. */
+export const AT_RISK_SIMS = 2;
+
+/** Why a dynasty is at risk: no heir, and how many sims can carry it on. */
+export type DynastyRisk = { noHeir: boolean; sims: number };
+
+/**
+ * Whether a dynasty could die out, as you planned it: it has no heir, or
+ * 2 or fewer sims to carry it on. Those are its living members, planned
+ * ones too (a planned heir is an heir), but not outcasts or sims planned
+ * to leave. Undefined when it is safe.
+ */
+export function dynastyRisk(members: DynastyMember[]): DynastyRisk | undefined {
+  const carry = members.filter((m) => !m.deceased && !m.leaving && m.role !== 'outcast');
+  const noHeir = !carry.some((m) => m.role === 'heir');
+  return noHeir || carry.length <= AT_RISK_SIMS ? { noHeir, sims: carry.length } : undefined;
+}
+
+/** "no heir", "only 2 sims", "no heir, and only 1 sim", "no sims left". */
+export function riskText(r: DynastyRisk): string {
+  const few = r.sims === 0 ? 'no sims left' : r.sims <= AT_RISK_SIMS ? `only ${r.sims} ${r.sims === 1 ? 'sim' : 'sims'}` : '';
+  if (r.sims === 0) return few;
+  return r.noHeir ? (few ? `no heir, and ${few}` : 'no heir') : few;
+}
 
 /**
  * Every dynasty on the board with its members (pets aside), for the
@@ -171,6 +198,7 @@ export function dynastyIndex(nodes: SimNode[]): DynastyRow[] {
     const inGame = list.some((n) => n.dynastyPlan !== 'member');
     const head = holder('head');
     const heir = holder('heir');
+    const risk = dynastyRisk(members);
     rows.push({
       key,
       name: list[0]!.dynasty!,
@@ -181,6 +209,7 @@ export function dynastyIndex(nodes: SimNode[]): DynastyRow[] {
       joining: inGame ? list.filter((n) => n.dynastyPlan === 'member').length : 0,
       leaving: members.filter((m) => m.leaving).length,
       deceased: members.filter((m) => m.deceased).length,
+      ...(risk ? { risk } : {}),
     });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
