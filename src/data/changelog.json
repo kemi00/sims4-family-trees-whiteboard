@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "705deb1",
+   "date": "2026-11-08",
+   "text": "A Dynasties button (the crown, beside Up next) lists every dynasty, in your game and planned, with how many sims each has, its head and heir. Hover one to light up its members on the board, wherever they live; open it to see who they are and click one to go to them. Search by dynasty or by a sim's name. On a phone, Up next and Dynasties are in the More menu, and the top bar no longer runs off the edge at some window widths."
+  },
+  {
    "sha": "22b75a4",
    "date": "2026-11-08",
    "text": "A planned dynasty can be renamed: pick it in a member's Family tab and click Rename beside Dynasty. The new name goes on all its members' cards at once, and Undo takes it back. A name another dynasty already has is refused, and dynasties from your game keep the name your save gives them."
