@@ -109,6 +109,7 @@ import type {
   World,
 } from '../types/whiteboard.ts';
 import { dynastyGenerations, dynastyKey, familyGenerations, setGenRoot } from '../lib/generations.ts';
+import { dynastyNameTaken, renamePlannedDynasty } from '../lib/dynastyMenu.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
@@ -1112,6 +1113,27 @@ export function useWhiteboard() {
       setNodesCore((ns) => setGenRoot(ns, key, id));
     },
     [pushUndo],
+  );
+
+  /**
+   * Renames a dynasty only the plan has on every current member's card at
+   * once (renamePlannedDynasty), undoably. A game dynasty, an empty name or
+   * one another dynasty has is refused: false back.
+   */
+  const renameDynasty = useCallback(
+    (from: string, to: string): boolean => {
+      const name = to.trim();
+      if (!name || dynastyNameTaken(nodesCore, name, from)) return false;
+      const next = renamePlannedDynasty(nodesCore, from, name);
+      if (next === nodesCore) return false;
+      const count = nodesCore.filter((n) => n.dynasty === from && !n.dynastyId && !n.species).length;
+      pushUndo();
+      setNodesCore(next);
+      trackAction('/action/rename-dynasty');
+      flashStatus(`Renamed the ${from} dynasty to ${name}, on ${count === 1 ? 'its 1 sim' : `all ${count} of its sims`}.`);
+      return true;
+    },
+    [nodesCore, pushUndo, flashStatus],
   );
 
   /** Each dynasty member's generation, counted from the first head. */
@@ -2888,6 +2910,7 @@ export function useWhiteboard() {
     infantHouseChoices,
     requestInfantOfCouple,
     requestInfantOfSim,
+    renameDynasty,
     confirmInfantHouse,
     logOpen,
     setLogOpen,

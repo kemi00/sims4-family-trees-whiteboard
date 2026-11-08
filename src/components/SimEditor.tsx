@@ -41,7 +41,7 @@ import {
   type PlanConflict,
 } from '../lib/plan.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
-import { familyDynasties } from '../lib/dynastyMenu.ts';
+import { dynastyNameTaken, familyDynasties, isPlannedOnlyDynasty } from '../lib/dynastyMenu.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
 import { fold } from '../lib/utils.ts';
@@ -288,6 +288,8 @@ type Props = {
   onUnlinkPlanned: () => void;
   /** Open this sim's household's plan (HouseholdBrief). */
   onOpenPlan: () => void;
+  /** Renames a dynasty only the plan has, on all its members; false when refused. */
+  onRenameDynasty: (from: string, to: string) => boolean;
 };
 
 export function SimEditor({
@@ -314,6 +316,7 @@ export function SimEditor({
   onLinkPlanned,
   onUnlinkPlanned,
   onOpenPlan,
+  onRenameDynasty,
 }: Props) {
   const compact = useCompactChrome();
   const isPet = !!n.species;
@@ -449,6 +452,27 @@ export function SimEditor({
   const [dynastyChoice, setDynastyChoice] = useState(() =>
     n.dynastyPlan === 'none' ? '' : (dynastyKey(n) ?? suggestedDynasty),
   );
+  /**
+   * The picked dynasty's name when only the plan has it: it can be renamed
+   * here, on every member at once. A game dynasty is named by the save.
+   */
+  const renamable =
+    dynastyChoice.startsWith('name:') && isPlannedOnlyDynasty(nodes, dynastyChoice.slice(5)) ? dynastyChoice.slice(5) : '';
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameTo, setRenameTo] = useState('');
+  const renameName = renameTo.trim();
+  const renameTaken = !!renameName && dynastyNameTaken(nodes, renameName, renamable);
+  /** The taken name as that dynasty spells it: "Goth" when "goth" was typed. */
+  const takenName = renameTaken
+    ? (nodes.find((x) => x.dynasty && x.dynasty !== renamable && fold(x.dynasty) === fold(renameName))?.dynasty ?? renameName)
+    : '';
+  const canRename = !!renamable && !!renameName && renameName !== renamable && !renameTaken;
+  const renameCount = nodes.filter((x) => dynastyKey(x) === dynastyChoice && !x.species).length;
+  const doRename = () => {
+    if (!canRename || !onRenameDynasty(renamable, renameName)) return;
+    setDynastyChoice(`name:${renameName}`);
+    setRenameOpen(false);
+  };
   /** What the closed Dynasty menu shows. */
   const dynastyDisplay = (() => {
     if (dynastyChoice === NEW_DYNASTY) return '➕ Create a new dynasty…';
@@ -709,7 +733,7 @@ export function SimEditor({
     if (t.closest('button, a, textarea')) return;
     // The move form, the link search and the Dynasty menu handle their own
     // Enter; in the partner search it would close the editor mid-search.
-    if (t.closest('#edMove, #edLink, .ssel, #edPartnerFind')) return;
+    if (t.closest('#edMove, #edLink, .ssel, #edPartnerFind, #edDynastyRename')) return;
     e.preventDefault();
     save();
   };
@@ -771,7 +795,7 @@ export function SimEditor({
 
   useEffect(() => {
     onLayout();
-  }, [tab, moveOpen, linkOpen, allPartners, partnerStage, partnerQ, dynastyMenuOpen, tips, onLayout]);
+  }, [tab, moveOpen, linkOpen, allPartners, partnerStage, partnerQ, dynastyMenuOpen, renameOpen, tips, onLayout]);
 
   useEffect(() => {
     if (!compact) return;
@@ -1096,7 +1120,23 @@ export function SimEditor({
                 )}
               </section>
             )}
-            <label htmlFor="edDynastyPick">Dynasty</label>
+            <div className="edlabel">
+              <label htmlFor="edDynastyPick">Dynasty</label>
+              {renamable && (
+                <button
+                  type="button"
+                  className="edlink edlabel__action"
+                  aria-expanded={renameOpen}
+                  aria-controls="edDynastyRename"
+                  onClick={() => {
+                    setRenameTo(renamable);
+                    setRenameOpen(!renameOpen);
+                  }}
+                >
+                  Rename
+                </button>
+              )}
+            </div>
             {/* Create leads, as "Create a new household…" leads the household
                 list; typing a name no dynasty has offers to create it. */}
             <SearchSelect
@@ -1111,12 +1151,57 @@ export function SimEditor({
               }}
               onChange={(v, q) => {
                 setDynastyChoice(v);
+                setRenameOpen(false);
                 if (v === NEW_DYNASTY && q) setNewDynasty(titleCase(q));
               }}
               emptyText={(q) => `No dynasty on the board matches “${q}”.`}
               describedBy="edDynastyHint"
               onOpenChange={setDynastyMenuOpen}
             />
+            {/* Applied at once, not on Save: it changes every member's card. */}
+            {renameOpen && renamable && (
+              <div id="edDynastyRename" className="edrename">
+                <label htmlFor="edDynastyRenameTo">New name for the {renamable} dynasty</label>
+                <input
+                  id="edDynastyRenameTo"
+                  value={renameTo}
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={renameTaken ? 'edname--missing' : undefined}
+                  aria-invalid={renameTaken || undefined}
+                  aria-describedby="edDynastyRenameHint"
+                  onChange={(e) => setRenameTo(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                      e.preventDefault();
+                      doRename();
+                    } else if (e.key === 'Escape') {
+                      // Closes the form only, not the editor.
+                      e.stopPropagation();
+                      setRenameOpen(false);
+                    }
+                  }}
+                />
+                <div
+                  id="edDynastyRenameHint"
+                  className={renameTaken ? 'edhint edhint--error' : 'edhint'}
+                  role={renameTaken ? 'alert' : undefined}
+                >
+                  {renameTaken
+                    ? `There’s already a ${takenName} dynasty. Pick it in the menu to join it, or choose another name.`
+                    : `Renames it on ${renameCount === 1 ? 'its 1 sim' : `all ${renameCount} of its sims`} right away. Use the name it will have in the game, so a save can match it.`}
+                </div>
+                <div className="edrename__actions">
+                  <button type="button" className="movego" disabled={!canRename} onClick={doRename}>
+                    Rename
+                  </button>
+                  <button type="button" className="edlink" onClick={() => setRenameOpen(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             {dynastyChoice === NEW_DYNASTY && (
               <>
                 <label htmlFor="edDynastyNew">Name of the new dynasty</label>

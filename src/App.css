@@ -834,6 +834,13 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor #edMove{margin-top:6px;padding:8px;border:1px solid #dbe6f5;border-radius:8px;background:#f7fafe}
 .editor .movego{width:100%;margin-top:9px;padding:7px;border:none;background:#1b6cd6;color:#fff;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
 .editor .movego:hover{background:#155bb8}
+/* Renaming a planned dynasty: a small form under the Dynasty menu, applied at once. */
+.editor .edlabel__action{margin-left:auto}
+.editor .edrename{margin-top:6px;padding:8px;border:1px solid #dbe6f5;border-radius:8px;background:#f7fafe}
+.editor .edrename label{margin-top:0}
+.editor .edrename__actions{display:flex;align-items:center;gap:14px;margin-top:8px}
+.editor .edrename__actions .movego{flex:1 1 auto;width:auto;margin-top:0}
+.editor .movego:disabled,.editor .movego:disabled:hover{background:#aeb9c7;cursor:not-allowed}
 .hhmove label{display:block;font-size:10px;color:#667;margin:7px 0 2px;text-transform:uppercase;letter-spacing:.3px}
 .hhmove label:first-child{margin-top:0}
 .hhmove input,.hhmove select{width:100%;padding:5px;border:1px solid #cdd3da;border-radius:6px;font-size:12px;box-sizing:border-box;background:#fff;color:var(--ink)}

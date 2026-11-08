@@ -2084,6 +2084,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             wb.setEditNodeId(null);
             wb.setBriefGid(editNode.gid);
           }}
+          onRenameDynasty={wb.renameDynasty}
         />
       )}
     </div>

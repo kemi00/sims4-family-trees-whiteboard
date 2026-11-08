@@ -49,3 +49,39 @@ export function familyDynasties(id: string, nodes: SimNode[], edges: Edge[]): Fa
   }
   return [...out.values()];
 }
+
+/**
+ * A dynasty only the plan has: every sim with it is planned into it, none
+ * has it from a save. Only such a dynasty can be renamed on the board; a
+ * game dynasty takes its name from the save.
+ */
+export function isPlannedOnlyDynasty(nodes: SimNode[], name: string): boolean {
+  const key = `name:${name}`;
+  const members = nodes.filter((n) => dynastyKey(n) === key);
+  return members.length > 0 && members.every((n) => n.dynastyPlan === 'member');
+}
+
+/** Another dynasty on the board already goes by `name` (any case), so renaming one to it would merge them. */
+export function dynastyNameTaken(nodes: SimNode[], name: string, except: string): boolean {
+  const want = name.trim().toLowerCase();
+  return nodes.some((n) => !!n.dynasty && n.dynasty !== except && n.dynasty.trim().toLowerCase() === want);
+}
+
+/**
+ * Planned-only dynasty `from` renamed `to` on every current member's card,
+ * and in what is kept by its key (a first head, a picked Gen 1). The same
+ * array back when there is nothing to rename or the dynasty is the game's.
+ */
+export function renamePlannedDynasty(nodes: SimNode[], from: string, to: string): SimNode[] {
+  const name = to.trim();
+  if (!name || name === from || !isPlannedOnlyDynasty(nodes, from)) return nodes;
+  const was = `name:${from}`;
+  const now = `name:${name}`;
+  return nodes.map((n) => {
+    const patch: Partial<SimNode> = {};
+    if (dynastyKey(n) === was) patch.dynasty = name;
+    if (n.firstHeadOf === was) patch.firstHeadOf = now;
+    if (n.genRootOf === was) patch.genRootOf = now;
+    return Object.keys(patch).length ? { ...n, ...patch } : n;
+  });
+}
