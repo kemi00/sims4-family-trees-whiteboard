@@ -348,7 +348,7 @@ export function SimEditor({
   const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
   /** In a dynasty as the game has it, not one the board planned them into. */
   const inGameDynasty = !!n.dynasty && n.dynastyPlan !== 'member';
-  /** The new dynasty's name, when "New dynasty…" is picked. */
+  /** The new dynasty's name, when "Create a new dynasty…" is picked. */
   const [newDynasty, setNewDynasty] = useState(n.sur);
   const [moveOpen, setMoveOpen] = useState(false);
   /** Explanations opened with ⓘ, by field. */
@@ -1045,6 +1045,8 @@ export function SimEditor({
               aria-describedby="edDynastyHint"
               onChange={(e) => setDynastyChoice(e.target.value)}
             >
+              {/* First, as "Create a new household…" leads the household list. */}
+              <option value={NEW_DYNASTY}>➕ Create a new dynasty…</option>
               <option value="">No dynasty</option>
               {dynasties.map((d) => (
                 <option key={d.key} value={d.key}>
@@ -1052,7 +1054,6 @@ export function SimEditor({
                   {d.inGame ? '' : ' (planned)'}
                 </option>
               ))}
-              <option value={NEW_DYNASTY}>New dynasty…</option>
             </select>
             {dynastyChoice === NEW_DYNASTY && (
               <>
