@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "f99a768",
+   "date": "2026-11-08",
+   "text": "A sim's age details now count down to Young Adult, not only to the next stage: a child on Short is a Young Adult in 17 days of aging. Elders say how long they've been one and when old age can come at the earliest, like \"Elder for 2.4 days · old age in 4+ days\". It's the earliest, never a date: traits like Long Lived stretch it, and your save doesn't say by how much."
+  },
+  {
    "sha": "21eb58b",
    "date": "2026-11-08",
    "text": "The board is cool white and blue-gray instead of beige: the top bar, panels, chips, borders and the board itself. Colors that mean something keep theirs: blue buttons, amber warnings, the yellow search match, the gold highlight, violet plans and each world's color."
