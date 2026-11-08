@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "68a55c6",
+   "date": "2026-11-08",
+   "text": "Up next, the numbered-list button in the top bar, suggests an order to play your households in when you'd like a plan to follow. Plays that move other households' plans come first, then an elder short on days, the most ready, the oldest generation, and whoever you played longest ago, each with why. Open plan takes you there; Skip for now puts a household last until your next save import."
+  },
+  {
    "sha": "1071fa5",
    "date": "2026-11-08",
    "text": "Household tags now carry a plan badge beside Age up and +: \"2 ready\" in green when something can be done today, \"1 off plan\" in amber when the game went another way, or \"waiting\" when everything waits on someone. Households with nothing pending stay quiet. Click the badge to open the household's plan."
