@@ -41,7 +41,10 @@ import {
   type PlanConflict,
 } from '../lib/plan.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
+import { familyDynasties } from '../lib/dynastyMenu.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
+import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
+import { fold } from '../lib/utils.ts';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
@@ -175,6 +178,14 @@ function TipButton({
 }
 
 const PARTNER_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
+
+/**
+ * A name typed all in lowercase, as a search often is, capitalized as the
+ * game writes names: "moonwood" → "Moonwood". Any capital is kept as typed.
+ */
+function titleCase(s: string): string {
+  return s === s.toLowerCase() ? s.replace(/(^|[\s-])(\p{L})/gu, (_, a: string, b: string) => a + b.toUpperCase()) : s;
+}
 
 /** Partners listed before "Show more". */
 const PARTNERS_SHOWN = 4;
@@ -392,25 +403,58 @@ export function SimEditor({
    */
   const suggestedDynasty = useMemo(() => {
     if (n.dynasty || n.dynastyPlan || !isPlannedSim(n)) return '';
-    const kin = (types: string[], other: (e: Edge) => string | null) =>
-      edges
-        .filter((e) => types.includes(e.type))
-        .map((e) => byId[other(e) ?? ''])
-        .filter((x): x is SimNode => !!x?.dynasty && x.dynastyPlan !== 'member');
-    const best = (list: SimNode[]) =>
-      list.find((x) => x.dynasty!.trim().toLowerCase() === n.sur.trim().toLowerCase()) ??
-      list.find((x) => x.dynastyRole === 'head' || x.dynastyRole === 'heir') ??
-      list[0];
-    const pick =
-      best(kin(['parent'], (e) => (e.b === n.id ? e.a : null))) ??
-      best(kin(['marriage', 'romance'], (e) => (e.a === n.id ? e.b : e.b === n.id ? e.a : null)));
-    return pick ? (dynastyKey(pick) ?? '') : '';
+    // The family's first, counting only dynasties the game has them in.
+    const inGame = nodes.filter((x) => x.dynastyPlan !== 'member');
+    return familyDynasties(n.id, inGame, edges)[0]?.key ?? '';
     // Worked out once, for the sim the editor opened on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  /** Their parents' and partners' dynasties: the Dynasty menu's top group. */
+  const family = useMemo(() => (isPet ? [] : familyDynasties(n.id, nodes, edges)), [isPet, n.id, nodes, edges]);
+  const [dynastyMenuOpen, setDynastyMenuOpen] = useState(false);
+  /**
+   * The Dynasty menu: no dynasty, then their family's (why each is there),
+   * then the game's and the planned ones apart, A to Z, each with how many
+   * sims are in it. Searching narrows all of them.
+   */
+  const dynastyGroups = useMemo((): SearchGroup[] => {
+    const members = new Map<string, number>();
+    for (const x of nodes) {
+      const k = dynastyKey(x);
+      if (k && !x.species) members.set(k, (members.get(k) ?? 0) + 1);
+    }
+    const option = (d: (typeof dynasties)[number]): SearchOption => {
+      const c = members.get(d.key) ?? 0;
+      return { value: d.key, label: d.label, aside: `${c} ${c === 1 ? 'sim' : 'sims'}` };
+    };
+    const near = new Set(family.map((f) => f.key));
+    return [
+      { key: 'none', options: [{ value: '', label: 'No dynasty' }] },
+      {
+        key: 'family',
+        label: 'Their family',
+        options: family.flatMap((f) => {
+          const d = dynasties.find((x) => x.key === f.key);
+          if (!d) return [];
+          const who = f.people
+            .map((p) => `${byId[p.id] ? cardName(byId[p.id]!) : 'someone'}, ${p.rel}`)
+            .join(' · ');
+          return [{ ...option(d), meta: d.inGame ? who : `${who} · planned` }];
+        }),
+      },
+      { key: 'game', label: 'In your game', options: dynasties.filter((d) => d.inGame && !near.has(d.key)).map(option) },
+      { key: 'planned', label: 'Planned', options: dynasties.filter((d) => !d.inGame && !near.has(d.key)).map(option) },
+    ];
+  }, [nodes, byId, dynasties, family]);
   const [dynastyChoice, setDynastyChoice] = useState(() =>
     n.dynastyPlan === 'none' ? '' : (dynastyKey(n) ?? suggestedDynasty),
   );
+  /** What the closed Dynasty menu shows. */
+  const dynastyDisplay = (() => {
+    if (dynastyChoice === NEW_DYNASTY) return '➕ Create a new dynasty…';
+    const d = dynasties.find((x) => x.key === dynastyChoice);
+    return d ? `${d.label}${d.inGame ? '' : ' (planned)'}` : 'No dynasty';
+  })();
   /** The dynasty picked, as a card would carry it; null for none. */
   const target = useMemo((): { key: string; dynasty: string; dynastyId?: string } | null => {
     if (dynastyChoice !== NEW_DYNASTY) return dynasties.find((d) => d.key === dynastyChoice) ?? null;
@@ -523,15 +567,26 @@ export function SimEditor({
           }),
     [isPet, n.id, nodes, edges, saveGame, partnerGender, housedOnly],
   );
+  /** A name typed to find one partner; it narrows the list and its counts. */
+  const [partnerQuery, setPartnerQueryState] = useState('');
+  const setPartnerQuery = (text: string) => {
+    setPartnerQueryState(text);
+    // Back to the stage that has a match, and every match shown.
+    setStagePick(null);
+    setAllPartners(false);
+  };
+  const partnerQ = fold(partnerQuery);
   /** Partners by life stage, for the Age menu and its counts. */
   const partnersByStage = useMemo(() => {
     const by = new Map<string, PartnerCandidate[]>();
     for (const c of partners) {
-      const age = byId[c.id]?.age ?? '';
+      const p = byId[c.id];
+      if (partnerQ && !fold(`${p?.first ?? ''} ${p?.sur ?? ''}`).includes(partnerQ)) continue;
+      const age = p?.age ?? '';
       by.set(age, [...(by.get(age) ?? []), c]);
     }
     return by;
-  }, [partners, byId]);
+  }, [partners, byId, partnerQ]);
   /** The stages this sim is suggested partners from, in life order. */
   const partnerStages = partnerBand(n.age) ?? [];
   // Their own stage until another is picked, or the first with anyone in it.
@@ -541,7 +596,9 @@ export function SimEditor({
       ? n.age
       : (partnerStages.find((st) => partnersByStage.get(st)?.length) ?? n.age));
   const stagePartners = partnersByStage.get(partnerStage) ?? [];
-  const shownPartners = allPartners ? stagePartners : stagePartners.slice(0, PARTNERS_SHOWN);
+  // A search shows every match: there are few, and the one wanted may be fifth.
+  const partnersCapped = !partnerQ && !allPartners;
+  const shownPartners = partnersCapped ? stagePartners.slice(0, PARTNERS_SHOWN) : stagePartners;
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef<HTMLInputElement>(null);
@@ -650,8 +707,9 @@ export function SimEditor({
     if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.keyCode === 229) return;
     const t = e.target as HTMLElement;
     if (t.closest('button, a, textarea')) return;
-    // The move form and the link search handle their own Enter.
-    if (t.closest('#edMove, #edLink')) return;
+    // The move form, the link search and the Dynasty menu handle their own
+    // Enter; in the partner search it would close the editor mid-search.
+    if (t.closest('#edMove, #edLink, .ssel, #edPartnerFind')) return;
     e.preventDefault();
     save();
   };
@@ -713,7 +771,7 @@ export function SimEditor({
 
   useEffect(() => {
     onLayout();
-  }, [tab, moveOpen, linkOpen, allPartners, partnerStage, tips, onLayout]);
+  }, [tab, moveOpen, linkOpen, allPartners, partnerStage, partnerQ, dynastyMenuOpen, tips, onLayout]);
 
   useEffect(() => {
     if (!compact) return;
@@ -1039,22 +1097,26 @@ export function SimEditor({
               </section>
             )}
             <label htmlFor="edDynastyPick">Dynasty</label>
-            <select
+            {/* Create leads, as "Create a new household…" leads the household
+                list; typing a name no dynasty has offers to create it. */}
+            <SearchSelect
               id="edDynastyPick"
               value={dynastyChoice}
-              aria-describedby="edDynastyHint"
-              onChange={(e) => setDynastyChoice(e.target.value)}
-            >
-              {/* First, as "Create a new household…" leads the household list. */}
-              <option value={NEW_DYNASTY}>➕ Create a new dynasty…</option>
-              <option value="">No dynasty</option>
-              {dynasties.map((d) => (
-                <option key={d.key} value={d.key}>
-                  {d.label}
-                  {d.inGame ? '' : ' (planned)'}
-                </option>
-              ))}
-            </select>
+              display={dynastyDisplay}
+              groups={dynastyGroups}
+              searchLabel="Search dynasties"
+              create={{
+                value: NEW_DYNASTY,
+                label: (q) => (q ? `➕ Create the “${titleCase(q)}” dynasty` : '➕ Create a new dynasty…'),
+              }}
+              onChange={(v, q) => {
+                setDynastyChoice(v);
+                if (v === NEW_DYNASTY && q) setNewDynasty(titleCase(q));
+              }}
+              emptyText={(q) => `No dynasty on the board matches “${q}”.`}
+              describedBy="edDynastyHint"
+              onOpenChange={setDynastyMenuOpen}
+            />
             {dynastyChoice === NEW_DYNASTY && (
               <>
                 <label htmlFor="edDynastyNew">Name of the new dynasty</label>
@@ -1173,6 +1235,26 @@ export function SimEditor({
                 about="possible partners"
               />
             </div>
+            {/* For someone you have in mind: the list and the Age menu's
+                counts narrow to the names that match. */}
+            <input
+              id="edPartnerFind"
+              type="search"
+              className="edfind"
+              value={partnerQuery}
+              placeholder="Find by name"
+              aria-label="Find a possible partner by name"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setPartnerQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // Esc clears the search first, then closes the editor.
+                if (e.key === 'Escape' && partnerQuery) {
+                  e.stopPropagation();
+                  setPartnerQuery('');
+                }
+              }}
+            />
             {/* Two ways of narrowing one list, side by side. A teen or a child
                 has one stage to choose from, so no Age menu. */}
             <div className="edfilters">
@@ -1223,8 +1305,13 @@ export function SimEditor({
               to children, and infants and toddlers together. Closest in life first: living sims who
               aren't blood relatives or married. Click one to find them on the board.
             </div>
+            {stagePartners.length > 0 && (
+              <div id="edPartnersOrder" className="edorder">
+                Closest in age first, older or younger; then A to Z
+              </div>
+            )}
             {stagePartners.length ? (
-              <ul className="partners" aria-labelledby="edPartnersLabel">
+              <ul className="partners" aria-labelledby="edPartnersLabel" aria-describedby="edPartnersOrder">
                 {shownPartners.map((c) => {
                   const p = byId[c.id];
                   if (!p) return null;
@@ -1252,12 +1339,14 @@ export function SimEditor({
               </ul>
             ) : (
               <div className="edhint">
-                {STAGE_PLURAL[partnerStage]
-                  ? `No ${partnerGender ? `${partnerGender.toLowerCase()} ` : ''}${STAGE_PLURAL[partnerStage]!.toLowerCase()}${housedOnly ? ' with a home' : ''} on the board fit.`
-                  : 'No one on the board fits.'}
+                {partnerQ
+                  ? `No possible partner matches “${partnerQuery.trim()}”${partnerGender || housedOnly ? ' with these filters' : ''}. Blood relatives and married sims aren’t suggested.`
+                  : STAGE_PLURAL[partnerStage]
+                    ? `No ${partnerGender ? `${partnerGender.toLowerCase()} ` : ''}${STAGE_PLURAL[partnerStage]!.toLowerCase()}${housedOnly ? ' with a home' : ''} on the board fit.`
+                    : 'No one on the board fits.'}
               </div>
             )}
-            {stagePartners.length > PARTNERS_SHOWN && (
+            {!partnerQ && stagePartners.length > PARTNERS_SHOWN && (
               <button
                 type="button"
                 className="edlink edlink--more"

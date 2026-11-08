@@ -75,6 +75,18 @@ describe('possible partners', () => {
     assert.deepEqual(ids(true), ['Housed']);
   });
 
+  it('lists sims the same distance away by name, not shuffled by their ids', () => {
+    // No ages from a save: every adult gets the same guess, so all tie.
+    const all = [
+      sim('me', 'Adult'),
+      sim('s9', 'Adult', { first: 'Zoe', sur: 'Ng' }),
+      sim('s1', 'Adult', { first: 'abe', sur: 'Moss' }),
+      sim('s5', 'Adult', { first: 'Mia', sur: 'Ali' }),
+    ];
+    const list = partnerCandidates({ id: 'me', nodes: all, edges: [] });
+    assert.deepEqual(list.map((c) => c.id), ['s1', 's5', 's9']);
+  });
+
   it('narrows to one gender', () => {
     const list = partnerCandidates({ id: 'Heir', nodes: [...nodes, sim('Boy', 'Teen', { gender: 'Male', life: life('Teen', 4) })], edges, gender: 'Male' });
     assert.deepEqual(list.map((c) => c.id), ['Boy']);

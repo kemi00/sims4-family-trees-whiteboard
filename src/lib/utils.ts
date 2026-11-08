@@ -335,3 +335,8 @@ export function isHighlightMatch(
   const singleOk = !hiSingle || !partnered.has(n.id);
   return ageOk && genderOk && singleOk;
 }
+
+/** Lowercase, trimmed and without accents, for search: "ananou" finds "Ánanou". */
+export function fold(s: string): string {
+  return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+}

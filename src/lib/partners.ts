@@ -86,7 +86,8 @@ function placeInLife(n: SimNode): { days: number; approx: boolean } | null {
 }
 
 /**
- * Sims who could partner `id`, closest in life first: living, not pets, not
+ * Sims who could partner `id`, closest in life first (older or younger),
+ * then A to Z: living, not pets, not
  * blood relatives, not married (to anyone), and in the same band of life
  * stages (PARTNER_BANDS). `gender` narrows to one gender, `housedOnly`
  * leaves out sims with no home (hasNoHome), and `limit` keeps the closest
@@ -138,7 +139,16 @@ export function partnerCandidates(opts: {
       taken: romance.has(n.id),
     });
   }
-  out.sort((a, b) => a.gap - b.gap || Number(a.approx) - Number(b.approx) || a.id.localeCompare(b.id));
+  // Ties by name: every sim whose age is guessed from their life stage has
+  // the same guess, so ties are common, and by id they'd look shuffled.
+  const name = new Map(opts.nodes.map((n) => [n.id, `${n.first} ${n.sur}`]));
+  out.sort(
+    (a, b) =>
+      a.gap - b.gap ||
+      Number(a.approx) - Number(b.approx) ||
+      name.get(a.id)!.localeCompare(name.get(b.id)!, undefined, { sensitivity: 'base' }) ||
+      a.id.localeCompare(b.id),
+  );
   return opts.limit ? out.slice(0, opts.limit) : out;
 }
 
