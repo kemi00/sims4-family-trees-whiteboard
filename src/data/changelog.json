@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "b8d91ad",
+   "date": "2026-11-08",
+   "text": "The Dynasty menu now starts with \"➕ Create a new dynasty…\", the way \"➕ Create a new household…\" starts the household menu."
+  },
+  {
    "sha": "c0d2b6d",
    "date": "2026-11-08",
    "text": "Every sim now has a generation, dynasty or not, counted from their oldest known ancestor on the board (\"Gen 4 from Queen Thebe\"). In the editor, pick a sim's dynasty first, then their role, which can be \"Member, no role\". You can start a dynasty your game doesn't have yet with \"New dynasty…\", and a planned baby is suggested its family's dynasty. Joining, leaving or changing role stays part of your plan until a save shows it."
