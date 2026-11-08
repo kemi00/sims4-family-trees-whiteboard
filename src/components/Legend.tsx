@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode, Ref } from 'react';
 import type { DynastyRole, World } from '../types/whiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import { CaretDown, House, User } from '../icons.ts';
+import { CaretDown, Crown, House, User } from '../icons.ts';
 import {
   COL,
   DYNASTY_ROLES,
@@ -206,8 +206,9 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
       >
         <h3 id="legend-worlds-h">Worlds</h3>
         <p className="lg-key">
-          Tags count <User weight="fill" aria-hidden="true" /> sims and{' '}
-          <House weight="fill" aria-hidden="true" /> households
+          Tags count <User weight="fill" aria-hidden="true" /> sims,{' '}
+          <House weight="fill" aria-hidden="true" /> households and{' '}
+          <Crown weight="fill" aria-hidden="true" /> dynasties
         </p>
         <p className="lg-key">
           <svg viewBox="-7 -7 14 14" aria-hidden="true">

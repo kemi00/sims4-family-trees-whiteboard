@@ -1,5 +1,5 @@
 import { memo, type PointerEvent as ReactPointerEvent } from 'react';
-import { House, User } from '../icons.ts';
+import { Crown, House, User } from '../icons.ts';
 import { worldFrame, worldTagMetrics } from '../lib/geometry.ts';
 import { nodesForWorld, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { worldColor } from '../lib/utils.ts';
@@ -366,6 +366,26 @@ export const WorldLayer = memo(function WorldLayer({
                 >
                   {c.counts.households}
                 </text>
+                {n.dynIconX !== null && n.dynTextX !== null && (
+                  <>
+                    <Crown
+                      x={c.paintX + n.dynIconX}
+                      y={c.paintY + n.y - n.iconSize / 2}
+                      size={n.iconSize}
+                      weight="fill"
+                      color="#fff"
+                    />
+                    <text
+                      x={c.paintX + n.dynTextX}
+                      y={c.paintY + n.y}
+                      dominantBaseline="middle"
+                      fontSize={n.fontSize}
+                      fontWeight={600}
+                    >
+                      {c.counts.dynasties}
+                    </text>
+                  </>
+                )}
               </g>
             )}
           </g>

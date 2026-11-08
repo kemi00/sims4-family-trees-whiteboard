@@ -65,7 +65,30 @@ describe('world tag counts', () => {
       pets: 1,
       deceased: 1,
       hidden: 1,
+      dynasties: 0,
+      plannedDynasties: 0,
     });
+  });
+
+  it('counts the dynasties with a living sim here, and which are only planned', () => {
+    const inIt = (id: string, extra: Partial<SimNode>) => ({ ...card(id, 'g1'), ...extra });
+    const counts = worldCounts(
+      [
+        inIt('mortimer', { dynasty: 'Goth', dynastyId: '9' }),
+        inIt('bella', { dynasty: 'Goth', dynastyId: '9', dynastyPlan: 'member' }),
+        inIt('sara', { dynasty: 'Scott', dynastyRef: 'r1', dynastyPlan: 'member' }),
+        // The deceased, a pet and a hidden card don't count.
+        inIt('queen', { state: 'Deceased', dynasty: 'Thebe', dynastyId: '3' }),
+        inIt('rex', { state: 'Pet', dynasty: 'Capp' }),
+        inIt('far', { pack: 'Hidden Pack', dynasty: 'Landgraab', dynastyId: '4' }),
+      ],
+      shown,
+    );
+    assert.deepEqual([counts.dynasties, counts.plannedDynasties], [2, 1]);
+    assert.equal(worldCountsText('Nordhaven', counts), 'Nordhaven: 3 sims in 1 household, plus 1 pet and 1 deceased. 2 dynasties, 1 of them planned. Filters hide 1 more.');
+    const tag = worldTagLayout('Nordhaven', counts, 1);
+    assert.ok(tag.counts!.dynIconX! > tag.counts!.homeTextX, 'the crown follows the households');
+    assert.equal(worldTagLayout('Nordhaven', { ...counts, dynasties: 0 }, 1).counts!.dynIconX, null);
   });
 
   it('spells the counts out, with what the numbers leave out', () => {

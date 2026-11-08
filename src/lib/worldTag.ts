@@ -11,6 +11,7 @@ import {
   WORLD_TAG_ZOOM_OUT_MAX,
   WORLD_TITLE_BAND,
 } from './constants.ts';
+import { dynastyKey } from './generations.ts';
 import { textWidth } from './textWidth.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import type { SimNode } from '../types/whiteboard.ts';
@@ -67,6 +68,13 @@ export type WorldCounts = {
   deceased: number;
   /** Cards in the world that filters hide. */
   hidden: number;
+  /**
+   * Dynasties with a living sim (of `sims`) in the world: the game's and
+   * those planned on the board.
+   */
+  dynasties: number;
+  /** Of `dynasties`, those whose sims here are all only planned into it. */
+  plannedDynasties: number;
 };
 
 export function worldCounts(
@@ -82,7 +90,11 @@ export function worldCounts(
     pets: 0,
     deceased: 0,
     hidden: 0,
+    dynasties: 0,
+    plannedDynasties: 0,
   };
+  /** Each dynasty here, and whether all its sims here are only planned into it. */
+  const dynasties = new Map<string, boolean>();
   for (const n of members) {
     if (!vis(n)) {
       c.hidden += 1;
@@ -96,9 +108,13 @@ export function worldCounts(
     else {
       c.sims += 1;
       if (unhoused) c.unhoused += 1;
+      const key = dynastyKey(n);
+      if (key) dynasties.set(key, (dynasties.get(key) ?? true) && n.dynastyPlan === 'member');
     }
   }
   c.households = gids.size;
+  c.dynasties = dynasties.size;
+  c.plannedDynasties = [...dynasties.values()].filter(Boolean).length;
   return c;
 }
 
@@ -133,6 +149,9 @@ export type WorldTagLayout = {
     simTextX: number;
     homeIconX: number;
     homeTextX: number;
+    /** The dynasty count's crown and number; null for a world with none. */
+    dynIconX: number | null;
+    dynTextX: number | null;
     iconSize: number;
     fontSize: number;
   } | null;
@@ -209,7 +228,8 @@ const RESERVE_ZOOM = 0.07;
  * a big board is seen whole. Packing keeps a world column at least this
  * wide, so neighbouring tags clear each other there. Measured with a fixed
  * per-character estimate, never the browser's fonts, so a board packs the
- * same on every machine.
+ * same on every machine. The dynasty count is left out, so adding it moved
+ * no world: a tag wider than its column shrinks to fit it (worldTagLayout).
  */
 export function worldTagReserve(name: string): number {
   const nameW = name.length * WORLD_TAG_FONT * 0.586;
@@ -243,7 +263,10 @@ function tagAtScale(
   const simTextX = simIconX + ICON + 3;
   const homeIconX = simTextX + simW + 8;
   const homeTextX = homeIconX + ICON + 3;
-  const countsEnd = homeTextX + homeW;
+  const dynIconX = counts.dynasties ? homeTextX + homeW + 8 : null;
+  const dynTextX = dynIconX === null ? null : dynIconX + ICON + 3;
+  const countsEnd =
+    dynTextX === null ? homeTextX + homeW : dynTextX + textWidth(String(counts.dynasties), COUNT_FONT, 600);
   const w = stacked ? Math.max(nameEnd, countsEnd) + PAD_R : countsEnd + PAD_R - 1;
   const h = stacked ? WORLD_TAG_PILL_H + LINE2_H : WORLD_TAG_PILL_H;
   return {
@@ -257,6 +280,8 @@ function tagAtScale(
       simTextX: simTextX * s,
       homeIconX: homeIconX * s,
       homeTextX: homeTextX * s,
+      dynIconX: dynIconX === null ? null : dynIconX * s,
+      dynTextX: dynTextX === null ? null : dynTextX * s,
       iconSize: ICON * s,
       fontSize: COUNT_FONT * s,
     },
@@ -285,6 +310,17 @@ export function worldCountsText(name: string, c: WorldCounts): string {
     text += `, plus ${extra.length ? `${extra.join(', ')} and ${last}` : last}`;
   }
   text += '.';
+  if (c.dynasties) {
+    const planned =
+      c.plannedDynasties === 0
+        ? ''
+        : c.plannedDynasties === c.dynasties
+          ? c.dynasties === 1
+            ? ', planned'
+            : ', all planned'
+          : `, ${c.plannedDynasties} of them planned`;
+    text += ` ${plural(c.dynasties, 'dynasty', 'dynasties')}${planned}.`;
+  }
   if (c.hidden) text += ` Filters hide ${c.hidden} more.`;
   return text;
 }
