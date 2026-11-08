@@ -27,11 +27,19 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  --ink:#1b2b3a;
  --ink-2:#5a6675;
  --ink-3:#697380;
- --chrome:#fffdf9;
- --recess:#f3efe4;
- --line:#e7e1d3;
- --rule:#d9d1bf;
- --hover:#f1eee4;
+ /* Cool whites and blue-grays; colors that mean something keep their own. */
+ --chrome:#fbfcfe;
+ --chrome-glass:#fbfcfef2;
+ --recess:#eef2f7;
+ --line:#e1e7ef;
+ --rule:#cfd8e3;
+ --hover:#eaf0f7;
+ --press:#dfe6ef;
+ --press-line:#aeb9c7;
+ --canvas:#eef2f6;
+ --grid:#b4bfcc;
+ --chip:#f4f7fb;
+ --chip-line:#dbe2eb;
  --danger:#b8352a;
  --danger-soft:#fceceb;
  --lift:0 6px 20px #1b2b3a1f;
@@ -136,7 +144,7 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 }
 
 /* ── segmented layer toggles ─────────────────────────────────────────────── */
-.segment{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:10px;background:var(--recess);border:1px solid #e9e3d5;flex:0 0 auto}
+.segment{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:10px;background:var(--recess);border:1px solid var(--line);flex:0 0 auto}
 .segment .tool[data-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1a}
 .segment .tool[data-pressed=false]{background:transparent;color:#79828f}
 .segment .tool:hover{background:#ffffffb3;color:var(--ink)}
@@ -237,7 +245,7 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  .tool,.search input,.gpanel button,.menu button,.editor button,.agechips button{transition:none}
  .gpanel button:active,.menu button:active,.editor button:active,.agechips button:active{transform:none}
 }
-#stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#f4f1e8;--minimap-w:220px;--minimap-h:140px}
+#stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:var(--canvas);--minimap-w:220px;--minimap-h:140px}
 #stage.stage--select svg{cursor:crosshair}
 /* Space held: the hand, over everything on the board. */
 #stage.stage--hand svg,#stage.stage--hand svg *{cursor:grab!important}
@@ -423,7 +431,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hint__again svg{display:inline-block;width:13px;height:13px;vertical-align:-2px}
 .hint__actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
 .hint__actions button{min-height:32px;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
-.hint__actions button:hover{background:#f3efe6;border-color:#c5bca8}
+.hint__actions button:hover{background:var(--hover);border-color:var(--rule)}
 .hint__actions button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .hint__actions .hint__ok{background:var(--accent);border-color:transparent;color:#fff}
 .hint__actions .hint__ok:hover{background:var(--accent);border-color:transparent;filter:brightness(1.06)}
@@ -512,15 +520,15 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .bloodline-banner button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 /* Legend column on the right: two cards (worlds scroll; links stay put). */
 #legend{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:8px;width:172px;max-height:calc(100% - 24px);padding:0;border:none;background:transparent;box-shadow:none;overflow:hidden;font-size:10px}
-.legend-card{background:#fffdf8f2;border:1px solid var(--line);border-radius:var(--r-surface);padding:8px 10px;box-shadow:var(--lift);min-width:0}
+.legend-card{background:var(--chrome-glass);border:1px solid var(--line);border-radius:var(--r-surface);padding:8px 10px;box-shadow:var(--lift);min-width:0}
 .legend-card--worlds{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .legend-card__body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain}
 .legend-card--links{flex:0 0 auto}
-#legend h3{margin:0 0 4px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#8a7f63}
+#legend h3{margin:0 0 4px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-3)}
 .lg{display:flex;align-items:center;gap:5px;margin:1.5px 0}
 .lg i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
 .lg-key{margin:0 0 5px;color:#6f6a5c;line-height:1.4}
-.lg-key svg{display:inline-block;width:10px;height:10px;vertical-align:-1px;color:#8a7f63}
+.lg-key svg{display:inline-block;width:10px;height:10px;vertical-align:-1px;color:var(--ink-3)}
 /*
  * The key: what each board mark means, in four groups (family lines,
  * couples, cards, plans). Every sample is drawn the same size, so the
@@ -580,13 +588,13 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .gpanel__empty{margin:6px 2px 2px;color:var(--ink-2);font-size:12px}
 .gpanel .gph{display:flex;justify-content:space-between;align-items:center;margin:2px 4px 8px;font-size:11px;color:#5a6673}
 .gpanel .gph span{display:flex;gap:5px}
-.gpanel .gph button{padding:3px 8px;font-size:11px;border:1px solid #e0d8c6;background:#faf7f0;color:#3b4757;border-radius:7px;font-weight:600}
-.gpanel .gph button:hover{background:#f1ece1}
+.gpanel .gph button{padding:3px 8px;font-size:11px;border:1px solid var(--chip-line);background:var(--chip);color:#3b4757;border-radius:7px;font-weight:600}
+.gpanel .gph button:hover{background:var(--hover)}
 .gpanel .grow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;cursor:pointer}
-.gpanel .grow:hover{background:#f2efe7}
+.gpanel .grow:hover{background:var(--hover)}
 .gpanel .grow i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
 .gpanel .grow>span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gpanel .grow b{color:#8a7f63;font-weight:600;font-size:11px}
+.gpanel .grow b{color:var(--ink-3);font-weight:600;font-size:11px}
 .gpanel .grow--none>span,.gpanel .grow--none b{color:var(--ink-3)}
 .gpanel .grow--none i{opacity:.45}
 .gpanel input[type=checkbox]{width:15px;height:15px;accent-color:#1b6cd6;cursor:pointer;flex:0 0 auto}
@@ -605,7 +613,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .connection-log__day time{flex:0 0 auto;white-space:nowrap}
 .connection-log__list>.connection-log__day:first-child{margin-top:2px}
 .connection-log__day::before,.connection-log__day::after{content:"";flex:1 1 auto;height:1px;background:var(--rule)}
-.gpanel .connection-log__item{white-space:normal;text-align:left;width:100%;display:block;line-height:1.45;padding:8px 9px;border:none;border-radius:8px;background:#faf7f0;color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
+.gpanel .connection-log__item{white-space:normal;text-align:left;width:100%;display:block;line-height:1.45;padding:8px 9px;border:none;border-radius:8px;background:var(--chip);color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
 .gpanel .connection-log__item--alt{background:var(--recess)}
 .gpanel .connection-log__item:hover,.gpanel .connection-log__item--alt:hover{background:var(--line)}
 .gpanel .connection-log__item--on{background:var(--accent-soft);color:var(--accent-strong)}
@@ -618,7 +626,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .connection-log__rel{font-weight:700;color:var(--ink)}
 .gpanel .connection-log__item--on .connection-log__rel{color:var(--ink)}
 .connection-log__filters{display:flex;gap:4px;padding:0 4px 8px}
-.gpanel .connection-log__filter{padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:#faf7f0;color:var(--ink-2);font-size:11px;min-height:0}
+.gpanel .connection-log__filter{padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:var(--chip);color:var(--ink-2);font-size:11px;min-height:0}
 .gpanel .connection-log__filter--on{background:var(--accent-soft);color:var(--accent-strong);border-color:transparent}
 .connection-log__tag{display:inline-block;margin:0 6px 4px 0;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.2px;vertical-align:middle}
 .connection-log__tag--planned{background:#ede9fe;color:#7c3aed}
@@ -639,7 +647,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .save-import__choices{margin:0 0 12px;padding:0;border:none;display:flex;flex-direction:column;gap:8px}
 .save-import__choices legend{padding:0;margin:0 0 6px}
 .save-import__choice{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;transition:border-color .12s ease,background .12s ease}
-.save-import__choice:hover{border-color:#c5bca8;background:#fdfbf6}
+.save-import__choice:hover{border-color:var(--rule);background:var(--chip)}
 .save-import__choice:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
 .save-import__choice:has(> input:focus-visible),
 .save-import__choice-row:has(input:focus-visible){box-shadow:0 0 0 3px var(--accent-ring)}
@@ -695,10 +703,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
   transition:background .12s ease,border-color .12s ease,color .12s ease,box-shadow .12s ease,transform .06s ease,filter .12s ease;
 }
 .save-import__actions button:hover{
-  background:#f3efe6;border-color:#c5bca8;color:var(--ink);
+  background:var(--hover);border-color:var(--rule);color:var(--ink);
 }
 .save-import__actions button:active{
-  background:#e8e1d2;border-color:#b5aa94;transform:translateY(1px);
+  background:var(--press);border-color:var(--press-line);transform:translateY(1px);
 }
 .save-import__actions button:focus-visible{
   outline:none;box-shadow:0 0 0 3px var(--accent-ring);
@@ -752,7 +760,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .node.searchcur>rect:first-of-type{fill:#ffd27a;stroke:#c05600!important;stroke-width:4.5px!important}
 .node.searchcur{filter:drop-shadow(0 0 7px rgba(192,86,0,.85))}
 .agechips{display:flex;flex-wrap:wrap;gap:5px}
-.agechips button{padding:5px 10px;border:1px solid #e0d8c6;background:#faf7f0;color:#3b4757;border-radius:16px;font-weight:600}
+.agechips button{padding:5px 10px;border:1px solid var(--chip-line);background:var(--chip);color:#3b4757;border-radius:16px;font-weight:600}
 .agechips button.on{background:#f5a300;color:#fff;border-color:#f5a300}
 .menu button:hover{background:#e7eefb}
 .menu button:disabled{opacity:.6;cursor:not-allowed}
@@ -1002,9 +1010,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .node.dead.sel,.node.dead.msel,.node.dead.agehl,.node.dead.searchhit,.node.dead.searchcur{opacity:.85}
 
 /* ── highlight count: in the Highlight panel and on the board ──────────── */
-.hlsum{margin:0 4px 4px;padding:6px 8px;border-radius:8px;background:#fff8e6;font-size:12px;line-height:1.4;color:#5c4a12}
+.hlsum{margin:0 4px 4px;padding:6px 8px;border-radius:8px;background:var(--recess);font-size:12px;line-height:1.4;color:var(--ink)}
 .hlsum b{color:#3d2f00}
-.hlsum__of{color:#8a7f63}
+.hlsum__of{color:var(--ink-3)}
 .highlight-banner{border-color:#f0d58a}
 .highlight-banner .highlight-banner__change{margin-left:auto;background:#fff;color:var(--ink);border-color:var(--line)}
 .highlight-banner .highlight-banner__change:hover{background:var(--hover)}

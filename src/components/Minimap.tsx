@@ -282,7 +282,7 @@ export function Minimap({ wb, svgRef, camera }: Props) {
               y={p.y}
               width={Math.max(1, n.w * fit.scale)}
               height={Math.max(1, n.h * fit.scale)}
-              fill={current ? '#1b6cd6' : n.color || '#8a7f63'}
+              fill={current ? '#1b6cd6' : n.color || '#697380'}
               opacity={current ? 1 : 0.85}
             />
           );

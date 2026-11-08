@@ -1577,7 +1577,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             <path
               d={`M ${TILE} 0 L 0 0 0 ${TILE}`}
               fill="none"
-              stroke="#b7b09e"
+              stroke="#b4bfcc"
               strokeWidth={1}
               vectorEffect="non-scaling-stroke"
             />

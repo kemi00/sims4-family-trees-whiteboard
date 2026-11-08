@@ -211,7 +211,7 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
         </p>
         <p className="lg-key">
           <svg viewBox="-7 -7 14 14" aria-hidden="true">
-            <UnhousedGlyph x={0} y={0} color="#8a7f63" />
+            <UnhousedGlyph x={0} y={0} color="#697380" />
           </svg>{' '}
           Unhoused sims: townies the game made as you played
         </p>

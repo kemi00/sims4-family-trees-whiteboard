@@ -155,7 +155,7 @@ export function AgesPanel({
       <div
         style={{
           fontSize: 10,
-          color: '#8a7f63',
+          color: 'var(--ink-3)',
           margin: '8px 4px 2px',
         }}
       >
