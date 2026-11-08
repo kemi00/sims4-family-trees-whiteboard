@@ -199,6 +199,25 @@ describe('planned dynasty roles', () => {
     );
   });
 
+  it('wait for a teen or a planned baby to grow up before they start a dynasty', () => {
+    const nodes = [
+      sim('Darling', 'Walsh', { age: 'Teen', dynasty: 'Walsh', dynastyRole: 'head', dynastyPlan: 'member' }),
+      sim('Miko', 'Ojo'),
+      planned('Kid', 'Ojo', { first: '', dynasty: 'Ojo', dynastyRole: 'head', dynastyPlan: 'member' }),
+      sim('Abe', 'Alto', { age: 'Teen', dynasty: 'Alto', dynastyRole: 'heir', dynastyPlan: 'member' }),
+    ];
+    const items = plans(nodes, [link('p1', 'Miko', 'Kid', 'parent')]);
+    const teen = one(items, 'role:Darling');
+    assert.deepEqual(
+      [teen.state, teen.waits[0]!.why, teen.waits[0]!.stage, teen.note],
+      ['waiting', 'tooYoung', 'Young Adult', 'In the game, only a young adult or older can start a dynasty.'],
+    );
+    const baby = one(items, 'role:Kid');
+    assert.deepEqual([baby.state, baby.waits[0]!.why, baby.waits[0]!.stage], ['waiting', 'notBorn', 'Young Adult']);
+    // An heir has no age to wait for.
+    assert.equal(one(items, 'role:Abe').state, 'ready');
+  });
+
   it('wait on a planned heir not born yet', () => {
     const nodes = [
       sim('Dirk', 'Dreamer'),

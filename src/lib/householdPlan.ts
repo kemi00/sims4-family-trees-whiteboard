@@ -207,16 +207,22 @@ export function householdPlans(opts: {
     const name = cardName(n);
     const the = n.dynasty ? `the ${n.dynasty} dynasty` : 'a dynasty';
     const key = n.dynastyId ? `id:${n.dynastyId}` : `name:${n.dynasty}`;
+    // A head of a dynasty the game doesn't have yet: they start it.
+    const starts = n.dynastyPlan === 'member' && n.dynastyRole === 'head' && !gameMember.has(key);
     let text: string;
     if (n.dynastyPlan === 'none') text = `Take ${name} out of ${the}`;
-    else if (n.dynastyPlan === 'member' && n.dynastyRole === 'head' && !gameMember.has(key)) {
+    else if (starts) {
       text = `Start ${the} with ${name} as its head`;
     } else if (n.dynastyRole === 'outcast') text = `Declare ${name} an outcast of ${the}`;
     else if (n.dynastyRole) text = `Make ${name} ${n.dynastyRole} of ${the}`;
     else if (n.dynastyPlan === 'member') text = `Bring ${name} into ${the}`;
     else text = `Leave ${name} without a role in ${the}`;
     const waits: PlanWait[] = [];
-    if (isPlannedSim(n)) {
+    // In the game only a young adult or older can start a dynasty: a teen
+    // waits to grow up, and a planned baby to be born and then grow up.
+    const tooYoung = starts ? waitOn(n, GROWN_UP) : null;
+    if (tooYoung) waits.push(tooYoung);
+    else if (isPlannedSim(n)) {
       waits.push(
         plannedChild(n)
           ? { sim: n.id, why: 'notBorn', stage: '', gid: n.gid, move: 'play', days: null }
@@ -231,9 +237,11 @@ export function householdPlans(opts: {
       sims: [n.id],
       gids: [n.gid],
       waits,
-      ...(n.dynastyPlan === 'member' && n.dynastyRole && !isPlannedSim(n) && gameMember.has(key)
-        ? { note: `Not in ${the} in your save yet.` }
-        : {}),
+      ...(tooYoung
+        ? { note: 'In the game, only a young adult or older can start a dynasty.' }
+        : n.dynastyPlan === 'member' && n.dynastyRole && !isPlannedSim(n) && gameMember.has(key)
+          ? { note: `Not in ${the} in your save yet.` }
+          : {}),
     });
   }
 
