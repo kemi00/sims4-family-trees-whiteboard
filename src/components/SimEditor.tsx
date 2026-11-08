@@ -319,6 +319,12 @@ export function SimEditor({
   // "Thebe V", not one field split at its first space.
   const [first, setFirst] = useState(n.first);
   const [sur, setSur] = useState(n.sur);
+  /**
+   * Every sim needs a last name, a planned one most of all: unnamed planned
+   * sims go by it. Only a card the game gave none (Mayor Whiskers) may stay
+   * without one.
+   */
+  const surMissing = !sur.trim() && (!!n.sur.trim() || isPlannedSim(n));
   /** A planned sim's role in the plan: "Heir 1". */
   const [planLabel, setPlanLabel] = useState(n.planLabel ?? '');
   const [linkOpen, setLinkOpen] = useState(false);
@@ -537,6 +543,7 @@ export function SimEditor({
   };
 
   const save = () => {
+    if (surMissing) return;
     /**
      * A role set here is a plan, like a link drawn on the board: the game's
      * role stays theirs until a save shows the new one (dynastyPlan).
@@ -732,15 +739,22 @@ export function SimEditor({
             <label htmlFor="edLast">Last name</label>
             <input
               id="edLast"
-              className="edname"
+              className={surMissing ? 'edname edname--missing' : 'edname'}
               value={sur}
               autoComplete="off"
               enterKeyHint="done"
-              aria-describedby={married ? 'edMarried' : undefined}
+              required={surMissing || undefined}
+              aria-invalid={surMissing || undefined}
+              aria-describedby={[surMissing ? 'edLastMissing' : '', married ? 'edMarried' : ''].filter(Boolean).join(' ') || undefined}
               onChange={(e) => setSur(e.target.value)}
             />
           </div>
         </div>
+        {surMissing && (
+          <div id="edLastMissing" className="edhint edhint--error" role="alert">
+            Enter a last name to save.
+          </div>
+        )}
         {married && (
           <div id="edMarried" className="edhint">
             In the game: {n.first} {married}, their spouse's surname. Type {married} as the last
@@ -1235,7 +1249,13 @@ export function SimEditor({
       </div>
 
       <div className="ed__foot">
-        <button type="button" className="edsave" onClick={save}>
+        <button
+          type="button"
+          className="edsave"
+          disabled={surMissing}
+          title={surMissing ? 'Enter a last name to save' : undefined}
+          onClick={save}
+        >
           Save
         </button>
       </div>

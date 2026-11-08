@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Group, SimNode, World } from '../types/whiteboard.ts';
+import type { Group, SimNode, World, HouseholdMove } from '../types/whiteboard.ts';
 import {
   NEW_HOUSEHOLD,
   commonWorld,
@@ -9,6 +9,7 @@ import {
   householdOptions,
   householdSurnames,
   moveDestination,
+  movesDoneBySave,
 } from './householdMove.ts';
 
 const worlds: World[] = [
@@ -170,5 +171,20 @@ describe('a planned baby\'s last name', () => {
   it('gives anyone else the household\'s most shared name', () => {
     assert.deepEqual(householdSurnames(sur('Ojo', 'Kibo', 'Kibo'), 'Karaoke Legends'), ['Kibo']);
     assert.deepEqual(householdSurnames(sur('', ''), 'Karaoke Legends'), []);
+  });
+});
+
+describe('moves a save shows done', () => {
+  const mv = (id: string, simId: string, toHh: string, extra: Record<string, unknown> = {}) =>
+    ({ id, simId, createdAt: id, fromGid: 'W||A', fromHh: 'A', fromWorld: 'W', fromNb: '', toGid: `W||${toHh}`, toHh, toWorld: 'W', toNb: '', ...extra }) as HouseholdMove;
+  const nodes = [{ id: 'j', saveSimId: '7' }, { id: 'p' }];
+
+  it('is done once the save has the sim in the household they were moved to, earlier moves with it', () => {
+    const moves = [mv('m1', 'j', 'Bro'), mv('m2', 'j', 'Le Chien'), mv('m3', 'p', 'Le Chien')];
+    assert.deepEqual([...movesDoneBySave(moves, nodes, [{ saveSimId: '7', household: 'le chien' }])], ['m1', 'm2']);
+  });
+
+  it('is still a plan while the save has them elsewhere', () => {
+    assert.equal(movesDoneBySave([mv('m1', 'j', 'Le Chien')], nodes, [{ saveSimId: '7', household: 'Bro' }]).size, 0);
   });
 });

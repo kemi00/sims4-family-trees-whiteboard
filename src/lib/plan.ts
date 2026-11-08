@@ -25,13 +25,51 @@ export const GENDER_NOT_KNOWN = '-';
 
 /**
  * The name a card shows: its name, or for a planned sim with no first name,
- * its plan label and surname ("Heir 1 Dreamer").
+ * its plan label and surname ("Firstborn Dreamer"), else its number among the
+ * planned sims of that surname ("Planned (2) Le Chien"), so no two read alike.
  */
-export function cardName(n: Pick<SimNode, 'first' | 'sur' | 'planLabel' | 'added' | 'saveSimId'>): string {
+export function cardName(n: Pick<SimNode, 'first' | 'sur' | 'planLabel' | 'planNo' | 'added' | 'saveSimId'>): string {
   const name = `${n.first} ${n.sur}`.trim();
   if (n.first.trim() || !isPlannedSim(n)) return name;
-  const label = n.planLabel?.trim() || 'Planned';
+  const label = n.planLabel?.trim() || (n.planNo ? `Planned (${n.planNo})` : 'Planned');
   return `${label} ${n.sur}`.trim();
+}
+
+/**
+ * Numbers every planned sim that goes by its surname (no first name, no plan
+ * label) and has no number yet, or one another planned sim of its surname
+ * already has (after a rename): the next number for that surname, oldest
+ * card first. Numbers stay once given: naming, filling or deleting one
+ * leaves the others as they are. Returns the same array when nothing changes.
+ */
+export function numberPlannedSims(nodes: SimNode[]): SimNode[] {
+  const fold = (s: string) => s.trim().toLocaleLowerCase();
+  const order = (id: string) => Number(id.replace(/\D+/g, '')) || 0;
+  const taken = new Map<string, Set<number>>();
+  const top = new Map<string, number>();
+  for (const n of nodes) {
+    if (!n.planNo) continue;
+    const k = fold(n.sur);
+    top.set(k, Math.max(top.get(k) ?? 0, n.planNo));
+  }
+  const need: SimNode[] = [];
+  for (const n of [...nodes].sort((a, b) => order(a.id) - order(b.id))) {
+    if (!isPlannedSim(n)) continue;
+    const k = fold(n.sur);
+    const used = taken.get(k) ?? new Set<number>();
+    taken.set(k, used);
+    if (n.planNo && !used.has(n.planNo)) used.add(n.planNo);
+    else if (!n.first.trim() && !n.planLabel?.trim()) need.push(n);
+  }
+  if (!need.length) return nodes;
+  const given = new Map<string, number>();
+  for (const n of need) {
+    const k = fold(n.sur);
+    const no = (top.get(k) ?? 0) + 1;
+    top.set(k, no);
+    given.set(n.id, no);
+  }
+  return nodes.map((n) => (given.has(n.id) ? { ...n, planNo: given.get(n.id)! } : n));
 }
 
 /** "Not born yet" for a planned child, "Not in the game yet" for anyone else planned. */
@@ -350,6 +388,7 @@ export function plannedSnapshot(slot: SimNode, at: string): NonNullable<SimNode[
     gender: slot.gender,
     age: slot.age,
     ...(slot.planLabel ? { planLabel: slot.planLabel } : {}),
+    ...(slot.planNo ? { planNo: slot.planNo } : {}),
     gid: slot.gid,
     hh: slot.hh,
     world: slot.world,
@@ -501,6 +540,7 @@ export function unlinkPlannedSim(
     h: 0,
     added: true,
     ...(was.planLabel ? { planLabel: was.planLabel } : {}),
+    ...(was.planNo ? { planNo: was.planNo } : {}),
   };
   const swap = (x: string) => (x === id ? pid : x);
   const next: Edge[] = [];

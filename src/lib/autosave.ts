@@ -141,6 +141,7 @@ function nodeIdentity(n: SimNode) {
     genRootOf: n.genRootOf ?? null,
     life: n.life ?? null,
     planLabel: n.planLabel ?? null,
+    planNo: n.planNo ?? null,
     plannedAs: n.plannedAs ?? null,
   };
 }

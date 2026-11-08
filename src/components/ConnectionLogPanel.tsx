@@ -97,7 +97,7 @@ export function ConnectionLogPanel({
   /** Off plan beats planned and done: it is the one that needs you. */
   const statusOf = (e: ConnectionLogEntry): 'off' | 'done' | 'planned' | 'save' => {
     if (e.edgeIds.some((id) => offPlanEdgeIds?.has(id))) return 'off';
-    if (e.edgeIds.some((id) => doneEdgeIds?.has(id))) return 'done';
+    if (e.done || e.edgeIds.some((id) => doneEdgeIds?.has(id))) return 'done';
     return (e.origin ?? 'planned') === 'save' ? 'save' : 'planned';
   };
   const filtered = useMemo(

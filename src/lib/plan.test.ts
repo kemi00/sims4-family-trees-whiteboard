@@ -4,6 +4,7 @@ import type { Edge, HouseholdMove, SimNode } from '../types/whiteboard.ts';
 import {
   cardName,
   linkPlannedSim,
+  numberPlannedSims,
   overruledParentLinks,
   moveToUndo,
   planConflicts,
@@ -37,6 +38,32 @@ const link = (id: string, a: string, b: string, type: Edge['type'], source: Edge
   b,
   type,
   source,
+});
+
+describe('telling planned sims apart', () => {
+  const kid = (id: string, sur: string, extra: Partial<SimNode> = {}) =>
+    planned(id, { first: '', sur, ...extra });
+
+  it('numbers unnamed planned sims per last name, oldest card first', () => {
+    const out = numberPlannedSims([kid('new3', 'Le Chien'), kid('new1', 'Le Chien'), kid('new2', 'Romeo'), sim('Bella')]);
+    assert.deepEqual(out.map(cardName), ['Planned (2) Le Chien', 'Planned (1) Le Chien', 'Planned (1) Romeo', 'Bella X']);
+  });
+
+  it('keeps numbers once given, so naming or filling one renumbers nobody', () => {
+    const once = numberPlannedSims([kid('new1', 'Le Chien'), kid('new2', 'Le Chien')]);
+    assert.equal(numberPlannedSims(once), once);
+    const filled = [{ ...once[0]!, saveSimId: '7', first: 'Joaquin' }, once[1]!, kid('new3', 'Le Chien')];
+    assert.deepEqual(numberPlannedSims(filled).map(cardName), ['Joaquin Le Chien', 'Planned (2) Le Chien', 'Planned (3) Le Chien']);
+  });
+
+  it('gives a fresh number to one whose number another of its new surname has', () => {
+    const out = numberPlannedSims([kid('new1', 'Romeo', { planNo: 1 }), kid('new2', 'Romeo', { planNo: 1 })]);
+    assert.deepEqual(out.map(cardName), ['Planned (1) Romeo', 'Planned (2) Romeo']);
+  });
+
+  it('prefers a plan label to the number', () => {
+    assert.equal(cardName(kid('new1', 'Le Chien', { planNo: 2, planLabel: 'Firstborn' })), 'Firstborn Le Chien');
+  });
 });
 
 describe('plans the game went against', () => {

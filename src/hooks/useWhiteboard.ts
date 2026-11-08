@@ -17,7 +17,7 @@ import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type Lo
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
 import { householdPlans, planTallies } from '../lib/householdPlan.ts';
-import {
+import { movesDoneBySave,
   householdMovePlan,
   householdSurnames,
   moveDestination,
@@ -32,6 +32,7 @@ import {
   moveToUndo,
   offPlanMarks,
   planConflicts,
+  numberPlannedSims,
   planProgress,
   resolvePlanConflict,
   unlinkPlannedSim,
@@ -1134,10 +1135,15 @@ export function useWhiteboard() {
   const planStats = useMemo(() => planProgress(edges, planIssues), [edges, planIssues]);
   /** Every household's plan items (householdPlan.ts): the brief, the tag badges and Up next read these. */
   const planItems = useMemo(
-    () => householdPlans({ nodes: nodesCore, edges, conflicts: planIssues, pairStatus, saveGame }),
-    [nodesCore, edges, planIssues, pairStatus, saveGame],
+    () => householdPlans({ nodes: nodesCore, edges, conflicts: planIssues, pairStatus, saveGame, moves: householdMoves }),
+    [nodesCore, edges, planIssues, pairStatus, saveGame, householdMoves],
   );
   const planTally = useMemo(() => planTallies(planItems), [planItems]);
+  // Every planned sim gets its number for good: "Planned (2) Le Chien".
+  useEffect(() => {
+    const numbered = numberPlannedSims(nodesCore);
+    if (numbered !== nodesCore) setNodesCore(numbered);
+  }, [nodesCore]);
   // A new save import is a fresh start for what was skipped in Up next.
   useEffect(() => setUpNextSkipped(new Set()), [saveGame?.importedAt]);
   /** Links a save confirmed after they were planned: the plan done. */
@@ -2306,7 +2312,7 @@ export function useWhiteboard() {
           seedNameKeys: seedNameKeysFromNodes(seed.nodes),
           packReference: seed.nodes,
           rosterEdges: seed.edges,
-          movedByHand: new Set(householdMoves.map((m) => m.simId)),
+          movedByHand: new Set(householdMoves.filter((m) => !m.done).map((m) => m.simId)),
           game: saveGame,
           fileName: file.name,
           now: new Date().toISOString(),
@@ -2355,7 +2361,7 @@ export function useWhiteboard() {
         seedNameKeys: seedNameKeysFromNodes(seed.nodes),
         packReference: seed.nodes,
         rosterEdges: seed.edges,
-        movedByHand: new Set(householdMoves.filter((m) => !released.has(m.simId)).map((m) => m.simId)),
+        movedByHand: new Set(householdMoves.filter((m) => !m.done && !released.has(m.simId)).map((m) => m.simId)),
         slotMatches: new Map(matches.map(([slot, save]) => [save, slot])),
         game: saveGame,
         fileName: saveImport.merge.saveGame?.fileName,
@@ -2380,9 +2386,17 @@ export function useWhiteboard() {
         svgHeight,
         'merge',
       );
-      if (undone.length) {
+      // Moves your save now shows done stop being plans.
+      const done = movesDoneBySave(
+        householdMoves.filter((m) => !released.has(m.simId)),
+        nodesR,
+        saveImport.parsed.sims,
+      );
+      if (undone.length || done.size) {
         const ids = new Set(undone.map((m) => m.id));
-        setHouseholdMoves((ms) => ms.filter((m) => !ids.has(m.id)));
+        setHouseholdMoves((ms) =>
+          ms.filter((m) => !ids.has(m.id)).map((m) => (done.has(m.id) ? { ...m, done: true as const } : m)),
+        );
       }
     },
     [saveImport, applySaveBoard, nodesCore, edges, groups, worlds, pairStatus, seed.nodes, seed.edges, householdMoves, saveGame],

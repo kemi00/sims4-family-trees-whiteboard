@@ -155,6 +155,33 @@ export function householdSurnames(
   return pool.filter((s) => count(s) === most);
 }
 
+/**
+ * Moves a save shows done: the sim lives in the household they were moved
+ * to, matched by their sim id and the household's name. A sim's earlier
+ * moves are settled with their last one.
+ */
+export function movesDoneBySave(
+  moves: HouseholdMove[],
+  nodes: Pick<SimNode, 'id' | 'saveSimId'>[],
+  sims: { saveSimId: string; household: string }[],
+): Set<string> {
+  const home = new Map(sims.map((s) => [s.saveSimId, fold(s.household)]));
+  const saveId = new Map(nodes.map((n) => [n.id, n.saveSimId]));
+  const last = new Map<string, HouseholdMove>();
+  for (const m of moves) {
+    if (m.done) continue;
+    const prev = last.get(m.simId);
+    if (!prev || prev.createdAt <= m.createdAt) last.set(m.simId, m);
+  }
+  const doneSims = new Set<string>();
+  for (const m of last.values()) {
+    const sid = saveId.get(m.simId);
+    const hh = sid ? home.get(sid) : undefined;
+    if (hh && hh === fold(m.toHh)) doneSims.add(m.simId);
+  }
+  return new Set(moves.filter((m) => !m.done && doneSims.has(m.simId)).map((m) => m.id));
+}
+
 /** The world most of these sims live in, for the picker to start on. */
 export function commonWorld(sims: SimNode[], worlds: World[]): string {
   const counts = new Map<string, number>();

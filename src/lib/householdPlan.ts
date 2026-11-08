@@ -1,9 +1,9 @@
-import { DECEASED_STATE } from './constants.ts';
 import { GROWN_UP, daysFromBirth, daysUntilStage, everyoneAges, lifeView, wholeDaysText } from './lifeClock.ts';
 import { cardName, conflictText, isPlannedSim, type PlanConflict } from './plan.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { edgeSourceOf, uKey } from './utils.ts';
-import type { Edge, Group, PairStatus, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
+import { ADDED_HOUSEHOLD, DECEASED_STATE } from './constants.ts';
+import type { Edge, Group, HouseholdMove, PairStatus, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 /**
  * Your plan, household by household: what you can do today, what waits
@@ -43,9 +43,9 @@ export type PlanWait = {
 };
 
 export type PlanItem = {
-  /** Stable key: `couple:<edge>`, `baby:<parents>`, `find:<sim>`, `role:<sim>`, `off:<edge>`. */
+  /** Stable key: `couple:<edge>`, `baby:<parents>`, `find:<sim>`, `role:<sim>`, `move:<move>`, `off:<edge>`. */
   id: string;
-  kind: 'couple' | 'baby' | 'find' | 'role' | 'offPlan';
+  kind: 'couple' | 'baby' | 'find' | 'role' | 'move' | 'offPlan';
   state: PlanState;
   /** "Marry Lysander Capp and Spare Munch". */
   text: string;
@@ -78,6 +78,8 @@ export function householdPlans(opts: {
   conflicts: PlanConflict[];
   pairStatus?: PairStatus[];
   saveGame?: SaveGameInfo | null;
+  /** Household moves made on the board; those no save has shown done are plans. */
+  moves?: HouseholdMove[];
 }): PlanItem[] {
   const { nodes, edges, conflicts, saveGame } = opts;
   const lifespan = saveGame?.lifespan;
@@ -222,6 +224,28 @@ export function householdPlans(opts: {
       ...(n.dynastyPlan === 'member' && !isPlannedSim(n) && n.dynasty
         ? { note: `Not in the ${n.dynasty} dynasty in your save yet.` }
         : {}),
+    });
+  }
+
+  // A sim moved to another household on the board, which no save shows yet.
+  // A planned sim only lives there in the plan: born or found, it will.
+  const lastMove = new Map<string, HouseholdMove>();
+  for (const m of opts.moves ?? []) {
+    const prev = lastMove.get(m.simId);
+    if (!prev || prev.createdAt <= m.createdAt) lastMove.set(m.simId, m);
+  }
+  for (const m of lastMove.values()) {
+    const n = byId.get(m.simId);
+    if (m.done || !n || isPlannedSim(n) || !living(n) || n.gid !== m.toGid) continue;
+    const from = m.fromHh && m.fromHh !== ADDED_HOUSEHOLD ? ` from ${m.fromHh}` : '';
+    items.push({
+      id: `move:${m.id}`,
+      kind: 'move',
+      state: 'ready',
+      text: `Move ${cardName(n)}${from} to the ${m.toHh} household`,
+      sims: [n.id],
+      gids: uniq([m.toGid, ...(from ? [m.fromGid] : [])]),
+      waits: [],
     });
   }
 

@@ -39,6 +39,12 @@ export interface SimNode {
    */
   planLabel?: string;
   /**
+   * A planned sim's number among the planned sims sharing its last name,
+   * kept for good so naming or filling one never renumbers the rest:
+   * "Planned (2) Le Chien" until it has a name or a plan label.
+   */
+  planNo?: number;
+  /**
    * What this card was while planned, before a sim from the save filled it:
    * the editor's "Planned as Heir 1", and what Unlink restores.
    */
@@ -98,6 +104,8 @@ export interface PlannedAs {
   age: string;
   /** Its plan label, to restore on Unlink. */
   planLabel?: string;
+  /** Its number among planned sims of its surname, to restore on Unlink. */
+  planNo?: number;
   /** Its household box, to return to on Unlink. */
   gid: string;
   hh: string;
@@ -272,6 +280,11 @@ export interface HouseholdMove {
   toHh: string;
   toWorld: string;
   toNb: string;
+  /**
+   * A save import found the sim living in this household: the move, part of
+   * your plan until then, is done, and later saves may move them on.
+   */
+  done?: true;
 }
 
 export interface DeceasedMark {

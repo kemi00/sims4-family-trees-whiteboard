@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Edge, Group, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
+import type { Edge, Group, HouseholdMove, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 import {
   eldersOf,
   householdName,
@@ -194,6 +194,41 @@ describe('planned dynasty roles', () => {
       waitText(i.waits[0]!, () => 'Heir Dreamer', (gid) => householdName(gid, [], nodes)),
       'Heir Dreamer isn’t born yet: play the Dreamer household for the birth',
     );
+  });
+});
+
+describe('household moves', () => {
+  const move = (id: string, simId: string, from: string, to: string, extra: Partial<HouseholdMove> = {}): HouseholdMove => ({
+    id,
+    simId,
+    createdAt: id,
+    fromGid: `W||${from}`,
+    fromHh: from,
+    fromWorld: 'W',
+    fromNb: '',
+    toGid: `W||${to}`,
+    toHh: to,
+    toWorld: 'W',
+    toNb: '',
+    ...extra,
+  });
+
+  it('are ready to do in the game until a save shows them done, in both households', () => {
+    const nodes = [sim('Joaquin', 'Le Chien'), planned('Kid', 'Le Chien', { first: '', planNo: 1 })];
+    const moves = [move('m1', 'Joaquin', 'Bro', 'Le Chien'), move('m2', 'Kid', 'Bro', 'Le Chien')];
+    // The planned sim lives there only in the plan: no move to make in the game.
+    const items = plans(nodes, [], { moves }).filter((i) => i.kind === 'move');
+    assert.deepEqual(
+      items.map((i) => [i.id, i.state, i.text, i.gids]),
+      [['move:m1', 'ready', 'Move Joaquin Le Chien from Bro to the Le Chien household', ['W||Le Chien', 'W||Bro']]],
+    );
+    assert.deepEqual(plans(nodes, [], { moves: [{ ...moves[0]!, done: true }] }).filter((i) => i.kind === 'move'), []);
+  });
+
+  it('count only where the sim is now', () => {
+    const nodes = [sim('Joaquin', 'Bro')];
+    const moves = [move('m1', 'Joaquin', 'Bro', 'Le Chien'), move('m2', 'Joaquin', 'Le Chien', 'Bro')];
+    assert.deepEqual(plans(nodes, [], { moves }).map((i) => i.text), ['Move Joaquin Bro from Le Chien to the Bro household']);
   });
 });
 

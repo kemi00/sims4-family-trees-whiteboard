@@ -8,6 +8,7 @@ import type {
   SimNode,
 } from '../types/whiteboard.ts';
 import { edgeSourceOf } from './utils.ts';
+import { cardName } from './plan.ts';
 
 export type LogPart =
   | { kind: 'time'; value: string }
@@ -24,6 +25,8 @@ export type ConnectionLogEntry = {
   simId?: string;
   createdAt?: string;
   origin?: ConnectionLogOrigin;
+  /** A planned move a save has since shown done. */
+  done?: true;
   text: string;
   parts: LogPart[];
 };
@@ -79,12 +82,9 @@ export function connectionLogRows(
   return rows;
 }
 
+/** A sim's name in the log: a planned sim with no name by its plan label or number ("Planned (2) Le Chien"). */
 export function simName(n: SimNode): string {
-  const name = [n.first, n.sur]
-    .map((s) => (s ?? '').trim())
-    .filter(Boolean)
-    .join(' ');
-  return name || n.id;
+  return cardName(n) || n.id;
 }
 
 /** `{neighbourhood}, {world}` — skip a missing neighbourhood. */
@@ -403,9 +403,8 @@ export function buildConnectionLog(
   for (const move of moves) {
     const sim = byid[move.simId];
     if (!sim) continue;
-    entries.push(
-      makeEntry(move.id, [], move.createdAt, moveParts(sim, move), move.simId, 'planned'),
-    );
+    const entry = makeEntry(move.id, [], move.createdAt, moveParts(sim, move), move.simId, 'planned');
+    entries.push(move.done ? { ...entry, done: true } : entry);
   }
 
   for (const event of ageUps) {
