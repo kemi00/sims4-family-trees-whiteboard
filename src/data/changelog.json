@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "2e7e379",
+   "date": "2026-11-08",
+   "text": "An unnamed planned baby's card now says whose child it is, like \"Child of Jules ＋ Bess\", so planned siblings and cousins with the same last name tell apart at a glance. Hover it for the parents' full names."
+  },
+  {
    "sha": "ae01e9b",
    "date": "2026-11-08",
    "text": "Planned sims with no first name are numbered by last name, \"Planned (1) Le Chien\", \"Planned (2) Le Chien\", on cards, in the log and in plans, and keep their number when another is named or born. A sim can't be saved without a last name: the field turns red and Save waits. Household moves are now part of each household's plan, and turn done in the log once your save has the sim living there."
