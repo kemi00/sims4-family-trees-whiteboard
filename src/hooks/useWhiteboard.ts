@@ -33,6 +33,7 @@ import {
   offPlanMarks,
   planConflicts,
   numberPlannedSims,
+  markHandSetRoles,
   planProgress,
   resolvePlanConflict,
   unlinkPlannedSim,
@@ -107,7 +108,7 @@ import type {
   WhiteboardData,
   World,
 } from '../types/whiteboard.ts';
-import { dynastyGenerations, dynastyKey, setGenRoot } from '../lib/generations.ts';
+import { dynastyGenerations, dynastyKey, familyGenerations, setGenRoot } from '../lib/generations.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
@@ -1115,6 +1116,14 @@ export function useWhiteboard() {
 
   /** Each dynasty member's generation, counted from the first head. */
   const dynastyGens = useMemo(() => dynastyGenerations(nodesCore, edges), [nodesCore, edges]);
+  /** Every sim's generation, dynasty or not, from their oldest known ancestor. */
+  const familyGens = useMemo(() => familyGenerations(nodesCore, edges), [nodesCore, edges]);
+  /** The generation each sim goes by: their dynasty's count, else their family's. */
+  const generationOf = useMemo(() => {
+    const out = new Map<string, { gen?: number }>(familyGens);
+    for (const [id, g] of dynastyGens) if (g.gen !== undefined) out.set(id, g);
+    return out;
+  }, [familyGens, dynastyGens]);
 
   /** Planned links the game went against (see planConflicts). */
   const planIssues = useMemo(() => planConflicts(nodesCore, edges), [nodesCore, edges]);
@@ -1146,9 +1155,10 @@ export function useWhiteboard() {
     [nodesCore, edges, planIssues, pairStatus, saveGame, householdMoves],
   );
   const planTally = useMemo(() => planTallies(planItems), [planItems]);
-  // Every planned sim gets its number for good: "Planned (2) Le Chien".
+  // Every planned sim gets its number for good: "Planned (2) Le Chien"; a
+  // role set by hand before roles were plans becomes one.
   useEffect(() => {
-    const numbered = numberPlannedSims(nodesCore);
+    const numbered = markHandSetRoles(numberPlannedSims(nodesCore));
     if (numbered !== nodesCore) setNodesCore(numbered);
   }, [nodesCore]);
   // A new save import is a fresh start for what was skipped in Up next.
@@ -2902,6 +2912,8 @@ export function useWhiteboard() {
     offPlan,
     plannedChildIds,
     plannedParents,
+    familyGens,
+    generationOf,
     planStats,
     doneEdgeIds,
     plannedCounts,

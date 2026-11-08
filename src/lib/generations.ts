@@ -1,4 +1,5 @@
 import type { Edge, SimNode } from '../types/whiteboard.ts';
+import { edgeSourceOf } from './utils.ts';
 
 /**
  * A dynasty's key on the board: the game's id when the card has one (two
@@ -22,6 +23,68 @@ export function firstHeads(nodes: SimNode[]): Map<string, string> {
     // A planned head isn't one yet: the count stays with the game's.
     if (key && n.dynastyRole === 'head' && !n.dynastyPlan && !out.has(key)) out.set(key, n.id);
   }
+  // A dynasty only planned, with no head in the game: its planned head.
+  for (const n of nodes) {
+    const key = dynastyKey(n);
+    if (key && n.dynastyRole === 'head' && n.dynastyPlan && !out.has(key)) out.set(key, n.id);
+  }
+  return out;
+}
+
+export type FamilyGeneration = {
+  /** 1 for a sim with no parents on the board, one more for each step down their longest line. */
+  gen: number;
+  /** Gen 1: their oldest known ancestor, the top of that line. */
+  rootId: string;
+  /** The line runs through a planned (board-only) parent link. */
+  planned?: true;
+};
+
+/**
+ * Every sim's generation, dynasty or not: counted down from their oldest
+ * known ancestor on the board (the top of their longest line up the parent
+ * links, the deceased and family-tree relatives included), each child one
+ * more. When lines tie, the one through the parent carrying their last name
+ * wins. Pets have none.
+ */
+export function familyGenerations(nodes: SimNode[], edges: Edge[]): Map<string, FamilyGeneration> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const parents = new Map<string, Edge[]>();
+  for (const e of edges) {
+    if (e.type !== 'parent' || !byId.has(e.a) || !byId.has(e.b)) continue;
+    parents.set(e.b, [...(parents.get(e.b) ?? []), e]);
+  }
+  const out = new Map<string, FamilyGeneration>();
+  const busy = new Set<string>();
+  const fold = (s: string) => s.trim().toLocaleLowerCase();
+  const of = (id: string): FamilyGeneration => {
+    const known = out.get(id);
+    if (known) return known;
+    const n = byId.get(id)!;
+    let best: { g: FamilyGeneration; e: Edge } | null = null;
+    busy.add(id);
+    for (const e of parents.get(id) ?? []) {
+      if (busy.has(e.a)) continue;
+      const g = of(e.a);
+      const better =
+        !best ||
+        g.gen > best.g.gen ||
+        (g.gen === best.g.gen && fold(byId.get(e.a)!.sur) === fold(n.sur) && fold(byId.get(best.e.a)!.sur) !== fold(n.sur));
+      if (better) best = { g, e };
+    }
+    busy.delete(id);
+    const g: FamilyGeneration = best
+      ? {
+          gen: best.g.gen + 1,
+          rootId: best.g.rootId,
+          ...(best.g.planned || edgeSourceOf(best.e) === 'planned' ? { planned: true as const } : {}),
+        }
+      : { gen: 1, rootId: id };
+    out.set(id, g);
+    return g;
+  };
+  for (const n of nodes) if (!n.species) of(n.id);
+  for (const n of nodes) if (n.species) out.delete(n.id);
   return out;
 }
 

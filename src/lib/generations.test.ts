@@ -5,6 +5,7 @@ import {
   dynastyGenerations,
   dynastyKey,
   dynastyLabel,
+  familyGenerations,
   firstHeads,
   generationText,
   rememberFirstHeads,
@@ -106,19 +107,50 @@ describe('dynasty generations', () => {
   });
 
   it('counts a sim planned into the dynasty, and leaves its first head to the game', () => {
-    const planned = [
-      ...nodes.filter((n) => n.id !== 'Mortimer'),
-      sim('Mortimer'),
-      sim('Grandkid', { dynastyRole: 'head', dynastyPlan: 'member' }),
-      sim('Heir', { dynastyRole: 'head', dynastyPlan: 'role' }),
+    const planned = [...nodes, sim('Grandkid', { dynastyRole: 'head', dynastyPlan: 'member' })];
+    assert.equal(firstHeads(planned).get('id:9'), 'Mortimer');
+    const onlyPlanned = [
+      sim('Bjorn', { dynasty: 'Bjergsen', dynastyId: undefined, dynastyRole: 'head', dynastyPlan: 'member' }),
     ];
-    assert.equal(firstHeads(planned).get('id:9'), undefined);
-    assert.ok(rememberFirstHeads(planned).every((n) => !n.firstHeadOf));
+    // A dynasty only planned counts from its planned head, but nothing is remembered.
+    assert.equal(firstHeads(onlyPlanned).get('name:Bjergsen'), 'Bjorn');
+    assert.ok(rememberFirstHeads(onlyPlanned).every((n) => !n.firstHeadOf));
     const g = dynastyGenerations(
       [...nodes, sim('Grandkid', { dynastyRole: 'heir', dynastyPlan: 'member' })],
       [...edges, parent('Baby', 'Grandkid')],
     );
     assert.equal(g.get('Grandkid')!.gen, (g.get('Baby')!.gen ?? 0) + 1);
+  });
+});
+
+describe('every sim’s generation', () => {
+  const s = (id: string, sur = 'Bjergsen') => sim(id, { sur, dynasty: undefined, dynastyId: undefined });
+  const nodes = [s('Bjorn'), s('Clara'), s('Sofia'), s('Jacques', 'Villareal'), s('Hugo', 'Villareal'), s('Kid'), s('Rex')];
+  nodes[6] = { ...nodes[6]!, species: 'Dog' };
+  const edges = [
+    parent('Bjorn', 'Sofia'),
+    parent('Clara', 'Sofia'),
+    parent('Jacques', 'Hugo'),
+    parent('Sofia', 'Kid', { source: 'planned' }),
+    parent('Hugo', 'Kid', { source: 'planned' }),
+  ];
+  const g = familyGenerations(nodes, edges);
+
+  it('counts down from the oldest known ancestor, dynasty or not', () => {
+    assert.deepEqual([g.get('Bjorn'), g.get('Sofia')!.gen, g.get('Hugo')!.gen], [{ gen: 1, rootId: 'Bjorn' }, 2, 2]);
+  });
+
+  it('takes the line through the parent with their last name when lines tie, and says when it is planned', () => {
+    assert.deepEqual(g.get('Kid'), { gen: 3, rootId: 'Bjorn', planned: true });
+  });
+
+  it('follows the longest line up', () => {
+    const withGrandpa = familyGenerations([...nodes, s('Old', 'Villareal')], [...edges, parent('Old', 'Jacques')]);
+    assert.deepEqual([withGrandpa.get('Kid')!.gen, withGrandpa.get('Kid')!.rootId], [4, 'Old']);
+  });
+
+  it('leaves pets out', () => {
+    assert.equal(g.get('Rex'), undefined);
   });
 });
 

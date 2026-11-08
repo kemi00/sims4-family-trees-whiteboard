@@ -197,11 +197,24 @@ export function householdPlans(opts: {
     });
   }
 
-  // A dynasty role planned on the board: done in the game's dynasty panel
-  // once the sim is in the game.
+  // A dynasty or role planned on the board: done in the game's dynasty
+  // panel once the sim is in the game.
+  const gameMember = new Set(
+    nodes.filter((x) => x.dynasty && x.dynastyPlan !== 'member').map((x) => (x.dynastyId ? `id:${x.dynastyId}` : `name:${x.dynasty}`)),
+  );
   for (const n of nodes) {
-    if (!n.dynastyPlan || !n.dynastyRole || n.species || !living(n)) continue;
-    const of = n.dynasty ? ` of the ${n.dynasty} dynasty` : '';
+    if (!n.dynastyPlan || n.species || !living(n)) continue;
+    const name = cardName(n);
+    const the = n.dynasty ? `the ${n.dynasty} dynasty` : 'a dynasty';
+    const key = n.dynastyId ? `id:${n.dynastyId}` : `name:${n.dynasty}`;
+    let text: string;
+    if (n.dynastyPlan === 'none') text = `Take ${name} out of ${the}`;
+    else if (n.dynastyPlan === 'member' && n.dynastyRole === 'head' && !gameMember.has(key)) {
+      text = `Start ${the} with ${name} as its head`;
+    } else if (n.dynastyRole === 'outcast') text = `Declare ${name} an outcast of ${the}`;
+    else if (n.dynastyRole) text = `Make ${name} ${n.dynastyRole} of ${the}`;
+    else if (n.dynastyPlan === 'member') text = `Bring ${name} into ${the}`;
+    else text = `Leave ${name} without a role in ${the}`;
     const waits: PlanWait[] = [];
     if (isPlannedSim(n)) {
       waits.push(
@@ -214,15 +227,12 @@ export function householdPlans(opts: {
       id: `role:${n.id}`,
       kind: 'role',
       state: waits.length ? 'waiting' : 'ready',
-      text:
-        n.dynastyRole === 'outcast'
-          ? `Declare ${cardName(n)} an outcast${of}`
-          : `Make ${cardName(n)} ${n.dynastyRole}${of}`,
+      text,
       sims: [n.id],
       gids: [n.gid],
       waits,
-      ...(n.dynastyPlan === 'member' && !isPlannedSim(n) && n.dynasty
-        ? { note: `Not in the ${n.dynasty} dynasty in your save yet.` }
+      ...(n.dynastyPlan === 'member' && n.dynastyRole && !isPlannedSim(n) && gameMember.has(key)
+        ? { note: `Not in ${the} in your save yet.` }
         : {}),
     });
   }

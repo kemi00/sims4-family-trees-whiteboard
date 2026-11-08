@@ -16,6 +16,7 @@ import {
   dynastyKey,
   generationText,
   type DynastyGeneration,
+  type FamilyGeneration,
 } from '../lib/generations.ts';
 import {
   clockText,
@@ -200,6 +201,9 @@ const STAGE_PLURAL: Record<string, string> = {
   Elder: 'Elders',
 };
 
+/** The Dynasty menu's choice for starting one the game doesn't have yet. */
+const NEW_DYNASTY = '__new';
+
 /** The Generation menu's choice for counting from the oldest known ancestor. */
 const AUTO_ROOT = '__oldest';
 
@@ -230,6 +234,8 @@ type Props = {
   saveGame: SaveGameInfo | null;
   /** Each dynasty member's generation (dynastyGenerations). */
   generations: Map<string, DynastyGeneration>;
+  /** Every sim's generation from their oldest known ancestor (familyGenerations). */
+  familyGenerations: Map<string, FamilyGeneration>;
   /** Show a possible partner on the board. */
   onPickPartner: (id: string) => void;
   left: number;
@@ -247,7 +253,7 @@ type Props = {
      * A role planned on the board (SimNode.dynastyPlan), with the dynasty the
      * board puts them in; present only when they change, undefined clears.
      */
-    dynastyPlan?: 'role' | 'member';
+    dynastyPlan?: 'role' | 'member' | 'none';
     dynasty?: string;
     dynastyId?: string;
     /** Count this dynasty's generations from another Gen 1 (null: the oldest known ancestor). */
@@ -281,6 +287,7 @@ export function SimEditor({
   edges,
   saveGame,
   generations,
+  familyGenerations,
   onPickPartner,
   left,
   top,
@@ -341,6 +348,8 @@ export function SimEditor({
   const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
   /** In a dynasty as the game has it, not one the board planned them into. */
   const inGameDynasty = !!n.dynasty && n.dynastyPlan !== 'member';
+  /** The new dynasty's name, when "New dynasty…" is picked. */
+  const [newDynasty, setNewDynasty] = useState(n.sur);
   const [moveOpen, setMoveOpen] = useState(false);
   /** Explanations opened with ⓘ, by field. */
   const [tips, setTips] = useState<Record<string, boolean>>({});
@@ -353,28 +362,36 @@ export function SimEditor({
    * as the generation lines name them ("Ngata (Oliana’s line)").
    */
   const dynasties = useMemo(() => {
-    const out = new Map<string, { key: string; dynasty: string; dynastyId?: string; label: string }>();
+    const out = new Map<string, { key: string; dynasty: string; dynastyId?: string; label: string; inGame: boolean }>();
     for (const x of nodes) {
       const key = dynastyKey(x);
-      if (!key || !x.dynasty || x.dynastyPlan === 'member' || out.has(key)) continue;
+      if (!key || !x.dynasty) continue;
+      const inGame = x.dynastyPlan !== 'member';
+      const had = out.get(key);
+      if (had) {
+        had.inGame ||= inGame;
+        continue;
+      }
       const g = [...generations.values()].find((v) => v.key === key);
       out.set(key, {
         key,
         dynasty: x.dynasty,
         ...(x.dynastyId ? { dynastyId: x.dynastyId } : {}),
         label: g ? dynastyLabel(g, generations, byId) : x.dynasty,
+        inGame,
       });
     }
     return [...out.values()].sort((a, b) => a.label.localeCompare(b.label));
   }, [nodes, generations, byId]);
   /**
-   * The dynasty a sim outside one is planned into: theirs when planned
-   * before, else a parent's, else a partner's; among those, the one their
-   * last name carries (Heir Dreamer: the Dreamers, not their mother's
-   * Capps), then a head's or heir's.
+   * The dynasty they are in, or planned into: theirs; for a planned sim in
+   * none, a parent's, else a partner's, the one their last name carries
+   * first (Heir Dreamer: the Dreamers, not their mother's Capps), then a
+   * head's or heir's. A sim from the save stays as the save has them, so
+   * one like Afua, outside her father's dynasty, isn't put in it unasked.
    */
-  const [dynastyPick, setDynastyPick] = useState(() => {
-    if (n.dynastyPlan === 'member') return dynastyKey(n) ?? '';
+  const suggestedDynasty = useMemo(() => {
+    if (n.dynasty || n.dynastyPlan || !isPlannedSim(n)) return '';
     const kin = (types: string[], other: (e: Edge) => string | null) =>
       edges
         .filter((e) => types.includes(e.type))
@@ -388,8 +405,20 @@ export function SimEditor({
       best(kin(['parent'], (e) => (e.b === n.id ? e.a : null))) ??
       best(kin(['marriage', 'romance'], (e) => (e.a === n.id ? e.b : e.b === n.id ? e.a : null)));
     return pick ? (dynastyKey(pick) ?? '') : '';
-  });
+    // Worked out once, for the sim the editor opened on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [dynastyChoice, setDynastyChoice] = useState(() =>
+    n.dynastyPlan === 'none' ? '' : (dynastyKey(n) ?? suggestedDynasty),
+  );
+  /** The dynasty picked, as a card would carry it; null for none. */
+  const target = useMemo((): { key: string; dynasty: string; dynastyId?: string } | null => {
+    if (dynastyChoice !== NEW_DYNASTY) return dynasties.find((d) => d.key === dynastyChoice) ?? null;
+    const name = newDynasty.trim();
+    return name ? { key: `name:${name}`, dynasty: name } : null;
+  }, [dynastyChoice, newDynasty, dynasties]);
   const gen = generations.get(n.id);
+  const familyGen = isPet ? undefined : familyGenerations.get(n.id);
   const genLabel = gen ? dynastyLabel(gen, generations, byId) : '';
   const genLine = gen ? generationText(gen, genLabel) : null;
   /** Who is Gen 1 of the dynasty's count; changed here, applied on Save. */
@@ -454,8 +483,7 @@ export function SimEditor({
    */
   const roleHolder = useMemo(() => {
     if (dynastyRole !== 'head' && dynastyRole !== 'heir') return null;
-    const target = inGameDynasty ? n : dynasties.find((d) => d.key === dynastyPick);
-    if (!target?.dynasty || (dynastyRole === n.dynastyRole && dynastyKey(target) === dynastyKey(n))) return null;
+    if (!target?.dynasty || (dynastyRole === n.dynastyRole && target.key === dynastyKey(n))) return null;
     return (
       nodes.find(
         (x) =>
@@ -464,7 +492,7 @@ export function SimEditor({
           (target.dynastyId && x.dynastyId ? x.dynastyId === target.dynastyId : x.dynasty === target.dynasty),
       ) ?? null
     );
-  }, [n, dynastyRole, nodes, inGameDynasty, dynasties, dynastyPick]);
+  }, [n, dynastyRole, nodes, target]);
   const [partnerGender, setPartnerGender] = useState('');
   /** The life stage picked in the partner list's Age menu; none yet picked. */
   const [stagePick, setStagePick] = useState<string | null>(null);
@@ -544,24 +572,7 @@ export function SimEditor({
 
   const save = () => {
     if (surMissing) return;
-    /**
-     * A role set here is a plan, like a link drawn on the board: the game's
-     * role stays theirs until a save shows the new one (dynastyPlan).
-     */
-    function rolePlanPatch(): Partial<Pick<SimNode, 'dynastyPlan' | 'dynasty' | 'dynastyId'>> {
-      const plannedIn = n.dynastyPlan === 'member';
-      if (!dynastyRole) {
-        if (!n.dynastyPlan) return {};
-        return plannedIn
-          ? { dynastyPlan: undefined, dynasty: undefined, dynastyId: undefined }
-          : { dynastyPlan: undefined };
-      }
-      if (inGameDynasty) return dynastyRole === n.dynastyRole ? {} : { dynastyPlan: 'role' };
-      const pick = dynasties.find((d) => d.key === dynastyPick);
-      const same = dynastyRole === n.dynastyRole && (pick ? pick.key === dynastyKey(n) : !n.dynasty);
-      if (same && n.dynastyPlan) return {};
-      return { dynastyPlan: 'member', dynasty: pick?.dynasty, dynastyId: pick?.dynastyId };
-    }
+    const plan = dynastyPatch();
     onSave({
       // A sim always has a first name; a last name can be blank (Mayor Whiskers).
       // A planned sim may have no name yet; its plan label stands in.
@@ -572,32 +583,61 @@ export function SimEditor({
       gender,
       state,
       oplay,
-      dynastyRole: dynastyRole || undefined,
-      ...rolePlanPatch(),
+      dynastyRole: 'dynastyRole' in plan ? plan.dynastyRole : n.dynastyRole,
+      ...plan,
       ...(gen && (genRoot === AUTO_ROOT ? null : genRoot) !== (gen.rootPicked ? gen.rootId : null)
         ? { genRoot: { key: gen.key, id: genRoot === AUTO_ROOT ? null : genRoot } }
         : {}),
     });
   };
 
-  /** What the role does: who holds it now, and that a role set here is a plan. */
+  /**
+   * The dynasty and role a Save writes. Anything set here that the save
+   * doesn't show is a plan (SimNode.dynastyPlan), like a link drawn on the
+   * board: joining a dynasty ('member'), another role in theirs ('role'),
+   * leaving it ('none', the game's dynasty kept until they do).
+   */
+  function dynastyPatch(): Partial<Pick<SimNode, 'dynasty' | 'dynastyId' | 'dynastyRole' | 'dynastyPlan'>> {
+    const role = target ? dynastyRole || undefined : undefined;
+    const now = n.dynastyPlan === 'none' ? '' : (dynastyKey(n) ?? '');
+    const want = target?.key ?? '';
+    if (want === now && role === n.dynastyRole) return {};
+    if (!target) {
+      if (!n.dynasty) return { dynastyRole: undefined, dynastyPlan: undefined };
+      if (!inGameDynasty) return { dynasty: undefined, dynastyId: undefined, dynastyRole: undefined, dynastyPlan: undefined };
+      return { dynastyPlan: 'none' };
+    }
+    if (inGameDynasty && want === (dynastyKey(n) ?? '')) {
+      return { dynastyRole: role, dynastyPlan: role === n.dynastyRole && n.dynastyPlan === 'none' ? undefined : 'role' };
+    }
+    return { dynasty: target.dynasty, dynastyId: target.dynastyId, dynastyRole: role, dynastyPlan: 'member' };
+  }
+
+  /** What the dynasty fields mean now: the game's, a suggestion, or a plan. */
   function dynastyHint(): string {
-    const who = n.first || 'They';
-    const role = dynastyRole ? DYNASTY_ROLES[dynastyRole].noun.toLowerCase() : '';
+    const who = n.first.trim() || cardName(n);
+    const plan = dynastyPatch();
+    const changed = Object.keys(plan).length > 0;
+    const kind = changed ? plan.dynastyPlan : n.dynastyPlan;
+    const role = target && dynastyRole ? DYNASTY_ROLES[dynastyRole].noun.toLowerCase() : '';
     const holder = roleHolder ? `${roleHolder.first} ${roleHolder.sur}`.trim() : '';
-    const planned =
-      !!dynastyRole &&
-      (dynastyRole !== n.dynastyRole || !!n.dynastyPlan || (!inGameDynasty && dynastyPick !== (dynastyKey(n) ?? '')));
-    if (!planned) return n.dynasty ? `In the ${n.dynasty} dynasty.` : '';
-    const where = inGameDynasty
-      ? `${who} is in the ${n.dynasty} dynasty in your save.`
-      : `${who} isn’t in a dynasty in your save yet.`;
     const swap = holder
       ? roleHolder!.dynastyPlan
-        ? ` Saving plans ${who === 'They' ? 'them' : who} as ${role} instead of ${holder}.`
+        ? ` Saving plans ${who} as ${role} instead of ${holder}.`
         : ` ${holder} stays ${role} until your game changes it.`
       : '';
-    return `A plan: ${where}${swap} The mark shows faded until a save gives them the role.`;
+    const faded = role ? ' Their mark shows faded until a save has it.' : '';
+    if (suggestedDynasty && dynastyChoice === suggestedDynasty) {
+      return `Suggested from their family: saving plans them into it. Pick No dynasty if they won’t join.${faded}`;
+    }
+    if (!kind) return target ? `In the ${target.dynasty} dynasty in your save.` : '';
+    if (kind === 'none') return `A plan: ${who} leaves the ${n.dynasty} dynasty. Your save still has them in it.`;
+    if (kind === 'role') return `A plan: ${who} is in the ${target?.dynasty} dynasty in your save.${swap}${faded}`;
+    const isNew = dynastyChoice === NEW_DYNASTY || !dynasties.find((d) => d.key === target?.key)?.inGame;
+    const where = isNew
+      ? `the ${target?.dynasty} dynasty isn’t in your game yet.`
+      : `${who} isn’t in the ${target?.dynasty} dynasty in your save yet.`;
+    return `A plan: ${where}${swap}${faded}`;
   }
 
   /**
@@ -998,34 +1038,52 @@ export function SimEditor({
                 )}
               </section>
             )}
-            <label htmlFor="edDynasty">Dynasty role</label>
+            <label htmlFor="edDynastyPick">Dynasty</label>
             <select
-              id="edDynasty"
-              value={dynastyRole}
-              aria-describedby={n.dynasty ? 'edDynastyHint' : undefined}
-              onChange={(e) => setDynastyRole(e.target.value as DynastyRole | '')}
+              id="edDynastyPick"
+              value={dynastyChoice}
+              aria-describedby="edDynastyHint"
+              onChange={(e) => setDynastyChoice(e.target.value)}
             >
-              <option value="">None</option>
-              {(Object.keys(DYNASTY_ROLES) as DynastyRole[]).map((r) => (
-                <option key={r} value={r}>
-                  {DYNASTY_ROLES[r].mark} {DYNASTY_ROLES[r].noun}
+              <option value="">No dynasty</option>
+              {dynasties.map((d) => (
+                <option key={d.key} value={d.key}>
+                  {d.label}
+                  {d.inGame ? '' : ' (planned)'}
                 </option>
               ))}
+              <option value={NEW_DYNASTY}>New dynasty…</option>
             </select>
-            {dynastyRole && !inGameDynasty && (
+            {dynastyChoice === NEW_DYNASTY && (
               <>
-                <label htmlFor="edDynastyPick">Dynasty</label>
-                <select id="edDynastyPick" value={dynastyPick} onChange={(e) => setDynastyPick(e.target.value)}>
-                  <option value="">No dynasty yet</option>
-                  {dynasties.map((d) => (
-                    <option key={d.key} value={d.key}>
-                      {d.label}
+                <label htmlFor="edDynastyNew">Name of the new dynasty</label>
+                <input
+                  id="edDynastyNew"
+                  value={newDynasty}
+                  autoComplete="off"
+                  onChange={(e) => setNewDynasty(e.target.value)}
+                />
+              </>
+            )}
+            {target && (
+              <>
+                <label htmlFor="edDynasty">Role in the dynasty</label>
+                <select
+                  id="edDynasty"
+                  value={dynastyRole}
+                  aria-describedby="edDynastyHint"
+                  onChange={(e) => setDynastyRole(e.target.value as DynastyRole | '')}
+                >
+                  <option value="">Member, no role</option>
+                  {(Object.keys(DYNASTY_ROLES) as DynastyRole[]).map((r) => (
+                    <option key={r} value={r}>
+                      {DYNASTY_ROLES[r].mark} {DYNASTY_ROLES[r].noun}
                     </option>
                   ))}
                 </select>
               </>
             )}
-            {(n.dynasty || dynastyRole) && (
+            {dynastyHint() && (
               <div id="edDynastyHint" className={roleHolder?.dynastyPlan ? 'edhint edhint--warn' : 'edhint'}>
                 {dynastyHint()}
               </div>
@@ -1075,6 +1133,31 @@ export function SimEditor({
                       ? `Gen 1 is ${nameOf(gen.firstHeadId)}, the ${genLabel} dynasty's first head: the board knows none of their parents. `
                       : `Gen 1 is ${nameOf(gen.autoRootId)}, the oldest known ancestor of ${nameOf(gen.firstHeadId)}, the ${genLabel} dynasty's first head. `}
                   Each child is one more, counting the deceased and family-tree relatives.
+                </div>
+              </>
+            )}
+            {!gen && familyGen && (
+              <>
+                <div className="edlabel">
+                  <span className="edlabel__text">Generation</span>
+                  <TipButton
+                    open={!!tips.gen}
+                    onToggle={() => toggleTip('gen')}
+                    controls="edGenFamilyHint"
+                    about="how generations are counted"
+                  />
+                </div>
+                <div className="ro edgen" id="edGen">
+                  Gen {familyGen.gen}
+                  {familyGen.gen > 1 ? ` from ${nameOf(familyGen.rootId)}` : ''}
+                  {familyGen.planned && <span className="edgen__planned"> · through a planned link</span>}
+                </div>
+                <div id="edGenFamilyHint" className="edhint" hidden={!tips.gen}>
+                  {familyGen.gen > 1
+                    ? `Gen 1 is ${nameOf(familyGen.rootId)}, their oldest known ancestor on the board. `
+                    : 'Gen 1: the board knows none of their parents. '}
+                  Each child is one more, counting the deceased and family-tree relatives. In a dynasty, the count
+                  follows the dynasty’s first head instead, and you can pick its Gen 1.
                 </div>
               </>
             )}

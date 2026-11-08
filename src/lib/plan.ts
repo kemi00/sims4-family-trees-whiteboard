@@ -36,6 +36,16 @@ export function cardName(n: Pick<SimNode, 'first' | 'sur' | 'planLabel' | 'planN
 }
 
 /**
+ * Roles set by hand before roles were plans: a role with no dynasty can only
+ * have come from the board, so it becomes a plan to join one ('member').
+ * Returns the same array when nothing changes.
+ */
+export function markHandSetRoles(nodes: SimNode[]): SimNode[] {
+  if (!nodes.some((n) => n.dynastyRole && !n.dynasty && !n.dynastyPlan)) return nodes;
+  return nodes.map((n) => (n.dynastyRole && !n.dynasty && !n.dynastyPlan ? { ...n, dynastyPlan: 'member' as const } : n));
+}
+
+/**
  * The shortest name that still tells a sim apart: their first name, else
  * their plan label, else last name and number ("Le Chien (1)").
  */
@@ -474,17 +484,21 @@ export function overruledParentLinks(edges: Edge[], simIds: Iterable<string>): E
  * with another role, as a save import does (syncDynasty).
  */
 function plannedRoleFor(slot: SimNode, real: SimNode): Partial<SimNode> {
-  if (!slot.dynastyPlan || !slot.dynastyRole) return {};
-  if (!real.dynasty) {
-    return {
-      ...(slot.dynasty ? { dynasty: slot.dynasty } : {}),
-      ...(slot.dynastyId ? { dynastyId: slot.dynastyId } : {}),
-      dynastyRole: slot.dynastyRole,
-      dynastyPlan: 'member',
-    };
+  if (slot.dynastyPlan !== 'member' && slot.dynastyPlan !== 'role') return {};
+  const same =
+    !!real.dynasty &&
+    (slot.dynastyId && real.dynastyId ? slot.dynastyId === real.dynastyId : slot.dynasty === real.dynasty);
+  if (same) {
+    return real.dynastyRole === slot.dynastyRole
+      ? {}
+      : { dynastyRole: slot.dynastyRole, dynastyPlan: 'role' };
   }
-  const same = slot.dynastyId && real.dynastyId ? slot.dynastyId === real.dynastyId : slot.dynasty === real.dynasty;
-  return same && real.dynastyRole !== slot.dynastyRole ? { dynastyRole: slot.dynastyRole, dynastyPlan: 'role' } : {};
+  return {
+    dynasty: slot.dynasty,
+    dynastyId: slot.dynastyId,
+    dynastyRole: slot.dynastyRole,
+    dynastyPlan: 'member',
+  };
 }
 
 /**

@@ -541,15 +541,14 @@ function plainSaveNode(
  * truth for its sims, so one it lists in none loses them; a save from before
  * Royalty & Legacy says nothing, and the card keeps what it has.
  *
- * A role planned on the board (`dynastyPlan`) is kept like a violet link:
- * while the save has them in no dynasty, or in the planned one with another
- * role, the plan stands; once the save gives them the role, it is done; a
- * save that puts them in another dynasty overrules it.
+ * A dynasty or role planned on the board (`dynastyPlan`) stands like a
+ * violet link until a save shows it done: them in the planned dynasty with
+ * the planned role, or, for one planned to leave, in none.
  */
 export function syncDynasty(next: SimNode, sim: Pick<ParsedSaveSim, 'dynasty' | 'dynastyId' | 'dynastyRole'>, saveHasDynasties: boolean): void {
   if (!saveHasDynasties) return;
   const plan = next.dynastyPlan
-    ? { dynasty: next.dynasty, dynastyId: next.dynastyId, dynastyRole: next.dynastyRole }
+    ? { kind: next.dynastyPlan, dynasty: next.dynasty, dynastyId: next.dynastyId, dynastyRole: next.dynastyRole }
     : null;
   delete next.dynastyPlan;
   if (sim.dynasty) next.dynasty = sim.dynasty;
@@ -558,18 +557,31 @@ export function syncDynasty(next: SimNode, sim: Pick<ParsedSaveSim, 'dynasty' | 
   else delete next.dynastyId;
   if (sim.dynastyRole) next.dynastyRole = sim.dynastyRole;
   else delete next.dynastyRole;
-  if (!plan?.dynastyRole) return;
-  if (!sim.dynasty) {
-    if (plan.dynasty) next.dynasty = plan.dynasty;
-    if (plan.dynastyId) next.dynastyId = plan.dynastyId;
-    next.dynastyRole = plan.dynastyRole;
-    next.dynastyPlan = 'member';
+  if (!plan) return;
+  // To leave: done once the save has them in none.
+  if (plan.kind === 'none') {
+    if (sim.dynasty) next.dynastyPlan = 'none';
     return;
   }
-  const same = plan.dynastyId && sim.dynastyId ? plan.dynastyId === sim.dynastyId : plan.dynasty === sim.dynasty;
-  if (!same || sim.dynastyRole === plan.dynastyRole) return;
-  next.dynastyRole = plan.dynastyRole;
-  next.dynastyPlan = 'role';
+  const fold = (s?: string) => (s ?? '').trim().toLocaleLowerCase();
+  const same =
+    !!sim.dynasty &&
+    (plan.dynastyId && sim.dynastyId ? plan.dynastyId === sim.dynastyId : fold(plan.dynasty) === fold(sim.dynasty));
+  if (same) {
+    if ((sim.dynastyRole ?? undefined) === plan.dynastyRole) return;
+    if (plan.dynastyRole) next.dynastyRole = plan.dynastyRole;
+    else delete next.dynastyRole;
+    next.dynastyPlan = 'role';
+    return;
+  }
+  // Not in the planned dynasty yet: the plan stands.
+  if (plan.dynasty) next.dynasty = plan.dynasty;
+  else delete next.dynasty;
+  if (plan.dynastyId) next.dynastyId = plan.dynastyId;
+  else delete next.dynastyId;
+  if (plan.dynastyRole) next.dynastyRole = plan.dynastyRole;
+  else delete next.dynastyRole;
+  next.dynastyPlan = 'member';
 }
 
 function patchMatched(

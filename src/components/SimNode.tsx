@@ -98,9 +98,11 @@ export const SimNodeView = memo(function SimNodeView({
   const wide = labels ? textWidth(name, 13, 700) : 0;
   const nameSize = wide > room ? Math.max(10, Math.floor((13 * room) / wide * 2) / 2) : 13;
   const roleText = role ? (n.dynasty ? `${role.noun} of the ${n.dynasty} dynasty` : role.label) : '';
+  // One planned to leave keeps the game's role until they do.
+  const rolePlanned = n.dynastyPlan === 'member' || n.dynastyPlan === 'role';
   // A role planned on the board: its mark shows faded, like a plan not in the game yet.
   const roleTitle = role
-    ? `${n.dynastyPlan ? `Planned ${roleText.charAt(0).toLowerCase()}${roleText.slice(1)}: not in your save yet` : roleText}${generation ? ` · ${generation}` : ''}`
+    ? `${rolePlanned ? `Planned ${roleText.charAt(0).toLowerCase()}${roleText.slice(1)}: not in your save yet` : roleText}${generation ? ` · ${generation}` : ''}`
     : null;
 
   return (
@@ -142,7 +144,7 @@ export const SimNodeView = memo(function SimNodeView({
           >
             {(roleTitle || offPlan) && <title>{[offPlan, roleTitle].filter(Boolean).join('\n')}</title>}
             {offPlan && <tspan fill="#b45309">⚠ </tspan>}
-            {role && <tspan fillOpacity={n.dynastyPlan ? 0.4 : undefined}>{role.mark} </tspan>}
+            {role && <tspan fillOpacity={rolePlanned ? 0.4 : undefined}>{role.mark} </tspan>}
             {cardName(n)}
           </text>
           <text x={16} y={52} fontSize={10.5} fill="#5b6472">

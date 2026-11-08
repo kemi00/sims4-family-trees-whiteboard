@@ -245,7 +245,7 @@ export default function App() {
                 nodes: wb.nodes,
                 groups: wb.groups,
                 saveGame: wb.saveGame,
-                generations: wb.dynastyGens,
+                generations: wb.generationOf,
                 skipped: wb.upNextSkipped,
               })}
               groups={wb.groups}

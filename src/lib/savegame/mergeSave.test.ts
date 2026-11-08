@@ -1376,8 +1376,20 @@ describe('dynasty roles you planned', () => {
     assert.deepEqual(sync(planned, { dynasty: 'Dreamer', dynastyId: '7', dynastyRole: 'heir' }), ['Dreamer', '7', 'heir', undefined]);
   });
 
-  it('give way to a save that puts them in another dynasty', () => {
-    assert.deepEqual(sync(planned, { dynasty: 'Capp', dynastyId: '9', dynastyRole: 'heir' }), ['Capp', '9', 'heir', undefined]);
+  it('stand while the save has them in another dynasty', () => {
+    assert.deepEqual(sync(planned, { dynasty: 'Capp', dynastyId: '9', dynastyRole: 'heir' }), ['Dreamer', '7', 'heir', 'member']);
+  });
+
+  it('join a dynasty with no role, and one only planned, matched by name once the game makes it', () => {
+    const member = card({ dynasty: 'Bjergsen', dynastyPlan: 'member' });
+    assert.deepEqual(sync(member, {}), ['Bjergsen', undefined, undefined, 'member']);
+    assert.deepEqual(sync(member, { dynasty: 'Bjergsen', dynastyId: '12' }), ['Bjergsen', '12', undefined, undefined]);
+  });
+
+  it('leave a dynasty once the save has them in none, keeping the game’s until then', () => {
+    const leaving = card({ dynasty: 'Thebe', dynastyId: '3', dynastyPlan: 'none' });
+    assert.deepEqual(sync(leaving, { dynasty: 'Thebe', dynastyId: '3' }), ['Thebe', '3', undefined, 'none']);
+    assert.deepEqual(sync(leaving, {}), [undefined, undefined, undefined, undefined]);
   });
 
   it('leave roles the save gave alone', () => {

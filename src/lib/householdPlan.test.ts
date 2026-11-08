@@ -183,6 +183,22 @@ describe('planned dynasty roles', () => {
     );
   });
 
+  it('join, start or leave a dynasty', () => {
+    const nodes = [
+      sim('Bjorn', 'Bjergsen', { dynasty: 'Bjergsen', dynastyRole: 'head', dynastyPlan: 'member' }),
+      sim('Clara', 'Bjergsen', { dynasty: 'Bjergsen', dynastyPlan: 'member' }),
+      sim('Arnessa', 'Thebe', { dynasty: 'Thebe', dynastyId: '3', dynastyPlan: 'none' }),
+    ];
+    assert.deepEqual(
+      plans(nodes, []).map((i) => i.text),
+      [
+        'Start the Bjergsen dynasty with Bjorn Bjergsen as its head',
+        'Bring Clara Bjergsen into the Bjergsen dynasty',
+        'Take Arnessa Thebe out of the Thebe dynasty',
+      ],
+    );
+  });
+
   it('wait on a planned heir not born yet', () => {
     const nodes = [
       sim('Dirk', 'Dreamer'),

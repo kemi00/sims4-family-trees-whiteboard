@@ -2039,6 +2039,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           edges={wb.edges}
           saveGame={wb.saveGame}
           generations={wb.dynastyGens}
+          familyGenerations={wb.familyGens}
           onPickPartner={(id) => {
             const r = svgRef.current?.getBoundingClientRect();
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
