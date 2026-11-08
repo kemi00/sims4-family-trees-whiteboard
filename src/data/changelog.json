@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "b9f642b",
+   "date": "2026-11-08",
+   "text": "World tags now count dynasties too: a crown and the number of dynasties with a living sim in that world, after its sims and households. Hover a tag to see how many of them are only planned."
+  },
+  {
    "sha": "3e42bc2",
    "date": "2026-11-08",
    "text": "Two dynasties can now share a name. When you create a dynasty with a name another one already has, the Dynasty menu warns you and offers to join the existing one instead. If you keep both, each one shows its founder, like \"Scott (Travis’s line)\" and \"Scott (Sara’s line)\", in the menu, the Dynasties panel, on cards and in plan steps."
