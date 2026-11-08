@@ -3,8 +3,10 @@ import { describe, it } from 'node:test';
 import type { Edge, Group, HouseholdMove, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 import {
   eldersOf,
+  gameHomes,
   householdName,
   householdPlans,
+  householdsNotInGame,
   itemsFor,
   planBadge,
   planTallies,
@@ -115,6 +117,35 @@ describe('planned couples', () => {
     );
     assert.deepEqual(unblockedBy(items, 'W||Dreamer').map((x) => x.id), ['couple:u3']);
     assert.deepEqual(unblockedBy(items, 'W||Munch'), []);
+  });
+
+  it('wait on a baby born to parents in another household than the one it is planned for', () => {
+    const nodes = [
+      sim('Sergio', 'Bro'),
+      sim('Siobhan', 'Bro'),
+      planned('Kid', 'Le Chien', { first: '', planLabel: 'Spare' }),
+      sim('Joaquin', 'Le Chien'),
+    ];
+    const edges = [
+      link('p1', 'Sergio', 'Kid', 'parent'),
+      link('p2', 'Siobhan', 'Kid', 'parent'),
+      link('u1', 'Kid', 'Joaquin', 'marriage'),
+    ];
+    const items = plans(nodes, edges);
+    assert.equal(one(items, 'couple:u1').waits[0]!.gid, 'W||Bro');
+    assert.deepEqual(unblockedBy(items, 'W||Bro').map((x) => x.id), ['couple:u1']);
+    assert.deepEqual(unblockedBy(items, 'W||Le Chien'), []);
+  });
+
+  it('wait on a baby with parents apart where most of them are, else where it is planned', () => {
+    const parents = [sim('Ana', 'A'), sim('Ben', 'B')];
+    const edges = (kid: string) => [link('p1', 'Ana', kid, 'parent'), link('p2', 'Ben', kid, 'parent'), link('u1', kid, 'Cy', 'marriage')];
+    const wait = (kidHh: string) => {
+      const nodes = [...parents, planned('Kid', kidHh, { first: '' }), sim('Cy', 'C')];
+      return one(plans(nodes, edges('Kid')), 'couple:u1').waits[0]!.gid;
+    };
+    assert.equal(wait('B'), 'W||B');
+    assert.equal(wait('C'), 'W||A');
   });
 
   it('ask to find a planned spouse the game doesn’t have yet, ready now', () => {
@@ -275,10 +306,66 @@ describe('household moves', () => {
     assert.deepEqual(plans(nodes, [], { moves: [{ ...moves[0]!, done: true }] }).filter((i) => i.kind === 'move'), []);
   });
 
-  it('count only where the sim is now', () => {
+  it('move from where the game has them, past households they were moved through', () => {
+    const nodes = [child('Elsa', 'Le Chien')];
+    const moves = [move('m1', 'Elsa', 'Bjergsen', 'Bro'), move('m2', 'Elsa', 'Bro', 'Le Chien')];
+    assert.deepEqual(
+      plans(nodes, [], { moves }).map((i) => [i.id, i.text, i.gids]),
+      [['move:m2', 'Move Elsa Le Chien from Bjergsen to the Le Chien household', ['W||Le Chien', 'W||Bjergsen']]],
+    );
+    // A save that showed the first move done leaves the second.
+    const later = [{ ...moves[0]!, done: true as const }, moves[1]!];
+    assert.deepEqual(plans(nodes, [], { moves: later }).map((i) => i.text), ['Move Elsa Le Chien from Bro to the Le Chien household']);
+  });
+
+  it('leave out a sim moved back where the game has them', () => {
     const nodes = [sim('Joaquin', 'Bro')];
     const moves = [move('m1', 'Joaquin', 'Bro', 'Le Chien'), move('m2', 'Joaquin', 'Le Chien', 'Bro')];
-    assert.deepEqual(plans(nodes, [], { moves }).map((i) => i.text), ['Move Joaquin Bro from Le Chien to the Bro household']);
+    assert.deepEqual(plans(nodes, [], { moves }), []);
+  });
+
+  it('leave a sim to grow up where the game has them, so playing that household helps', () => {
+    const nodes = [sim('Joaquin', 'Le Chien'), child('Elsa', 'Le Chien', 'inactive')];
+    const moves = [move('m1', 'Elsa', 'Bjergsen', 'Le Chien')];
+    const items = plans(nodes, [link('u1', 'Joaquin', 'Elsa', 'marriage')], { moves });
+    const [w] = one(items, 'couple:u1').waits;
+    assert.equal(w!.gid, 'W||Bjergsen');
+    assert.equal(
+      waitText(w!, (id) => id, (gid) => householdName(gid, [], nodes)),
+      'Elsa is a Child: Young Adult in 17 days of playing the Bjergsen household',
+    );
+    assert.deepEqual(unblockedBy(items, 'W||Bjergsen').map((i) => i.id), ['couple:u1']);
+    assert.deepEqual(unblockedBy(items, 'W||Le Chien'), []);
+  });
+
+  it('know where sims are in the game and which households it doesn’t have yet', () => {
+    const nodes = [
+      sim('Joaquin', 'Le Chien'),
+      child('Elsa', 'Le Chien'),
+      planned('Kid', 'Le Chien', { first: '', planNo: 1 }),
+      sim('Sergio', 'Bro'),
+      sim('Siobhan', 'Bro'),
+      planned('Lone', 'New', { first: '', planNo: 1 }),
+    ];
+    const moves = [
+      move('m1', 'Elsa', 'Bjergsen', 'Bro'),
+      move('m2', 'Elsa', 'Bro', 'Le Chien'),
+      move('m3', 'Joaquin', 'Bro', 'Le Chien'),
+      move('m4', 'Kid', 'Bro', 'Le Chien'),
+      move('m5', 'Siobhan', 'Fyres', 'Bro'),
+    ];
+    assert.deepEqual([...gameHomes(nodes, moves)], [
+      ['Elsa', 'W||Bjergsen'],
+      ['Joaquin', 'W||Bro'],
+      ['Siobhan', 'W||Fyres'],
+    ]);
+    // Bro has Sergio in the game; New is made by creating its planned sim.
+    assert.deepEqual([...householdsNotInGame(nodes, moves)], [['W||Le Chien', ['Joaquin', 'Elsa']]]);
+    // Once a save shows Joaquin there, it is.
+    const done = moves.map((m) => (m.simId === 'Joaquin' ? { ...m, done: true as const } : m));
+    assert.deepEqual([...householdsNotInGame(nodes, done)], []);
+    // A household everyone left on the board is still named from its key.
+    assert.equal(householdName('W||Bjergsen', [], nodes), 'the Bjergsen household');
   });
 });
 
@@ -399,11 +486,36 @@ describe('Up next', () => {
     assert.deepEqual(
       rows.map((r) => upNextReason(r, nameOf, hhOf)),
       [
-        'Moves 1 plan for the Munch household',
+        'Helps the Munch household: Heir Dreamer is born here',
         'Ready: Marry Sergio Romeo and Siobhan Romeo (and 1 more)',
         'Ready: Marry Lysander Capp and Bella Capp',
         'Ready: Get Fyr Fyres and Fay Fyres together',
       ],
+    );
+  });
+
+  it('counts the other plans it helps and names who grows up here', () => {
+    const kids = [child('Lucas', 'Munch', 'inactive'), child('Mia', 'Munch', 'inactive')];
+    const more = [...nodes, ...kids, sim('Gus', 'Fyres'), sim('Pia', 'Pike')];
+    const edges2 = [...edges, link('u5', 'Lucas', 'Gus', 'marriage'), link('u6', 'Mia', 'Pia', 'marriage')];
+    const rows = upNext({ items: plans(more, edges2), nodes: more, groups: [], saveGame: game });
+    const munch = rows.find((r) => r.gid === 'W||Munch')!;
+    const nameOf = (id: string) => cardName(more.find((n) => n.id === id)!);
+    const hhOf = (gid: string) => householdName(gid, [], more);
+    assert.equal(
+      upNextReason(munch, nameOf, hhOf),
+      'Helps the Fyres household and the Pike household: Lucas Munch grows up here (and 1 more plan)',
+    );
+  });
+
+  it('puts a household the game doesn’t have yet after the ones you can play, saying who moves in', () => {
+    const notInGame = new Map([['W||Dreamer', ['Dirk', 'Dina']]]);
+    const rows = upNext({ items, nodes, groups: [], saveGame: game, notInGame, skipped: new Set(['W||Capp']) });
+    assert.deepEqual(rows.map((r) => r.gid.slice(3)), ['Romeo', 'Fyres', 'Dreamer', 'Capp']);
+    const nameOf = (id: string) => cardName(nodes.find((n) => n.id === id)!);
+    assert.equal(
+      upNextReason(rows[2]!, nameOf, (gid) => gid),
+      'Not in your game yet: move Dirk Dreamer and Dina Dreamer in first',
     );
   });
 });

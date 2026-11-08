@@ -2044,6 +2044,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           group={briefGroup}
           items={itemsFor(wb.planItems, briefGroup.gid)}
           unblocks={unblockedBy(wb.planItems, briefGroup.gid)}
+          notInGame={wb.notInGame.get(briefGroup.gid)}
           elders={eldersOf(wb.nodes, briefGroup.gid, wb.saveGame)}
           nameOf={nameOfSim}
           hhOf={hhOf}

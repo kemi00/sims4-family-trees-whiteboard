@@ -296,6 +296,7 @@ export default function App() {
                 saveGame: wb.saveGame,
                 generations: wb.generationOf,
                 skipped: wb.upNextSkipped,
+                notInGame: wb.notInGame,
               })}
               groups={wb.groups}
               nameOf={(id) => {

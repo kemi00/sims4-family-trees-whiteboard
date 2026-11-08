@@ -34,7 +34,8 @@ export function UpNextPanel({ rows, groups, nameOf, hhOf, anchorRect, onOpen, on
   const sheet = usePanelSheet();
   const pos = panelPosition(anchorRect, WIDTH);
   if (!pos) return null;
-  const first = rows.findIndex((r) => !r.skipped);
+  // The suggestion is the first household you can play now.
+  const first = rows.findIndex((r) => !r.skipped && !r.notInGame);
   return (
     <div
       id="upnext"
@@ -56,7 +57,12 @@ export function UpNextPanel({ rows, groups, nameOf, hhOf, anchorRect, onOpen, on
             const g = groups.find((x) => x.gid === r.gid);
             const meta = metaText(r);
             return (
-              <li key={r.gid} className={r.skipped ? 'upnext__row upnext__row--skipped' : 'upnext__row'}>
+              <li
+                key={r.gid}
+                className={
+                  r.skipped ? 'upnext__row upnext__row--skipped' : r.notInGame ? 'upnext__row upnext__row--away' : 'upnext__row'
+                }
+              >
                 <div className="upnext__top">
                   <span className="upnext__n">{i + 1}</span>
                   <span className="brief__dot" style={{ background: g?.color ?? '#697380' }} aria-hidden />
@@ -79,8 +85,9 @@ export function UpNextPanel({ rows, groups, nameOf, hhOf, anchorRect, onOpen, on
         </ol>
       )}
       <p className="upnext__rules">
-        Plays that move other households’ plans come first, then an elder short on days, the most ready, the oldest
-        generation, and whoever you played longest ago. It only suggests: play who you like.
+        Plays that help other households’ plans come first, then an elder short on days, the most ready, the oldest
+        generation, and whoever you played longest ago. Households not in your game yet come last. It only suggests:
+        play who you like.
       </p>
     </div>
   );

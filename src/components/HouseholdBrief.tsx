@@ -8,8 +8,10 @@ type Props = {
   group: Group;
   /** The plan items this household's sims are in. */
   items: PlanItem[];
-  /** Other households' items that playing this one moves along. */
+  /** Other households' items that playing this one helps along. */
   unblocks: PlanItem[];
+  /** The sims to move in before the game has this household (householdsNotInGame). */
+  notInGame?: string[];
   elders: ElderTime[];
   nameOf: (id: string) => string;
   /** "the Munch household". */
@@ -24,6 +26,11 @@ type Props = {
   onClose: () => void;
 };
 
+/** "Elsa Bjergsen", "Elsa Bjergsen and Joaquin Le Chien", "Elsa, Joaquin and Hugo". */
+function listNames(names: string[]): string {
+  return names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 const SECTIONS: { state: PlanState; title: string }[] = [
   { state: 'ready', title: 'Ready' },
   { state: 'waiting', title: 'Waiting' },
@@ -33,7 +40,7 @@ const SECTIONS: { state: PlanState; title: string }[] = [
 /**
  * One household's plan, for the household you feel like playing: what
  * you can do today, what waits and on whom, what the game did instead,
- * how long its elders have, and what playing it moves along elsewhere.
+ * how long its elders have, and what playing it helps along elsewhere.
  * Only the verdict: who the sims are is on the board, and hovering a line
  * lights them up there.
  */
@@ -41,6 +48,7 @@ export function HouseholdBrief({
   group,
   items,
   unblocks,
+  notInGame,
   elders,
   nameOf,
   hhOf,
@@ -89,6 +97,12 @@ export function HouseholdBrief({
           ✕
         </button>
       </header>
+      {notInGame && (
+        <p className="brief__away">
+          <b>Not in your game yet.</b> Move {listNames(notInGame.map(nameOf))} in, then upload a save: until then there’s no
+          household to play.
+        </p>
+      )}
       {!items.length && (
         <p className="brief__empty">
           Nothing planned for this household yet. Plan a sim with the + on its tag, a baby with the + under a couple or a sim, or a
@@ -130,9 +144,9 @@ export function HouseholdBrief({
       )}
       {unblocks.length > 0 && (
         <section className="brief__section">
-          <h3>Also moves</h3>
+          <h3>Also helps</h3>
           <p className="brief__hint">
-            Playing {hhOf(group.gid)} moves {unblocks.length === 1 ? 'this plan' : `these ${unblocks.length} plans`} for
+            Playing {hhOf(group.gid)} also helps {unblocks.length === 1 ? 'this plan' : `these ${unblocks.length} plans`} in
             other households:
           </p>
           <ul>{unblocks.map(line)}</ul>

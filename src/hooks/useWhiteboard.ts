@@ -16,7 +16,7 @@ import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, 
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
-import { householdPlans, planTallies } from '../lib/householdPlan.ts';
+import { householdPlans, householdsNotInGame, planTallies } from '../lib/householdPlan.ts';
 import { movesDoneBySave,
   householdMovePlan,
   householdSurnames,
@@ -1241,6 +1241,8 @@ export function useWhiteboard() {
     [nodesCore, edges, planIssues, pairStatus, saveGame, householdMoves],
   );
   const planTally = useMemo(() => planTallies(planItems), [planItems]);
+  // Households the game doesn't have yet: Up next and their brief say who moves in first.
+  const notInGame = useMemo(() => householdsNotInGame(nodesCore, householdMoves), [nodesCore, householdMoves]);
   // Every planned sim gets its number for good: "Planned (2) Le Chien"; a
   // role set by hand before roles were plans becomes one.
   useEffect(() => {
@@ -2992,6 +2994,7 @@ export function useWhiteboard() {
     briefHover,
     setBriefHover,
     planItems,
+    notInGame,
     planTally,
     gamesOpen,
     setGamesOpen,

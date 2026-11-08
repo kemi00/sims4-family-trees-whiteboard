@@ -36,7 +36,10 @@ export type PlanWait = {
   now?: string;
   /** The stage the plan needs them at. */
   stage: string;
-  /** The household to play: theirs, or for a baby not born yet, its parents'. */
+  /**
+   * The household to play: where they live in the game (gameHomes), or for
+   * a baby not born yet, where its parents live in the plan.
+   */
   gid: string;
   move: WaitMove;
   /** Days to `stage` on the save's lifespan, from birth for a baby not born yet; null when unknown. */
@@ -61,6 +64,55 @@ export type PlanItem = {
 };
 
 const uniq = <T,>(xs: T[]): T[] => [...new Set(xs)];
+
+/** "Elsa", "Elsa and Joaquin", "Elsa, Joaquin and 2 more". */
+function listText(names: string[]): string {
+  if (names.length <= 2) return names.join(' and ');
+  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
+}
+
+/** Each sim's moves no save has shown done yet, oldest first. */
+function pendingMoves(moves: HouseholdMove[] | undefined): Map<string, HouseholdMove[]> {
+  const out = new Map<string, HouseholdMove[]>();
+  for (const m of moves ?? []) if (!m.done) out.set(m.simId, [...(out.get(m.simId) ?? []), m]);
+  for (const list of out.values()) list.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+  return out;
+}
+
+/**
+ * Where sims live in the game when the board has them somewhere else: the
+ * household they were in before the moves planned since. A save marks a
+ * sim's moves done together, so the pending ones are one chain: Elsa
+ * Bjergsen, moved on the board from Bjergsen to Bro and then to Le Chien,
+ * is still in Bjergsen. Planned sims aren't in the game, so they have none.
+ */
+export function gameHomes(nodes: SimNode[], moves: HouseholdMove[] | undefined): Map<string, string> {
+  const out = new Map<string, string>();
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  for (const [id, list] of pendingMoves(moves)) {
+    const n = byId.get(id);
+    const first = list[0]!;
+    const last = list[list.length - 1]!;
+    if (!n || isPlannedSim(n) || n.gid !== last.toGid || first.fromHh === ADDED_HOUSEHOLD || first.fromGid === n.gid) continue;
+    out.set(id, first.fromGid);
+  }
+  return out;
+}
+
+/**
+ * Households on the board the game doesn't have yet: no sim lives in them
+ * there, because everyone the board puts in them still has to move in (Le
+ * Chien, until Elsa and Joaquin do). Each maps to those sims. A household
+ * of planned sims alone isn't one: finding or creating them makes it.
+ */
+export function householdsNotInGame(nodes: SimNode[], moves: HouseholdMove[] | undefined): Map<string, string[]> {
+  const home = gameHomes(nodes, moves);
+  const real = nodes.filter((n) => !isPlannedSim(n) && n.state !== DECEASED_STATE && !isUnhousedGid(n.gid));
+  const inGame = new Set(real.map((n) => home.get(n.id) ?? n.gid));
+  const out = new Map<string, string[]>();
+  for (const n of real) if (!inGame.has(n.gid)) out.set(n.gid, [...(out.get(n.gid) ?? []), n.id]);
+  return out;
+}
 
 /** "Heir Romeo", "Heir Romeo and Spare Romeo", "3 babies". */
 function babiesText(kids: SimNode[]): string {
@@ -97,10 +149,29 @@ export function householdPlans(opts: {
   const living = (n: SimNode) => n.state !== DECEASED_STATE;
   const plannedChild = (n: SimNode) => isPlannedSim(n) && (parentsOf.get(n.id)?.length ?? 0) > 0;
 
-  const moveOf = (n: SimNode, life: SimNode['life']): WaitMove => {
+  // A sim ages in the household the game has them in, which a move
+  // planned on the board hasn't changed yet.
+  const home = gameHomes(nodes, opts.moves);
+  const gameGid = (n: SimNode) => home.get(n.id) ?? n.gid;
+  /**
+   * Where a planned baby is born: where its parents live in the plan, not
+   * the household it is planned to live in later (Planned (2) Romeo, born
+   * to the Romeos in Bro to marry into Le Chien). Parents apart on the
+   * board: where most of them are, else where the baby is planned.
+   */
+  const birthGid = (kid: SimNode): string => {
+    const gids = (parentsOf.get(kid.id) ?? []).map((id) => byId.get(id)?.gid).filter((g): g is string => !!g);
+    if (!gids.length) return kid.gid;
+    const count = (g: string) => gids.filter((x) => x === g).length;
+    const most = Math.max(...gids.map(count));
+    const top = gids.filter((g) => count(g) === most);
+    return top.includes(kid.gid) ? kid.gid : top[0]!;
+  };
+
+  const moveOf = (gid: string, life: SimNode['life']): WaitMove => {
     if (life && !life.frozen) return 'time';
     if (!life && saveGame && everyoneAges(saveGame)) return 'time';
-    if (life?.frozen === 'played' || isUnhousedGid(n.gid)) return 'ageUp';
+    if (life?.frozen === 'played' || isUnhousedGid(gid)) return 'ageUp';
     return 'play';
   };
 
@@ -108,14 +179,15 @@ export function householdPlans(opts: {
   const waitOn = (n: SimNode, stage: string): PlanWait | null => {
     if (isPlannedSim(n)) {
       return plannedChild(n)
-        ? { sim: n.id, why: 'notBorn', stage, gid: n.gid, move: 'play', days: daysFromBirth(stage, lifespan) }
+        ? { sim: n.id, why: 'notBorn', stage, gid: birthGid(n), move: 'play', days: daysFromBirth(stage, lifespan) }
         : { sim: n.id, why: 'notInGame', stage, gid: n.gid, move: 'find', days: null };
     }
     const at = stageAt(n.age);
     if (at < 0 || at >= stageAt(stage)) return null;
     const life = n.life && n.life.stage === n.age ? n.life : undefined;
     const days = life ? daysUntilStage(life.stage, life.stageDays, stage, lifespan, life.newborn) : null;
-    return { sim: n.id, why: 'tooYoung', now: n.age, stage, gid: n.gid, move: moveOf(n, life), days };
+    const gid = gameGid(n);
+    return { sim: n.id, why: 'tooYoung', now: n.age, stage, gid, move: moveOf(gid, life), days };
   };
 
   const items: PlanItem[] = [];
@@ -229,7 +301,7 @@ export function householdPlans(opts: {
     else if (isPlannedSim(n)) {
       waits.push(
         plannedChild(n)
-          ? { sim: n.id, why: 'notBorn', stage: '', gid: n.gid, move: 'play', days: null }
+          ? { sim: n.id, why: 'notBorn', stage: '', gid: birthGid(n), move: 'play', days: null }
           : { sim: n.id, why: 'notInGame', stage: '', gid: n.gid, move: 'find', days: null },
       );
     }
@@ -249,24 +321,25 @@ export function householdPlans(opts: {
     });
   }
 
-  // A sim moved to another household on the board, which no save shows yet.
-  // A planned sim only lives there in the plan: born or found, it will.
-  const lastMove = new Map<string, HouseholdMove>();
-  for (const m of opts.moves ?? []) {
-    const prev = lastMove.get(m.simId);
-    if (!prev || prev.createdAt <= m.createdAt) lastMove.set(m.simId, m);
-  }
-  for (const m of lastMove.values()) {
-    const n = byId.get(m.simId);
-    if (m.done || !n || isPlannedSim(n) || !living(n) || n.gid !== m.toGid) continue;
-    const from = m.fromHh && m.fromHh !== ADDED_HOUSEHOLD ? ` from ${m.fromHh}` : '';
+  // A sim moved to another household on the board, which no save shows yet:
+  // in the game they move from where they are there, past any household
+  // they were moved through on the board. A planned sim only lives there
+  // in the plan: born or found, it will.
+  for (const [id, list] of pendingMoves(opts.moves)) {
+    const n = byId.get(id);
+    const first = list[0]!;
+    const last = list[list.length - 1]!;
+    if (!n || isPlannedSim(n) || !living(n) || n.gid !== last.toGid) continue;
+    // Moved back where the game has them: nothing to do there.
+    if (first.fromGid === last.toGid) continue;
+    const from = first.fromHh && first.fromHh !== ADDED_HOUSEHOLD ? ` from ${first.fromHh}` : '';
     items.push({
-      id: `move:${m.id}`,
+      id: `move:${last.id}`,
       kind: 'move',
       state: 'ready',
-      text: `Move ${cardName(n)}${from} to the ${m.toHh} household`,
+      text: `Move ${cardName(n)}${from} to the ${last.toHh} household`,
       sims: [n.id],
-      gids: uniq([m.toGid, ...(from ? [m.fromGid] : [])]),
+      gids: uniq([last.toGid, ...(from ? [first.fromGid] : [])]),
       waits: [],
     });
   }
@@ -328,9 +401,9 @@ export function planBadge(
 }
 
 /**
- * Items of other households that playing `gid` moves along: a sim of its
- * own to grow up, or a baby of its own to be born first (Heir Dreamer, to
- * marry Spare Munch).
+ * Items of other households that playing `gid` helps along: a sim living
+ * there in the game grows up, or a baby planned to its parents there is
+ * born (Heir Dreamer, to marry Spare Munch).
  */
 export function unblockedBy(items: PlanItem[], gid: string): PlanItem[] {
   return items.filter(
@@ -341,9 +414,9 @@ export function unblockedBy(items: PlanItem[], gid: string): PlanItem[] {
   );
 }
 
-/** "the Munch household". */
+/** "the Munch household". A household everyone moved out of on the board is named from its key. */
 export function householdName(gid: string, groups: Group[], nodes: SimNode[]): string {
-  const hh = groups.find((g) => g.gid === gid)?.hh ?? nodes.find((n) => n.gid === gid)?.hh ?? '';
+  const hh = groups.find((g) => g.gid === gid)?.hh ?? nodes.find((n) => n.gid === gid)?.hh ?? gid.split('||')[1] ?? '';
   if (isUnhousedGid(gid)) return 'the unhoused sims';
   return hh ? `the ${hh} household` : 'their household';
 }
@@ -390,7 +463,7 @@ export type UpNextRow = {
   /** Its ready items; waiting ones it moves along by being played. */
   ready: PlanItem[];
   ownWaits: PlanItem[];
-  /** Other households' items that playing it moves along. */
+  /** Other households' items that playing it helps along. */
   unblocks: PlanItem[];
   /** An elder in one of its plans running low on days. */
   elder?: { id: string; oldAgeIn: number };
@@ -398,6 +471,8 @@ export type UpNextRow = {
   gen?: number;
   /** Imports since it was the active household: 0 for the last one; undefined when the board never saw it played. */
   playedAgo?: number;
+  /** The sims to move in before it is in the game (householdsNotInGame); it can't be played until then. */
+  notInGame?: string[];
   /** Skipped for now: kept at the end. */
   skipped: boolean;
 };
@@ -408,13 +483,14 @@ export type UpNextRow = {
  * (something ready, or a wait that playing them moves along). The order,
  * rule by rule:
  *
- * 1. plays that move other households' plans along, the most first;
+ * 1. plays that help other households' plans along, the most first;
  * 2. an elder with a plan left and few days before old age can come;
  * 3. the most ready;
  * 4. the oldest generation;
  * 5. the household played longest ago (never seen played counts as longest);
  *
- * then by name. Skipped households go to the end. It only suggests.
+ * then by name. A household the game doesn't have yet can't be played, so
+ * it follows the others; skipped households go to the end. It only suggests.
  */
 export function upNext(opts: {
   items: PlanItem[];
@@ -424,8 +500,10 @@ export function upNext(opts: {
   /** Each sim's dynasty generation (dynastyGenerations). */
   generations?: ReadonlyMap<string, { gen?: number }>;
   skipped?: ReadonlySet<string>;
+  /** householdsNotInGame. */
+  notInGame?: ReadonlyMap<string, string[]>;
 }): UpNextRow[] {
-  const { items, nodes, groups, saveGame, generations, skipped } = opts;
+  const { items, nodes, groups, saveGame, generations, skipped, notInGame } = opts;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const fold = (s: string) => s.trim().toLowerCase();
   const played = [saveGame?.activeHousehold, ...(saveGame?.playedBefore ?? [])].map((h) => fold(h ?? ''));
@@ -444,6 +522,7 @@ export function upNext(opts: {
     const elder = eldersOf(nodes, gid, saveGame).find((e) => planSims.includes(e.id) && e.oldAgeIn <= ELDER_RUSH_DAYS);
     const gens = planSims.map((id) => generations?.get(id)?.gen).filter((g): g is number => g !== undefined);
     const at = played.indexOf(fold(hhOf(gid)));
+    const away = notInGame?.get(gid);
     rows.push({
       gid,
       ready,
@@ -452,11 +531,13 @@ export function upNext(opts: {
       ...(elder ? { elder: { id: elder.id, oldAgeIn: elder.oldAgeIn } } : {}),
       ...(gens.length ? { gen: Math.min(...gens) } : {}),
       ...(at >= 0 ? { playedAgo: at } : {}),
+      ...(away ? { notInGame: away } : {}),
       skipped: !!skipped?.has(gid),
     });
   }
   const key = (r: UpNextRow): (number | string)[] => [
     r.skipped ? 1 : 0,
+    r.notInGame ? 1 : 0,
     -r.unblocks.length,
     r.elder ? r.elder.oldAgeIn : Infinity,
     -r.ready.length,
@@ -476,19 +557,33 @@ export function upNext(opts: {
 }
 
 /**
- * Why a household is where it is in Up next, in a line: "Moves 1 plan for
- * the Munch household", "Matthew Cuthbert is an elder with a plan left:
- * old age in 2+ days", "Ready: Marry Beatrice Capp and Dirk Dreamer".
+ * Why a household is where it is in Up next, in a line, saying what
+ * playing it does: "Helps the Munch household: Heir Dreamer is born here",
+ * "Matthew Cuthbert is an elder with a plan left: old age in 2+ days",
+ * "Ready: Marry Beatrice Capp and Dirk Dreamer", "Not in your game yet:
+ * move Elsa Bjergsen and Joaquin Le Chien in first".
  */
 export function upNextReason(
   r: UpNextRow,
   nameOf: (id: string) => string,
   hhOf: (gid: string) => string,
 ): string {
+  if (r.notInGame) return `Not in your game yet: move ${listText(r.notInGame.map(nameOf))} in first`;
   if (r.unblocks.length) {
     const others = uniq(r.unblocks.flatMap((i) => i.gids)).filter((g) => g !== r.gid);
-    const who = others.length === 1 ? hhOf(others[0]!) : `${others.length} other households`;
-    return `Moves ${r.unblocks.length === 1 ? '1 plan' : `${r.unblocks.length} plans`} for ${who}`;
+    const whom = others.length > 2 ? `${others.length} other households` : others.map(hhOf).join(' and ');
+    // What happens here: the first plan's sims born or growing up in it.
+    const here = r.unblocks[0]!.waits.filter((w) => w.gid === r.gid && w.move === 'play');
+    const born = here.filter((w) => w.why === 'notBorn').map((w) => nameOf(w.sim));
+    const grow = here.filter((w) => w.why === 'tooYoung').map((w) => nameOf(w.sim));
+    const what = [
+      born.length ? `${listText(born)} ${born.length > 1 ? 'are' : 'is'} born here` : '',
+      grow.length ? `${listText(grow)} grow${grow.length > 1 ? '' : 's'} up here` : '',
+    ]
+      .filter(Boolean)
+      .join(' and ');
+    const more = r.unblocks.length - 1;
+    return `Helps ${whom}: ${what}${more ? ` (and ${more} more ${more === 1 ? 'plan' : 'plans'})` : ''}`;
   }
   if (r.elder) {
     const soon = r.elder.oldAgeIn ? `old age in ${Math.max(1, Math.floor(r.elder.oldAgeIn))}+ days at the earliest` : 'old age could come any day';
@@ -500,5 +595,5 @@ export function upNextReason(
   }
   const own = r.ownWaits[0]!;
   const w = own.waits.find((x) => x.gid === r.gid) ?? own.waits[0]!;
-  return `Moves its own plan along: ${waitText(w, nameOf, hhOf)}`;
+  return `Helps its own plan along: ${waitText(w, nameOf, hhOf)}`;
 }
