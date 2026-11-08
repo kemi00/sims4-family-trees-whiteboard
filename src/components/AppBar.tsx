@@ -9,6 +9,7 @@ import {
   House,
   IdentificationBadge,
   LinkSimple,
+  ListNumbers,
   LockSimple,
   MagicWand,
   MagnifyingGlass,
@@ -130,6 +131,7 @@ type Props = {
   svgRef: RefObject<SVGSVGElement | null>;
   filtersBtnRef: RefObject<HTMLButtonElement | null>;
   logBtnRef: RefObject<HTMLButtonElement | null>;
+  upNextBtnRef: RefObject<HTMLButtonElement | null>;
   onDevUpdates: () => void;
   devUpdatesUnseen: boolean;
 };
@@ -139,6 +141,7 @@ export function AppBar({
   svgRef,
   filtersBtnRef,
   logBtnRef,
+  upNextBtnRef,
   onDevUpdates,
   devUpdatesUnseen,
 }: Props) {
@@ -263,9 +266,18 @@ export function AppBar({
     wb.setLogOpen(false);
     wb.setAgesOpen(!wb.agesOpen);
   };
+  const openUpNext = () => {
+    setFiltersOpen(false);
+    closeFilterPanels();
+    wb.setLogOpen(false);
+    const next = !wb.upNextOpen;
+    if (next) trackAction('/action/up-next');
+    wb.setUpNextOpen(next);
+  };
   const openLog = () => {
     setFiltersOpen(false);
     closeFilterPanels();
+    wb.setUpNextOpen(false);
     const next = !wb.logOpen;
     if (next) trackAction('/action/log');
     wb.setLogOpen(next);
@@ -518,6 +530,19 @@ export function AppBar({
       </span>
 
       <span className="appbar__spacer" />
+
+      <ToolButton
+        id="btnUpNext"
+        ref={upNextBtnRef}
+        icon={ListNumbers}
+        label="Up next: a suggested order to play your households in"
+        pressed={wb.upNextOpen}
+        expanded={wb.upNextOpen}
+        className="tool--secondary"
+        onClick={openUpNext}
+      >
+        Up next
+      </ToolButton>
 
       <div className="overflow" ref={filtersRef}>
         <ToolButton

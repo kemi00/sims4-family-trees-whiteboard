@@ -24,6 +24,7 @@ export { House } from '@phosphor-icons/react/House';
 export { IdentificationBadge } from '@phosphor-icons/react/IdentificationBadge';
 export { Info } from '@phosphor-icons/react/Info';
 export { LinkSimple } from '@phosphor-icons/react/LinkSimple';
+export { ListNumbers } from '@phosphor-icons/react/ListNumbers';
 export { LockSimple } from '@phosphor-icons/react/LockSimple';
 export { MagicWand } from '@phosphor-icons/react/MagicWand';
 export { MagnifyingGlass } from '@phosphor-icons/react/MagnifyingGlass';

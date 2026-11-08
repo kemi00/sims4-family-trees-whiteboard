@@ -305,3 +305,124 @@ export function eldersOf(nodes: SimNode[], gid: string, saveGame?: SaveGameInfo 
   }
   return out.sort((a, b) => a.oldAgeIn - b.oldAgeIn);
 }
+
+/** Days before old age can come under which an elder with a plan left moves a household up. */
+export const ELDER_RUSH_DAYS = 3;
+
+export type UpNextRow = {
+  gid: string;
+  /** Its ready items; waiting ones it moves along by being played. */
+  ready: PlanItem[];
+  ownWaits: PlanItem[];
+  /** Other households' items that playing it moves along. */
+  unblocks: PlanItem[];
+  /** An elder in one of its plans running low on days. */
+  elder?: { id: string; oldAgeIn: number };
+  /** The oldest dynasty generation among its sims in a plan. */
+  gen?: number;
+  /** Imports since it was the active household: 0 for the last one; undefined when the board never saw it played. */
+  playedAgo?: number;
+  /** Skipped for now: kept at the end. */
+  skipped: boolean;
+};
+
+/**
+ * Households worth playing next, in a suggested order, for when you'd
+ * rather be handed a plan: only those where playing does something
+ * (something ready, or a wait that playing them moves along). The order,
+ * rule by rule:
+ *
+ * 1. plays that move other households' plans along, the most first;
+ * 2. an elder with a plan left and few days before old age can come;
+ * 3. the most ready;
+ * 4. the oldest generation;
+ * 5. the household played longest ago (never seen played counts as longest);
+ *
+ * then by name. Skipped households go to the end. It only suggests.
+ */
+export function upNext(opts: {
+  items: PlanItem[];
+  nodes: SimNode[];
+  groups: Group[];
+  saveGame?: SaveGameInfo | null;
+  /** Each sim's dynasty generation (dynastyGenerations). */
+  generations?: ReadonlyMap<string, { gen?: number }>;
+  skipped?: ReadonlySet<string>;
+}): UpNextRow[] {
+  const { items, nodes, groups, saveGame, generations, skipped } = opts;
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const fold = (s: string) => s.trim().toLowerCase();
+  const played = [saveGame?.activeHousehold, ...(saveGame?.playedBefore ?? [])].map((h) => fold(h ?? ''));
+  const hhOf = (gid: string) => groups.find((g) => g.gid === gid)?.hh ?? nodes.find((n) => n.gid === gid)?.hh ?? '';
+  const gids = uniq(items.flatMap((i) => i.gids)).filter((gid) => !isUnhousedGid(gid));
+  const rows: UpNextRow[] = [];
+  for (const gid of gids) {
+    const mine = itemsFor(items, gid);
+    const ready = mine.filter((i) => i.state === 'ready');
+    const ownWaits = mine.filter(
+      (i) => i.state === 'waiting' && i.waits.some((w) => w.gid === gid && (w.move === 'play' || w.move === 'time')),
+    );
+    const unblocks = unblockedBy(items, gid);
+    if (!ready.length && !ownWaits.length && !unblocks.length) continue;
+    const planSims = uniq([...ready, ...ownWaits].flatMap((i) => i.sims)).filter((id) => byId.get(id)?.gid === gid);
+    const elder = eldersOf(nodes, gid, saveGame).find((e) => planSims.includes(e.id) && e.oldAgeIn <= ELDER_RUSH_DAYS);
+    const gens = planSims.map((id) => generations?.get(id)?.gen).filter((g): g is number => g !== undefined);
+    const at = played.indexOf(fold(hhOf(gid)));
+    rows.push({
+      gid,
+      ready,
+      ownWaits,
+      unblocks,
+      ...(elder ? { elder: { id: elder.id, oldAgeIn: elder.oldAgeIn } } : {}),
+      ...(gens.length ? { gen: Math.min(...gens) } : {}),
+      ...(at >= 0 ? { playedAgo: at } : {}),
+      skipped: !!skipped?.has(gid),
+    });
+  }
+  const key = (r: UpNextRow): (number | string)[] => [
+    r.skipped ? 1 : 0,
+    -r.unblocks.length,
+    r.elder ? r.elder.oldAgeIn : Infinity,
+    -r.ready.length,
+    r.gen ?? Infinity,
+    -(r.playedAgo ?? Infinity),
+    hhOf(r.gid).toLowerCase(),
+  ];
+  return rows.sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    for (let i = 0; i < ka.length; i++) {
+      if (ka[i] === kb[i]) continue;
+      return ka[i]! < kb[i]! ? -1 : 1;
+    }
+    return 0;
+  });
+}
+
+/**
+ * Why a household is where it is in Up next, in a line: "Moves 1 plan for
+ * the Munch household", "Matthew Cuthbert is an elder with a plan left:
+ * old age in 2+ days", "Ready: Marry Beatrice Capp and Dirk Dreamer".
+ */
+export function upNextReason(
+  r: UpNextRow,
+  nameOf: (id: string) => string,
+  hhOf: (gid: string) => string,
+): string {
+  if (r.unblocks.length) {
+    const others = uniq(r.unblocks.flatMap((i) => i.gids)).filter((g) => g !== r.gid);
+    const who = others.length === 1 ? hhOf(others[0]!) : `${others.length} other households`;
+    return `Moves ${r.unblocks.length === 1 ? '1 plan' : `${r.unblocks.length} plans`} for ${who}`;
+  }
+  if (r.elder) {
+    const soon = r.elder.oldAgeIn ? `old age in ${Math.max(1, Math.floor(r.elder.oldAgeIn))}+ days at the earliest` : 'old age could come any day';
+    return `${nameOf(r.elder.id)} is an elder with a plan left: ${soon}`;
+  }
+  if (r.ready.length) {
+    const more = r.ready.length > 1 ? ` (and ${r.ready.length - 1} more)` : '';
+    return `Ready: ${r.ready[0]!.text}${more}`;
+  }
+  const own = r.ownWaits[0]!;
+  const w = own.waits.find((x) => x.gid === r.gid) ?? own.waits[0]!;
+  return `Moves its own plan along: ${waitText(w, nameOf, hhOf)}`;
+}

@@ -16,6 +16,9 @@ import { ConnectionLogPanel } from './components/ConnectionLogPanel.tsx';
 import { DevUpdatesDialog } from './components/DevUpdatesDialog.tsx';
 import { GamesPanel } from './components/GamesPanel.tsx';
 import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
+import { UpNextPanel } from './components/UpNextPanel.tsx';
+import { householdName, upNext } from './lib/householdPlan.ts';
+import { cardName } from './lib/plan.ts';
 import { WhiteboardStage } from './components/WhiteboardStage.tsx';
 import { LoadJsonDialog } from './components/LoadJsonDialog.tsx';
 import { SaveImportDialog } from './components/SaveImportDialog.tsx';
@@ -48,6 +51,8 @@ export default function App() {
   const agesPanelRef = useRef<HTMLDivElement>(null);
   const playPanelRef = useRef<HTMLDivElement>(null);
   const logPanelRef = useRef<HTMLDivElement>(null);
+  const upNextBtnRef = useRef<HTMLButtonElement>(null);
+  const upNextPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -59,6 +64,7 @@ export default function App() {
         else if (wb.playOpen) wb.setPlayOpen(false);
         else if (wb.agesOpen) wb.setAgesOpen(false);
         else if (wb.logOpen) wb.setLogOpen(false);
+        else if (wb.upNextOpen) wb.setUpNextOpen(false);
         else if (wb.editNodeId) wb.setEditNodeId(null);
         else if (wb.briefGid) wb.setBriefGid(null);
         else if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
@@ -137,10 +143,18 @@ export default function App() {
       ) {
         wb.setLogOpen(false);
       }
+      if (
+        wb.upNextOpen &&
+        upNextPanelRef.current &&
+        !upNextPanelRef.current.contains(t) &&
+        !upNextBtnRef.current?.contains(t)
+      ) {
+        wb.setUpNextOpen(false);
+      }
     };
     document.addEventListener('pointerdown', onPointer, true);
     return () => document.removeEventListener('pointerdown', onPointer, true);
-  }, [wb.gamesOpen, wb.playOpen, wb.agesOpen, wb.logOpen, wb]);
+  }, [wb.gamesOpen, wb.playOpen, wb.agesOpen, wb.logOpen, wb.upNextOpen, wb]);
 
   return (
     <IconContext.Provider value={ICONS}>
@@ -150,6 +164,7 @@ export default function App() {
           svgRef={svgRef}
           filtersBtnRef={filtersBtnRef}
           logBtnRef={logBtnRef}
+          upNextBtnRef={upNextBtnRef}
           onDevUpdates={() => setDevUpdatesOpen(true)}
           devUpdatesUnseen={devUpdatesUnseen}
         />
@@ -219,6 +234,47 @@ export default function App() {
                 wb.setHiAges(new Set());
                 wb.setHiSingle(false);
               }}
+            />
+          </div>
+        )}
+        {wb.upNextOpen && (
+          <div ref={upNextPanelRef}>
+            <UpNextPanel
+              rows={upNext({
+                items: wb.planItems,
+                nodes: wb.nodes,
+                groups: wb.groups,
+                saveGame: wb.saveGame,
+                generations: wb.dynastyGens,
+                skipped: wb.upNextSkipped,
+              })}
+              groups={wb.groups}
+              nameOf={(id) => {
+                const n = wb.byid[id];
+                return n ? cardName(n) : 'someone';
+              }}
+              hhOf={(gid) => householdName(gid, wb.groups, wb.nodes)}
+              anchorRect={upNextBtnRef.current?.getBoundingClientRect() ?? null}
+              onOpen={(r) => {
+                wb.setUpNextOpen(false);
+                wb.setBriefGid(r.gid);
+                // Show the household: the first of its sims in a plan.
+                const first = [...r.ready, ...r.ownWaits, ...r.unblocks]
+                  .flatMap((i) => i.sims)
+                  .find((id) => wb.byid[id]?.gid === r.gid);
+                if (first) {
+                  const rect = svgRef.current?.getBoundingClientRect();
+                  wb.focusSim(first, rect?.width ?? 800, rect?.height ?? 600);
+                }
+              }}
+              onSkip={(gid, skip) =>
+                wb.setUpNextSkipped((s) => {
+                  const next = new Set(s);
+                  if (skip) next.add(gid);
+                  else next.delete(gid);
+                  return next;
+                })
+              }
             />
           </div>
         )}

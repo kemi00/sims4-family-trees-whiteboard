@@ -1454,6 +1454,9 @@ function lifeFor(sim: ParsedSaveSim, game: ParsedGameInfo, played: ReadonlySet<s
   };
 }
 
+/** Earlier active households the board remembers (SaveGameInfo.playedBefore). */
+const PLAYED_BEFORE_KEPT = 24;
+
 /** The board's record of the save's clock and options after this import. */
 function saveGameFrom(
   game: ParsedGameInfo,
@@ -1475,6 +1478,12 @@ function saveGameFrom(
     ...(game.unplayedAging !== undefined ? { unplayedAging: game.unplayedAging } : {}),
     ...(active ? { activeHousehold: active } : {}),
   };
+  // Who was played at earlier imports, newest first, for Up next.
+  const before = [prev?.activeHousehold, ...(prev?.playedBefore ?? [])].filter(
+    (h): h is string => !!h && h !== active,
+  );
+  const playedBefore = [...new Set(before)].slice(0, PLAYED_BEFORE_KEPT);
+  if (playedBefore.length) next.playedBefore = playedBefore;
   // From the first import where every household ages, sims at the same place
   // in life grow older together; the board keeps that moment until it ends.
   if (everyoneAges(next)) next.allAgingSince = prev?.allAgingSince ?? game.clock;

@@ -9,6 +9,8 @@ import {
   planBadge,
   planTallies,
   unblockedBy,
+  upNext,
+  upNextReason,
   waitText,
   type PlanItem,
 } from './householdPlan.ts';
@@ -209,5 +211,83 @@ describe('a household’s plan at a glance', () => {
       sim(id, 'Munch', { age: 'Elder', life: { born: 0, stageDays, stage: 'Elder', at: 0 } });
     const list = eldersOf([elder('Gran', 4), elder('Gramps', 12), sim('Mila', 'Munch')], 'W||Munch', game);
     assert.deepEqual(list.map((e) => [e.id, e.elderDays, e.oldAgeIn]), [['Gramps', 6, 1], ['Gran', 2, 5]]);
+  });
+});
+
+describe('Up next', () => {
+  const nodes = [
+    sim('Dirk', 'Dreamer'),
+    sim('Dina', 'Dreamer'),
+    planned('Heir', 'Dreamer', { first: '', planLabel: 'Heir' }),
+    sim('Spare', 'Munch'),
+    sim('Lysander', 'Capp'),
+    sim('Bella', 'Capp'),
+    sim('Sergio', 'Romeo'),
+    sim('Siobhan', 'Romeo'),
+    planned('k1', 'Romeo', { first: '', planLabel: 'Heir' }),
+    sim('Fyr', 'Fyres'),
+    sim('Fay', 'Fyres'),
+  ];
+  const edges = [
+    link('p1', 'Dirk', 'Heir', 'parent'),
+    link('p2', 'Dina', 'Heir', 'parent'),
+    link('u1', 'Heir', 'Spare', 'marriage'),
+    link('u2', 'Lysander', 'Bella', 'marriage'),
+    link('u3', 'Sergio', 'Siobhan', 'marriage'),
+    link('p3', 'Sergio', 'k1', 'parent'),
+    link('p4', 'Siobhan', 'k1', 'parent'),
+    link('u4', 'Fyr', 'Fay', 'romance'),
+  ];
+  const items = plans(nodes, edges);
+  const order = (extra: Partial<Parameters<typeof upNext>[0]> = {}) =>
+    upNext({ items, nodes, groups: [], saveGame: game, ...extra }).map((r) => r.gid.slice(3));
+
+  it('puts plays that unblock others first, then the most ready, and leaves out who can’t move', () => {
+    assert.deepEqual(order(), ['Dreamer', 'Romeo', 'Capp', 'Fyres']);
+  });
+
+  it('breaks ties by who was played longest ago, never played first', () => {
+    // Capp and Fyres tie on everything else; by name, Capp comes first.
+    assert.deepEqual(order().slice(2), ['Capp', 'Fyres']);
+    const capp = { ...game, activeHousehold: 'Capp' };
+    assert.deepEqual(order({ saveGame: capp }).slice(2), ['Fyres', 'Capp']);
+    const both = { ...game, activeHousehold: 'Capp', playedBefore: ['Fyres'] };
+    assert.deepEqual(order({ saveGame: both }).slice(2), ['Fyres', 'Capp']);
+    const flipped = { ...game, activeHousehold: 'Fyres', playedBefore: ['Capp'] };
+    assert.deepEqual(order({ saveGame: flipped }).slice(2), ['Capp', 'Fyres']);
+  });
+
+  it('prefers an older generation before who was played', () => {
+    const generations = new Map([['Fyr', { gen: 1 }], ['Lysander', { gen: 3 }]]);
+    assert.deepEqual(order({ generations }).slice(2), ['Fyres', 'Capp']);
+  });
+
+  it('moves an elder with a plan left and few days up, and skipped households to the end', () => {
+    const old = nodes.map((n) =>
+      n.id === 'Fyr' ? { ...n, age: 'Elder', life: { born: 0, stageDays: 12, stage: 'Elder', at: 0 } } : n,
+    );
+    const rows = upNext({ items: plans(old, edges), nodes: old, groups: [], saveGame: game, skipped: new Set(['W||Dreamer']) });
+    assert.deepEqual(rows.map((r) => [r.gid.slice(3), r.skipped]), [
+      ['Fyres', false],
+      ['Romeo', false],
+      ['Capp', false],
+      ['Dreamer', true],
+    ]);
+    assert.deepEqual(rows[0]!.elder, { id: 'Fyr', oldAgeIn: 1 });
+  });
+
+  it('says why in a line', () => {
+    const rows = upNext({ items, nodes, groups: [], saveGame: game });
+    const nameOf = (id: string) => cardName(nodes.find((n) => n.id === id)!);
+    const hhOf = (gid: string) => householdName(gid, [], nodes);
+    assert.deepEqual(
+      rows.map((r) => upNextReason(r, nameOf, hhOf)),
+      [
+        'Moves 1 plan for the Munch household',
+        'Ready: Marry Sergio Romeo and Siobhan Romeo (and 1 more)',
+        'Ready: Marry Lysander Capp and Bella Capp',
+        'Ready: Get Fyr Fyres and Fay Fyres together',
+      ],
+    );
   });
 });

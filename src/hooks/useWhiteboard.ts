@@ -311,6 +311,9 @@ export function useWhiteboard() {
     y: number;
   } | null>(null);
   const [logOpen, setLogOpen] = useState(false);
+  /** Up next is open, and the households skipped in it until the next save import. */
+  const [upNextOpen, setUpNextOpen] = useState(false);
+  const [upNextSkipped, setUpNextSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [householdMoves, setHouseholdMoves] = useState<HouseholdMove[]>(
     () => boot.householdMoves ?? [],
   );
@@ -1135,6 +1138,8 @@ export function useWhiteboard() {
     [nodesCore, edges, planIssues, pairStatus, saveGame],
   );
   const planTally = useMemo(() => planTallies(planItems), [planItems]);
+  // A new save import is a fresh start for what was skipped in Up next.
+  useEffect(() => setUpNextSkipped(new Set()), [saveGame?.importedAt]);
   /** Links a save confirmed after they were planned: the plan done. */
   const doneEdgeIds = useMemo(() => new Set(edges.filter((e) => e.wasPlanned).map((e) => e.id)), [edges]);
   /** The plan Replace would drop: planned links and planned sims. */
@@ -2817,6 +2822,10 @@ export function useWhiteboard() {
     confirmInfantHouse,
     logOpen,
     setLogOpen,
+    upNextOpen,
+    setUpNextOpen,
+    upNextSkipped,
+    setUpNextSkipped,
     connectionLog,
     byid,
     packVis,

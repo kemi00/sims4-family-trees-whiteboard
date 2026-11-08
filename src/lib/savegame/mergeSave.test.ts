@@ -1537,6 +1537,21 @@ describe('ages, game options and first heads from the save', () => {
     assert.equal(stopped.saveGame?.allAgingSince, undefined);
   });
 
+  it('remembers who was played at earlier imports, newest first', () => {
+    const sims = [
+      saveSim('2', 'Kelvin', { last: 'Bheeda', household: 'Bheeda', householdId: 'h2' }),
+      saveSim('3', 'Bella', { last: 'Goth', household: 'Goth', householdId: 'h3' }),
+    ];
+    const at = (prev: SaveGameInfo | null, active: string) =>
+      merge({ sims, rels: [], game: game({ activeHouseholdId: active }) }, [], prev).saveGame!;
+    const bheeda = at(null, 'h2');
+    assert.equal(bheeda.playedBefore, undefined);
+    assert.equal(at(bheeda, 'h2').playedBefore, undefined);
+    const goth = at(bheeda, 'h3');
+    assert.deepEqual([goth.activeHousehold, goth.playedBefore], ['Goth', ['Bheeda']]);
+    assert.deepEqual(at(goth, 'h2').playedBefore, ['Goth']);
+  });
+
   it('keeps the board’s save details when the save has no clock', () => {
     const prev: SaveGameInfo = { importedAt: 'before', clock: 5, lifespan: 'Normal' };
     const r = merge({ sims: [saveSim('1', 'Bella')], rels: [] }, [], prev);

@@ -150,6 +150,11 @@ export interface SaveGameInfo {
   unplayedAging?: boolean;
   /** The household being played when the game saved. */
   activeHousehold?: string;
+  /**
+   * The households played at earlier imports, newest first, without the
+   * one active now: Up next suggests the one played longest ago first.
+   */
+  playedBefore?: string[];
   /** Clock of the first import where every household was aging. */
   allAgingSince?: number;
 }
