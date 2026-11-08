@@ -857,7 +857,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .selbar__go:focus-visible,.selbar__clear:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .selbar__tip{margin:4px 0 0;font-size:10.5px;color:var(--ink-2)}
 .selbar__form{margin-top:8px;padding:8px;border:1px solid #dbe6f5;border-radius:8px;background:#f7fafe}
-.editor .edx{position:absolute;top:7px;right:8px;width:21px;height:21px;border:none;background:#eef0f3;color:#5a6673;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;padding:0;z-index:3}
+/* The close button keeps a gutter of its own beside the name fields, so it
+   never sits on the last name; 24px, a comfortable size to hit. */
+.editor .edx{position:absolute;top:7px;right:7px;width:24px;height:24px;border:none;background:#eef0f3;color:#5a6673;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;padding:0;z-index:3}
+.editor .edpair--name{padding-right:28px}
 .editor .edx:hover{background:#e0e4e9}
 
 .appbar__compact-only{display:none}
