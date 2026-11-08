@@ -41,12 +41,22 @@ type Props = {
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
-/** The first line that fits `room`, else the last cut short with an ellipsis. */
-function fitLine(lines: string[], room: number): string {
-  for (const line of lines) if (textWidth(line, 10.5, 400) <= room) return line;
-  let s = lines[lines.length - 1] ?? '';
-  while (s.length > 1 && textWidth(`${s}…`, 10.5, 400) > room) s = s.slice(0, -1);
-  return `${s.trimEnd()}…`;
+/** A piece of a card's last line; `dyn` marks the dynasty, styled by its plan. */
+type Part = { text: string; dyn?: true };
+
+/**
+ * The first line (of parts) that fits `room`, else the last with its end
+ * cut short with an ellipsis.
+ */
+function fitParts(lines: Part[][], room: number): Part[] {
+  const width = (ps: Part[]) => textWidth(ps.map((p) => p.text).join(''), 10.5, 400);
+  for (const line of lines) if (width(line) <= room) return line;
+  const last = (lines[lines.length - 1] ?? []).map((p) => ({ ...p }));
+  const tail = last[last.length - 1];
+  if (!tail) return last;
+  while (tail.text.length > 1 && width(last) > room) tail.text = tail.text.slice(0, -1);
+  tail.text = `${tail.text.trimEnd()}…`;
+  return last;
 }
 
 export const SimNodeView = memo(function SimNodeView({
@@ -110,6 +120,35 @@ export const SimNodeView = memo(function SimNodeView({
   const roleTitle = role
     ? `${rolePlanned ? `Planned ${roleText.charAt(0).toLowerCase()}${roleText.slice(1)}: not in your save yet` : roleText}${generation ? ` · ${generation}` : ''}`
     : null;
+  /**
+   * The dynasty they are in, on the last line beside how they play (or an
+   * unnamed planned baby's parents): faded while only planned, crossed out
+   * while planned to leave. Nothing for a sim in none. Where the line is
+   * short of room, the dynasty is kept over "Resident"; a planned baby's
+   * parents are kept over the dynasty, as they tell planned siblings apart.
+   */
+  const dyn: Part | null = n.dynasty && !n.species ? { text: `${n.dynasty} dynasty`, dyn: true } : null;
+  const dynTitle = !dyn
+    ? ''
+    : n.dynastyPlan === 'member'
+      ? `Planned into the ${n.dynasty} dynasty: not in your save yet`
+      : n.dynastyPlan === 'none'
+        ? `Planned to leave the ${n.dynasty} dynasty: your save still has them in it`
+        : `In the ${n.dynasty} dynasty`;
+  const sep: Part = { text: ' · ' };
+  const lastLines: Part[][] = parents
+    ? [
+        ...(dyn ? parents.lines.map((l) => [{ text: l }, sep, dyn]) : []),
+        ...parents.lines.map((l) => [{ text: l }]),
+      ]
+    : detail
+      ? dyn
+        ? [[{ text: detail }, sep, dyn], [dyn]]
+        : [[{ text: detail }]]
+      : dyn
+        ? [[dyn]]
+        : [];
+  const lastTitle = [parents?.title, dynTitle].filter(Boolean).join('\n');
 
   return (
     <g
@@ -158,16 +197,25 @@ export const SimNodeView = memo(function SimNodeView({
             {n.gender && n.gender !== '-' ? ` · ${n.gender}` : ''}
             {n.species ? ` · ${n.species}` : ''}
           </text>
-          {parents ? (
+          {lastLines.length > 0 && (
             <text x={16} y={72} fontSize={10.5} fill="#697380">
-              <title>{parents.title}</title>
-              {fitLine(parents.lines, (n.w || CARD_MIN_W) - 16 - 30)}
+              {lastTitle && <title>{lastTitle}</title>}
+              {fitParts(lastLines, (n.w || CARD_MIN_W) - 16 - 30).map((p, i) =>
+                p.dyn ? (
+                  <tspan
+                    key={i}
+                    fill="#3b4757"
+                    fillOpacity={n.dynastyPlan === 'member' || n.dynastyPlan === 'none' ? 0.5 : undefined}
+                    textDecoration={n.dynastyPlan === 'none' ? 'line-through' : undefined}
+                  >
+                    {p.text}
+                  </tspan>
+                ) : (
+                  <tspan key={i}>{p.text}</tspan>
+                ),
+              )}
             </text>
-          ) : detail ? (
-            <text x={16} y={72} fontSize={10.5} fill="#697380">
-              {detail}
-            </text>
-          ) : null}
+          )}
         </>
       )}
       {hasBadge && (
