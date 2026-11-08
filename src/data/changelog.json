@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "0918a48",
+   "date": "2026-11-08",
+   "text": "A dynasty role you set is now part of your plan, like a link you drew. For a sim your save has in no dynasty, the editor asks which dynasty they'll join (their parents' by default), so a planned heir gets a generation too. The role's mark shows faded until a save has it, save imports keep it meanwhile, and the household's plan lists it, like \"Make Heir Dreamer heir of the Dreamer dynasty\". Whoever holds the role in your save keeps it until your game changes."
+  },
+  {
    "sha": "0459f6c",
    "date": "2026-11-08",
    "text": "Dragging is now undoable: after moving a card, a selection, a household or a whole world, ⌘Z (or Undo) puts it back where it was."
