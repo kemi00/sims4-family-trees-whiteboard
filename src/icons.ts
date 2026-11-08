@@ -10,6 +10,7 @@ export { CaretDown } from '@phosphor-icons/react/CaretDown';
 export { CaretUp } from '@phosphor-icons/react/CaretUp';
 export { Check } from '@phosphor-icons/react/Check';
 export { CornersOut } from '@phosphor-icons/react/CornersOut';
+export { Crown } from '@phosphor-icons/react/Crown';
 export { DotsThreeVertical } from '@phosphor-icons/react/DotsThreeVertical';
 export { DownloadSimple } from '@phosphor-icons/react/DownloadSimple';
 export { EnvelopeSimple } from '@phosphor-icons/react/EnvelopeSimple';

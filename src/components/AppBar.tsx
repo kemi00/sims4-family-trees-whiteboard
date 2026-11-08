@@ -1,6 +1,7 @@
 import {
   CalendarBlank,
   Check,
+  Crown,
   EyeSlash,
   Funnel,
   GameController,
@@ -132,6 +133,7 @@ type Props = {
   filtersBtnRef: RefObject<HTMLButtonElement | null>;
   logBtnRef: RefObject<HTMLButtonElement | null>;
   upNextBtnRef: RefObject<HTMLButtonElement | null>;
+  dynastiesBtnRef: RefObject<HTMLButtonElement | null>;
   onDevUpdates: () => void;
   devUpdatesUnseen: boolean;
 };
@@ -142,6 +144,7 @@ export function AppBar({
   filtersBtnRef,
   logBtnRef,
   upNextBtnRef,
+  dynastiesBtnRef,
   onDevUpdates,
   devUpdatesUnseen,
 }: Props) {
@@ -237,6 +240,7 @@ export function AppBar({
       return;
     }
     wb.setLogOpen(false);
+    wb.setDynastiesOpen(false);
     closeLinks();
     closeSave();
     setFiltersOpen((o) => {
@@ -270,14 +274,25 @@ export function AppBar({
     setFiltersOpen(false);
     closeFilterPanels();
     wb.setLogOpen(false);
+    wb.setDynastiesOpen(false);
     const next = !wb.upNextOpen;
     if (next) trackAction('/action/up-next');
     wb.setUpNextOpen(next);
+  };
+  const openDynasties = () => {
+    setFiltersOpen(false);
+    closeFilterPanels();
+    wb.setLogOpen(false);
+    wb.setUpNextOpen(false);
+    const next = !wb.dynastiesOpen;
+    if (next) trackAction('/action/dynasties');
+    wb.setDynastiesOpen(next);
   };
   const openLog = () => {
     setFiltersOpen(false);
     closeFilterPanels();
     wb.setUpNextOpen(false);
+    wb.setDynastiesOpen(false);
     const next = !wb.logOpen;
     if (next) trackAction('/action/log');
     wb.setLogOpen(next);
@@ -315,6 +330,20 @@ export function AppBar({
           label: 'Organise',
           note: 'Arrange the board like the starter one',
           onSelect: organise,
+        },
+        {
+          id: 'upnext',
+          icon: ListNumbers,
+          label: 'Up next',
+          note: 'A suggested order to play your households in',
+          onSelect: openUpNext,
+        },
+        {
+          id: 'dynasties',
+          icon: Crown,
+          label: 'Dynasties',
+          note: 'Every dynasty, with its members',
+          onSelect: openDynasties,
         },
         {
           id: 'log',
@@ -531,18 +560,35 @@ export function AppBar({
 
       <span className="appbar__spacer" />
 
-      <ToolButton
-        id="btnUpNext"
-        ref={upNextBtnRef}
-        icon={ListNumbers}
-        label="Up next: a suggested order to play your households in"
-        pressed={wb.upNextOpen}
-        expanded={wb.upNextOpen}
-        className="tool--secondary"
-        onClick={openUpNext}
-      >
-        Up next
-      </ToolButton>
+      {/* On a phone both fold into More, with the board tools. */}
+      {!compact && (
+        <ToolButton
+          id="btnUpNext"
+          ref={upNextBtnRef}
+          icon={ListNumbers}
+          label="Up next: a suggested order to play your households in"
+          pressed={wb.upNextOpen}
+          expanded={wb.upNextOpen}
+          className="tool--secondary"
+          onClick={openUpNext}
+        >
+          Up next
+        </ToolButton>
+      )}
+      {!compact && (
+        <ToolButton
+          id="btnDynasties"
+          ref={dynastiesBtnRef}
+          icon={Crown}
+          label="Dynasties: every dynasty, planned or in your game, with its members"
+          pressed={wb.dynastiesOpen}
+          expanded={wb.dynastiesOpen}
+          className="tool--secondary"
+          onClick={openDynasties}
+        >
+          Dynasties
+        </ToolButton>
+      )}
 
       <div className="overflow" ref={filtersRef}>
         <ToolButton

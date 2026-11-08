@@ -1,5 +1,7 @@
+import { DECEASED_STATE } from './constants.ts';
 import { dynastyKey } from './generations.ts';
-import type { Edge, SimNode } from '../types/whiteboard.ts';
+import { cardName } from './plan.ts';
+import type { DynastyRole, Edge, SimNode } from '../types/whiteboard.ts';
 
 export type FamilyDynasty = {
   key: string;
@@ -84,4 +86,80 @@ export function renamePlannedDynasty(nodes: SimNode[], from: string, to: string)
     if (n.genRootOf === was) patch.genRootOf = now;
     return Object.keys(patch).length ? { ...n, ...patch } : n;
   });
+}
+
+export type DynastyMember = {
+  id: string;
+  role?: DynastyRole;
+  /** Planned into the dynasty, or into their role in it: not in a save yet. */
+  planned: boolean;
+  /** Planned out of it: the save still has them in it. */
+  leaving: boolean;
+  deceased: boolean;
+};
+
+export type DynastyRow = {
+  key: string;
+  name: string;
+  /** Some member has it from a save; else only the plan has it. */
+  inGame: boolean;
+  /** Head, heir, the other living members A to Z, outcasts, then the deceased. */
+  members: DynastyMember[];
+  head?: DynastyMember;
+  heir?: DynastyMember;
+  /** Of a dynasty in the game: members only planned into it. */
+  joining: number;
+  leaving: number;
+  deceased: number;
+};
+
+/**
+ * Every dynasty on the board with its members (pets aside), for the
+ * Dynasties panel: the game's and the planned ones, A to Z. Its head and
+ * heir are the game's holders, or the planned ones when the game has none.
+ */
+export function dynastyIndex(nodes: SimNode[]): DynastyRow[] {
+  const by = new Map<string, SimNode[]>();
+  for (const n of nodes) {
+    const key = dynastyKey(n);
+    if (!key || !n.dynasty || n.species) continue;
+    by.set(key, [...(by.get(key) ?? []), n]);
+  }
+  const rank = (m: DynastyMember) =>
+    m.deceased ? 4 : m.role === 'head' ? 0 : m.role === 'heir' ? 1 : m.role === 'outcast' ? 3 : 2;
+  const rows: DynastyRow[] = [];
+  for (const [key, list] of by) {
+    const name = new Map(list.map((n) => [n.id, cardName(n)]));
+    const members = list
+      .map(
+        (n): DynastyMember => ({
+          id: n.id,
+          ...(n.dynastyRole ? { role: n.dynastyRole } : {}),
+          planned: n.dynastyPlan === 'member' || n.dynastyPlan === 'role',
+          leaving: n.dynastyPlan === 'none',
+          deceased: n.state === DECEASED_STATE,
+        }),
+      )
+      .sort((a, b) => rank(a) - rank(b) || Number(a.planned) - Number(b.planned) || name.get(a.id)!.localeCompare(name.get(b.id)!));
+    // The game's holder first; a living one before the deceased.
+    const holder = (role: DynastyRole) =>
+      members.find((m) => m.role === role && !m.planned && !m.deceased) ??
+      members.find((m) => m.role === role && !m.deceased) ??
+      members.find((m) => m.role === role);
+    const inGame = list.some((n) => n.dynastyPlan !== 'member');
+    const head = holder('head');
+    const heir = holder('heir');
+    rows.push({
+      key,
+      name: list[0]!.dynasty!,
+      inGame,
+      members,
+      ...(head ? { head } : {}),
+      ...(heir ? { heir } : {}),
+      joining: inGame ? list.filter((n) => n.dynastyPlan === 'member').length : 0,
+      leaving: members.filter((m) => m.leaving).length,
+      deceased: members.filter((m) => m.deceased).length,
+    });
+  }
+  return rows.sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
 }

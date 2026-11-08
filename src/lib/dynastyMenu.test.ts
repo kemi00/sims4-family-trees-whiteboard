@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { dynastyNameTaken, familyDynasties, isPlannedOnlyDynasty, renamePlannedDynasty } from './dynastyMenu.ts';
+import { dynastyIndex, dynastyNameTaken, familyDynasties, isPlannedOnlyDynasty, renamePlannedDynasty } from './dynastyMenu.ts';
 
 const sim = (id: string, extra: Partial<SimNode> = {}): SimNode =>
   ({ id, first: id, sur: 'Luna', age: 'Adult', gender: 'Female', state: 'Sim', ...extra }) as SimNode;
@@ -85,5 +85,33 @@ describe('renaming a planned dynasty', () => {
     assert.equal(dynastyNameTaken(nodes, 'goth', 'Moonwood'), true);
     assert.equal(dynastyNameTaken(nodes, 'MOONWOOD', 'Moonwood'), false);
     assert.equal(dynastyNameTaken(nodes, 'Moonshade', 'Moonwood'), false);
+  });
+});
+
+describe('the dynasty list', () => {
+  it('groups members by dynasty with head, heir and what is planned', () => {
+    const nodes = [
+      sim('Cordelia', { sur: 'Thebe', dynasty: 'Thebe', dynastyId: '3', dynastyRole: 'head' }),
+      sim('Queen', { sur: 'Thebe', dynasty: 'Thebe', dynastyId: '3', state: 'Deceased', dynastyRole: 'head' }),
+      sim('Abe', { sur: 'Thebe', dynasty: 'Thebe', dynastyId: '3' }),
+      sim('Heir', { sur: 'Thebe', first: '', added: true, dynasty: 'Thebe', dynastyId: '3', dynastyRole: 'heir', dynastyPlan: 'member' }),
+      sim('Arnessa', { sur: 'Thebe', dynasty: 'Thebe', dynastyId: '3', dynastyPlan: 'none' }),
+      sim('Yuki', { sur: 'Behr', dynasty: 'Behr', dynastyRole: 'head', dynastyPlan: 'member' }),
+      sim('Rex', { dynasty: 'Behr', species: 'Dog' }),
+      sim('Loner'),
+    ];
+    const [behr, thebe] = dynastyIndex(nodes);
+    assert.deepEqual(
+      [behr!.name, behr!.inGame, behr!.members.length, behr!.head?.id, behr!.joining],
+      ['Behr', false, 1, 'Yuki', 0],
+    );
+    assert.deepEqual(
+      [thebe!.inGame, thebe!.head?.id, thebe!.heir?.id, thebe!.joining, thebe!.leaving, thebe!.deceased],
+      [true, 'Cordelia', 'Heir', 1, 1, 1],
+    );
+    assert.deepEqual(
+      thebe!.members.map((m) => m.id),
+      ['Cordelia', 'Heir', 'Abe', 'Arnessa', 'Queen'],
+    );
   });
 });

@@ -218,13 +218,14 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .minimap__view{pointer-events:none}
 
 /* Narrow windows shed the wordmark, then padding, then labels, so the bar stays
-   one row and search keeps 150px to type in. Re-measured 2026-11-07, with
-   the save details moved to the status bar: wordmark off by 1240, the board
-   tools' labels (Organise, Log) by 1080, all labels by 940, and at 900
-   search becomes a button that opens a full-width field. At 640 Organise,
-   Log and the layers fold into More (see the compact block below). */
-@media (max-width:1240px){ .brand__name{display:none} }
-@media (max-width:1080px){
+   one row and search keeps 150px to type in. Re-measured 2026-11-08, with Up
+   next and Dynasties in the bar: wordmark off by 1460, the secondary tools'
+   labels (Organise, Log, Up next, Dynasties) by 1300, all labels by 980,
+   and at 900 search becomes a button that opens a full-width field. At 640
+   Organise, Log, Up next, Dynasties and the layers fold into More (see the
+   compact block below). */
+@media (max-width:1460px){ .brand__name{display:none} }
+@media (max-width:1300px){
  .tool--secondary .tool__label{display:none}
  .tool.tool--secondary{width:32px;padding:0;gap:0}
  .tool.tool--secondary .tool__count{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px}
@@ -235,7 +236,7 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  .tool{padding:0 8px;gap:5px}
  .tool[data-tone=primary]{padding:0 10px}
 }
-@media (max-width:940px){
+@media (max-width:980px){
  .tool__label{display:none}
  .tool{width:32px;padding:0;gap:0}
  .tool .tool__count{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px}
@@ -948,6 +949,35 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .upnext .upnext__actions button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .upnext__empty{margin:6px 2px;font-size:12px;color:var(--ink-2)}
 .upnext__rules{margin:10px 2px 0;padding-top:8px;border-top:1px solid var(--line);font-size:10.5px;line-height:1.45;color:var(--ink-3)}
+/*
+ * The Dynasties panel (DynastiesPanel.tsx): one card per dynasty, the
+ * game's and the planned ones apart; hovering lights its members up.
+ */
+.dynp .gph{margin-bottom:6px}
+.dynp__total{font-size:11px;color:var(--ink-3)}
+.dynp .dynp__search{width:100%;box-sizing:border-box;margin:0 0 4px;padding:6px 8px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;font:inherit;font-size:12px;color:var(--ink)}
+.dynp .dynp__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.dynp__title{display:flex;align-items:center;gap:6px;margin:12px 2px 6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.dynp__list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.dynp__row{border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
+.dynp__row:hover{border-color:var(--rule)}
+.dynp .dynp__head{display:flex;flex-direction:column;align-items:stretch;gap:3px;width:100%;padding:8px 10px;border:none;border-radius:0;background:transparent;text-align:left;white-space:normal;line-height:1.3;font-weight:400}
+.dynp .dynp__head:hover{background:var(--hover)}
+.dynp .dynp__head[aria-expanded=true]{background:var(--recess)}
+.dynp__top{display:flex;align-items:baseline;gap:8px}
+.dynp__name{flex:1 1 auto;min-width:0;font-size:13px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.dynp__count{flex:none;font-size:11px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.dynp__holders{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:11.5px;color:var(--ink)}
+.dynp__who--planned{color:var(--ink-3)}
+.dynp__who--none{color:#8a5a00}
+.dynp__parts{font-size:11px;color:var(--ink-3)}
+.dynp__members{margin:0;padding:4px 6px 6px;list-style:none;border-top:1px solid var(--line)}
+.dynp .dynp__member{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:5px 6px;border:none;border-radius:6px;background:transparent;text-align:left;white-space:normal;line-height:1.3;font-weight:400}
+.dynp .dynp__member:hover{background:var(--hover)}
+.dynp__mname{font-size:12px;font-weight:600;color:var(--ink)}
+.dynp__member--dead .dynp__mname{color:var(--ink-3)}
+.dynp__mmeta{font-size:10.5px;color:var(--ink-3);overflow-wrap:anywhere}
+.dynp__empty{margin:6px 2px;font-size:12px;color:var(--ink-2)}
 
 /* Keep in sync with CHROME_PANEL_SHEET_MAX_PX in src/lib/constants.ts */
 @media (max-width:900px){
@@ -1015,7 +1045,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  #legend.legend--sheet .lgk__emoji{font-size:13px}
  .tool[data-tone=danger]:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 }
-/* Touch: labelled tools lose their labels at 940 and drop to 32px wide; on a
+/* Touch: labelled tools lose their labels at 980 and drop to 32px wide; on a
    phone every bar control is a full 44px square. */
 @media (pointer:coarse) and (max-width:640px){
  .appbar .tool{width:44px;padding:0}

@@ -316,6 +316,8 @@ export function useWhiteboard() {
   const [logOpen, setLogOpen] = useState(false);
   /** Up next is open, and the households skipped in it until the next save import. */
   const [upNextOpen, setUpNextOpen] = useState(false);
+  /** The Dynasties panel: every dynasty and its members. */
+  const [dynastiesOpen, setDynastiesOpen] = useState(false);
   const [upNextSkipped, setUpNextSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [householdMoves, setHouseholdMoves] = useState<HouseholdMove[]>(
     () => boot.householdMoves ?? [],
@@ -2916,6 +2918,8 @@ export function useWhiteboard() {
     setLogOpen,
     upNextOpen,
     setUpNextOpen,
+    dynastiesOpen,
+    setDynastiesOpen,
     upNextSkipped,
     setUpNextSkipped,
     connectionLog,

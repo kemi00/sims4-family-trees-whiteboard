@@ -1,6 +1,6 @@
 import { Analytics } from '@vercel/analytics/react';
 import { IconContext } from './icons.ts';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import changelog from './data/changelog.json';
 import {
@@ -17,6 +17,11 @@ import { DevUpdatesDialog } from './components/DevUpdatesDialog.tsx';
 import { GamesPanel } from './components/GamesPanel.tsx';
 import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { UpNextPanel } from './components/UpNextPanel.tsx';
+import { DynastiesPanel } from './components/DynastiesPanel.tsx';
+import { dynastyIndex, type DynastyRow } from './lib/dynastyMenu.ts';
+import { dynastyLabel } from './lib/generations.ts';
+import { isPanelSheet } from './lib/chrome.ts';
+import { householdPlace } from './lib/connectionLog.ts';
 import { householdName, upNext } from './lib/householdPlan.ts';
 import { cardName } from './lib/plan.ts';
 import { WhiteboardStage } from './components/WhiteboardStage.tsx';
@@ -53,6 +58,8 @@ export default function App() {
   const logPanelRef = useRef<HTMLDivElement>(null);
   const upNextBtnRef = useRef<HTMLButtonElement>(null);
   const upNextPanelRef = useRef<HTMLDivElement>(null);
+  const dynastiesBtnRef = useRef<HTMLButtonElement>(null);
+  const dynastiesPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -65,6 +72,7 @@ export default function App() {
         else if (wb.agesOpen) wb.setAgesOpen(false);
         else if (wb.logOpen) wb.setLogOpen(false);
         else if (wb.upNextOpen) wb.setUpNextOpen(false);
+        else if (wb.dynastiesOpen) wb.setDynastiesOpen(false);
         else if (wb.editNodeId) wb.setEditNodeId(null);
         else if (wb.briefGid) wb.setBriefGid(null);
         else if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
@@ -147,14 +155,43 @@ export default function App() {
         wb.upNextOpen &&
         upNextPanelRef.current &&
         !upNextPanelRef.current.contains(t) &&
-        !upNextBtnRef.current?.contains(t)
+        !upNextBtnRef.current?.contains(t) &&
+        // Folded into More on a phone: its menu opens the panel.
+        !(t as Element).closest?.('.overflow')
       ) {
         wb.setUpNextOpen(false);
+      }
+      if (
+        wb.dynastiesOpen &&
+        dynastiesPanelRef.current &&
+        !dynastiesPanelRef.current.contains(t) &&
+        !dynastiesBtnRef.current?.contains(t) &&
+        // Folded into More on a phone: its menu opens the panel.
+        !(t as Element).closest?.('.overflow')
+      ) {
+        wb.setDynastiesOpen(false);
       }
     };
     document.addEventListener('pointerdown', onPointer, true);
     return () => document.removeEventListener('pointerdown', onPointer, true);
-  }, [wb.gamesOpen, wb.playOpen, wb.agesOpen, wb.logOpen, wb.upNextOpen, wb]);
+  }, [wb.gamesOpen, wb.playOpen, wb.agesOpen, wb.logOpen, wb.upNextOpen, wb.dynastiesOpen, wb]);
+
+  /** Every dynasty on the board, for the Dynasties panel: worked out only while it is open. */
+  const dynastyRows = useMemo(() => (wb.dynastiesOpen ? dynastyIndex(wb.nodes) : []), [wb.dynastiesOpen, wb.nodes]);
+  const dynastyLabelOf = useCallback(
+    (r: DynastyRow) => {
+      const g = [...wb.dynastyGens.values()].find((x) => x.key === r.key);
+      return g ? dynastyLabel(g, wb.dynastyGens, wb.byid) : r.name;
+    },
+    [wb.dynastyGens, wb.byid],
+  );
+  const nameOfSim = useCallback(
+    (id: string) => {
+      const n = wb.byid[id];
+      return n ? cardName(n) : 'someone';
+    },
+    [wb.byid],
+  );
 
   return (
     <IconContext.Provider value={ICONS}>
@@ -165,6 +202,7 @@ export default function App() {
           filtersBtnRef={filtersBtnRef}
           logBtnRef={logBtnRef}
           upNextBtnRef={upNextBtnRef}
+          dynastiesBtnRef={dynastiesBtnRef}
           onDevUpdates={() => setDevUpdatesOpen(true)}
           devUpdatesUnseen={devUpdatesUnseen}
         />
@@ -275,6 +313,27 @@ export default function App() {
                   return next;
                 })
               }
+            />
+          </div>
+        )}
+        {wb.dynastiesOpen && (
+          <div ref={dynastiesPanelRef}>
+            <DynastiesPanel
+              rows={dynastyRows}
+              labelOf={dynastyLabelOf}
+              nameOf={nameOfSim}
+              homeOf={(id) => {
+                const n = wb.byid[id];
+                return n?.hh ? householdPlace(n.hh, n.nb, n.world) : '';
+              }}
+              anchorRect={dynastiesBtnRef.current?.getBoundingClientRect() ?? null}
+              onFind={(id) => {
+                // A phone's sheet covers the board: it gets out of the way.
+                if (isPanelSheet()) wb.setDynastiesOpen(false);
+                const rect = svgRef.current?.getBoundingClientRect();
+                wb.focusSim(id, rect?.width ?? 800, rect?.height ?? 600);
+              }}
+              onHover={wb.setBriefHover}
             />
           </div>
         )}
