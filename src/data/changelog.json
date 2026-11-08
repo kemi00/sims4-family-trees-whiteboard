@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "5236431",
+   "date": "2026-11-08",
+   "text": "Groundwork for household briefs: the board now works out each household's plan. A planned couple or baby is ready when everyone is grown up, waiting when someone is too young or not born yet (and says which household to play to move it), and off plan when the game went another way."
+  },
+  {
    "sha": "f99a768",
    "date": "2026-11-08",
    "text": "A sim's age details now count down to Young Adult, not only to the next stage: a child on Short is a Young Adult in 17 days of aging. Elders say how long they've been one and when old age can come at the earliest, like \"Elder for 2.4 days · old age in 4+ days\". It's the earliest, never a date: traits like Long Lived stretch it, and your save doesn't say by how much."
