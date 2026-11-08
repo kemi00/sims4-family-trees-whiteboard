@@ -1772,6 +1772,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             onHouseholdDragStart={onHouseholdDragStart}
             onAgeUp={onAgeUp}
             onAddSim={onAddSim}
+            tallies={wb.planTally}
+            onOpenPlan={wb.setBriefGid}
           />
           {/* World chips last so they paint above household tags + sim cards. */}
           <WorldLayer

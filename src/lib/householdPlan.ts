@@ -231,6 +231,27 @@ export function planTallies(items: PlanItem[]): Map<string, PlanTally> {
 }
 
 /**
+ * The badge on a household's tag: how many things are ready, else how
+ * many went off plan, else that something waits; none when nothing is
+ * pending, so a big board stays quiet. `title` has the whole count.
+ */
+export function planBadge(
+  t: PlanTally | undefined,
+): { text: string; tone: 'ready' | 'offPlan' | 'waiting'; title: string } | null {
+  if (!t || !(t.ready + t.waiting + t.offPlan)) return null;
+  const title = [
+    t.ready && `${t.ready} ready`,
+    t.waiting && `${t.waiting} waiting`,
+    t.offPlan && `${t.offPlan} off plan`,
+  ]
+    .filter(Boolean)
+    .join(', ');
+  if (t.ready) return { text: `${t.ready} ready`, tone: 'ready', title };
+  if (t.offPlan) return { text: `${t.offPlan} off plan`, tone: 'offPlan', title };
+  return { text: 'waiting', tone: 'waiting', title };
+}
+
+/**
  * Items of other households that playing `gid` moves along: a sim of its
  * own to grow up, or a baby of its own to be born first (Heir Dreamer, to
  * marry Spare Munch).

@@ -6,6 +6,7 @@ import {
   householdName,
   householdPlans,
   itemsFor,
+  planBadge,
   planTallies,
   unblockedBy,
   waitText,
@@ -183,6 +184,18 @@ describe('a household’s plan at a glance', () => {
     assert.deepEqual(t.get('W||Munch'), { ready: 2, waiting: 1, offPlan: 0 });
     assert.deepEqual(t.get('W||Capp'), { ready: 1, waiting: 0, offPlan: 0 });
     assert.equal(itemsFor(items, 'W||Capp').length, 1);
+  });
+
+  it('badges a household with what is ready first, then off plan, then waiting', () => {
+    assert.deepEqual(planBadge({ ready: 2, waiting: 1, offPlan: 1 }), {
+      text: '2 ready',
+      tone: 'ready',
+      title: '2 ready, 1 waiting, 1 off plan',
+    });
+    assert.equal(planBadge({ ready: 0, waiting: 3, offPlan: 1 })!.text, '1 off plan');
+    assert.deepEqual(planBadge({ ready: 0, waiting: 3, offPlan: 0 }), { text: 'waiting', tone: 'waiting', title: '3 waiting' });
+    assert.equal(planBadge({ ready: 0, waiting: 0, offPlan: 0 }), null);
+    assert.equal(planBadge(undefined), null);
   });
 
   it('names households by their tag, and the unhoused box as such', () => {

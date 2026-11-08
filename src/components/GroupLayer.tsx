@@ -2,7 +2,9 @@ import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Group, SimNode } from '../types/whiteboard.ts';
 import { rectsIntersect, type WorldRect } from '../lib/marquee.ts';
 import { nodesForGid, type NodeBuckets } from '../lib/nodeIndex.ts';
-import { householdChrome, UNHOUSED_MARK_W } from '../lib/tiles.ts';
+import { HH_TAG_STACK_GAP } from '../lib/constants.ts';
+import { planBadge, type PlanTally } from '../lib/householdPlan.ts';
+import { householdChrome, tagPillWidth, UNHOUSED_MARK_W } from '../lib/tiles.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
@@ -31,7 +33,18 @@ type Props = {
   onAgeUp: (gid: string) => void;
   /** The household's + : add a new sim to it. */
   onAddSim?: (gid: string) => void;
+  /** Each household's plan items by state, for the badge beside its +. */
+  tallies?: ReadonlyMap<string, PlanTally>;
+  /** The badge: open the household's plan. */
+  onOpenPlan?: (gid: string) => void;
 };
+
+/** Badge colors: ready to do, off plan, or only waiting. */
+const BADGE = {
+  ready: { fill: '#e3f3ea', stroke: '#2f8f5b', text: '#1f6b43' },
+  offPlan: { fill: '#fdf0dc', stroke: '#b45309', text: '#8a4208' },
+  waiting: { fill: '#ffffff', stroke: '#aeb9c7', text: '#5a6675' },
+} as const;
 
 export const GroupLayer = memo(function GroupLayer({
   groups,
@@ -47,6 +60,8 @@ export const GroupLayer = memo(function GroupLayer({
   onHouseholdDragStart,
   onAgeUp,
   onAddSim,
+  tallies,
+  onOpenPlan,
 }: Props) {
   if (!show) return null;
 
@@ -265,6 +280,38 @@ export const GroupLayer = memo(function GroupLayer({
                 </text>
               </g>
             )}
+            {!unhoused && labels && onOpenPlan && (() => {
+              const badge = planBadge(tallies?.get(g0.gid));
+              if (!badge) return null;
+              const tone = BADGE[badge.tone];
+              const x = addX + addW + HH_TAG_STACK_GAP;
+              const w = tagPillWidth(badge.text, 18);
+              return (
+                <g
+                  className="hh-plan"
+                  role="button"
+                  aria-label={`${g0.hh} household plan: ${badge.title}`}
+                  style={{ cursor: 'pointer' }}
+                  // Acts on click, like the +, so a pan that starts here opens nothing.
+                  onPointerDown={(ev) => ev.stopPropagation()}
+                  onClick={() => onOpenPlan(g0.gid)}
+                >
+                  <title>{`${badge.title}. Click for the household’s plan.`}</title>
+                  <rect x={x} y={ageY} width={w} height={pillH} rx={8} fill={tone.fill} stroke={tone.stroke} strokeWidth={1.5} />
+                  <text
+                    x={x + w / 2}
+                    y={textY(ageY)}
+                    dominantBaseline="middle"
+                    fontSize={12}
+                    fontWeight={700}
+                    textAnchor="middle"
+                    fill={tone.text}
+                  >
+                    {badge.text}
+                  </text>
+                </g>
+              );
+            })()}
           </g>
         );
       })}
