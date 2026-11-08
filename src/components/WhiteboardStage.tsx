@@ -2023,6 +2023,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         ref={legendRef}
         worlds={wb.worlds}
         liveWorlds={wb.liveWorlds}
+        totals={wb.boardTotals}
         hidden={wb.gamesOpen || wb.playOpen || wb.agesOpen || !!briefGroup}
         onPickWorld={(world) => {
           const r = svgRef.current?.getBoundingClientRect();

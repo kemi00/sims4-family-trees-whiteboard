@@ -117,6 +117,7 @@ import {
   setGenRoot,
 } from '../lib/generations.ts';
 import { removePlannedDynasty, renamePlannedDynasty } from '../lib/dynastyMenu.ts';
+import { worldTotals } from '../lib/worldTag.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
@@ -528,6 +529,8 @@ export function useWhiteboard() {
     () => new Set(visibleNodes.map((n) => n.world)),
     [visibleNodes],
   );
+  /** What the world tags add up to, for the Worlds card. */
+  const boardTotals = useMemo(() => worldTotals(nodes, nodeVis), [nodes, nodeVis]);
 
   const partneredIds = useMemo(() => partneredIdSet(shownEdges), [shownEdges]);
 
@@ -3033,6 +3036,7 @@ export function useWhiteboard() {
     hopD,
     visibleNodes,
     liveWorlds,
+    boardTotals,
     packs,
     packCounts,
     packColors,

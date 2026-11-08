@@ -8,9 +8,11 @@ import {
   DYNASTY_ROLES,
   LINK_STROKE,
   LINK_STROKE_ACROSS,
+  NOT_IN_WORLD,
   UEDIT,
   linkDash,
 } from '../lib/constants.ts';
+import type { WorldTotals } from '../lib/worldTag.ts';
 import { DivorcePill, HeartPill, OffPlanMark, RingPill, SecretLoversPill } from './EdgeLayer.tsx';
 import { LockGlyph } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
@@ -150,17 +152,58 @@ function readKeyOpen(): boolean {
   }
 }
 
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * The board's totals, as two figures above the world list: worlds with
+ * sims shown, and households, those in no world included, so they add up
+ * to the tags. Under each, what the figure leaves out or takes in.
+ */
+function WorldTotalsRow({ totals, hidden }: { totals: WorldTotals; hidden: World[] }) {
+  const inWorlds = totals.households - totals.outside;
+  const worldsNote = hidden.length ? `${hidden.length} hidden` : '';
+  const homesNote = totals.outside ? `${totals.outside} in no world` : '';
+  return (
+    <dl className="lg-totals">
+      <div
+        title={
+          hidden.length
+            ? `${plural(totals.worlds, 'world has', 'worlds have')} sims on the board. Filters hide ${hidden.map((w) => w.name).join(' and ')}.`
+            : `${plural(totals.worlds, 'world has', 'worlds have')} sims on the board.`
+        }
+      >
+        <dt>{totals.worlds === 1 ? 'world' : 'worlds'}</dt>
+        <dd>{totals.worlds}</dd>
+        {worldsNote && <dd className="lg-totals__note">{worldsNote}</dd>}
+      </div>
+      <div
+        title={
+          totals.outside
+            ? `${plural(inWorlds, 'household', 'households')} in worlds and ${totals.outside} not in any world.`
+            : `${plural(totals.households, 'household', 'households')} in worlds.`
+        }
+      >
+        <dt>{totals.households === 1 ? 'household' : 'households'}</dt>
+        <dd>{totals.households}</dd>
+        {homesNote && <dd className="lg-totals__note">{homesNote}</dd>}
+      </div>
+    </dl>
+  );
+}
+
 type Props = {
   worlds: World[];
   /** Worlds with at least one sim currently on the board. */
   liveWorlds: Set<string>;
+  /** What the world tags add up to: worlds and households shown. */
+  totals: WorldTotals;
   /** Hide while a filter panel is open so it does not overlap the controls. */
   hidden?: boolean;
   onPickWorld: (world: string) => void;
   ref?: Ref<HTMLDivElement>;
 };
 
-export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) {
+export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }: Props) {
   const compact = useCompactChrome();
   const [expanded, setExpanded] = useState(!compact);
   const [keyOpen, setKeyOpen] = useState(readKeyOpen);
@@ -205,6 +248,7 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
         aria-labelledby="legend-worlds-h"
       >
         <h3 id="legend-worlds-h">Worlds</h3>
+        <WorldTotalsRow totals={totals} hidden={worlds.filter((w) => w.name !== NOT_IN_WORLD && !liveWorlds.has(w.name))} />
         <p className="lg-key">
           Tags count <User weight="fill" aria-hidden="true" /> sims,{' '}
           <House weight="fill" aria-hidden="true" /> households and{' '}

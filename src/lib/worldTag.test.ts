@@ -14,6 +14,7 @@ import {
   worldTagBox,
   worldTagLayout,
   worldTagLift,
+  worldTotals,
 } from './worldTag.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
@@ -104,6 +105,30 @@ describe('world tag counts', () => {
       worldCountsText('Tartosa', worldCounts([card('a', 'g1')], () => true)),
       'Tartosa: 1 sim in 1 household.',
     );
+  });
+});
+
+describe('the board totals', () => {
+  it('count the worlds shown and every household, those in no world apart', () => {
+    const at = (id: string, world: string, hh: string, extra: Partial<SimNode> = {}) => ({
+      ...card(id, `${world}||${hh}`),
+      world,
+      ...extra,
+    });
+    const totals = worldTotals(
+      [
+        at('a', 'Willow Creek', 'Goth'),
+        at('b', 'Willow Creek', 'Goth'),
+        at('c', 'Oasis Springs', 'Landgraab'),
+        at('d', 'Oasis Springs', 'Unhoused sims'),
+        at('e', 'Not in any world', 'Behr'),
+        at('f', 'Not in any world', 'Unhoused sims'),
+        // Its game switched off: neither its world nor its household counts.
+        at('g', 'Batuu', 'Vi', { pack: 'Hidden Pack' }),
+      ],
+      shown,
+    );
+    assert.deepEqual(totals, { worlds: 2, households: 3, outside: 1 });
   });
 });
 

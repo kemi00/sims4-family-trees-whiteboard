@@ -1,5 +1,6 @@
 import {
   DECEASED_STATE,
+  NOT_IN_WORLD,
   HH_TAG_INSET,
   LABEL_MIN_K,
   TILE,
@@ -286,6 +287,30 @@ function tagAtScale(
       fontSize: COUNT_FONT * s,
     },
   };
+}
+
+/** The whole board's counts, for the Worlds card: what its world tags add up to. */
+export type WorldTotals = {
+  /** Worlds with a card shown; "Not in any world" is none. */
+  worlds: number;
+  /** Household boxes with a card shown, in a world or not; Unhoused sims boxes aside. */
+  households: number;
+  /** Of `households`, those not in any world. */
+  outside: number;
+};
+
+export function worldTotals(nodes: SimNode[], vis: (n: SimNode) => boolean): WorldTotals {
+  const worlds = new Set<string>();
+  const homes = new Set<string>();
+  let outside = 0;
+  for (const n of nodes) {
+    if (!vis(n)) continue;
+    if (n.world !== NOT_IN_WORLD) worlds.add(n.world);
+    if (isUnhousedGid(n.gid) || homes.has(n.gid)) continue;
+    homes.add(n.gid);
+    if (n.world === NOT_IN_WORLD) outside += 1;
+  }
+  return { worlds: worlds.size, households: homes.size, outside };
 }
 
 function plural(n: number, one: string, many: string): string {
