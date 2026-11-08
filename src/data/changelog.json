@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "1604b23",
+   "date": "2026-11-08",
+   "text": "Up next says what playing a household does: “Helps the Le Chien household: Planned (2) Romeo is born here”. A planned baby now waits on its parents’ household, a sim moved on the board grows up where the game still has them, and a household that isn’t in your game yet comes last, saying who has to move in first."
+  },
+  {
    "sha": "7fb1651",
    "date": "2026-11-08",
    "text": "The Worlds card now starts with your board's totals: how many worlds have sims and how many households there are. The household total includes those not in any world, so it adds up to the world tags, and a note under each total says how many worlds filters hide and how many households are in no world."
