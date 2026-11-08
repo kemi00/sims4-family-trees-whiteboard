@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "eca9206",
+   "date": "2026-11-08",
+   "text": "Dynasties with no heir, or with 2 sims or fewer to carry them on, now say they are at risk: in the Dynasties panel, with why, and on their members’ cards. The panel can also sort by size (Most sims, Fewest sims) and show only the dynasties at risk."
+  },
+  {
    "sha": "1604b23",
    "date": "2026-11-08",
    "text": "Up next says what playing a household does: “Helps the Le Chien household: Planned (2) Romeo is born here”. A planned baby now waits on its parents’ household, a sim moved on the board grows up where the game still has them, and a household that isn’t in your game yet comes last, saying who has to move in first."
