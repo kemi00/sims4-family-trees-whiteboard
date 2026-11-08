@@ -35,6 +35,16 @@ export function scaleOf(lifespan?: Lifespan): number {
   return LIFESPAN_SCALE[lifespan ?? 'Normal'];
 }
 
+/** The stage a sim can marry in, and the first one counted as grown up. */
+export const GROWN_UP = 'Young Adult';
+
+/**
+ * Normal-lifespan days of an elder's shortest life. Old age can come from
+ * then on, usually within a few days; traits like Long Lived stretch it,
+ * and a save does not show by how much.
+ */
+export const ELDER_MIN_DAYS = NORMAL_DAYS.Elder!;
+
 /** Normal-lifespan days of life before this stage begins. */
 export function daysBeforeStage(stage: string, newborn?: boolean): number | null {
   const key = stageKey(stage, newborn);
@@ -53,6 +63,40 @@ export function daysBeforeStage(stage: string, newborn?: boolean): number | null
 export function lifeDays(life: SimLife): number | null {
   const before = daysBeforeStage(life.stage, life.newborn);
   return before === null ? null : before + life.stageDays;
+}
+
+/**
+ * Days, on `lifespan`, until a sim `stageDays` Normal days into `stage`
+ * reaches `target`: 0 when they are there or past it, null for a stage the
+ * clock does not know. A teen 10.9 Normal days in is a young adult in
+ * 5.05 Short days.
+ */
+export function daysUntilStage(
+  stage: string,
+  stageDays: number,
+  target: string,
+  lifespan?: Lifespan,
+  newborn?: boolean,
+): number | null {
+  const from = daysBeforeStage(stage, newborn);
+  const to = daysBeforeStage(target);
+  if (from === null || to === null) return null;
+  return Math.max(0, to - (from + stageDays)) * scaleOf(lifespan);
+}
+
+/** Days from birth to `target` on `lifespan`: a baby not born yet grows up 24 Short days after birth. */
+export function daysFromBirth(target: string, lifespan?: Lifespan): number | null {
+  const to = daysBeforeStage(target);
+  return to === null ? null : to * scaleOf(lifespan);
+}
+
+/**
+ * Days left, on `lifespan`, before old age can come for an elder
+ * `stageDays` Normal days in: the earliest, never a date (ELDER_MIN_DAYS).
+ * 0 once they are past it.
+ */
+export function oldAgeEarliest(stageDays: number, lifespan?: Lifespan): number {
+  return Math.max(0, ELDER_MIN_DAYS - stageDays) * scaleOf(lifespan);
 }
 
 /**
@@ -125,6 +169,10 @@ export type LifeView = {
   next?: string;
   /** How long an elder has been one, on the save's lifespan. */
   elderDays?: number;
+  /** An elder's days left before old age can come; 0 once past (oldAgeEarliest). */
+  oldAgeIn?: number;
+  /** Days left to Young Adult, for a sim not grown up yet. */
+  grownUpIn?: number;
   frozen?: SimLife['frozen'];
   lifespan: Lifespan;
   /** The save's lifespan is unknown; Normal is assumed. */
@@ -157,12 +205,15 @@ export function lifeView(n: SimNode, game?: SaveGameInfo | null): LifeView | nul
     ...(game?.seasonDays ? { bornYear: yearOf(bornDay, game.seasonDays) } : {}),
     inPlay: !!life.inPlay,
     ...(key === 'Elder'
-      ? { elderDays: life.stageDays * scale }
+      ? { elderDays: life.stageDays * scale, oldAgeIn: oldAgeEarliest(life.stageDays, lifespan) }
       : {
           through: Math.min(1, life.stageDays / length),
           daysToNext: Math.max(0, (length - life.stageDays) * scale),
           next: nextKey,
         }),
+    ...(ORDER.indexOf(key) < ORDER.indexOf(GROWN_UP)
+      ? { grownUpIn: daysUntilStage(life.stage, life.stageDays, GROWN_UP, lifespan, life.newborn)! }
+      : {}),
     ...(life.frozen ? { frozen: life.frozen } : {}),
     lifespan,
     lifespanGuessed: !game?.lifespan,

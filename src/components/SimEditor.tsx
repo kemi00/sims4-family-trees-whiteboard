@@ -73,9 +73,28 @@ function frozenLine(frozen: NonNullable<LifeView['frozen']>): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+/** " of aging" after a count of days, while the sim's household isn't aging. */
+function ofAging(v: LifeView): string {
+  return v.frozen ? ' of aging' : '';
+}
+
+/** When old age can come: "in 2 days at the earliest", or "any day now" once past. */
+function oldAgeText(v: LifeView): string {
+  if (!v.oldAgeIn) return 'could come any day now';
+  return `in ${wholeDaysText(v.oldAgeIn)}${ofAging(v)} at the earliest`;
+}
+
 /** The age in one line, under the life stage: "2% through · Adult in 13 days". */
 function lifeSummary(v: LifeView): string {
-  if (v.elderDays !== undefined) return `Elder for ${daysText(v.elderDays)}`;
+  if (v.elderDays !== undefined) {
+    const n = Math.floor(v.oldAgeIn ?? 0);
+    const soon = !v.oldAgeIn
+      ? 'old age any day now'
+      : n < 1
+        ? 'old age in under a day'
+        : `old age in ${n}+ ${n === 1 ? 'day' : 'days'}`;
+    return `Elder for ${daysText(v.elderDays)} · ${soon}`;
+  }
   const parts: string[] = [];
   if (v.newborn) parts.push('Newborn');
   if (v.through !== undefined) parts.push(`${Math.round(v.through * 100)}% through`);
@@ -98,8 +117,12 @@ function LifeFacts({ v }: { v: LifeView }) {
   if (v.elderDays !== undefined) rows.push(['Elder for', daysText(v.elderDays)]);
   else if (v.through !== undefined) rows.push([stage, `${Math.round(v.through * 100)}% through`]);
   if (v.next && v.daysToNext !== undefined) {
-    rows.push([`${v.next} in`, `${wholeDaysText(v.daysToNext)}${v.frozen ? ' of aging' : ''}`]);
+    rows.push([`${v.next} in`, `${wholeDaysText(v.daysToNext)}${ofAging(v)}`]);
   }
+  if (v.grownUpIn !== undefined && v.next !== 'Young Adult') {
+    rows.push(['Young Adult in', `${wholeDaysText(v.grownUpIn)}${ofAging(v)}`]);
+  }
+  if (v.elderDays !== undefined) rows.push(['Old age', oldAgeText(v)]);
   return (
     <div id="edLife" className="ro edlife">
       {rows.map(([k, val]) => (
@@ -109,6 +132,12 @@ function LifeFacts({ v }: { v: LifeView }) {
         </div>
       ))}
       {v.frozen && <div className="edlife__note edlife__note--frozen">{frozenText(v.frozen)}</div>}
+      {v.elderDays !== undefined && (
+        <div className="edlife__note">
+          Old age usually comes a few days after the earliest day. Traits like Long Lived stretch it, and
+          your save doesn’t say by how much.
+        </div>
+      )}
       <div className="edlife__note">
         {v.fromEarlierImport ? 'From an earlier save import, at ' : 'From your save at '}
         {clockText(v.at)} · {v.lifespan} lifespan{v.lifespanGuessed ? ' (assumed)' : ''}

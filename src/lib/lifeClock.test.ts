@@ -7,9 +7,12 @@ import {
   dayOf,
   dayText,
   daysBeforeStage,
+  daysFromBirth,
+  daysUntilStage,
   frozenReason,
   lifeDays,
   lifeView,
+  oldAgeEarliest,
   wholeDaysText,
   yearOf,
 } from './lifeClock.ts';
@@ -106,6 +109,40 @@ describe('a sim’s place in life', () => {
   it('flags facts from an earlier import and a lifespan it had to guess', () => {
     const v = lifeView(malcolm, game(undefined, { clock: 20_000_000 }))!;
     assert.deepEqual([v.fromEarlierImport, v.lifespanGuessed, v.lifespan], [true, true, 'Normal']);
+  });
+});
+
+describe('countdowns', () => {
+  const near = (a: number | null | undefined, b: number) => assert.ok(a != null && Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
+
+  it('counts the days to a later stage across the stages between', () => {
+    near(daysUntilStage('Teen', 10.9, 'Young Adult', 'Short'), 5.05);
+    near(daysUntilStage('Child', 0, 'Young Adult', 'Short'), 17.5);
+    near(daysUntilStage('Child', 0, 'Young Adult', 'Normal'), 35);
+    near(daysUntilStage('Infant', 0.5, 'Toddler', 'Normal', true), 5.5);
+    assert.equal(daysUntilStage('Adult', 3, 'Young Adult', 'Short'), 0);
+    assert.equal(daysUntilStage('Unknown', 0, 'Young Adult', 'Short'), null);
+  });
+
+  it('counts a baby not born yet from birth', () => {
+    assert.equal(daysFromBirth('Young Adult', 'Short'), 24);
+    assert.equal(daysFromBirth('Young Adult', 'Normal'), 48);
+    assert.equal(daysFromBirth('Unknown', 'Short'), null);
+  });
+
+  it('gives an elder the earliest days before old age, never less than none', () => {
+    assert.equal(oldAgeEarliest(2, 'Short'), 6);
+    assert.equal(oldAgeEarliest(2, 'Normal'), 12);
+    assert.equal(oldAgeEarliest(20, 'Short'), 0);
+  });
+
+  it('puts them on the age facts: grown up for the young, old age for elders', () => {
+    near(lifeView(malcolm, game('Short'))!.grownUpIn, 5.05);
+    const elder = node({ age: 'Elder', life: { born: 0, stageDays: 10, stage: 'Elder', at: 0 } });
+    const v = lifeView(elder, game('Short'))!;
+    assert.deepEqual([v.elderDays, v.oldAgeIn, v.grownUpIn], [5, 2, undefined]);
+    const adult = node({ age: 'Adult', life: { born: 0, stageDays: 1, stage: 'Adult', at: 0 } });
+    assert.equal(lifeView(adult, game('Short'))!.grownUpIn, undefined);
   });
 });
 
