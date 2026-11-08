@@ -109,7 +109,7 @@ import type {
   World,
 } from '../types/whiteboard.ts';
 import { dynastyGenerations, dynastyKey, familyGenerations, setGenRoot } from '../lib/generations.ts';
-import { dynastyNameTaken, renamePlannedDynasty } from '../lib/dynastyMenu.ts';
+import { dynastyNameTaken, removePlannedDynasty, renamePlannedDynasty } from '../lib/dynastyMenu.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
@@ -1133,6 +1133,26 @@ export function useWhiteboard() {
       setNodesCore(next);
       trackAction('/action/rename-dynasty');
       flashStatus(`Renamed the ${from} dynasty to ${name}, on ${count === 1 ? 'its 1 sim' : `all ${count} of its sims`}.`);
+      return true;
+    },
+    [nodesCore, pushUndo, flashStatus],
+  );
+
+  /**
+   * Takes a dynasty only the plan has off every member's card at once
+   * (removePlannedDynasty), undoably; the cards stay. False for a game one.
+   */
+  const removeDynasty = useCallback(
+    (name: string): boolean => {
+      const next = removePlannedDynasty(nodesCore, name);
+      if (next === nodesCore) return false;
+      const count = nodesCore.filter((n) => n.dynasty === name && !n.dynastyId && !n.species).length;
+      pushUndo();
+      setNodesCore(next);
+      trackAction('/action/remove-dynasty');
+      flashStatus(
+        `Removed the planned ${name} dynasty from ${count === 1 ? 'its 1 sim' : `its ${count} sims`}. Undo brings it back.`,
+      );
       return true;
     },
     [nodesCore, pushUndo, flashStatus],
@@ -2913,6 +2933,7 @@ export function useWhiteboard() {
     requestInfantOfCouple,
     requestInfantOfSim,
     renameDynasty,
+    removeDynasty,
     confirmInfantHouse,
     logOpen,
     setLogOpen,

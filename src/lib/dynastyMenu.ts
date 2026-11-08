@@ -163,3 +163,28 @@ export function dynastyIndex(nodes: SimNode[]): DynastyRow[] {
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
 }
+
+/**
+ * Planned-only dynasty `name` taken off every member's card, as picking No
+ * dynasty takes it off one: the dynasty, its role and the plan go, and so
+ * does what was kept by its key. The cards themselves stay. The same array
+ * back when the dynasty is the game's or not on the board.
+ */
+export function removePlannedDynasty(nodes: SimNode[], name: string): SimNode[] {
+  if (!isPlannedOnlyDynasty(nodes, name)) return nodes;
+  const key = `name:${name}`;
+  return nodes.map((n) => {
+    const member = dynastyKey(n) === key;
+    if (!member && n.firstHeadOf !== key && n.genRootOf !== key) return n;
+    const out: SimNode = { ...n };
+    if (member) {
+      delete out.dynasty;
+      delete out.dynastyId;
+      delete out.dynastyRole;
+      delete out.dynastyPlan;
+    }
+    if (out.firstHeadOf === key) delete out.firstHeadOf;
+    if (out.genRootOf === key) delete out.genRootOf;
+    return out;
+  });
+}

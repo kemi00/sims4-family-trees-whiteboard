@@ -334,6 +334,8 @@ export default function App() {
                 wb.focusSim(id, rect?.width ?? 800, rect?.height ?? 600);
               }}
               onHover={wb.setBriefHover}
+              onRename={wb.renameDynasty}
+              onRemove={wb.removeDynasty}
             />
           </div>
         )}

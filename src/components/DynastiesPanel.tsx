@@ -19,7 +19,14 @@ type Props = {
   onFind: (id: string) => void;
   /** Light up these sims on the board (a dynasty's members), or no one. */
   onHover: (ids: Set<string> | null) => void;
+  /** Renames a planned dynasty on all its members; false when refused. */
+  onRename: (from: string, to: string) => boolean;
+  /** Takes a planned dynasty off all its members; false when refused. */
+  onRemove: (name: string) => boolean;
 };
+
+/** What a planned dynasty's card is asking: a new name, or whether to remove it. */
+type Editing = { key: string; mode: 'rename' | 'remove'; to: string };
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -55,10 +62,11 @@ function memberMeta(m: DynastyMember, home: string): string {
  * members up on the board wherever they are, and opening it lists them,
  * each a click from their card.
  */
-export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFind, onHover }: Props) {
+export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFind, onHover, onRename, onRemove }: Props) {
   const sheet = usePanelSheet();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const [editing, setEditing] = useState<Editing | null>(null);
   // Nothing stays lit once the panel closes.
   useEffect(() => () => onHover(null), [onHover]);
 
@@ -84,6 +92,114 @@ export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFi
     { key: 'game', title: 'In your game', rows: found.rows.filter((r) => r.inGame) },
     { key: 'planned', title: 'Planned', rows: found.rows.filter((r) => !r.inGame) },
   ].filter((g) => g.rows.length);
+
+  /** A planned dynasty's Rename and Remove, or the form one of them opened. */
+  const tidy = (r: DynastyRow, formId: string) => {
+    const sims = r.members.length === 1 ? 'its 1 sim' : `all ${r.members.length} of its sims`;
+    if (editing?.key === r.key && editing.mode === 'rename') {
+      const to = editing.to.trim();
+      const taken = to ? rows.find((x) => x.key !== r.key && fold(x.name) === fold(to)) : undefined;
+      const can = !!to && to !== r.name && !taken;
+      const submit = () => {
+        if (!can || !onRename(r.name, to)) return;
+        // The card stays open under its new name.
+        setOpen((s) => new Set([...s].filter((k) => k !== r.key)).add(`name:${to}`));
+        setEditing(null);
+      };
+      return (
+        <div className="dynp__form">
+          <label htmlFor={`${formId}-to`}>New name for the {r.name} dynasty</label>
+          <input
+            id={`${formId}-to`}
+            value={editing.to}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={taken ? true : undefined}
+            aria-describedby={`${formId}-hint`}
+            onChange={(e) => setEditing({ ...editing, to: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                e.preventDefault();
+                submit();
+              } else if (e.key === 'Escape') {
+                // Closes the form only, not the panel.
+                e.stopPropagation();
+                setEditing(null);
+              }
+            }}
+          />
+          <p
+            id={`${formId}-hint`}
+            className={taken ? 'dynp__hint dynp__hint--error' : 'dynp__hint'}
+            role={taken ? 'alert' : undefined}
+          >
+            {taken
+              ? `There’s already a ${taken.name} dynasty. Choose another name.`
+              : `Renames it on ${sims} right away. Use the name it will have in the game, so a save can match it.`}
+          </p>
+          <div className="dynp__formacts">
+            <button type="button" className="dynp__go" disabled={!can} onClick={submit}>
+              Rename
+            </button>
+            <button type="button" className="dynp__cancel" onClick={() => setEditing(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (editing?.key === r.key && editing.mode === 'remove') {
+      return (
+        <div
+          className="dynp__form"
+          role="group"
+          aria-label={`Remove the ${r.name} dynasty`}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return;
+            e.stopPropagation();
+            setEditing(null);
+          }}
+        >
+          <p className="dynp__hint dynp__hint--ask">
+            Remove the planned {r.name} dynasty from {sims}? Their cards stay: only the dynasty and their roles in
+            it go. Undo brings it back.
+          </p>
+          <div className="dynp__formacts">
+            <button
+              type="button"
+              className="dynp__go dynp__go--danger"
+              autoFocus
+              onClick={() => {
+                if (!onRemove(r.name)) return;
+                setEditing(null);
+                onHover(null);
+              }}
+            >
+              Remove
+            </button>
+            <button type="button" className="dynp__cancel" onClick={() => setEditing(null)}>
+              Keep it
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="dynp__actions">
+        <button type="button" className="dynp__act" onClick={() => setEditing({ key: r.key, mode: 'rename', to: r.name })}>
+          Rename
+        </button>
+        <button
+          type="button"
+          className="dynp__act dynp__act--danger"
+          onClick={() => setEditing({ key: r.key, mode: 'remove', to: '' })}
+        >
+          Remove…
+        </button>
+      </div>
+    );
+  };
 
   const holder = (m: DynastyMember | undefined, role: 'head' | 'heir') =>
     m ? (
@@ -180,7 +296,8 @@ export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFi
                       {parts && <span className="dynp__parts">{parts}</span>}
                     </button>
                     {expanded && (
-                      <ul className="dynp__members" id={listId} aria-label={`${labelOf(r)} members`}>
+                      <div id={listId}>
+                      <ul className="dynp__members" aria-label={`${labelOf(r)} members`}>
                         {r.members.map((m) => (
                           <li key={m.id}>
                             <button
@@ -202,6 +319,9 @@ export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFi
                           </li>
                         ))}
                       </ul>
+                      {/* Only a planned dynasty: a game one is named by the save. */}
+                      {!r.inGame && tidy(r, listId)}
+                      </div>
                     )}
                   </li>
                 );
@@ -211,8 +331,8 @@ export function DynastiesPanel({ rows, labelOf, nameOf, homeOf, anchorRect, onFi
         ))
       )}
       <p className="upnext__rules">
-        Hover a dynasty to light up its members on the board, in any world; open it to see who they are. Counts
-        take in the deceased and sims only planned into it.
+        Hover a dynasty to light up its members on the board, in any world; open it to see who they are, or to
+        rename or remove a planned one. Counts take in the deceased and sims only planned into it.
       </p>
     </div>
   );

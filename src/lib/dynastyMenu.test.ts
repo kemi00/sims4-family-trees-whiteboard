@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { dynastyIndex, dynastyNameTaken, familyDynasties, isPlannedOnlyDynasty, renamePlannedDynasty } from './dynastyMenu.ts';
+import {
+  dynastyIndex,
+  dynastyNameTaken,
+  familyDynasties,
+  isPlannedOnlyDynasty,
+  removePlannedDynasty,
+  renamePlannedDynasty,
+} from './dynastyMenu.ts';
 
 const sim = (id: string, extra: Partial<SimNode> = {}): SimNode =>
   ({ id, first: id, sur: 'Luna', age: 'Adult', gender: 'Female', state: 'Sim', ...extra }) as SimNode;
@@ -79,6 +86,22 @@ describe('renaming a planned dynasty', () => {
     assert.equal(isPlannedOnlyDynasty(nodes, 'Goth'), false);
     assert.equal(renamePlannedDynasty(nodes, 'Dreamer', 'Dreamers'), nodes);
     assert.equal(renamePlannedDynasty(nodes, 'Moonwood', '  '), nodes);
+  });
+
+  it('can be removed from every member, leaving their cards and other dynasties be', () => {
+    const out = removePlannedDynasty(nodes, 'Moonwood');
+    assert.deepEqual(
+      out.map((n) => [n.id, n.dynasty ?? '', n.dynastyRole ?? '', n.dynastyPlan ?? '', n.genRootOf ?? '']),
+      [
+        ['Head', '', '', '', ''],
+        ['Kid', '', '', '', ''],
+        ['Bella', 'Goth', '', '', ''],
+        ['Dirk', 'Dreamer', '', '', ''],
+        ['Plan', 'Dreamer', '', 'member', ''],
+      ],
+    );
+    assert.equal(removePlannedDynasty(nodes, 'Dreamer'), nodes);
+    assert.equal(removePlannedDynasty(nodes, 'Nowhere'), nodes);
   });
 
   it('knows a name another dynasty has, in any case, but not its own', () => {
