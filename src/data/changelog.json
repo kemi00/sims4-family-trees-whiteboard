@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "44ec6ef",
+   "date": "2026-11-08",
+   "text": "The premades' unknown fathers (Hauata, Behr, Elderberry, Nishidake, Hoffman, Perry, Pleasant) are now deceased, on the roster and when a save is loaded, and Kaori's and Lia's grandparents show as grandparents. Bring one back by setting their state by hand: later save uploads leave it as you set it."
+  },
+  {
    "sha": "22babcb",
    "date": "2026-11-08",
    "text": "Rohan Elderberry's unknown father is now deceased, on the starter roster and whenever a save is loaded, and the roster shows Ekram and Eleanor as Rohan's grandparents, as the game does. Upload your save again to update a board that already has him."
