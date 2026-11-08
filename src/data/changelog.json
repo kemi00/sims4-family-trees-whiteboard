@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "1071fa5",
+   "date": "2026-11-08",
+   "text": "Household tags now carry a plan badge beside Age up and +: \"2 ready\" in green when something can be done today, \"1 off plan\" in amber when the game went another way, or \"waiting\" when everything waits on someone. Households with nothing pending stay quiet. Click the badge to open the household's plan."
+  },
+  {
    "sha": "8f883df",
    "date": "2026-11-08",
    "text": "Click a household's name tag to see its plan: what's ready to do now, what's waiting and on whom (with a countdown and which household to play), what the game did instead, how long each elder has, and what playing it moves along for other households. Hover a line to light its sims up on the board. It also opens from a sim's editor (\"See the Munch household's plan\"); drag the tag as before to move the household."
