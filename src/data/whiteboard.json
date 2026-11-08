@@ -379,6 +379,27 @@
    "oy": 0
   },
   {
+   "id": "Unknown Pleasant",
+   "gid": "Britechester||Pleasant",
+   "first": "Unknown",
+   "sur": "Pleasant",
+   "age": "Adult",
+   "state": "Deceased",
+   "gender": "Male",
+   "hh": "Pleasant",
+   "world": "Britechester",
+   "nb": "Gibbs Hill",
+   "color": "#59a14f",
+   "townie": true,
+   "oworld": "Britechester",
+   "onb": "Gibbs Hill",
+   "ohh": "Pleasant",
+   "oplay": "Townie",
+   "pack": "Discover University",
+   "ox": 0,
+   "oy": 0
+  },
+  {
    "id": "Becca Clarke",
    "gid": "Britechester||Best of Friends",
    "first": "Becca",
@@ -2022,8 +2043,8 @@
    "first": "Unknown",
    "sur": "Perry",
    "age": "Adult",
-   "state": "Sim",
-   "gender": "",
+   "state": "Deceased",
+   "gender": "Male",
    "hh": "Perry",
    "world": "Gibbi Point",
    "nb": "Jellyfish Junction",
@@ -3277,6 +3298,27 @@
    "oy": 0
   },
   {
+   "id": "Unknown Nishidake",
+   "gid": "Mt. Komorebi||Nishidake",
+   "first": "Unknown",
+   "sur": "Nishidake",
+   "age": "Adult",
+   "state": "Deceased",
+   "gender": "Male",
+   "hh": "Nishidake",
+   "world": "Mt. Komorebi",
+   "nb": "Senbamachi",
+   "color": "#e377c2",
+   "townie": true,
+   "oworld": "Mt. Komorebi",
+   "onb": "Senbamachi",
+   "ohh": "Nishidake",
+   "oplay": "Townie",
+   "pack": "Snowy Escape",
+   "ox": 0,
+   "oy": 0
+  },
+  {
    "id": "Gramma Hattie Loden",
    "gid": "Nordhaven||Loden",
    "first": "Gramma Hattie",
@@ -3597,8 +3639,8 @@
    "first": "Unknown",
    "sur": "Hoffman",
    "age": "Unknown",
-   "state": "Sim",
-   "gender": "",
+   "state": "Deceased",
+   "gender": "Male",
    "hh": "Hoffman",
    "world": "Nordhaven",
    "nb": "-",
@@ -5608,6 +5650,27 @@
    "oy": 0
   },
   {
+   "id": "Unknown Hauata",
+   "gid": "Sulani||Hoapili",
+   "first": "Unknown",
+   "sur": "Hauata",
+   "age": "Adult",
+   "state": "Deceased",
+   "gender": "Male",
+   "hh": "Hoapili",
+   "world": "Sulani",
+   "nb": "Ohan'ali Town",
+   "color": "#7d5a2e",
+   "townie": true,
+   "oworld": "Sulani",
+   "onb": "Ohan'ali Town",
+   "ohh": "Hoapili",
+   "oplay": "Townie",
+   "pack": "Island Living",
+   "ox": 0,
+   "oy": 0
+  },
+  {
    "id": "Ukupanipo Hekekia",
    "gid": "Sulani||Hekekia",
    "first": "Ukupanipo",
@@ -6989,6 +7052,27 @@
    "onb": "Olde Platz",
    "ohh": "Behr",
    "oplay": "Resident",
+   "pack": "Get Together",
+   "ox": 0,
+   "oy": 0
+  },
+  {
+   "id": "Unknown Behr",
+   "gid": "Windenburg||Behr",
+   "first": "Unknown",
+   "sur": "Behr",
+   "age": "Adult",
+   "state": "Deceased",
+   "gender": "Male",
+   "hh": "Behr",
+   "world": "Windenburg",
+   "nb": "Olde Platz",
+   "color": "#3a6ea5",
+   "townie": true,
+   "oworld": "Windenburg",
+   "onb": "Olde Platz",
+   "ohh": "Behr",
+   "oplay": "Townie",
    "pack": "Get Together",
    "ox": 0,
    "oy": 0
@@ -11013,13 +11097,13 @@
   {
    "id": "e150",
    "a": "Sachiko Nishidake",
-   "b": "Kaori Nishidake",
+   "b": "Unknown Nishidake",
    "type": "parent"
   },
   {
    "id": "e151",
    "a": "Shigeru Nishidake",
-   "b": "Kaori Nishidake",
+   "b": "Unknown Nishidake",
    "type": "parent"
   },
   {
@@ -11169,7 +11253,7 @@
   {
    "id": "e176",
    "a": "Keala Hoapili",
-   "b": "Lia Hauata",
+   "b": "Unknown Hauata",
    "type": "parent"
   },
   {
@@ -11584,6 +11668,42 @@
    "id": "e249",
    "a": "Unknown Elderberry",
    "b": "Rohan Elderberry",
+   "type": "parent"
+  },
+  {
+   "id": "e250",
+   "a": "Unknown Hauata",
+   "b": "Lia Hauata",
+   "type": "parent"
+  },
+  {
+   "id": "e251",
+   "a": "Unknown Behr",
+   "b": "Candy Behr",
+   "type": "parent"
+  },
+  {
+   "id": "e252",
+   "a": "Unknown Behr",
+   "b": "Yuki Behr",
+   "type": "parent"
+  },
+  {
+   "id": "e253",
+   "a": "Unknown Nishidake",
+   "b": "Kaori Nishidake",
+   "type": "parent"
+  },
+  {
+   "id": "e254",
+   "a": "Unknown Pleasant",
+   "b": "Angela Pleasant",
+   "type": "parent"
+  },
+  {
+   "id": "e255",
+   "a": "Unknown Pleasant",
+   "b": "Lilith Pleasant",
    "type": "parent"
   }
  ],

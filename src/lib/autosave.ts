@@ -131,6 +131,7 @@ function nodeIdentity(n: SimNode) {
     added: !!n.added,
     saveSimId: n.saveSimId ?? null,
     fromSave: !!n.fromSave,
+    diedOnImport: !!n.diedOnImport,
     marriedSur: n.marriedSur ?? null,
     dynasty: n.dynasty ?? null,
     dynastyId: n.dynastyId ?? null,

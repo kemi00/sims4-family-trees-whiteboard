@@ -92,6 +92,12 @@ export interface SimNode {
    * tree, with no sim and no name (an "Unknown" card), as a decimal string.
    */
   treeId?: string;
+  /**
+   * An import marked this relative deceased: their save, or the roster's
+   * story for a nameless one. Later imports leave their life state as it
+   * is, so one brought back to life by hand stays alive.
+   */
+  diedOnImport?: true;
 }
 
 /** A planned sim as it was before a sim from the save filled it. */

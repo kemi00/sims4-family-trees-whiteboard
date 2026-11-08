@@ -1194,9 +1194,15 @@ describe('relatives the save keeps nameless', () => {
     assert.deepEqual([colin.first, colin.sur, colin.state], ['Colin', 'Sullivan', 'Deceased']);
   });
 
+  /** The card an import from before the board knew more made: alive, unmarked. */
+  const earlier = (n: SimNode, patch: Partial<SimNode>): SimNode => {
+    const { diedOnImport: _d, ...rest } = n;
+    return { ...rest, ...patch };
+  };
+
   it('renames the Unknown card a board already has for them', () => {
     const before = merge(between).nodes.map((n) =>
-      n.treeId === 'g1' ? { ...n, first: 'Unknown', sur: 'Luna', state: 'Sim' } : n,
+      n.treeId === 'g1' ? earlier(n, { first: 'Unknown', sur: 'Luna', state: 'Sim' }) : n,
     );
     const after = merge(between, before);
     const card = after.nodes.find((n) => n.treeId === 'g1')!;
@@ -1226,11 +1232,22 @@ describe('relatives the save keeps nameless', () => {
 
   it('marks dead the alive card an earlier import made for them', () => {
     const before = merge(between, [], withPlaceholder, placeholderEdges).nodes.map((n) =>
-      n.treeId === 'g1' ? { ...n, state: 'Sim' } : n,
+      n.treeId === 'g1' ? earlier(n, { state: 'Sim' }) : n,
     );
     const after = merge(between, before, withPlaceholder, placeholderEdges);
     assert.equal(after.nodes.find((n) => n.treeId === 'g1')!.state, 'Deceased');
     assert.equal(after.summary.relativesDied.length, 1);
+  });
+
+  it('leaves one brought back to life by hand alive on the next import', () => {
+    const first = merge(between, [], withPlaceholder, placeholderEdges);
+    const made = first.nodes.find((n) => n.treeId === 'g1')!;
+    assert.equal(made.diedOnImport, true);
+    // The player says he lives after all.
+    const revived = first.nodes.map((n) => (n.treeId === 'g1' ? { ...n, state: 'Sim' } : n));
+    const after = merge(between, revived, withPlaceholder, placeholderEdges);
+    assert.equal(after.nodes.find((n) => n.treeId === 'g1')!.state, 'Sim');
+    assert.deepEqual(after.summary.relativesDied, []);
   });
 
   it('prefers a named roster card to a placeholder that also fits', () => {

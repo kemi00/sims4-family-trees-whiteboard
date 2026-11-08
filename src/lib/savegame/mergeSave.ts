@@ -921,6 +921,7 @@ function relativeNode(r: ShownRelative, home: BoardHome): SimNode {
     ...relativeName(r),
     age: 'Unknown',
     state: r.deceased ? DECEASED_STATE : 'Sim',
+    ...(r.deceased ? { diedOnImport: true as const } : {}),
     gender: r.gender,
     hh: home.hh,
     world: home.world,
@@ -1165,22 +1166,27 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     if (id && named.first !== UNKNOWN_FIRST) {
       const i = cardAt.get(id)!;
       if (foldName(nodes[i]!.first) === foldName(UNKNOWN_FIRST)) {
+        const card = nodes[i]!;
+        // Named now; dead too, unless an import said so before and they were
+        // brought back to life by hand since.
+        const dies = r.deceased && !card.diedOnImport && (!card.state || card.state === 'Sim');
         nodes[i] = {
-          ...nodes[i]!,
+          ...card,
           ...named,
-          ...(r.deceased ? { state: DECEASED_STATE } : {}),
+          ...(dies ? { state: DECEASED_STATE, diedOnImport: true as const } : {}),
         };
         relativesNamed.push(id);
       }
     }
-    // A card from an earlier import, alive then: the save, or what
-    // inferTreeDeaths works out from it, now says they died. A life state
-    // chosen by hand (a ghost, say) stays.
+    // A card from an earlier import, alive then: the save, what
+    // inferTreeDeaths works out from it, or the roster's story now says they
+    // died. Once only: a life state chosen by hand (a ghost, or alive again
+    // after an import said dead) stays.
     if (id && r.deceased) {
       const i = cardAt.get(id)!;
       const card = nodes[i]!;
-      if (!card.state || card.state === 'Sim') {
-        nodes[i] = { ...card, state: DECEASED_STATE };
+      if (!card.diedOnImport && (!card.state || card.state === 'Sim')) {
+        nodes[i] = { ...card, state: DECEASED_STATE, diedOnImport: true };
         relativesDied.push(id);
       }
     }
@@ -1201,7 +1207,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
           relativesNamed.push(card.id);
         }
         if (r.gender) card.gender = r.gender;
-        if (r.deceased) card.state = DECEASED_STATE;
+        if (r.deceased) card = { ...card, state: DECEASED_STATE, diedOnImport: true };
         if (card.gid !== home.gid && !movedByHand.has(card.id)) {
           card = moveInto(card, home);
           relativesMoved.push(card.id);
