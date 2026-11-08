@@ -1,6 +1,16 @@
 {
  "entries": [
   {
+   "sha": "5cb3451",
+   "date": "2026-11-08",
+   "text": "In the Dynasties panel, the highlighter beside a dynasty keeps its members lit on the board until you press Done or Esc. Its banner says how many households and worlds they span, and Show all fits them all on screen."
+  },
+  {
+   "sha": "8a23d02",
+   "date": "2026-11-08",
+   "text": "A sim's card now names their dynasty on its last line, like \"Resident · Capp dynasty\": faded while only planned, crossed out while planned to leave, and nothing for a sim in no dynasty."
+  },
+  {
    "sha": "33c54ee",
    "date": "2026-11-08",
    "text": "In the Dynasties panel, open a planned dynasty to Rename it or Remove it. Remove asks first and takes the dynasty off all its members, leaving their cards, and Undo brings it back."
