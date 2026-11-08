@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "22b75a4",
+   "date": "2026-11-08",
+   "text": "A planned dynasty can be renamed: pick it in a member's Family tab and click Rename beside Dynasty. The new name goes on all its members' cards at once, and Undo takes it back. A name another dynasty already has is refused, and dynasties from your game keep the name your save gives them."
+  },
+  {
    "sha": "ea40997",
    "date": "2026-11-08",
    "text": "A plan to start a dynasty with a teen as its head now waits until they are a young adult, as the game requires, instead of showing as ready. It says how long they have left, and a planned baby as head waits to be born and grow up."
