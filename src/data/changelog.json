@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "8f883df",
+   "date": "2026-11-08",
+   "text": "Click a household's name tag to see its plan: what's ready to do now, what's waiting and on whom (with a countdown and which household to play), what the game did instead, how long each elder has, and what playing it moves along for other households. Hover a line to light its sims up on the board. It also opens from a sim's editor (\"See the Munch household's plan\"); drag the tag as before to move the household."
+  },
+  {
    "sha": "5236431",
    "date": "2026-11-08",
    "text": "Groundwork for household briefs: the board now works out each household's plan. A planned couple or baby is ready when everyone is grown up, waiting when someone is too young or not born yet (and says which household to play to move it), and off plan when the game went another way."
