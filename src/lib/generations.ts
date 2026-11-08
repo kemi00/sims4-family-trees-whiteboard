@@ -19,7 +19,8 @@ export function firstHeads(nodes: SimNode[]): Map<string, string> {
   for (const n of nodes) if (n.firstHeadOf && !out.has(n.firstHeadOf)) out.set(n.firstHeadOf, n.id);
   for (const n of nodes) {
     const key = dynastyKey(n);
-    if (key && n.dynastyRole === 'head' && !out.has(key)) out.set(key, n.id);
+    // A planned head isn't one yet: the count stays with the game's.
+    if (key && n.dynastyRole === 'head' && !n.dynastyPlan && !out.has(key)) out.set(key, n.id);
   }
   return out;
 }
@@ -41,7 +42,7 @@ export function rememberFirstHeads(nodes: SimNode[]): SimNode[] {
   const heads = new Map<string, string>();
   for (const n of nodes) {
     const key = dynastyKey(n);
-    if (!key || n.dynastyRole !== 'head') continue;
+    if (!key || n.dynastyRole !== 'head' || n.dynastyPlan) continue;
     if (remembered.has(key) || [...renamed.values()].includes(key)) continue;
     if (!heads.has(key)) heads.set(key, n.id);
   }

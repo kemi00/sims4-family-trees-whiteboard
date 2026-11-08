@@ -104,6 +104,22 @@ describe('dynasty generations', () => {
     assert.equal(generationText(g.get('Cassandra')!, 'Goth'), 'Gen 3 of the Goth');
     assert.equal(generationText(g.get('Bella')!, 'Goth'), 'Gen 2 of the Goth by marriage');
   });
+
+  it('counts a sim planned into the dynasty, and leaves its first head to the game', () => {
+    const planned = [
+      ...nodes.filter((n) => n.id !== 'Mortimer'),
+      sim('Mortimer'),
+      sim('Grandkid', { dynastyRole: 'head', dynastyPlan: 'member' }),
+      sim('Heir', { dynastyRole: 'head', dynastyPlan: 'role' }),
+    ];
+    assert.equal(firstHeads(planned).get('id:9'), undefined);
+    assert.ok(rememberFirstHeads(planned).every((n) => !n.firstHeadOf));
+    const g = dynastyGenerations(
+      [...nodes, sim('Grandkid', { dynastyRole: 'heir', dynastyPlan: 'member' })],
+      [...edges, parent('Baby', 'Grandkid')],
+    );
+    assert.equal(g.get('Grandkid')!.gen, (g.get('Baby')!.gen ?? 0) + 1);
+  });
 });
 
 describe('an ancestor on more than one line', () => {

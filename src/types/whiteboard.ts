@@ -60,6 +60,14 @@ export interface SimNode {
   /** Their place in it, marked on the card. Plain members have none. */
   dynastyRole?: DynastyRole;
   /**
+   * The role is a plan, set on the board and not in a save yet, like a
+   * violet link: `role` when the save has them in the dynasty with another
+   * role (or none), `member` when the board also put them in it. A save
+   * showing the role ends the plan; one with them in another dynasty
+   * overrules it.
+   */
+  dynastyPlan?: 'role' | 'member';
+  /**
    * The dynasty (its `dynastyKey`) this sim was the first head of. Its
    * generations count from them, so a new head does not renumber anyone,
    * and it stays when they die or leave the dynasty.

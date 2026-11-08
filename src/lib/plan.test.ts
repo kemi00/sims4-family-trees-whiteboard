@@ -185,6 +185,18 @@ describe('planned sims a save can fill', () => {
     assert.deepEqual([s!.kind, s!.candidates[0]!.why, s!.candidates[0]!.sure], ['spouse', 'Married Oscar X', true]);
   });
 
+  it('hands a planned heir role to the real sim the save has in no dynasty', () => {
+    const slot = planned('Heir', { dynasty: 'Dreamer', dynastyId: '7', dynastyRole: 'heir', dynastyPlan: 'member' });
+    const fill = (real: SimNode) =>
+      linkPlannedSim([slot, real], [], 'Heir', real.id, 'now').nodes.find((x) => x.id === real.id)!;
+    const none = fill(sim('Ana', { age: 'Infant' }));
+    assert.deepEqual([none.dynasty, none.dynastyId, none.dynastyRole, none.dynastyPlan], ['Dreamer', '7', 'heir', 'member']);
+    const member = fill(sim('Ana', { age: 'Infant', dynasty: 'Dreamer', dynastyId: '7' }));
+    assert.deepEqual([member.dynastyRole, member.dynastyPlan], ['heir', 'role']);
+    const done = fill(sim('Ana', { age: 'Infant', dynasty: 'Dreamer', dynastyId: '7', dynastyRole: 'heir' }));
+    assert.equal(done.dynastyPlan, undefined);
+  });
+
   it('links a planned sim to the real one by hand, and unlinks back', () => {
     const real = sim('Ana', { age: 'Infant', hh: 'Capp', gid: 'W||Capp' });
     const all = [...nodes, real];

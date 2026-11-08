@@ -106,7 +106,7 @@ import type {
   WhiteboardData,
   World,
 } from '../types/whiteboard.ts';
-import { dynastyGenerations, setGenRoot } from '../lib/generations.ts';
+import { dynastyGenerations, dynastyKey, setGenRoot } from '../lib/generations.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
@@ -1157,19 +1157,26 @@ export function useWhiteboard() {
     // one of two planned kids reorders them. Pin every card where it is.
     const reflow = !!prev && packingKey(prev) !== packingKey({ ...prev, ...patch });
     // A dynasty has one head and one heir: naming one takes the role from
-    // whoever held it, as the game does.
+    // whoever held it, as the game does. A planned role takes it only from
+    // another plan; the game's holder keeps it until a save says otherwise.
+    const after = prev ? { ...prev, ...patch } : undefined;
     const sole =
-      prev?.dynasty && (patch.dynastyRole === 'head' || patch.dynastyRole === 'heir')
-        ? patch.dynastyRole
+      after?.dynasty &&
+      (after.dynastyRole === 'head' || after.dynastyRole === 'heir') &&
+      (after.dynastyRole !== prev?.dynastyRole || dynastyKey(after) !== dynastyKey(prev!))
+        ? after.dynastyRole
         : null;
     const sameDynasty = (n: SimNode) =>
-      prev?.dynastyId && n.dynastyId ? n.dynastyId === prev.dynastyId : n.dynasty === prev?.dynasty;
+      after?.dynastyId && n.dynastyId ? n.dynastyId === after.dynastyId : n.dynasty === after?.dynasty;
+    const loses = (n: SimNode) =>
+      !!sole && n.dynastyRole === sole && sameDynasty(n) && (!after?.dynastyPlan || !!n.dynastyPlan);
     const apply = (ns: SimNode[]) =>
       ns.map((n) => {
         if (n.id !== id) {
-          return sole && n.dynastyRole === sole && sameDynasty(n)
-            ? toCore({ ...n, dynastyRole: undefined })
-            : n;
+          if (!loses(n)) return n;
+          // A sim only planned into the dynasty leaves it with the role.
+          const out = n.dynastyPlan === 'member' ? { dynasty: undefined, dynastyId: undefined } : {};
+          return toCore({ ...n, ...out, dynastyRole: undefined, dynastyPlan: undefined });
         }
         const next: SimNode = { ...n, ...patch };
         if (patch.x !== undefined || patch.y !== undefined) {

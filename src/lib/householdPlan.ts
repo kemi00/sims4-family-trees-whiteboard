@@ -43,9 +43,9 @@ export type PlanWait = {
 };
 
 export type PlanItem = {
-  /** Stable key: `couple:<edge>`, `baby:<parents>`, `find:<sim>`, `off:<edge>`. */
+  /** Stable key: `couple:<edge>`, `baby:<parents>`, `find:<sim>`, `role:<sim>`, `off:<edge>`. */
   id: string;
-  kind: 'couple' | 'baby' | 'find' | 'offPlan';
+  kind: 'couple' | 'baby' | 'find' | 'role' | 'offPlan';
   state: PlanState;
   /** "Marry Lysander Capp and Spare Munch". */
   text: string;
@@ -192,6 +192,36 @@ export function householdPlans(opts: {
       sims: [n.id],
       gids: [n.gid],
       waits: [],
+    });
+  }
+
+  // A dynasty role planned on the board: done in the game's dynasty panel
+  // once the sim is in the game.
+  for (const n of nodes) {
+    if (!n.dynastyPlan || !n.dynastyRole || n.species || !living(n)) continue;
+    const of = n.dynasty ? ` of the ${n.dynasty} dynasty` : '';
+    const waits: PlanWait[] = [];
+    if (isPlannedSim(n)) {
+      waits.push(
+        plannedChild(n)
+          ? { sim: n.id, why: 'notBorn', stage: '', gid: n.gid, move: 'play', days: null }
+          : { sim: n.id, why: 'notInGame', stage: '', gid: n.gid, move: 'find', days: null },
+      );
+    }
+    items.push({
+      id: `role:${n.id}`,
+      kind: 'role',
+      state: waits.length ? 'waiting' : 'ready',
+      text:
+        n.dynastyRole === 'outcast'
+          ? `Declare ${cardName(n)} an outcast${of}`
+          : `Make ${cardName(n)} ${n.dynastyRole}${of}`,
+      sims: [n.id],
+      gids: [n.gid],
+      waits,
+      ...(n.dynastyPlan === 'member' && !isPlannedSim(n) && n.dynasty
+        ? { note: `Not in the ${n.dynasty} dynasty in your save yet.` }
+        : {}),
     });
   }
 

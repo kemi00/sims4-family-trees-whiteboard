@@ -359,6 +359,15 @@ export function Legend({ worlds, liveWorlds, hidden, onPickWorld, ref }: Props) 
             <KeyRow sample={<LineSample label="Violet line" color={UEDIT} />} label="A link you planned" />
             <KeyRow sample={<CardSample label="Violet dashed card" kind="added" />} label="A sim you added" />
             <KeyRow
+              sample={
+                <span className="lgk__emoji lgk__emoji--planned" aria-label="Faded crown">
+                  {DYNASTY_ROLES.head.mark}
+                </span>
+              }
+              label="A dynasty role you set"
+              note="faded until your save has it"
+            />
+            <KeyRow
               sample={<LineSample label="Violet dashed line" color={UEDIT} dash="4 2.6" />}
               label="Other link"
             />

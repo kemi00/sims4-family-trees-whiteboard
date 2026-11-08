@@ -550,6 +550,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lgk__sample{flex:0 0 26px;display:flex;justify-content:center;align-items:center;height:15px}
 .lgk__svg{display:block;overflow:visible}
 .lgk__emoji{font-size:11px;line-height:1}
+.lgk__emoji--planned{opacity:.4}
 .lgk__text{min-width:0}
 .lgk__note{display:block;margin-top:-1px;font-size:9.5px;line-height:1.3;color:#7a8491}
 .lgk-groups h4.lgk__plans{color:#7c3aed}

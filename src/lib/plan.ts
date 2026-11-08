@@ -407,6 +407,25 @@ export function overruledParentLinks(edges: Edge[], simIds: Iterable<string>): E
 }
 
 /**
+ * A planned sim's planned dynasty role, for the sim from the save that fills
+ * it: kept as a plan while the save has them in no dynasty or in the same one
+ * with another role, as a save import does (syncDynasty).
+ */
+function plannedRoleFor(slot: SimNode, real: SimNode): Partial<SimNode> {
+  if (!slot.dynastyPlan || !slot.dynastyRole) return {};
+  if (!real.dynasty) {
+    return {
+      ...(slot.dynasty ? { dynasty: slot.dynasty } : {}),
+      ...(slot.dynastyId ? { dynastyId: slot.dynastyId } : {}),
+      dynastyRole: slot.dynastyRole,
+      dynastyPlan: 'member',
+    };
+  }
+  const same = slot.dynastyId && real.dynastyId ? slot.dynastyId === real.dynastyId : slot.dynasty === real.dynasty;
+  return same && real.dynastyRole !== slot.dynastyRole ? { dynastyRole: slot.dynastyRole, dynastyPlan: 'role' } : {};
+}
+
+/**
  * "This is …": a sim from the save fills a planned sim by hand. The real
  * sim's card stays where the game puts them and takes over the planned
  * sim's links; theirs from the save win where both have one, and a planned
@@ -434,7 +453,7 @@ export function linkPlannedSim(
   return {
     nodes: nodes
       .filter((n) => n.id !== slotId)
-      .map((n) => (n.id === realId ? { ...n, plannedAs: snapshot } : n)),
+      .map((n) => (n.id === realId ? { ...n, ...plannedRoleFor(slot, n), plannedAs: snapshot } : n)),
     edges: gone.length ? moved.filter((e) => !gone.includes(e)) : moved,
     overruled,
   };

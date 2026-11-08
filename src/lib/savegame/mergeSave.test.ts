@@ -8,6 +8,7 @@ import {
   mergeSaveIntoBoard,
   nameKey,
   seedNameKeysFromNodes,
+  syncDynasty,
 } from './mergeSave.ts';
 import type { ParsedSave } from './parseSave.ts';
 
@@ -1354,6 +1355,34 @@ describe('married sims under their own surname', () => {
       twice.nodes.map((n) => [n.first, n.sur, n.marriedSur ?? '']),
       once.nodes.map((n) => [n.first, n.sur, n.marriedSur ?? '']),
     );
+  });
+});
+
+describe('dynasty roles you planned', () => {
+  const card = (extra: Partial<SimNode>) => ({ id: 'x', first: 'Heir', sur: 'Dreamer', ...extra }) as SimNode;
+  const sync = (n: SimNode, sim: Parameters<typeof syncDynasty>[1]) => {
+    const next = { ...n };
+    syncDynasty(next, sim, true);
+    return [next.dynasty, next.dynastyId, next.dynastyRole, next.dynastyPlan];
+  };
+  const planned = card({ dynasty: 'Dreamer', dynastyId: '7', dynastyRole: 'heir', dynastyPlan: 'member' });
+
+  it('stand while the save has them in no dynasty', () => {
+    assert.deepEqual(sync(planned, {}), ['Dreamer', '7', 'heir', 'member']);
+  });
+
+  it('stand while the save has them in the dynasty with another role, and end once it gives them the role', () => {
+    assert.deepEqual(sync(planned, { dynasty: 'Dreamer', dynastyId: '7' }), ['Dreamer', '7', 'heir', 'role']);
+    assert.deepEqual(sync(planned, { dynasty: 'Dreamer', dynastyId: '7', dynastyRole: 'heir' }), ['Dreamer', '7', 'heir', undefined]);
+  });
+
+  it('give way to a save that puts them in another dynasty', () => {
+    assert.deepEqual(sync(planned, { dynasty: 'Capp', dynastyId: '9', dynastyRole: 'heir' }), ['Capp', '9', 'heir', undefined]);
+  });
+
+  it('leave roles the save gave alone', () => {
+    const game = card({ dynasty: 'Dreamer', dynastyId: '7', dynastyRole: 'heir' });
+    assert.deepEqual(sync(game, {}), [undefined, undefined, undefined, undefined]);
   });
 });
 

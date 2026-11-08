@@ -166,6 +166,37 @@ describe('planned babies', () => {
   });
 });
 
+describe('planned dynasty roles', () => {
+  it('are ready for a sim in the game, with a note when the save has them in no dynasty', () => {
+    const nodes = [
+      sim('Dirk', 'Dreamer', { dynasty: 'Dreamer', dynastyRole: 'head', dynastyPlan: 'role' }),
+      sim('Gunther', 'Munch', { dynasty: 'Dreamer', dynastyRole: 'outcast', dynastyPlan: 'member' }),
+      sim('Bella', 'Goth', { dynasty: 'Goth', dynastyRole: 'heir' }),
+    ];
+    const items = plans(nodes, []);
+    assert.deepEqual(
+      items.map((i) => [i.id, i.state, i.text, i.note ?? '']),
+      [
+        ['role:Dirk', 'ready', 'Make Dirk Dreamer head of the Dreamer dynasty', ''],
+        ['role:Gunther', 'ready', 'Declare Gunther Munch an outcast of the Dreamer dynasty', 'Not in the Dreamer dynasty in your save yet.'],
+      ],
+    );
+  });
+
+  it('wait on a planned heir not born yet', () => {
+    const nodes = [
+      sim('Dirk', 'Dreamer'),
+      planned('Heir', 'Dreamer', { first: '', planLabel: 'Heir', dynasty: 'Dreamer', dynastyRole: 'heir', dynastyPlan: 'member' }),
+    ];
+    const i = one(plans(nodes, [link('p1', 'Dirk', 'Heir', 'parent')]), 'role:Heir');
+    assert.deepEqual([i.state, i.waits[0]!.why, i.waits[0]!.days], ['waiting', 'notBorn', null]);
+    assert.equal(
+      waitText(i.waits[0]!, () => 'Heir Dreamer', (gid) => householdName(gid, [], nodes)),
+      'Heir Dreamer isn’t born yet: play the Dreamer household for the birth',
+    );
+  });
+});
+
 describe('a household’s plan at a glance', () => {
   const nodes = [
     sim('Lysander', 'Capp'),
