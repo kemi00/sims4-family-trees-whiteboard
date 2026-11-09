@@ -58,13 +58,15 @@ export function whyNotAdopt(
 }
 
 /**
- * Who `id` could adopt, youngest first, then A to Z: living sims (not pets,
- * not babies still planned in `unborn`), younger than them, who aren't family
- * already: no blood relative (bloodRelatives), and no partner or ex. A name
- * in `query` narrows the list; `limit` keeps the first few.
+ * Who `ids` (one sim, or a couple adopting together) could adopt, youngest
+ * first, then A to Z: living sims (not pets, not babies still planned in
+ * `unborn`), younger than each of them, who aren't family to any of them
+ * already: no blood relative (bloodRelatives), and no partner or ex. How
+ * much younger is said against the younger adopter. A name in `query`
+ * narrows the list; `limit` keeps the first few.
  */
 export function adopteeSearch(opts: {
-  id: string;
+  ids: string[];
   nodes: SimNode[];
   edges: Edge[];
   query?: string;
@@ -72,18 +74,21 @@ export function adopteeSearch(opts: {
   unborn?: ReadonlySet<string>;
   limit?: number;
 }): AdopteeHit[] {
-  const me = opts.nodes.find((n) => n.id === opts.id);
-  if (!me || whyCantAdopt(me)) return [];
-  const mine = placeInLife(me);
-  if (!mine) return [];
-  const family = familyOf(me.id, opts.edges);
+  const adopters = opts.ids.map((id) => opts.nodes.find((n) => n.id === id));
+  if (!adopters.length || adopters.some((a) => !a || whyCantAdopt(a))) return [];
+  const lives = adopters.map((a) => placeInLife(a!));
+  if (lives.some((l) => !l)) return [];
+  // The younger adopter sets how young the child must be.
+  const mine = lives.reduce((y, l) => (l!.days < y!.days ? l : y))!;
+  const family = new Set(opts.ids);
+  for (const id of opts.ids) for (const f of familyOf(id, opts.edges)) family.add(f);
   const parents = new Map<string, number>();
   for (const e of opts.edges) if (e.type === 'parent') parents.set(e.b, (parents.get(e.b) ?? 0) + 1);
   const q = fold(opts.query ?? '');
   const scale = scaleOf(opts.game?.lifespan);
   const out: (AdopteeHit & { days: number; name: string })[] = [];
   for (const n of opts.nodes) {
-    if (n.id === me.id || n.species || n.state === DECEASED_STATE) continue;
+    if (n.species || n.state === DECEASED_STATE) continue;
     if (family.has(n.id) || opts.unborn?.has(n.id)) continue;
     const theirs = placeInLife(n);
     if (!theirs || theirs.days >= mine.days) continue;
@@ -96,7 +101,7 @@ export function adopteeSearch(opts: {
         id: n.id,
         gap: Math.abs(diff),
         gapDays: diff * scale,
-        approx: mine.approx || theirs.approx,
+        approx: lives.some((l) => l!.approx) || theirs.approx,
         ...(n.life?.frozen && !theirs.approx ? { frozen: n.life.frozen } : {}),
         taken: false,
       },

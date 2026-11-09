@@ -718,3 +718,47 @@ describe('arrowheads show which way a link runs', () => {
     assert.ok(onEdge, `tip ${x},${y} should sit on Cal's edge`);
   });
 });
+
+describe('a child with birth and adoptive parents', () => {
+  const show: ShowToggles = { groups: true, worlds: true };
+
+  it('hangs from each couple’s badge, each line carrying its own links', () => {
+    // Dirk and Amarachi had Obinna; Jane and Star adopted him.
+    const dirk = card({ id: 'Dirk', x: 0, y: 0, gid: 'dreamer', gender: 'Male' });
+    const ama = card({ id: 'Ama', x: 220, y: 0, gid: 'dreamer' });
+    const jane = card({ id: 'Jane', x: 600, y: 0, gid: 'addam' });
+    const star = card({ id: 'Star', x: 820, y: 0, gid: 'addam' });
+    const obi = card({ id: 'Obi', x: 600, y: 300, gid: 'addam', gender: 'Male' });
+    const data = computeEdgeRenderData({
+      nodes: [dirk, ama, jane, star, obi],
+      edges: [
+        { id: 'm1', a: 'Dirk', b: 'Ama', type: 'marriage', source: 'save' },
+        { id: 'm2', a: 'Jane', b: 'Star', type: 'marriage', source: 'save' },
+        { id: 'b1', a: 'Dirk', b: 'Obi', type: 'parent', source: 'save' },
+        { id: 'b2', a: 'Ama', b: 'Obi', type: 'parent', source: 'save' },
+        { id: 'a1', a: 'Jane', b: 'Obi', type: 'parent', source: 'planned', adopted: true },
+        { id: 'a2', a: 'Star', b: 'Obi', type: 'parent', source: 'planned', adopted: true },
+      ],
+      groups: [],
+      show,
+      packVis: () => true,
+      fastRoute: false,
+    });
+    const pill = (edgeId: string) => data.unions.find((u) => u.edgeId === edgeId)!;
+    const from = (edgeId: string) => {
+      const u = pill(edgeId);
+      return data.blood.filter((p) => Math.abs(p.pts[0]![0] - u.rx) < 0.5 && Math.abs(p.pts[0]![1] - u.ry - PILL_DROP) < 0.5);
+    };
+    const birth = from('m1');
+    const adoptive = from('m2');
+    assert.ok(birth.length && adoptive.length, 'a line from each couple’s badge');
+    for (const p of birth) assert.deepEqual([...p.ids].sort(), ['b1', 'b2']);
+    for (const p of adoptive) assert.deepEqual([...p.ids].sort(), ['a1', 'a2']);
+    // Nothing leaves a parent's own card: every line starts at a badge.
+    for (const p of data.blood) {
+      const [x, y] = p.pts[0]!;
+      const atCard = [dirk, ama, jane, star].some((n) => Math.abs(x - (n.x + n.w / 2)) < 0.5 && Math.abs(y - (n.y + n.h)) < 0.5);
+      assert.equal(atCard, false, `line from a card at ${x},${y}`);
+    }
+  });
+});

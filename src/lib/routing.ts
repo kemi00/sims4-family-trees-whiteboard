@@ -1397,14 +1397,37 @@ export function computeEdgeRenderData(
     (pEB[e.b] = pEB[e.b] || []).push(e.id);
   });
 
+  const parentOfEdge = new Map(pEdges.map((e) => [e.id, e.a]));
+  /**
+   * A child's parents as they are drawn. Two or fewer are one family. With
+   * more (birth parents and adoptive ones, say), each couple among them hangs
+   * the child from its own badge and the rest draw alone; with no couple
+   * among them, each draws alone, as before.
+   */
+  const parentGroups = (ps: string[]): string[][] => {
+    if (ps.length <= 2) return [ps];
+    const rest = new Set(ps);
+    const groups: string[][] = [];
+    for (const a of ps) {
+      if (!rest.has(a)) continue;
+      const b = ps.find((x) => x !== a && rest.has(x) && !!uAnchor[uKey(a, x)]);
+      if (!b) continue;
+      rest.delete(a);
+      rest.delete(b);
+      groups.push([a, b].sort());
+    }
+    return groups.length ? [...groups, ...[...rest].map((p) => [p])] : [ps];
+  };
+
   const fam: Record<
     string,
     { parents: string[]; kids: string[] }
   > = {};
   Object.keys(parentsOf).forEach((c) => {
-    const ps = (parentsOf[c] || []).slice().sort();
-    const key = ps.join('|');
-    (fam[key] = fam[key] || { parents: ps, kids: [] }).kids.push(c);
+    for (const ps of parentGroups((parentsOf[c] || []).slice().sort())) {
+      const key = ps.join('|');
+      (fam[key] = fam[key] || { parents: ps, kids: [] }).kids.push(c);
+    }
   });
 
   const BLOOD: BloodPath[] = [];
@@ -1415,11 +1438,15 @@ export function computeEdgeRenderData(
     if (!kids.length) return;
     const ps = f.parents;
     const kn = kids.map((c) => byid[c]!);
+    // This family's own links to each child: a child with other parents
+    // drawn apart has the rest of their links in those families.
+    const fEB: Record<string, string[]> = {};
+    for (const n of kn) fEB[n.id] = (pEB[n.id] || []).filter((id) => ps.includes(parentOfEdge.get(id)!));
     const isCouple = ps.length === 2 && !!uAnchor[uKey(ps[0]!, ps[1]!)];
     const sig = [
       isCouple ? 'u' : '-',
       ...ps.map((pid) => (byid[pid] ? nodeSig(byid[pid]!) : pid)),
-      ...kn.map((n) => `${nodeSig(n)}<${(pEB[n.id] || []).join(',')}`),
+      ...kn.map((n) => `${nodeSig(n)}<${(fEB[n.id] || []).join(',')}`),
     ].join(';');
     const key = `f:${ps.join('|')}`;
 
@@ -1430,7 +1457,7 @@ export function computeEdgeRenderData(
             const p = byid[pid];
             if (!p) return [];
             const lines = kn.map((n) => ({
-              ids: pEB[n.id] || [],
+              ids: fEB[n.id] || [],
               pts: childRoute(p.x + p.w / 2, p.y + p.h, n, [p], ctx, p.y + p.h),
               ...across(p.gid !== n.gid),
             }));
@@ -1480,7 +1507,7 @@ export function computeEdgeRenderData(
       ...routed(key, sig, () => {
         const out: BloodPath[] = [];
         if (coParents) {
-          const ids = edgeIdsForKids(kn, pEB);
+          const ids = edgeIdsForKids(kn, fEB);
           const cross = across(coParents[0].gid !== coParents[1].gid);
           for (const pts of coParentJoin(...coParents, ctx).legs) out.push({ ids, pts, ...cross });
         }
@@ -1488,11 +1515,11 @@ export function computeEdgeRenderData(
         const inHHBelow = belowK.filter((n) => !crossHouseholdChild(n, ps, byid));
         const crossHHBelow = belowK.filter((n) => crossHouseholdChild(n, ps, byid));
         if (inHHBelow.length) {
-          drawPedigreeFork(ax, ay, inHHBelow, pEB, exBase, ctx, out, tagsBottom);
+          drawPedigreeFork(ax, ay, inHHBelow, fEB, exBase, ctx, out, tagsBottom);
         }
         for (const n of [...crossHHBelow, ...sideK]) {
           out.push({
-            ids: pEB[n.id] || [],
+            ids: fEB[n.id] || [],
             pts: childRoute(ax, ay, n, parentCards, ctx, tagsBottom, exBase),
             ...across(crossHouseholdChild(n, ps, byid)),
           });

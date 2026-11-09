@@ -211,11 +211,11 @@ function AddInfantPlus({
     <g
       className="union-add"
       role="button"
-      aria-label="Add an infant of this couple"
+      aria-label="Add a child of this couple: a new sim, or one they adopt"
       style={{ cursor: 'pointer' }}
       onPointerDown={onPointerDown}
     >
-      <title>Add an infant of this couple</title>
+      <title>Add a child of this couple: a new sim, or one they adopt</title>
       <circle
         cx={x}
         cy={y}

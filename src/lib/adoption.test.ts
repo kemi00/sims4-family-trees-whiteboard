@@ -63,26 +63,36 @@ describe('adoption', () => {
   });
 
   it('lists younger sims who are not family, youngest first', () => {
-    const ids = adopteeSearch({ id: 'Dani', nodes, edges, unborn }).map((h) => h.id);
+    const ids = adopteeSearch({ ids: ['Dani'], nodes, edges, unborn }).map((h) => h.id);
     // Sis and Teen are her siblings, Mum her mother, Ex her ex; Peer is no
     // younger, Elda older; Gone has died, Rex is a pet, Bump not born yet.
     assert.deepEqual(ids, ['Tot', 'Kid']);
   });
 
   it('counts the parents they have already', () => {
-    const hits = adopteeSearch({ id: 'Dani', nodes, edges, unborn });
+    const hits = adopteeSearch({ ids: ['Dani'], nodes, edges, unborn });
     assert.deepEqual(hits.map((h) => [h.id, h.parents]), [['Tot', 0], ['Kid', 1]]);
     assert.ok(hits.every((h) => h.candidate.gapDays < 0), 'all younger');
   });
 
   it('lets an elder adopt grown-ups', () => {
-    const ids = adopteeSearch({ id: 'Elda', nodes, edges, unborn }).map((h) => h.id);
+    const ids = adopteeSearch({ ids: ['Elda'], nodes, edges, unborn }).map((h) => h.id);
     assert.ok(ids.includes('Dani') && ids.includes('Mum') && ids.includes('Peer'), ids.join(','));
     assert.ok(!ids.includes('Kid'), 'her own child is family');
   });
 
+  it('lists for a couple only sims younger than both and family to neither', () => {
+    // Dani and Elda adopt together: Elda's child Kid is family to her.
+    const ids = adopteeSearch({ ids: ['Dani', 'Elda'], nodes, edges, unborn }).map((h) => h.id);
+    assert.deepEqual(ids, ['Tot']);
+    // Neither can adopt the other.
+    assert.ok(!adopteeSearch({ ids: ['Elda', 'Mum'], nodes, edges, unborn }).some((h) => h.id === 'Elda' || h.id === 'Mum'));
+    // Both must be old enough.
+    assert.deepEqual(adopteeSearch({ ids: ['Dani', 'Teen'], nodes, edges, unborn }), []);
+  });
+
   it('narrows by name', () => {
-    assert.deepEqual(adopteeSearch({ id: 'Dani', nodes, edges, unborn, query: 'ki' }).map((h) => h.id), ['Kid']);
+    assert.deepEqual(adopteeSearch({ ids: ['Dani'], nodes, edges, unborn, query: 'ki' }).map((h) => h.id), ['Kid']);
   });
 
   it('is no plan conflict for a child who has two parents already', async () => {

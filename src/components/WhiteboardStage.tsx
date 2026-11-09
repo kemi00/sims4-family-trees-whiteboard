@@ -1218,7 +1218,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       const sr = stageRef.current?.getBoundingClientRect();
       const x = ev && sr ? ev.clientX - sr.left : 0;
       const y = ev && sr ? ev.clientY - sr.top : 0;
-      wb.openChildMenu(n.id, x, y + 14);
+      wb.openChildMenu([n.id], x, y + 14);
       return;
     }
     if (toggle) {
@@ -1733,14 +1733,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             onAddInfant={(u, ev) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
+              // The couple's ＋: a new sim, or one they adopt together.
               const sr = stageRef.current?.getBoundingClientRect();
-              wb.requestInfantOfCouple(
-                u.a,
-                u.b,
-                u.rx,
-                u.ry,
+              wb.openChildMenu(
+                [u.a, u.b],
                 ev.clientX - (sr?.left ?? 0),
-                ev.clientY - (sr?.top ?? 0),
+                ev.clientY - (sr?.top ?? 0) + 14,
+                { rx: u.rx, ry: u.ry },
               );
             }}
           />
@@ -2103,7 +2102,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       )}
       {wb.childMenu && (
         <ChildMenu
-          key={wb.childMenu.id}
+          key={wb.childMenu.parents.join('|')}
           menu={wb.childMenu}
           nodes={wb.nodes}
           byid={wb.byid}
@@ -2111,14 +2110,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           saveGame={wb.saveGame}
           unborn={wb.plannedChildIds}
           onNewSim={() => {
-            const id = wb.childMenu!.id;
+            const { parents, couple, x, y } = wb.childMenu!;
             wb.closeChildMenu();
-            wb.requestInfantOfSim(id);
+            // A couple's baby may ask which household; it asks where this menu was.
+            if (parents.length === 2 && couple) {
+              wb.requestInfantOfCouple(parents[0]!, parents[1]!, couple.rx, couple.ry, x, y);
+            } else wb.requestInfantOfSim(parents[0]!);
           }}
           onAdoptStep={wb.setChildMenuStep}
-          onAdopt={(child) => wb.adoptChild(wb.childMenu!.id, child)}
-          onMoveIn={(child) => {
-            wb.moveInWith(child, wb.childMenu!.id, null);
+          onAdopt={(child) => wb.adoptChild(wb.childMenu!.parents, child)}
+          onMoveIn={(child, host) => {
+            wb.moveInWith(child, host, null);
             wb.closeChildMenu();
           }}
           onClose={wb.closeChildMenu}

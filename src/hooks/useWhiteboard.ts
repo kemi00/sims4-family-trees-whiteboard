@@ -151,11 +151,14 @@ export type PartnerMenuState = {
 };
 
 /**
- * The menu from the ＋ on a card's foot: a new sim (a planned baby), or an
- * existing sim to adopt; then, adopted and living apart, whether they move in.
+ * The menu from a ＋: a new sim (a planned baby), or an existing sim to
+ * adopt; then, adopted and living apart, whether they move in. From a
+ * card's foot `parents` is that sim; from under a couple's badge, both,
+ * with the badge's spot (`couple`) for a new baby.
  */
 export type ChildMenuState = {
-  id: string;
+  parents: string[];
+  couple?: { rx: number; ry: number };
   x: number;
   y: number;
   step: 'choose' | 'adopt' | 'move';
@@ -2332,15 +2335,15 @@ export function useWhiteboard() {
     setStatus((cur) => (cur.startsWith(PARTNER_HINT) ? '' : cur));
   }, []);
 
-  /** The ＋ on a card's foot: a new sim, or one to adopt. */
+  /** A ＋ (a card's, or a couple's): a new sim, or one to adopt. */
   const openChildMenu = useCallback(
-    (id: string, x: number, y: number) => {
-      if (!byid[id]) return;
+    (parents: string[], x: number, y: number, couple?: { rx: number; ry: number }) => {
+      if (!parents.length || parents.some((id) => !byid[id])) return;
       setConnectMenu(null);
       setConnSrc(null);
       setPartnerMenu(null);
-      setSel({ type: 'node', id });
-      setChildMenu({ id, x, y, step: 'choose' });
+      if (parents.length === 1) setSel({ type: 'node', id: parents[0]! });
+      setChildMenu({ parents, x, y, step: 'choose', ...(couple ? { couple } : {}) });
     },
     [byid],
   );
@@ -2353,27 +2356,52 @@ export function useWhiteboard() {
   );
 
   /**
-   * `parent` adopts `child`: a planned parent link marked adopted, done once
-   * a save shows it. Living apart, the menu then asks whether the child
-   * moves in. False, with why on the status line, when it can't be.
+   * `parents` (one sim, or a couple together) adopt `child`: a planned parent
+   * link from each, marked adopted and bundled as a couple's child is, done
+   * once a save shows it. One Undo takes it all back. Living apart, the menu
+   * then asks whether the child moves in. False, with why on the status
+   * line, when it can't be.
    */
   const adoptChild = useCallback(
-    (parent: string, child: string): boolean => {
-      const [P, C] = [byid[parent], byid[child]];
-      if (!P || !C) return false;
-      const why = whyNotAdopt(P, C, edges, plannedChildIds) ?? parentCycleReason(parent, child);
-      if (why) {
-        flashStatus(`Not adopted: ${why}`);
-        return false;
+    (parents: string[], child: string): boolean => {
+      const C = byid[child];
+      const ps = parents.map((id) => byid[id]).filter((n): n is SimNode => !!n);
+      if (!C || ps.length !== parents.length || !ps.length) return false;
+      for (const P of ps) {
+        const why = whyNotAdopt(P, C, edges, plannedChildIds) ?? parentCycleReason(P.id, child);
+        if (why) {
+          flashStatus(`Not adopted: ${why}`);
+          return false;
+        }
       }
-      addEdge(parent, child, 'parent', false, true);
-      trackAction('/action/adopt');
-      flashStatus(`Planned ✓ ${cardName(P)} adopts ${cardName(C)}, until a save shows it. Undo takes it back.`);
-      if (P.gid !== C.gid && !hasNoHome(P)) setChildMenu((m) => (m ? { ...m, step: 'move', picked: child } : m));
-      else setChildMenu(null);
+      pushUndo();
+      const bundleId = 'b' + eidcRef.current++;
+      const createdAt = new Date().toISOString();
+      const nextEdges = sanitizeEdges([
+        ...edges,
+        ...ps.map((P): Edge => ({
+          id: 'u' + eidcRef.current++,
+          a: P.id,
+          b: child,
+          type: 'parent',
+          source: 'planned',
+          createdAt,
+          adopted: true,
+          ...(ps.length > 1 ? { bundleId } : {}),
+        })),
+      ]);
+      setEdges(nextEdges);
+      freezeAfterEdgeChange([...parents, child], nextEdges);
+      trackAction(ps.length > 1 ? '/action/adopt-couple' : '/action/adopt');
+      const who = ps.map((P) => cardName(P)).join(' and ');
+      flashStatus(`Planned ✓ ${who} ${ps.length > 1 ? 'adopt' : 'adopts'} ${cardName(C)}, until a save shows it. Undo takes it back.`);
+      const homes = ps.filter((P) => P.gid !== C.gid && !hasNoHome(P));
+      if (homes.length && !ps.some((P) => P.gid === C.gid)) {
+        setChildMenu((m) => (m ? { ...m, step: 'move', picked: child } : m));
+      } else setChildMenu(null);
       return true;
     },
-    [byid, edges, plannedChildIds, parentCycleReason, addEdge, flashStatus],
+    [byid, edges, plannedChildIds, parentCycleReason, pushUndo, freezeAfterEdgeChange, flashStatus],
   );
 
   /**

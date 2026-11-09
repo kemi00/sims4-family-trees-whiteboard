@@ -5,6 +5,7 @@ import { CaretLeft, X } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
 import { theHousehold } from '../lib/utils.ts';
+import { hasNoHome } from '../lib/partners.ts';
 import { adopteeSearch, whyCantAdopt } from '../lib/adoption.ts';
 import type { ChildMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
@@ -20,8 +21,8 @@ type Props = {
   onNewSim: () => void;
   onAdoptStep: (step: ChildMenuState['step']) => void;
   onAdopt: (child: string) => void;
-  /** The adopted child moves into the adopter's household. */
-  onMoveIn: (child: string) => void;
+  /** The adopted child moves into `host`'s household (an adopter's). */
+  onMoveIn: (child: string, host: string) => void;
   onClose: () => void;
 };
 
@@ -31,11 +32,12 @@ function parentsFlag(n: number): string[] {
 }
 
 /**
- * The menu from the ＋ on a card's foot. First, what kind of child: a new
- * sim (a planned baby, as the ＋ always made) or an existing sim to adopt.
- * Adopting lists, as the partner menu does, the sims who could be: younger,
- * living, and not family yet (no blood relative, partner or ex). Picked and
- * living apart, it asks whether the child moves in.
+ * The menu from a ＋: a card's (one parent) or a couple's (both). First,
+ * what kind of child: a new sim (a planned baby, as the ＋ always made) or
+ * an existing sim to adopt. Adopting lists, as the partner menu does, the
+ * sims who could be: younger than each parent, living, and family to none
+ * of them yet (no blood relative, partner or ex). Picked and living apart,
+ * it asks whether the child moves in, into either parent's home.
  */
 export function ChildMenu({
   menu,
@@ -56,20 +58,22 @@ export function ChildMenu({
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRef = useRef<HTMLButtonElement>(null);
-  const me = byid[menu.id];
+  const adopters = menu.parents.map((id) => byid[id]).filter((n): n is SimNode => !!n);
+  const me = adopters.length === menu.parents.length ? adopters[0] : undefined;
+  const couple = adopters.length > 1;
   const picked = menu.picked ? byid[menu.picked] : undefined;
   const adopting = menu.step === 'adopt';
 
   const all = useMemo(
-    () => (me ? adopteeSearch({ id: me.id, nodes, edges, game: saveGame, unborn }) : []),
-    [me, nodes, edges, saveGame, unborn],
+    () => (me ? adopteeSearch({ ids: menu.parents, nodes, edges, game: saveGame, unborn }) : []),
+    [me, menu.parents, nodes, edges, saveGame, unborn],
   );
   const hits = useMemo(
     () =>
       adopting && me
-        ? adopteeSearch({ id: me.id, nodes, edges, query, game: saveGame, unborn, limit: query.trim() ? 30 : 8 })
+        ? adopteeSearch({ ids: menu.parents, nodes, edges, query, game: saveGame, unborn, limit: query.trim() ? 30 : 8 })
         : [],
-    [adopting, me, nodes, edges, query, saveGame, unborn],
+    [adopting, me, menu.parents, nodes, edges, query, saveGame, unborn],
   );
   const dynasties = useMemo(() => dynastyNames(nodes), [nodes]);
   useEffect(() => {
@@ -81,7 +85,9 @@ export function ChildMenu({
   }, [menu.step, adopting, compact]);
   if (!me) return null;
 
-  const name = cardName(me);
+  const name = adopters.map((a) => cardName(a)).join(' and ');
+  const firsts = adopters.map((a) => a.first).join(' and ');
+  const adopt = couple ? 'adopt' : 'adopts';
   const close = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return;
     // Esc closes this menu, not the panel or selection behind it.
@@ -118,16 +124,26 @@ export function ChildMenu({
   );
 
   if (menu.step === 'move' && picked) {
+    // Each parent's home, once: a couple apart offers both.
+    const hosts = adopters.filter((a, i) => !hasNoHome(a) && adopters.findIndex((b) => b.gid === a.gid) === i);
     return shell(
       `Move ${cardName(picked)} in with ${name}?`,
       <>
         <p className="pmenu__done">
-          ✓ Adoption planned: {name} adopts {cardName(picked)}
+          ✓ Adoption planned: {name} {adopt} {cardName(picked)}
         </p>
         <p className="pmenu__ask">They live apart. Will {picked.first} move in?</p>
-        <button ref={firstRef} type="button" className="pmenu__move pmenu__move--first" onClick={() => onMoveIn(picked.id)}>
-          {cardName(picked)} moves into {theHousehold(me.hh)}
-        </button>
+        {hosts.map((host, i) => (
+          <button
+            key={host.id}
+            ref={i === 0 ? firstRef : undefined}
+            type="button"
+            className={i === 0 ? 'pmenu__move pmenu__move--first' : 'pmenu__move'}
+            onClick={() => onMoveIn(picked.id, host.id)}
+          >
+            {cardName(picked)} moves into {theHousehold(host.hh)}
+          </button>
+        ))}
         <button type="button" className="pmenu__move pmenu__keep" onClick={onClose}>
           Keep them apart
         </button>
@@ -137,8 +153,12 @@ export function ChildMenu({
   }
 
   if (!adopting) {
-    const cant = whyCantAdopt(me);
-    const none = !cant && all.length === 0 ? 'No one younger who isn’t family already.' : null;
+    const cantOne = adopters.map((a) => [a, whyCantAdopt(a)] as const).find(([, why]) => why);
+    const cant = cantOne ? (couple ? `${cantOne[0].first}: ${cantOne[1]}` : cantOne[1]) : null;
+    const none =
+      !cant && all.length === 0
+        ? `No one younger${couple ? ' than both' : ''} who isn’t family already.`
+        : null;
     return shell(
       `Add a child of ${name}`,
       <>
@@ -155,7 +175,9 @@ export function ChildMenu({
         >
           <span className="cmenu__title">Adopt a sim</span>
           <span className="cmenu__sub">
-            {cant ?? none ?? `Someone younger who isn’t family yet: ${all.length} to pick from`}
+            {cant ??
+              none ??
+              `Someone younger${couple ? ' than both' : ''} who isn’t family yet: ${all.length} to pick from`}
           </span>
         </button>
       </>,
@@ -167,7 +189,7 @@ export function ChildMenu({
   return shell(
     `Plan an adoption by ${name}`,
     <>
-      {head(`${name} adopts…`, true)}
+      {head(`${couple ? firsts : name} ${adopt}…`, true)}
       <input
         ref={inputRef}
         className="pmenu__search"
@@ -230,10 +252,16 @@ export function ChildMenu({
         </ul>
       ) : (
         <p className="pmenu__empty">
-          {query.trim() ? `No one to adopt matches “${query.trim()}”.` : 'No one younger who isn’t family already.'}
+          {query.trim()
+            ? `No one to adopt matches “${query.trim()}”.`
+            : `No one younger${couple ? ' than both' : ''} who isn’t family already.`}
         </p>
       )}
-      <p className="pmenu__hint">Only sims younger than {me.first} who aren’t family yet: no relatives, partners or exes.</p>
+      <p className="pmenu__hint">
+        {couple
+          ? `Only sims younger than ${firsts} who aren’t family to either yet: no relatives, partners or exes.`
+          : `Only sims younger than ${me.first} who aren’t family yet: no relatives, partners or exes.`}
+      </p>
     </>,
   );
 }
