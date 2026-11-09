@@ -77,6 +77,8 @@ export function LinkSelectionChip({
     },
     40,
     obstacles,
+    // A note adds up to three lines.
+    info.yourNote ? 100 : undefined,
   );
   if (!placement) return null;
 
@@ -86,12 +88,16 @@ export function LinkSelectionChip({
 
   return (
     <div
-      className="link-sel-chip"
+      className={info.yourNote ? 'link-sel-chip link-sel-chip--noted' : 'link-sel-chip'}
       data-side={placement.side}
       style={{ left, top }}
       role="status"
       aria-live="polite"
-      aria-label={[[info.label, info.names].filter(Boolean).join(': '), info.note]
+      aria-label={[
+        [info.label, info.names].filter(Boolean).join(': '),
+        info.note,
+        info.yourNote && `Your note: ${info.yourNote}`,
+      ]
         .filter(Boolean)
         .join('. ')}
     >
@@ -126,6 +132,7 @@ export function LinkSelectionChip({
           </span>
         ) : null}
         {info.note && <span className="link-sel-chip__note">{info.note}</span>}
+        {info.yourNote && <span className="link-sel-chip__yours">{info.yourNote}</span>}
       </span>
     </div>
   );

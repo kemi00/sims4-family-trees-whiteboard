@@ -165,6 +165,33 @@ describe('planned couples', () => {
   });
 });
 
+describe('your notes on plans', () => {
+  it('show on a couple, and on one off plan, to help decide', () => {
+    const nodes = [sim('Beatrice', 'Capp'), sim('Dirk', 'Dreamer'), sim('Adekoya', 'Capp'), sim('Lilith', 'Vatore')];
+    const couple = { ...link('u1', 'Lilith', 'Dirk', 'romance'), note: 'Vampire heirs' };
+    assert.equal(one(plans(nodes, [couple]), 'couple:u1').yourNote, 'Vampire heirs');
+    const off = [{ ...link('u2', 'Beatrice', 'Dirk', 'marriage'), note: 'Merge the money' }, link('v1', 'Beatrice', 'Adekoya', 'marriage', 'save')];
+    assert.equal(one(plans(nodes, off), 'off:u2').yourNote, 'Merge the money');
+    assert.equal(one(plans(nodes, [link('u3', 'Lilith', 'Dirk', 'romance')]), 'couple:u3').yourNote, undefined);
+  });
+
+  it('show on babies, each note once, and on a move', () => {
+    const nodes = [sim('Sergio', 'Romeo', { gender: 'Male' }), sim('Siobhan', 'Romeo'), planned('k1', 'Romeo', { first: '', planLabel: 'Heir' }), planned('k2', 'Romeo', { first: '', planLabel: 'Spare' })];
+    const edges = [
+      { ...link('k1a', 'Sergio', 'k1', 'parent'), note: 'The heir' },
+      { ...link('k1b', 'Siobhan', 'k1', 'parent'), note: 'The heir' },
+      link('k2a', 'Sergio', 'k2', 'parent'),
+      { ...link('k2b', 'Siobhan', 'k2', 'parent'), note: 'A spare, in case' },
+    ];
+    assert.equal(one(plans(nodes, edges), 'baby:Sergio|Siobhan').yourNote, 'The heir\nA spare, in case');
+    const moved = sim('Joaquin', 'Le Chien');
+    const moves: HouseholdMove[] = [
+      { id: 'm1', simId: 'Joaquin', createdAt: 'm1', fromGid: 'W||Bro', fromHh: 'Bro', fromWorld: 'W', fromNb: '', toGid: 'W||Le Chien', toHh: 'Le Chien', toWorld: 'W', toNb: '', note: 'Closer to Elsa' },
+    ];
+    assert.equal(one(plans([moved], [], { moves }), 'move:m1').yourNote, 'Closer to Elsa');
+  });
+});
+
 describe('planned babies', () => {
   const parents = [sim('Sergio', 'Romeo', { gender: 'Male' }), sim('Siobhan', 'Romeo')];
   const kid = (id: string, label: string) => planned(id, 'Romeo', { first: '', planLabel: label });

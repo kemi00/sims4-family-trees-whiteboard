@@ -210,6 +210,12 @@ export function PlanReview({
                 <label className="planrev__what" htmlFor={`planrev-${c.edgeId}`}>
                   <b>{conflictText(c, name)}</b>
                 </label>
+                {plan.notes[c.edgeId] && (
+                  <p className="planrev__yours">
+                    <span className="sr-only">Your note: </span>
+                    {plan.notes[c.edgeId]}
+                  </p>
+                )}
                 <select
                   id={`planrev-${c.edgeId}`}
                   value={choice}

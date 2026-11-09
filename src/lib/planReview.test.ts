@@ -49,7 +49,7 @@ const baby = (id: string, gender: string) => ({
  * Beatrice was planned with Dirk, with a planned heir; in the game she
  * married Adekoya and had the triplets.
  */
-function scene(babies: string[]) {
+function scene(babies: string[], note?: string) {
   const nodes = [
     sim('Beatrice'),
     sim('Dirk', { gender: 'Male' }),
@@ -57,7 +57,7 @@ function scene(babies: string[]) {
     sim('Heir', { added: true, saveSimId: undefined, first: '', planLabel: 'Heir', sur: 'Dreamer', gender: '-' }),
   ];
   const edges = [
-    link('u1', 'Beatrice', 'Dirk', 'marriage', 'planned'),
+    { ...link('u1', 'Beatrice', 'Dirk', 'marriage', 'planned'), ...(note ? { note } : {}) },
     link('u2', 'Beatrice', 'Heir', 'parent', 'planned'),
     link('u3', 'Dirk', 'Heir', 'parent', 'planned'),
   ];
@@ -81,6 +81,11 @@ function scene(babies: string[]) {
 }
 
 describe('the review step: a planned child under its couple', () => {
+  it('shows your note on the plan the game went against', () => {
+    assert.deepEqual(scene(['Helena'], 'Dreamer money for the Capps').notes, { u1: 'Dreamer money for the Capps' });
+    assert.deepEqual(scene(['Helena']).notes, {});
+  });
+
   it('asks about the heir inside the marriage the game went against, not on its own', () => {
     const plan = scene(['Helena', 'Titania', 'Lysander']);
     assert.deepEqual(plan.suggestions, []);

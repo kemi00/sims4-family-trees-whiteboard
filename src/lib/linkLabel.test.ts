@@ -266,6 +266,12 @@ describe('describeLinkSelection', () => {
     assert.deepEqual(info!.path[0]![1], [200, 10]);
   });
 
+  it('carries your note on the link', () => {
+    const noted = [{ ...edges[0]!, note: 'Bella’s heir comes from here' }];
+    assert.equal(describeLinkSelection(['e1'], noted, byid, edgeData)!.yourNote, 'Bella’s heir comes from here');
+    assert.equal(describeLinkSelection(['e1'], edges, byid, edgeData)!.yourNote, undefined);
+  });
+
   it('keeps sibling bar and stems as separate ink chunks', () => {
     const sib: Edge = {
       id: 's1',

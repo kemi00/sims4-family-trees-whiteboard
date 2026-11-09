@@ -1,7 +1,7 @@
 import { LINK_MARK } from './constants.ts';
 import { simName } from './connectionLog.ts';
 import { coParentNote, romanceWord, type PairIndex } from './pairStatus.ts';
-import { uKey } from './utils.ts';
+import { joinNotes, uKey } from './utils.ts';
 import type {
   Edge,
   EdgeRenderData,
@@ -42,6 +42,8 @@ export type LinkSelectionInfo = {
   sims?: ChipSim[];
   /** Extra line: a secret parent, or what co-parents are to each other. */
   note?: string;
+  /** Your note on the link: why you planned it. */
+  yourNote?: string;
   /**
    * Ink polylines of the selected link in world space.
    * Sibling/parent geometry is often several disjoint strokes (bar + stems);
@@ -239,6 +241,8 @@ export function placeChipOnVisiblePath(
   vp: ViewportBox,
   padPx: number = 40,
   obstacles: ChipObstacle[] = [],
+  /** The chip's height, when a note makes it taller than usual. */
+  chipH: number = CHIP_BODY_H_PX,
 ): ChipPlacement | null {
   if (!(vp.k > 0) || vp.width <= 0 || vp.height <= 0) {
     return null;
@@ -269,10 +273,10 @@ export function placeChipOnVisiblePath(
 
   const sideFits = (sy: number, side: ChipSide, pad: number) => {
     if (side === 'above') {
-      const top = sy - CHIP_BODY_H_PX - CHIP_GAP_PX;
+      const top = sy - chipH - CHIP_GAP_PX;
       return top >= pad;
     }
-    const bottom = sy + CHIP_BODY_H_PX + CHIP_GAP_PX;
+    const bottom = sy + chipH + CHIP_GAP_PX;
     return bottom <= vp.height - pad;
   };
 
@@ -446,6 +450,7 @@ export function describeLinkSelection(
   const path = linkSelectionPath(ids, edgeData, edges, byid);
   if (!path?.length) return null;
 
-  return { mark, label, ...parties, note: copy.note, path };
+  const yourNote = joinNotes(...matched.map((e) => e.note));
+  return { mark, label, ...parties, note: copy.note, ...(yourNote ? { yourNote } : {}), path };
 }
 

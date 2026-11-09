@@ -76,6 +76,7 @@ export function HouseholdBrief({
           </span>
         ))}
         {i.note && <span className="brief__note">{i.note}</span>}
+        {i.yourNote && <span className="brief__yours">{i.yourNote}</span>}
       </button>
     </li>
   );

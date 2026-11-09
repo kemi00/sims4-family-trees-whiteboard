@@ -1,7 +1,7 @@
 import { GROWN_UP, daysFromBirth, daysUntilStage, everyoneAges, lifeView, wholeDaysText } from './lifeClock.ts';
 import { cardName, conflictText, isPlannedSim, type PlanConflict } from './plan.ts';
 import { isUnhousedGid } from './unhoused.ts';
-import { edgeSourceOf, uKey } from './utils.ts';
+import { edgeSourceOf, joinNotes, uKey } from './utils.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE } from './constants.ts';
 import { dynastyKey, dynastyNames, dynastyPhrase } from './generations.ts';
 import type { Edge, Group, HouseholdMove, PairStatus, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
@@ -61,7 +61,12 @@ export type PlanItem = {
   waits: PlanWait[];
   /** A caution that doesn't block it. */
   note?: string;
+  /** Your note on the link or move behind it: why you planned it. */
+  yourNote?: string;
 };
+
+/** `{ yourNote }` to spread into an item, or nothing. */
+const noted = (note: string | undefined): { yourNote?: string } => (note ? { yourNote: note } : {});
 
 const uniq = <T,>(xs: T[]): T[] => [...new Set(xs)];
 
@@ -145,6 +150,7 @@ export function householdPlans(opts: {
   const parentsOf = new Map<string, string[]>();
   for (const e of edges) if (e.type === 'parent') parentsOf.set(e.b, [...(parentsOf.get(e.b) ?? []), e.a]);
   const offLinks = new Set(conflicts.map((c) => c.edgeId));
+  const edgeById = new Map(edges.map((e) => [e.id, e]));
   const offKids = new Set(conflicts.flatMap((c) => c.children));
   const living = (n: SimNode) => n.state !== DECEASED_STATE;
   const plannedChild = (n: SimNode) => isPlannedSim(n) && (parentsOf.get(n.id)?.length ?? 0) > 0;
@@ -221,6 +227,7 @@ export function householdPlans(opts: {
       sims: [a.id, b.id],
       gids: uniq([a.gid, b.gid]),
       waits,
+      ...noted(e.note),
     });
   }
 
@@ -235,11 +242,15 @@ export function householdPlans(opts: {
     const parents = ids.map((id) => byId.get(id)).filter((p): p is SimNode => !!p);
     if (!parents.length) continue;
     const who = parents.map(cardName).join(' ＋ ');
+    const kidIds = new Set(kids.map((k) => k.id));
+    // The notes on the links to the babies: on a child, both parents' links share one.
+    const babyNotes = edges.filter((e) => e.type === 'parent' && kidIds.has(e.b) && ids.includes(e.a)).map((e) => e.note);
     const base = {
       id: `baby:${key}`,
       kind: 'baby' as const,
       sims: [...parents.map((p) => p.id), ...kids.map((k) => k.id)],
       gids: uniq([...kids.map((k) => k.gid), ...parents.map((p) => p.gid)]),
+      ...noted(joinNotes(...babyNotes)),
     };
     const dead = parents.find((p) => !living(p));
     if (dead) {
@@ -341,6 +352,7 @@ export function householdPlans(opts: {
       sims: [n.id],
       gids: uniq([last.toGid, ...(from ? [first.fromGid] : [])]),
       waits: [],
+      ...noted(joinNotes(...list.map((m) => m.note))),
     });
   }
 
@@ -354,6 +366,8 @@ export function householdPlans(opts: {
       sims,
       gids: uniq(sims.map((id) => byId.get(id)!.gid)),
       waits: [],
+      // Why you planned it helps decide whether to keep it.
+      ...noted(edgeById.get(c.edgeId)?.note),
     });
   }
   return items;

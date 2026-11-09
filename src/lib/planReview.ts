@@ -38,6 +38,8 @@ export type SavePlanReview = {
   conflicts: PlanConflict[];
   /** Each conflict's couple link type, for "the planned marriage". */
   linkTypes: Record<string, EdgeType>;
+  /** Your note on each conflict's planned link: why you planned it, to help decide. */
+  notes: Record<string, string>;
   /** Each conflict's planned children that are planned sims. */
   children: Record<string, PlannedChildReview[]>;
   /** Planned sims this save's new sims could fill, outside any conflict. */
@@ -75,11 +77,13 @@ export function planReview(
   const conflicts = planConflicts(merge.nodes, merge.edges);
   const byMove: Record<string, HouseholdMove> = {};
   const linkTypes: Record<string, EdgeType> = {};
+  const notes: Record<string, string> = {};
   for (const c of conflicts) {
     const m = moveToUndo(c, merge.nodes, moves);
     if (m) byMove[c.edgeId] = m;
     const link = merge.edges.find((e) => e.id === c.edgeId);
     if (link) linkTypes[c.edgeId] = link.type;
+    if (link?.note) notes[c.edgeId] = link.note;
   }
   const names: Record<string, string> = {};
   const firsts: Record<string, string> = {};
@@ -137,6 +141,7 @@ export function planReview(
   return {
     conflicts,
     linkTypes,
+    notes,
     children,
     suggestions,
     moves: byMove,
