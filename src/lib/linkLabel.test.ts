@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   densifyPath,
   describeLinkSelection,
+  parentChipLabel,
   formatLinkNames,
   placeChipOnVisiblePath,
   sampleInkPath,
@@ -232,6 +233,15 @@ describe('placeChipOnVisiblePath', () => {
   });
 });
 
+describe('parentChipLabel', () => {
+  it('counts parents and children, so a big family says how big', () => {
+    assert.equal(parentChipLabel(1, 1), 'Parent → child');
+    assert.equal(parentChipLabel(2, 1), 'Parents → child');
+    assert.equal(parentChipLabel(2, 4), 'Parents → 4 children');
+    assert.equal(parentChipLabel(1, 2, true), 'Secret parent → 2 children');
+  });
+});
+
 describe('describeLinkSelection', () => {
   const byid = {
     a: node('a', 'Bella', 0, 0),
@@ -359,7 +369,7 @@ describe('describeLinkSelection', () => {
       data,
     );
     assert.ok(info);
-    assert.equal(info!.label, 'Parent → child');
+    assert.equal(info!.label, 'Parents → child');
     assert.equal(info!.nameFrom, 'Jacques Villareal + Elettra Villareal');
     assert.equal(info!.nameTo, 'Luna Villareal');
     assert.equal(

@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ChipObstacle, ChipSim, LinkSelectionInfo } from '../lib/linkLabel.ts';
 import { placeChipOnVisiblePath } from '../lib/linkLabel.ts';
 
@@ -16,7 +16,14 @@ type Props = {
   onGoToSim?: (id: string) => void;
 };
 
-/** Names as buttons that take you to each sim, " + " between them. */
+/** Most names a chip lists; past that, the rest are "+ N more". */
+const CHIP_MAX_NAMES = 8;
+
+/**
+ * Names as buttons that take you to each sim, " + " between them. Each
+ * name keeps its "+" and wraps as one, so a big family takes more lines
+ * instead of being cut off.
+ */
 function SimNames({
   sims,
   onGoToSim,
@@ -24,10 +31,12 @@ function SimNames({
   sims: ChipSim[];
   onGoToSim?: (id: string) => void;
 }) {
+  const shown = sims.length > CHIP_MAX_NAMES ? sims.slice(0, CHIP_MAX_NAMES - 1) : sims;
+  const more = sims.length - shown.length;
   return (
     <>
-      {sims.map((s, i) => (
-        <Fragment key={s.id}>
+      {shown.map((s, i) => (
+        <span key={s.id} className="link-sel-chip__item">
           {i > 0 && (
             <span className="link-sel-chip__sep" aria-hidden="true">
               +
@@ -45,8 +54,16 @@ function SimNames({
           ) : (
             <span>{s.name}</span>
           )}
-        </Fragment>
+        </span>
       ))}
+      {more > 0 && (
+        <span className="link-sel-chip__item link-sel-chip__more">
+          <span className="link-sel-chip__sep" aria-hidden="true">
+            +
+          </span>
+          {more} more
+        </span>
+      )}
     </>
   );
 }
@@ -66,6 +83,18 @@ export function LinkSelectionChip({
   obstacles = [],
   onGoToSim,
 }: Props) {
+  // The chip's real height (a big family or a note takes more lines), so
+  // it's placed where all of it stays on screen.
+  const [height, setHeight] = useState<number>();
+  const watching = useRef<ResizeObserver | null>(null);
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    watching.current?.disconnect();
+    watching.current = null;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setHeight(el.offsetHeight || undefined));
+    ro.observe(el);
+    watching.current = ro;
+  }, []);
   const placement = placeChipOnVisiblePath(
     info.path,
     {
@@ -77,8 +106,7 @@ export function LinkSelectionChip({
     },
     40,
     obstacles,
-    // A note adds up to three lines.
-    info.yourNote ? 100 : undefined,
+    height,
   );
   if (!placement) return null;
 
@@ -88,7 +116,8 @@ export function LinkSelectionChip({
 
   return (
     <div
-      className={info.yourNote ? 'link-sel-chip link-sel-chip--noted' : 'link-sel-chip'}
+      ref={ref}
+      className={directed || info.yourNote ? 'link-sel-chip link-sel-chip--tall' : 'link-sel-chip'}
       data-side={placement.side}
       style={{ left, top }}
       role="status"

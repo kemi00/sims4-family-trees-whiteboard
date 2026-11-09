@@ -317,10 +317,14 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 }
 .link-sel-chip__party{
   min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  row-gap:1px;
 }
+/* A name and the "+" before it wrap together; a name is never cut. */
+.link-sel-chip__item{white-space:nowrap}
+.link-sel-chip__more{color:var(--ink-3);font-weight:500}
 .link-sel-chip__party--to{color:var(--ink);font-weight:600}
 /* The chip lets presses through to the board; its names alone catch them.
    Dotted underline says they go somewhere; solid on hover. */
@@ -334,9 +338,9 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   font-style:italic;
   color:var(--ink-2);
 }
-/* Your note makes the chip taller: a rounded box, not a pill. */
-.link-sel-chip--noted{border-radius:14px;align-items:flex-start}
-.link-sel-chip--noted .link-sel-chip__mark{margin-top:1px}
+/* Parents → children and your note take several lines: a rounded box, not a pill. */
+.link-sel-chip--tall{border-radius:14px;align-items:flex-start}
+.link-sel-chip--tall .link-sel-chip__mark{margin-top:1px}
 .link-sel-chip__yours{
   display:-webkit-box;
   -webkit-box-orient:vertical;

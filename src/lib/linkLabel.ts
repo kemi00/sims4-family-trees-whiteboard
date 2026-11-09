@@ -20,6 +20,15 @@ const CHIP_LABEL: Record<EdgeType, string> = {
   custom: 'Custom link',
 };
 
+/**
+ * "Parent → child", "Parents → child", "Parents → 4 children": the count
+ * says how many the chip names, even when they take several lines.
+ */
+export function parentChipLabel(parents: number, kids: number, secret = false): string {
+  const from = `${secret ? 'Secret parent' : 'Parent'}${parents > 1 ? 's' : ''}`;
+  return `${from} → ${kids > 1 ? `${kids} children` : 'child'}`;
+}
+
 /** A sim named on the chip, to jump to. */
 export type ChipSim = { id: string; name: string };
 
@@ -414,7 +423,9 @@ function relationshipCopy(
     return word ? { label: word } : {};
   }
   if (first.type !== 'parent') return {};
-  if (matched.every((e) => e.secret)) return { label: 'Secret parent → child' };
+  if (matched.every((e) => e.secret)) {
+    return { label: parentChipLabel(new Set(matched.map((e) => e.a)).size, new Set(matched.map((e) => e.b)).size, true) };
+  }
   const notes: string[] = [];
   const secret = namesForIds(
     matched.filter((e) => e.secret).map((e) => e.a),
@@ -444,7 +455,11 @@ export function describeLinkSelection(
   const type = matched[0]!.type;
   const mark = LINK_MARK[type] ?? LINK_MARK.custom;
   const copy = relationshipCopy(matched, edges, byid, pairs);
-  const label = copy.label ?? CHIP_LABEL[type] ?? CHIP_LABEL.custom;
+  const label =
+    copy.label ??
+    (type === 'parent'
+      ? parentChipLabel(new Set(matched.map((e) => e.a)).size, new Set(matched.map((e) => e.b)).size)
+      : CHIP_LABEL[type] ?? CHIP_LABEL.custom);
   const parties = formatLinkNames(matched, byid);
 
   const path = linkSelectionPath(ids, edgeData, edges, byid);
