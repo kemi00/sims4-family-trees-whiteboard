@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "864ea96",
+   "date": "2026-11-09",
+   "text": "Selecting a family's line now shows every child on its chip, over as many lines as it takes, instead of cutting the last ones off. The chip also counts them: \"Parents → 3 children\"."
+  },
+  {
    "sha": "d64ebf2",
    "date": "2026-11-09",
    "text": "Your plan notes now show beyond the Log: under each plan in a household's brief, on a selected link, and in the save review when the game went against a plan, so the reason is there when you decide to keep it or follow the game."
