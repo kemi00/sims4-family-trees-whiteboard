@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "bea9ab7",
+   "date": "2026-11-09",
+   "text": "Hover or select a sim and a ♥ shows on each side of the card: it plans a partner. Pick married, romance, secret lovers or divorced, then type a name or click them on the board. Picked by name for a marriage or romance, the board asks whether one moves in with the other, and puts their card beside their partner's."
+  },
+  {
    "sha": "864ea96",
    "date": "2026-11-09",
    "text": "Selecting a family's line now shows every child on its chip, over as many lines as it takes, instead of cutting the last ones off. The chip also counts them: \"Parents → 3 children\"."
