@@ -46,6 +46,9 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  --warn-strong:#b45309;
  --warn-soft:#fdf3e3;
  --warn-line:#f0d3a8;
+ --done:#1e6b34;
+ --done-soft:#e6f4ea;
+ --done-line:#b9dcc3;
  --lift:0 6px 20px #1b2b3a1f;
 }
 
@@ -622,7 +625,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .gpanel input[type=checkbox]{width:15px;height:15px;accent-color:#1b6cd6;cursor:pointer;flex:0 0 auto}
 .chrome-backdrop{position:fixed;inset:0;z-index:55;background:#1b2b3a40}
 /* Keep in sync with CONNECTION_LOG_PANEL_W in src/lib/constants.ts */
-.gpanel.connection-log{width:min(440px, calc(100vw - 24px))}
+.gpanel.connection-log{--pad:9px;width:min(440px, calc(100vw - 24px))}
+/* Title and tabs stay put while the list scrolls under them. */
+.connection-log__top{display:flow-root;position:sticky;top:calc(-1 * var(--pad));z-index:1;margin:calc(-1 * var(--pad)) calc(-1 * var(--pad)) 0;padding:var(--pad) var(--pad) 0;background:inherit;border-radius:inherit}
 .gpanel.connection-log .gph button{width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
 .gpanel.connection-log .gph button:hover{background:var(--hover);color:var(--ink-2)}
 .gpanel.connection-log .gph button:disabled{opacity:.4;cursor:default}
@@ -630,33 +635,61 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .gpanel.connection-log .gph button[aria-pressed=true]{color:var(--ink-2);background:var(--hover)}
 .gpanel.connection-log .gph button svg{width:14px;height:14px}
 .connection-log__empty{margin:4px 4px 2px;color:var(--ink-2);line-height:1.45;font-size:12px;font-weight:500}
-.connection-log__list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
-.connection-log__day{display:flex;align-items:center;gap:8px;margin:6px 4px 2px;font-size:10.5px;font-weight:600;letter-spacing:.2px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+/* Plan | In your game: two lists, not one feed with a pill on every line. */
+.connection-log__tabs{display:flex;padding:2px;margin:0 4px 8px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
+.gpanel .connection-log__tab{flex:1 1 0;padding:6px 8px;border:none;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;font-weight:600}
+.gpanel .connection-log__tab:hover{background:var(--hover);color:var(--ink)}
+.gpanel .connection-log__tab[aria-selected=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1f}
+.connection-log__count{display:inline-flex;align-items:center;gap:2px;color:var(--ink-3);font-weight:600;font-variant-numeric:tabular-nums}
+.connection-log__count--off{color:var(--warn-strong)}
+.connection-log__count svg{width:11px;height:11px;flex:none}
+.connection-log__tools{display:flex;gap:6px;margin:-2px 4px 8px}
+.gpanel .connection-log__chip{padding:3px 9px;border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);color:var(--done);font-size:11px;gap:4px}
+.gpanel .connection-log__chip svg{width:11px;height:11px;flex:none}
+.gpanel .connection-log__chip:hover{background:var(--done-soft)}
+.gpanel .connection-log__chip[aria-pressed=true]{background:var(--done-soft);border-color:var(--done-line)}
+.connection-log__head{display:flex;align-items:center;gap:5px;margin:4px 4px 4px;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-3)}
+.connection-log__head svg{width:12px;height:12px;flex:none}
+.connection-log__head--off{color:var(--warn-strong)}
+.connection-log__offplan{margin-bottom:10px}
+.connection-log__list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column}
+.connection-log__day{display:flex;align-items:center;gap:8px;margin:8px 4px 2px;font-size:10.5px;font-weight:600;letter-spacing:.2px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .connection-log__day time{flex:0 0 auto;white-space:nowrap}
-.connection-log__list>.connection-log__day:first-child{margin-top:2px}
+.connection-log__list>.connection-log__day:first-child{margin-top:0}
 .connection-log__day::before,.connection-log__day::after{content:"";flex:1 1 auto;height:1px;background:var(--rule)}
-.gpanel .connection-log__item{white-space:normal;text-align:left;width:100%;display:block;line-height:1.45;padding:8px 9px;border:none;border-radius:8px;background:var(--chip);color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
-.gpanel .connection-log__item--alt{background:var(--recess)}
-.gpanel .connection-log__item:hover,.gpanel .connection-log__item--alt:hover{background:var(--line)}
-.gpanel .connection-log__item--on{background:var(--accent-soft);color:var(--accent-strong)}
-.gpanel .connection-log__item--on:hover{background:var(--accent-soft-hi)}
-.connection-log__time{font-weight:400;color:var(--ink-3);font-variant-numeric:tabular-nums}
-.gpanel .connection-log__sim{display:inline;width:auto;height:auto;min-height:0;padding:0;margin:0;border:none;border-radius:0;background:none;color:var(--accent);font:inherit;font-weight:700;line-height:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer;white-space:normal;transform:none}
-.gpanel .connection-log__sim:hover{background:none;color:var(--accent-strong)}
+.connection-log__list>li:not(.connection-log__day)+li:not(.connection-log__day){border-top:1px solid var(--line)}
+.gpanel .connection-log__item{display:flex;align-items:flex-start;gap:10px;padding:7px 6px 7px 8px;border-radius:6px;color:var(--ink);font-size:12.5px;font-weight:500;line-height:1.45;cursor:pointer}
+.gpanel .connection-log__item:hover{background:var(--hover)}
+.gpanel .connection-log__item--on,.gpanel .connection-log__item--on:hover{background:var(--accent-soft)}
+.gpanel .connection-log__item--off{box-shadow:inset 2px 0 0 var(--warn-strong);border-radius:0 6px 6px 0}
+.connection-log__main{flex:1 1 auto;min-width:0}
+.connection-log__text{margin:0;overflow-wrap:anywhere}
+.connection-log__side{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:34px}
+.connection-log__sidetop{display:flex;align-items:center;gap:2px;height:18px}
+.connection-log__time{font-size:11px;font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums;line-height:18px}
+.connection-log__done{display:inline-flex;align-items:center;gap:2px;font-size:10.5px;font-weight:600;color:var(--done);white-space:nowrap}
+.connection-log__done svg{width:10px;height:10px;flex:none}
+.gpanel .connection-log__sim{display:inline;width:auto;height:auto;min-height:0;padding:0;margin:0;border:none;border-radius:0;background:none;color:var(--accent);font:inherit;font-weight:600;line-height:inherit;text-decoration:none;cursor:pointer;white-space:normal;transform:none}
+.gpanel .connection-log__sim:hover{background:none;color:var(--accent-strong);text-decoration:underline;text-underline-offset:2px}
 .gpanel .connection-log__sim:active{transform:none}
-.gpanel .connection-log__item--on .connection-log__sim{color:var(--accent-strong)}
-.connection-log__rel{font-weight:700;color:var(--ink)}
-.gpanel .connection-log__item--on .connection-log__rel{color:var(--ink)}
-.connection-log__filters{display:flex;gap:4px;padding:0 4px 8px}
-.gpanel .connection-log__filter{padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:var(--chip);color:var(--ink-2);font-size:11px;min-height:0}
-.gpanel .connection-log__filter--on{background:var(--accent-soft);color:var(--accent-strong);border-color:transparent}
-.connection-log__tag{display:inline-block;margin:0 6px 4px 0;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.2px;vertical-align:middle}
-.connection-log__tag--planned{background:#ede9fe;color:#7c3aed}
-.connection-log__tag--save{background:#eef1f4;color:#3f4756}
-.connection-log__tag--done{background:#e6f4ea;color:#1e6b34}
-.connection-log__tag--off{background:#fdf0dc;color:#b45309}
-.connection-log__progress{margin:0 6px 8px;font-size:12px;color:var(--ink-2)}
-.connection-log__progress-off{color:#b45309}
+.connection-log__rel,.connection-log__hh{font-weight:600;color:var(--ink)}
+/* Add a note: there when you point at a line, focus it or pick it. */
+.gpanel .connection-log__addnote{width:22px;height:22px;margin:-2px 0;padding:0;border-radius:6px;color:var(--ink-3);opacity:0}
+.gpanel .connection-log__addnote svg{width:14px;height:14px}
+.gpanel .connection-log__addnote:hover{background:var(--press);color:var(--ink)}
+.connection-log__item:hover .connection-log__addnote,.connection-log__item:focus-within .connection-log__addnote,.connection-log__item--on .connection-log__addnote{opacity:1}
+.gpanel .connection-log__note{display:block;width:100%;margin:5px 0 1px;padding:4px 8px;border:none;border-left:2px solid var(--rule);border-radius:0 6px 6px 0;background:var(--recess);color:var(--ink-2);font-size:12px;font-weight:500;line-height:1.45;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;cursor:text}
+.gpanel .connection-log__note:hover{background:var(--press)}
+.gpanel .connection-log__note:active{transform:none}
+.connection-log__noteedit{margin-top:6px;cursor:default}
+.connection-log__noteedit textarea{display:block;box-sizing:border-box;width:100%;min-height:52px;resize:vertical;padding:6px 8px;border:1px solid var(--rule);border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:12px;line-height:1.45}
+.connection-log__noteedit textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.connection-log__noteactions{display:flex;align-items:center;gap:4px;margin-top:5px}
+.connection-log__notehint{flex:1 1 auto;font-size:10.5px;color:var(--ink-3)}
+.gpanel .connection-log__noteactions button{padding:4px 10px;font-size:11.5px}
+.gpanel .connection-log__noteactions .connection-log__notesave{background:var(--accent);color:#fff}
+.gpanel .connection-log__noteactions .connection-log__notesave:hover{background:var(--accent-strong)}
+.connection-log__foot{margin:12px 4px 2px;font-size:11px;color:var(--ink-3);line-height:1.45}
 .save-import{position:fixed;inset:0;z-index:40;background:#1b2b3a73;display:flex;align-items:center;justify-content:center;padding:16px}
 /* A file name has no spaces to wrap at, so it may break anywhere rather than
    push the card sideways. */
@@ -1046,6 +1079,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .gpanel--sheet,.menu--sheet,.editor--sheet{
   position:fixed;left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;max-width:none;max-height:70dvh;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
  }
+ .gpanel--sheet.connection-log{--pad:12px}
  .editor--sheet{width:auto;max-height:min(70dvh,100%);padding:0;overflow:hidden;gap:0}
  .editor--sheet .ed__head{padding:12px 12px 0}
  .editor--sheet .ed__body{padding:2px 12px 12px}

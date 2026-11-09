@@ -31,6 +31,7 @@ export { MagicWand } from '@phosphor-icons/react/MagicWand';
 export { MagnifyingGlass } from '@phosphor-icons/react/MagnifyingGlass';
 export { Megaphone } from '@phosphor-icons/react/Megaphone';
 export { Minus } from '@phosphor-icons/react/Minus';
+export { NotePencil } from '@phosphor-icons/react/NotePencil';
 export { Plus } from '@phosphor-icons/react/Plus';
 export { Scroll } from '@phosphor-icons/react/Scroll';
 export { Selection } from '@phosphor-icons/react/Selection';

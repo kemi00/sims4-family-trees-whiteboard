@@ -1,5 +1,5 @@
 import { toCore } from './autosave.ts';
-import { sanitizeEdges, uKey } from './utils.ts';
+import { joinNotes, sanitizeEdges, uKey, withNote } from './utils.ts';
 import type { Edge, EdgeType, Group, SimNode } from '../types/whiteboard.ts';
 
 const UNION_TYPES = new Set<EdgeType>(['marriage', 'romance', 'divorced']);
@@ -120,6 +120,8 @@ export function mergeJsonIntoBoard(input: {
   let boardOnlyEdgesKept = 0;
   const kept: Edge[] = [];
   const consumedIncoming = new Set<string>();
+  /** Notes on board unions the file replaces: they go onto the file's link. */
+  const unionNotes = new Map<string, string>();
 
   for (const be of boardEdges) {
     const key = edgePairKey(be);
@@ -134,6 +136,8 @@ export function mergeJsonIntoBoard(input: {
           // Count once per board union we discard in favor of JSON.
           relationshipsOverwritten += 1;
         }
+        const note = joinNotes(unionNotes.get(pair), be.note);
+        if (note) unionNotes.set(pair, note);
         continue;
       }
       kept.push(be);
@@ -144,7 +148,7 @@ export function mergeJsonIntoBoard(input: {
     if (inc) {
       // Same typed link exists in JSON — keep board edge identity/source,
       // allow type already matches; nothing to overwrite for parent/sibling.
-      kept.push(be);
+      kept.push({ ...be, ...withNote(joinNotes(be.note, inc.note)) });
       consumedIncoming.add(key);
       continue;
     }
@@ -165,7 +169,8 @@ export function mergeJsonIntoBoard(input: {
         continue;
       }
     }
-    kept.push({ ...inc });
+    const note = isUnion(inc.type) ? joinNotes(inc.note, unionNotes.get(uKey(inc.a, inc.b))) : inc.note;
+    kept.push({ ...inc, ...withNote(note) });
     edgesAdded += 1;
     if (isUnion(inc.type)) consumedIncoming.add(key);
   }

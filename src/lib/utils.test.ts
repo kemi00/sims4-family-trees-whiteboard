@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { currentGid, currentWorldName, isHighlightMatch, migrateWhiteboardData, parentLinkMakesCycle } from './utils.ts';
+import { cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
 
 function edge(a: string, b: string, type: Edge['type'] = 'parent'): Edge {
   return { id: `${type}:${a}:${b}`, a, b, type, source: 'seed' };
@@ -98,5 +98,19 @@ describe('isHighlightMatch', () => {
   it('narrows pets only once their species is picked', () => {
     assert.deepEqual(glowing(['Cat', 'Female']), ['cat']);
     assert.deepEqual(glowing(['Cat', 'Male']), []);
+  });
+});
+
+describe('notes', () => {
+  it('trims and caps a note, and an empty one is none', () => {
+    assert.equal(cleanNote('  For an heir \n'), 'For an heir');
+    assert.equal(cleanNote('   '), undefined);
+    assert.equal(cleanNote(undefined), undefined);
+    assert.equal(cleanNote('x'.repeat(NOTE_MAX + 20))!.length, NOTE_MAX);
+  });
+
+  it('joins the notes of links that become one, each once', () => {
+    assert.equal(joinNotes(undefined, 'For an heir', ' For an heir ', 'Twins'), 'For an heir\nTwins');
+    assert.equal(joinNotes(undefined, ''), undefined);
   });
 });

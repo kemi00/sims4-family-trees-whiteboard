@@ -21,6 +21,33 @@ export const isUserE = (e: Edge): boolean => {
   return String(e.id).charAt(0) === 'u';
 };
 
+/** Longest note a link or move keeps. */
+export const NOTE_MAX = 500;
+
+/** A note as stored: trimmed and capped, or undefined when there is none. */
+export function cleanNote(text: string | undefined): string | undefined {
+  const t = (text ?? '').trim().slice(0, NOTE_MAX).trim();
+  return t || undefined;
+}
+
+/**
+ * Notes of links that become one (a plan and the save's link for it), each
+ * once, on their own lines. Undefined when none has a note.
+ */
+export function joinNotes(...notes: (string | undefined)[]): string | undefined {
+  const seen: string[] = [];
+  for (const n of notes) {
+    const t = n?.trim();
+    if (t && !seen.includes(t)) seen.push(t);
+  }
+  return seen.length ? seen.join('\n') : undefined;
+}
+
+/** `{ note }` to spread into a link, or nothing when there is no note. */
+export function withNote(note: string | undefined): { note?: string } {
+  return note ? { note } : {};
+}
+
 export function edgeSourceOf(e: Edge): 'seed' | 'save' | 'planned' {
   if (e.source) return e.source;
   return String(e.id).charAt(0) === 'u' ? 'planned' : 'seed';

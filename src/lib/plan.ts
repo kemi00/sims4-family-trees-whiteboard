@@ -1,5 +1,5 @@
 import { DECEASED_STATE, GENDERS } from './constants.ts';
-import { edgeSourceOf } from './utils.ts';
+import { edgeSourceOf, joinNotes, withNote } from './utils.ts';
 import type { ParsedSave, ParsedSaveSim } from './savegame/parseSave.ts';
 import type { Edge, EdgeType, HouseholdMove, SimNode } from '../types/whiteboard.ts';
 
@@ -452,8 +452,11 @@ function collapseLinks(edges: Edge[]): Edge[] {
     const kept = out[i]!;
     const keptPlanned = edgeSourceOf(kept) === 'planned';
     const thisPlanned = edgeSourceOf(e) === 'planned';
-    if (keptPlanned && !thisPlanned) out[i] = { ...e, wasPlanned: true };
-    else if (!keptPlanned && thisPlanned) out[i] = { ...kept, wasPlanned: true };
+    // The notes on both stay: the reason for a plan outlives it being done.
+    const note = withNote(joinNotes(kept.note, e.note));
+    if (keptPlanned && !thisPlanned) out[i] = { ...e, wasPlanned: true, ...note };
+    else if (!keptPlanned && thisPlanned) out[i] = { ...kept, wasPlanned: true, ...note };
+    else out[i] = { ...kept, ...note };
   }
   return out;
 }
@@ -589,9 +592,10 @@ export function unlinkPlannedSim(
     } else if (edgeSourceOf(e) === 'planned') {
       next.push({ ...e, a: swap(e.a), b: swap(e.b) });
     } else if (e.wasPlanned) {
-      const { wasPlanned: _done, ...settled } = e;
+      // The plan comes back, and its note with it.
+      const { wasPlanned: _done, note, ...settled } = e;
       next.push(settled);
-      next.push({ ...settled, id: makeEdgeId(), a: swap(e.a), b: swap(e.b), source: 'planned' });
+      next.push({ ...settled, id: makeEdgeId(), a: swap(e.a), b: swap(e.b), source: 'planned', ...withNote(note) });
     } else {
       next.push(e);
     }

@@ -160,6 +160,7 @@ function edgeIdentity(e: Edge) {
     secret: !!e.secret,
     plan: e.plan ?? null,
     wasPlanned: !!e.wasPlanned,
+    note: e.note ?? null,
   };
 }
 

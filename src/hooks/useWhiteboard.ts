@@ -34,7 +34,6 @@ import {
   planConflicts,
   numberPlannedSims,
   markHandSetRoles,
-  planProgress,
   resolvePlanConflict,
   unlinkPlannedSim,
   type PlanChoice,
@@ -78,8 +77,9 @@ import {
   householdAgeUpLine,
   householdPlace,
   simName,
+  type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
-import { edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
+import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -1232,7 +1232,6 @@ export function useWhiteboard() {
     const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
     return new Set(edges.filter((e) => e.type === 'parent' && planned.has(e.b)).map((e) => e.b));
   }, [nodesCore, edges]);
-  const planStats = useMemo(() => planProgress(edges, planIssues), [edges, planIssues]);
   /** Each planned child's parents, for its card ("Child of Jules ＋ Bess"). */
   const plannedParents = useMemo(() => {
     const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
@@ -1256,8 +1255,28 @@ export function useWhiteboard() {
   }, [nodesCore]);
   // A new save import is a fresh start for what was skipped in Up next.
   useEffect(() => setUpNextSkipped(new Set()), [saveGame?.importedAt]);
-  /** Links a save confirmed after they were planned: the plan done. */
-  const doneEdgeIds = useMemo(() => new Set(edges.filter((e) => e.wasPlanned).map((e) => e.id)), [edges]);
+  /**
+   * Your note on a log line: on every link of the line (both parents of a
+   * child) or on the move. An empty note takes it off.
+   */
+  const setLogNote = useCallback(
+    (entry: Pick<ConnectionLogEntry, 'edgeIds' | 'moveId' | 'note'>, text: string) => {
+      const note = cleanNote(text);
+      if (note === cleanNote(entry.note)) return;
+      pushUndo();
+      const put = <T extends { note?: string }>(x: T): T => {
+        const { note: _old, ...rest } = x;
+        return (note ? { ...rest, note } : rest) as T;
+      };
+      if (entry.edgeIds.length) {
+        const ids = new Set(entry.edgeIds);
+        setEdges((es) => es.map((e) => (ids.has(e.id) ? put(e) : e)));
+      } else if (entry.moveId) {
+        setHouseholdMoves((ms) => ms.map((m) => (m.id === entry.moveId ? put(m) : m)));
+      }
+    },
+    [pushUndo],
+  );
   /** The plan Replace would drop: planned links and planned sims. */
   const plannedCounts = useMemo(
     () => ({
@@ -3074,9 +3093,8 @@ export function useWhiteboard() {
     plannedParents,
     familyGens,
     generationOf,
-    planStats,
-    doneEdgeIds,
     plannedCounts,
+    setLogNote,
     resolvePlanItem,
     linkPlanned,
     unlinkPlanned,

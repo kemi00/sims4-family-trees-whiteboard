@@ -254,6 +254,20 @@ describe('planned sims a save can fill', () => {
     );
   });
 
+  it('keeps the note when a planned sim is linked to the real one, and unlinked back', () => {
+    const real = sim('Ana', { age: 'Infant', hh: 'Capp', gid: 'W||Capp' });
+    const noted = edges.map((e) => (e.a === 'Mum' && e.b === 'Heir' ? { ...e, note: 'Twins next' } : e));
+    const withSave = [...noted, link('v1', 'Mum', 'Ana', 'parent'), link('v2', 'Other', 'Ana', 'parent')];
+    const linked = linkPlannedSim([...nodes, real], withSave, 'Heir', 'Ana', 'now');
+    const done = linked.edges.find((e) => e.a === 'Mum' && e.b === 'Ana')!;
+    assert.deepEqual([done.wasPlanned, done.note], [true, 'Twins next']);
+    let n = 0;
+    const back = unlinkPlannedSim(linked.nodes, linked.edges, 'Ana', () => 'P', () => `u${n++}`);
+    // The plan comes back with its note; the save's link has none of its own.
+    assert.equal(back.edges.find((e) => e.a === 'Mum' && e.b === 'P')!.note, 'Twins next');
+    assert.equal(back.edges.find((e) => e.a === 'Mum' && e.b === 'Ana')!.note, undefined);
+  });
+
   it('lets two parents from the save overrule a planned one, not one', () => {
     const two = [link('p1', 'Mum', 'Kid', 'parent'), link('p2', 'Other', 'Kid', 'parent'), link('u1', 'Dad', 'Kid', 'parent', 'planned')];
     assert.deepEqual(overruledParentLinks(two, ['Kid']).map((e) => e.id), ['u1']);

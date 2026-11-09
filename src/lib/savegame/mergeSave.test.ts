@@ -122,6 +122,47 @@ describe('mergeSaveIntoBoard', () => {
     assert.equal(result.summary.matched, 2);
   });
 
+  it('keeps your notes on plans the save shows done', () => {
+    const bob = sim({ id: 'Bob Pancakes', first: 'Bob', sur: 'Pancakes' });
+    const eliza = sim({ id: 'Eliza Pancakes', first: 'Eliza', sur: 'Pancakes', gender: 'Female' });
+    const parsed: ParsedSave = {
+      sims: [
+        { saveSimId: '1', householdId: '10', first: 'Bob', last: 'Pancakes', household: 'Pancakes', age: 'Adult', gender: 'Male' },
+        { saveSimId: '2', householdId: '10', first: 'Eliza', last: 'Pancakes', household: 'Pancakes', age: 'Adult', gender: 'Female' },
+      ],
+      rels: [{ a: '1', b: '2', type: 'marriage' }],
+    };
+    const merge = (edges: Edge[]) =>
+      mergeSaveIntoBoard({
+        nodes: [bob, eliza],
+        edges,
+        groups: [],
+        worlds: world,
+        parsed,
+        seedNameKeys: seedNameKeysFromNodes([bob, eliza]),
+        now: '2026-08-24T12:00:00.000Z',
+        nextEdgeId: (() => {
+          let n = 1;
+          return () => 'v' + n++;
+        })(),
+      }).edges;
+    // The plan becomes the save's link, note and all.
+    const kept = merge([{ id: 'u1', a: bob.id, b: eliza.id, type: 'romance', source: 'planned', note: 'For an heir' }]);
+    assert.deepEqual(
+      kept.map((e) => [e.id, e.type, e.source, e.wasPlanned, e.note]),
+      [['u1', 'marriage', 'save', true, 'For an heir']],
+    );
+    // The save already had the link: the plan goes, its note stays on the save's.
+    const onSaved = merge([
+      { id: 'v0', a: bob.id, b: eliza.id, type: 'marriage', source: 'save' },
+      { id: 'u1', a: bob.id, b: eliza.id, type: 'marriage', source: 'planned', note: 'For an heir' },
+    ]);
+    assert.deepEqual(
+      onSaved.map((e) => [e.id, e.source, e.wasPlanned, e.note]),
+      [['v0', 'save', true, 'For an heir']],
+    );
+  });
+
   it('keeps planned links that are not in the save', () => {
     const a = sim({ id: 'A', first: 'A', sur: 'One' });
     const b = sim({ id: 'B', first: 'B', sur: 'Two' });

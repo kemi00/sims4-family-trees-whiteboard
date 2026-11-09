@@ -4,7 +4,7 @@ import { dynastyKey, rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
 import { everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
 import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
-import { edgeSourceOf, sanitizeEdges, uKey, worldColor } from '../utils.ts';
+import { edgeSourceOf, joinNotes, sanitizeEdges, uKey, worldColor } from '../utils.ts';
 import type {
   Edge,
   EdgeType,
@@ -1354,6 +1354,9 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       if (planned.length) {
         drop(planned);
         settled[0]!.wasPlanned = true;
+        // Your reasons for the plan stay with the link the save confirmed.
+        const note = joinNotes(settled[0]!.note, ...planned.map((p) => p.note));
+        if (note) settled[0]!.note = note;
         confirmed += planned.length;
       }
       if (rel.secret) {
@@ -1368,6 +1371,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       delete keep.plan;
       keep.type = type;
       if (rel.secret) keep.secret = true;
+      const note = joinNotes(...planned.map((p) => p.note));
+      if (note) keep.note = note;
       confirmed += 1;
       drop(planned.slice(1));
       return;

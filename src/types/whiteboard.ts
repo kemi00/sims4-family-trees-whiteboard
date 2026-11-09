@@ -239,6 +239,11 @@ export interface Edge {
    * family tree does not list; on a romance link, secret lovers.
    */
   secret?: true;
+  /**
+   * Your note on this link: why you planned it. Stays when a save shows the
+   * plan done, so the reason is still there in your game's history.
+   */
+  note?: string;
 }
 
 /** What two sims are to each other in the save (strongest of each kind). */
@@ -297,6 +302,8 @@ export interface HouseholdMove {
    * your plan until then, is done, and later saves may move them on.
    */
   done?: true;
+  /** Your note on this move: why you planned it. Stays once it's done. */
+  note?: string;
 }
 
 export interface DeceasedMark {

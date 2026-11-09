@@ -364,8 +364,7 @@ export default function App() {
             <ConnectionLogPanel
               entries={wb.connectionLog}
               offPlanEdgeIds={wb.offPlan.edges}
-              doneEdgeIds={wb.doneEdgeIds}
-              planStats={wb.planStats}
+              onNote={wb.setLogNote}
               anchorRect={
                 logBtnRef.current?.getBoundingClientRect() ?? null
               }

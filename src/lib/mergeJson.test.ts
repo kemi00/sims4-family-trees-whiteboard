@@ -50,6 +50,28 @@ const groups: Group[] = [
 ];
 
 describe('mergeJsonIntoBoard', () => {
+  it('keeps notes from the board and the file', () => {
+    const bella = node('Bella Goth');
+    const mort = node('Mortimer Goth', { gender: 'Male' });
+    const kid = node('Cassandra Goth');
+    const result = mergeJsonIntoBoard({
+      boardNodes: [bella, mort, kid],
+      boardEdges: [
+        { id: 'e1', a: bella.id, b: mort.id, type: 'marriage', source: 'save', note: 'Since the start' },
+        { id: 'e2', a: bella.id, b: kid.id, type: 'parent', source: 'save' },
+      ],
+      boardGroups: groups,
+      incomingNodes: [node('Bella Goth'), node('Mortimer Goth', { gender: 'Male' }), node('Cassandra Goth')],
+      incomingEdges: [
+        { id: 'u9', a: bella.id, b: mort.id, type: 'divorced', source: 'planned' },
+        { id: 'u8', a: bella.id, b: kid.id, type: 'parent', source: 'planned', note: 'Her heir' },
+      ],
+      incomingGroups: groups,
+    });
+    const byType = Object.fromEntries(result.edges.map((e) => [e.type, e.note]));
+    assert.deepEqual(byType, { divorced: 'Since the start', parent: 'Her heir' });
+  });
+
   it('overwrites marriage with divorced from the JSON for the same pair', () => {
     const bella = node('Bella Goth', { ox: 100, oy: 50, fromSave: true });
     const mort = node('Mortimer Goth', { gender: 'Male', ox: 200, oy: 50 });

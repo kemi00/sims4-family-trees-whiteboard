@@ -12,7 +12,10 @@ import { cardName } from './plan.ts';
 
 export type LogPart =
   | { kind: 'time'; value: string }
-  | { kind: 'sim'; id: string; name: string }
+  /** `place`: where the sim lives, written after the name in the text. */
+  | { kind: 'sim'; id: string; name: string; place?: string }
+  /** A household in a move, with where it is. */
+  | { kind: 'hh'; name: string; place: string }
   | { kind: 'rel'; mark: string; label: string }
   | { kind: 'text'; value: string }
   | { kind: 'break' };
@@ -25,11 +28,42 @@ export type ConnectionLogEntry = {
   simId?: string;
   createdAt?: string;
   origin?: ConnectionLogOrigin;
-  /** A planned move a save has since shown done. */
+  /**
+   * link: a link or a child. move: a household move. event: an age-up or a
+   * death set on the board.
+   */
+  kind?: 'link' | 'move' | 'event';
+  /** A plan a save has since shown done (a move, or links it confirmed). */
   done?: true;
+  /** The move this line is, to write its note. */
+  moveId?: string;
+  /** Your note on the link or move. */
+  note?: string;
   text: string;
   parts: LogPart[];
 };
+
+/**
+ * Where a line goes in the log: off (a plan the game went against), plan
+ * (still to do in your game) or game (what your saves show, plans they
+ * showed done, and age-ups and deaths set on the board).
+ */
+export type LogSection = 'off' | 'plan' | 'game';
+
+export function logSection(
+  entry: ConnectionLogEntry,
+  offPlanEdgeIds: ReadonlySet<string> = new Set(),
+): LogSection {
+  if (entry.kind === 'event') return 'game';
+  if (entry.edgeIds.some((id) => offPlanEdgeIds.has(id))) return 'off';
+  if (entry.done) return 'game';
+  return (entry.origin ?? 'planned') === 'planned' ? 'plan' : 'game';
+}
+
+/** A note can go on links and moves, not on age-ups and deaths. */
+export function canNote(entry: ConnectionLogEntry): boolean {
+  return entry.edgeIds.length > 0 || !!entry.moveId;
+}
 
 /**
  * Local wall-clock stamp as `yyyy-mm-dd hh:mm`. Returns null when the ISO
@@ -95,10 +129,9 @@ export function livingPlace(nb: string, world: string): string {
     .join(', ');
 }
 
-/** `, from {neighbourhood}, {world}` — skip a missing neighbourhood. */
-function simFromSuffix(n: SimNode): string {
-  const place = livingPlace(n.nb, n.world);
-  return place ? `, from ${place}` : '';
+/** `{neighbourhood}, {world}` where a sim lives — skip a missing neighbourhood. */
+function simPlace(n: SimNode): string {
+  return livingPlace(n.nb, n.world);
 }
 
 /** `Hekekia, Sulani` or `Kahananui, Lani St. Taz, Sulani`. */
@@ -130,10 +163,8 @@ export function relDisplay(mark: string, label: string): string {
 }
 
 function mention(n: SimNode): LogPart[] {
-  return [
-    { kind: 'sim', id: n.id, name: simName(n) },
-    { kind: 'text', value: simFromSuffix(n) },
-  ];
+  const place = simPlace(n);
+  return [{ kind: 'sim', id: n.id, name: simName(n), ...(place ? { place } : {}) }];
 }
 
 function timed(
@@ -149,7 +180,8 @@ function timed(
 export function partsToText(parts: LogPart[]): string {
   return parts
     .map((p) => {
-      if (p.kind === 'sim') return p.name;
+      if (p.kind === 'sim') return p.place ? `${p.name}, from ${p.place}` : p.name;
+      if (p.kind === 'hh') return [p.name, p.place].filter(Boolean).join(', ');
       if (p.kind === 'rel') return relDisplay(p.mark, p.label);
       if (p.kind === 'break') return '\n';
       return p.value;
@@ -192,10 +224,15 @@ function secretLoversParts(a: SimNode, b: SimNode): LogPart[] {
   ];
 }
 
-function parentParts(parent: SimNode, child: SimNode, secret = false): LogPart[] {
+/** Plans read as plans ("has a child"), what happened as done ("had"). */
+function hadOrHas(planned: boolean): string {
+  return planned ? 'has' : 'had';
+}
+
+function parentParts(parent: SimNode, child: SimNode, secret = false, planned = false): LogPart[] {
   return [
     ...mention(parent),
-    { kind: 'text', value: secret ? ' had a secret ' : ' had a ' },
+    { kind: 'text', value: ` ${hadOrHas(planned)} a ${secret ? 'secret ' : ''}` },
     rel('parent'),
     { kind: 'text', value: ', ' },
     { kind: 'sim', id: child.id, name: simName(child) },
@@ -207,10 +244,11 @@ function parentsChildParts(
   parents: SimNode[],
   child: SimNode,
   secretIds: ReadonlySet<string> = new Set(),
+  planned = false,
 ): LogPart[] {
   const [first, ...rest] = parents;
   if (!first) return [];
-  if (!rest.length) return parentParts(first, child, secretIds.has(first.id));
+  if (!rest.length) return parentParts(first, child, secretIds.has(first.id), planned);
   const withClause: LogPart[] = [];
   rest.forEach((p, i) => {
     if (i === 0) {
@@ -225,7 +263,7 @@ function parentsChildParts(
   });
   return [
     ...mention(first),
-    { kind: 'text', value: ' had a ' },
+    { kind: 'text', value: ` ${hadOrHas(planned)} a ` },
     rel('parent'),
     { kind: 'text', value: ', ' },
     { kind: 'sim', id: child.id, name: simName(child) },
@@ -275,35 +313,38 @@ function simAgeUpParts(sim: SimNode, event: SimAgeUp): LogPart[] {
 
 function moveParts(sim: SimNode, move: HouseholdMove): LogPart[] {
   const spawned = move.fromHh === ADDED_HOUSEHOLD;
-  const from = householdPlace(
-    spawned ? '' : move.fromHh,
-    move.fromNb,
-    move.fromWorld,
-  );
-  const to = householdPlace(move.toHh, move.toNb, move.toWorld);
+  // A move still planned reads as a plan; one a save showed done, as done.
+  const moved = move.done ? 'moved' : 'moves';
+  const to: LogPart = {
+    kind: 'hh',
+    name: move.toHh.trim(),
+    place: livingPlace(move.toNb, move.toWorld),
+  };
   if (spawned) {
+    const from = livingPlace(move.fromNb, move.fromWorld);
+    const came = move.done ? 'came' : 'comes';
     const mid = from
-      ? ` came into ✨existence✨ and moved from ${from}, to `
-      : ' came into ✨existence✨ and moved to ';
+      ? ` ${came} into ✨existence✨ and ${moved} from ${from}, to `
+      : ` ${came} into ✨existence✨ and ${moved} to `;
     return [
       { kind: 'sim', id: sim.id, name: simName(sim) },
       { kind: 'text', value: mid },
-      { kind: 'text', value: to },
+      to,
       { kind: 'text', value: '.' },
     ];
   }
   return [
     { kind: 'sim', id: sim.id, name: simName(sim) },
-    { kind: 'text', value: ' moved from ' },
-    { kind: 'text', value: from },
+    { kind: 'text', value: ` ${moved} from ` },
+    { kind: 'hh', name: move.fromHh.trim(), place: livingPlace(move.fromNb, move.fromWorld) },
     { kind: 'text', value: ' to ' },
-    { kind: 'text', value: to },
+    to,
     { kind: 'text', value: '.' },
   ];
 }
 
 function sentenceParts(e: Edge, a: SimNode, b: SimNode): LogPart[] {
-  if (e.type === 'parent') return parentParts(a, b, !!e.secret);
+  if (e.type === 'parent') return parentParts(a, b, !!e.secret, edgeSourceOf(e) === 'planned');
   if (e.type === 'romance' && e.secret) return secretLoversParts(a, b);
   return unionParts(e.type, a, b);
 }
@@ -318,6 +359,13 @@ function makeEntry(
 ): ConnectionLogEntry {
   const parts = timed(createdAt, body);
   return { id, edgeIds, simId, createdAt, origin, parts, text: partsToText(parts) };
+}
+
+/** A line for links: done once none is still planned and one was; their note. */
+function linkEntry(entry: ConnectionLogEntry, edges: Edge[]): ConnectionLogEntry {
+  const done = edges.every((e) => edgeSourceOf(e) !== 'planned') && edges.some((e) => e.wasPlanned);
+  const note = edges.find((e) => e.note?.trim())?.note;
+  return { ...entry, kind: 'link', ...(done ? { done: true as const } : {}), ...(note ? { note } : {}) };
 }
 
 function earliestCreatedAt(edges: Edge[]): string | undefined {
@@ -371,14 +419,18 @@ export function buildConnectionLog(
     if (!child || parentNodes.length < 2) continue;
     const secretIds = new Set(parents.filter((e) => e.secret).map((e) => e.a));
     parents.forEach((e) => used.add(e.id));
+    const saved = parents.every((e) => edgeSourceOf(e) === 'save');
     entries.push(
-      makeEntry(
-        `child:${childId}`,
-        parents.map((e) => e.id),
-        earliestCreatedAt(parents),
-        parentsChildParts(parentNodes, child, secretIds),
-        undefined,
-        parents.every((e) => edgeSourceOf(e) === 'save') ? 'save' : 'planned',
+      linkEntry(
+        makeEntry(
+          `child:${childId}`,
+          parents.map((e) => e.id),
+          earliestCreatedAt(parents),
+          parentsChildParts(parentNodes, child, secretIds, !saved),
+          undefined,
+          saved ? 'save' : 'planned',
+        ),
+        parents,
       ),
     );
   }
@@ -389,13 +441,16 @@ export function buildConnectionLog(
     const b = byid[e.b];
     if (!a || !b) continue;
     entries.push(
-      makeEntry(
-        e.id,
-        [e.id],
-        e.createdAt,
-        sentenceParts(e, a, b),
-        undefined,
-        edgeSourceOf(e) === 'save' ? 'save' : 'planned',
+      linkEntry(
+        makeEntry(
+          e.id,
+          [e.id],
+          e.createdAt,
+          sentenceParts(e, a, b),
+          undefined,
+          edgeSourceOf(e) === 'save' ? 'save' : 'planned',
+        ),
+        [e],
       ),
     );
   }
@@ -404,50 +459,38 @@ export function buildConnectionLog(
     const sim = byid[move.simId];
     if (!sim) continue;
     const entry = makeEntry(move.id, [], move.createdAt, moveParts(sim, move), move.simId, 'planned');
-    entries.push(move.done ? { ...entry, done: true } : entry);
+    entries.push({
+      ...entry,
+      kind: 'move',
+      moveId: move.id,
+      ...(move.done ? { done: true as const } : {}),
+      ...(move.note?.trim() ? { note: move.note } : {}),
+    });
   }
 
   for (const event of ageUps) {
-    entries.push(
-      makeEntry(
-        event.id,
-        [],
-        event.createdAt,
-        ageUpParts(event),
-        event.simIds[0],
-        'planned',
-      ),
-    );
+    entries.push({
+      ...makeEntry(event.id, [], event.createdAt, ageUpParts(event), event.simIds[0], 'planned'),
+      kind: 'event',
+    });
   }
 
   for (const event of simAgeUps) {
     const sim = byid[event.simId];
     if (!sim) continue;
-    entries.push(
-      makeEntry(
-        event.id,
-        [],
-        event.createdAt,
-        simAgeUpParts(sim, event),
-        event.simId,
-        'planned',
-      ),
-    );
+    entries.push({
+      ...makeEntry(event.id, [], event.createdAt, simAgeUpParts(sim, event), event.simId, 'planned'),
+      kind: 'event',
+    });
   }
 
   for (const death of deaths) {
     const sim = byid[death.simId];
     if (!sim) continue;
-    entries.push(
-      makeEntry(
-        death.id,
-        [],
-        death.createdAt,
-        deceasedParts(sim, death),
-        death.simId,
-        'planned',
-      ),
-    );
+    entries.push({
+      ...makeEntry(death.id, [], death.createdAt, deceasedParts(sim, death), death.simId, 'planned'),
+      kind: 'event',
+    });
   }
 
   entries.sort((x, y) => compareLogTime(x, y, false));
