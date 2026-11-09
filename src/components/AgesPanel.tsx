@@ -1,4 +1,4 @@
-import { AGES_H, DYNASTY_ROLES, GENDERS, HI_DYNASTY, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, NEW_SIM_GENDERS, SPECIES, SPECIES_H, hiDynastyChip, type HiDynastyRole } from '../lib/constants.ts';
+import { AGES_H, DYNASTY_ROLES, GENDERS, HI_DYNASTY, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, NEW_SIM_GENDERS, SPECIES, SPECIES_H, hiDynastyChip, type HiDynastyRole } from '../lib/constants.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
@@ -26,6 +26,8 @@ type Props = {
   edges: Edge[];
   hiAges: Set<string>;
   hiSingle: boolean;
+  /** Planned babies, not born yet. */
+  unborn: Set<string>;
   packVis: (n: SimNode) => boolean;
   anchorRect: DOMRect | null;
   onToggle: (age: string) => void;
@@ -38,6 +40,7 @@ export function AgesPanel({
   edges,
   hiAges,
   hiSingle,
+  unborn,
   packVis,
   anchorRect,
   onToggle,
@@ -61,6 +64,7 @@ export function AgesPanel({
   const cntSingle = sims.filter((n) => !partnered.has(n.id)).length;
   const cntGender = (g: string) => sims.filter((n) => n.gender === g).length;
   const cntNoKids = sims.filter((n) => !parents.has(n.id)).length;
+  const cntUnborn = sims.filter((n) => unborn.has(n.id)).length;
   const cntRole = (r: HiDynastyRole) => sims.filter((n) => dynastyStanding(n) === r).length;
   // Dynasty chips once a shown sim is in one, or a chip is still on.
   const dynasties =
@@ -73,7 +77,7 @@ export function AgesPanel({
       hiAges.has(g),
   );
   const active = highlightActive(hiAges, hiSingle);
-  const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, partnered, parents });
+  const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, partnered, parents, unborn });
 
   return (
     <div
@@ -111,6 +115,16 @@ export function AgesPanel({
       </div>
       <div style={sectionLabel}>Life stage</div>
       <div className="agechips">
+        <button
+          type="button"
+          className={hiAges.has(HI_NOT_BORN) ? 'on' : ''}
+          aria-pressed={hiAges.has(HI_NOT_BORN)}
+          title="Planned babies: on the board, not born in your game yet"
+          onClick={() => onToggle(HI_NOT_BORN)}
+        >
+          Not born yet{' '}
+          <b style={{ opacity: 0.6 }}>{cntUnborn}</b>
+        </button>
         {AGES_H.map((a) => (
           <button
             key={a}

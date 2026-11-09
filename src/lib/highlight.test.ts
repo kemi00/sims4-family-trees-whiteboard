@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { SimNode } from '../types/whiteboard.ts';
-import { HI_NO_CHILDREN, hiDynastyChip } from './constants.ts';
+import { HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip } from './constants.ts';
 import { highlightActive, highlightPhrase, highlightSummary } from './highlight.ts';
 
 const sim = (id: string, extra: Partial<SimNode>): SimNode =>
@@ -27,6 +27,8 @@ describe('the highlight in words', () => {
       'sim who is a dynasty head or heir',
     );
     assert.equal(highlightPhrase(new Set([HI_NO_CHILDREN]), false, 7), 'sims with no children');
+    assert.equal(highlightPhrase(new Set([HI_NOT_BORN]), false, 3), 'babies not born yet');
+    assert.equal(highlightPhrase(new Set([HI_NOT_BORN, 'Infant']), false, 1), 'baby not born yet or infant');
   });
 
   it('is on when any chip is', () => {

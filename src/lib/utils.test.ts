@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { HI_NO_CHILDREN, hiDynastyChip } from './constants.ts';
+import { HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip } from './constants.ts';
 import { cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
 
 function edge(a: string, b: string, type: Edge['type'] = 'parent'): Edge {
@@ -82,7 +82,7 @@ describe('isHighlightMatch', () => {
   const partnered = new Set(['bella', 'mortimer']);
   const glowing = (hi: string[], single = false) =>
     [bella, mortimer, cassandra, nb, cat]
-      .filter((n) => isHighlightMatch(n, new Set(hi), single, partnered))
+      .filter((n) => isHighlightMatch(n, new Set(hi), single, { partnered }))
       .map((n) => n.id);
 
   it('picks sims by gender, and gender chips add to each other', () => {
@@ -109,7 +109,7 @@ describe('isHighlightMatch', () => {
     const outcast = { ...sim('outcast', 'Teen', 'Male'), dynasty: 'Goth', dynastyRole: 'outcast' } as SimNode;
     const all = [bella, mortimer, cassandra, nb, cat, head, member, leaving, outcast];
     const glow = (hi: string[], single = false) =>
-      all.filter((n) => isHighlightMatch(n, new Set(hi), single, partnered, parents)).map((n) => n.id);
+      all.filter((n) => isHighlightMatch(n, new Set(hi), single, { partnered, parents })).map((n) => n.id);
     assert.deepEqual(glow(['Adult', HI_NO_CHILDREN]), ['mortimer', 'head']);
     assert.deepEqual(glow([hiDynastyChip('member')]), ['member']);
     assert.deepEqual(glow([hiDynastyChip('head'), hiDynastyChip('outcast')]), ['head', 'outcast']);
@@ -117,6 +117,18 @@ describe('isHighlightMatch', () => {
     assert.deepEqual(glow(['Young Adult', 'Female', HI_NO_CHILDREN, hiDynastyChip('member')], true), ['member']);
     // Pets are in no dynasty and only glow for their species.
     assert.deepEqual(glow(['Cat', HI_NO_CHILDREN]), ['cat']);
+  });
+
+  it('picks babies not born yet as a life stage, adding to the ages picked', () => {
+    const baby = { ...sim('baby', 'Unknown', 'Female'), added: true } as SimNode;
+    const relative = sim('relative', 'Unknown', 'Male');
+    const glow = (hi: string[]) =>
+      [bella, cassandra, nb, baby, relative]
+        .filter((n) => isHighlightMatch(n, new Set(hi), false, { partnered, unborn: new Set(['baby']) }))
+        .map((n) => n.id);
+    assert.deepEqual(glow([HI_NOT_BORN]), ['baby']);
+    assert.deepEqual(glow([HI_NOT_BORN, 'Infant']), ['heir', 'baby']);
+    assert.deepEqual(glow([HI_NOT_BORN, 'Male']), []);
   });
 });
 

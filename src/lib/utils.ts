@@ -1,4 +1,4 @@
-import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, hiDynastyChip, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
+import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
 import type {
   DeceasedMark,
   Edge,
@@ -361,19 +361,28 @@ export function dynastyStanding(n: SimNode): HiDynastyRole | null {
 
 const NO_IDS: ReadonlySet<string> = new Set();
 
+/** Who the chips that aren't a field on the card pick out. */
+export type HighlightSets = {
+  /** Married or in a romance: Single leaves them out. */
+  partnered: ReadonlySet<string>;
+  /** Sims with a child: No children leaves them out. */
+  parents?: ReadonlySet<string>;
+  /** Planned babies, not born yet. */
+  unborn?: ReadonlySet<string>;
+};
+
 /**
- * Age/species chips OR with each other; gender chips OR with each other and
- * AND with that set, and so do the dynasty role chips. Single and No
- * children each narrow on their own. Pets ignore Single, No children and
- * dynasty roles, and only glow for their species chip, which a gender chip
- * narrows like it does ages.
+ * Age/species chips OR with each other, Not born yet among them; gender
+ * chips OR with each other and AND with that set, and so do the dynasty role
+ * chips. Single and No children each narrow on their own. Pets ignore
+ * Single, No children and dynasty roles, and only glow for their species
+ * chip, which a gender chip narrows like it does ages.
  */
 export function isHighlightMatch(
   n: SimNode,
   hi: ReadonlySet<string>,
   hiSingle: boolean,
-  partnered: ReadonlySet<string>,
-  parents: ReadonlySet<string> = NO_IDS,
+  { partnered, parents = NO_IDS, unborn = NO_IDS }: HighlightSets,
 ): boolean {
   if (hi.size === 0 && !hiSingle) return true;
   let genders = 0;
@@ -386,7 +395,7 @@ export function isHighlightMatch(
   const kinds = hi.size - genders - roles - (noKids ? 1 : 0);
   const genderOk = genders === 0 || hi.has(n.gender);
   if (isPet(n)) return !!n.species && hi.has(n.species) && genderOk;
-  const ageOk = kinds === 0 || hi.has(n.age);
+  const ageOk = kinds === 0 || hi.has(n.age) || (hi.has(HI_NOT_BORN) && unborn.has(n.id));
   const singleOk = !hiSingle || !partnered.has(n.id);
   const kidsOk = !noKids || !parents.has(n.id);
   const standing = roles ? dynastyStanding(n) : null;

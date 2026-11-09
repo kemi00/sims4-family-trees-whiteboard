@@ -274,6 +274,7 @@ export default function App() {
               edges={wb.shownEdges}
               hiAges={wb.hiAges}
               hiSingle={wb.hiSingle}
+              unborn={wb.plannedChildIds}
               packVis={wb.nodeVis}
               anchorRect={
                 filtersBtnRef.current?.getBoundingClientRect() ?? null

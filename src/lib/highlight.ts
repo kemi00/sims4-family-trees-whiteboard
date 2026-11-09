@@ -1,5 +1,5 @@
-import { AGES_H, DECEASED_STATE, GENDERS, HI_DYNASTY, HI_NO_CHILDREN, hiDynastyChip, SPECIES_H, type HiDynastyRole } from './constants.ts';
-import { isHighlightMatch } from './utils.ts';
+import { AGES_H, DECEASED_STATE, GENDERS, HI_DYNASTY, HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip, SPECIES_H, type HiDynastyRole } from './constants.ts';
+import { isHighlightMatch, type HighlightSets } from './utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 const AGE_NOUN: Record<string, [string, string]> = {
@@ -51,7 +51,10 @@ export function highlightPhrase(hi: ReadonlySet<string>, hiSingle: boolean, n: n
   const gender = GENDERS.filter((g) => hi.has(g))
     .map((g) => g.toLowerCase())
     .join(' or ');
-  const ages = AGES_H.filter((a) => hi.has(a)).map((a) => pick(AGE_NOUN[a]!));
+  const ages = [
+    ...(hi.has(HI_NOT_BORN) ? [pick(['baby not born yet', 'babies not born yet'])] : []),
+    ...AGES_H.filter((a) => hi.has(a)).map((a) => pick(AGE_NOUN[a]!)),
+  ];
   const pets = SPECIES_H.filter((s) => hi.has(s)).map((s) => pick(SPECIES_NOUN[s]!));
   const roles = HI_DYNASTY.filter((r) => hi.has(hiDynastyChip(r))).map((r) => pick(ROLE_NOUN[r]));
   const groups: string[] = [];
@@ -76,15 +79,14 @@ export type HighlightSummary = {
 };
 
 /** How many shown cards the highlight picks out, and what they are. */
-export function highlightSummary(opts: {
-  nodes: SimNode[];
-  shown: (n: SimNode) => boolean;
-  hi: ReadonlySet<string>;
-  hiSingle: boolean;
-  partnered: ReadonlySet<string>;
-  /** Sims with a child: No children leaves them out. */
-  parents?: ReadonlySet<string>;
-}): HighlightSummary {
+export function highlightSummary(
+  opts: HighlightSets & {
+    nodes: SimNode[];
+    shown: (n: SimNode) => boolean;
+    hi: ReadonlySet<string>;
+    hiSingle: boolean;
+  },
+): HighlightSummary {
   let count = 0;
   let deceased = 0;
   let shown = 0;
@@ -92,7 +94,7 @@ export function highlightSummary(opts: {
   for (const n of opts.nodes) {
     if (!opts.shown(n)) continue;
     shown += 1;
-    if (!isHighlightMatch(n, hi, opts.hiSingle, opts.partnered, opts.parents)) continue;
+    if (!isHighlightMatch(n, hi, opts.hiSingle, opts)) continue;
     count += 1;
     if (n.state === DECEASED_STATE) deceased += 1;
   }

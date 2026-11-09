@@ -183,6 +183,8 @@ export const DYNASTY_ROLES = {
  * keeps them from clashing with a value a sim can have.
  */
 export const HI_NO_CHILDREN = 'family:no-children';
+/** A life stage chip before Infant: planned babies, not born yet. */
+export const HI_NOT_BORN = 'life:not-born';
 /** A dynasty role chip, head to outcast; `member` is a member with no role. */
 export const HI_DYNASTY = ['head', 'heir', 'member', 'outcast'] as const;
 export type HiDynastyRole = (typeof HI_DYNASTY)[number];
