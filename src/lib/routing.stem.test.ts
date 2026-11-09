@@ -94,7 +94,7 @@ describe('childRoute', () => {
     const child = card({ id: 'c', x: 100, y: 200 });
     const ax = parent.x + parent.w / 2;
     const ay = parent.y + parent.h;
-    const pts = childRoute(ax, ay, child, [parent.id, child.id], emptyCtx);
+    const pts = childRoute(ax, ay, child, [parent], emptyCtx);
     assert.ok(hasTopStem(pts, child));
   });
 
@@ -105,21 +105,19 @@ describe('childRoute', () => {
     const child = card({ id: 'c', x: 280, y: 100, w: 160, h: 80 });
     const ax = parent.x + parent.w / 2;
     const ay = parent.y + parent.h;
-    const pts = childRoute(ax, ay, child, [parent.id, child.id], emptyCtx);
+    const pts = childRoute(ax, ay, child, [parent], emptyCtx);
     assert.ok(hasTopStem(pts, child));
     assert.equal(piercesCardBody(pts, child), false);
-    // Last horizontal (if any) must be at or above the stem junction.
+    // The last horizontal, into the stem, is at or above the stem junction.
+    // (The line may first run under the parent to get round it.)
     const jy = childStemJunctionY(child.y);
-    for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1]!;
-      const b = pts[i]!;
-      if (Math.abs(a[1] - b[1]) < 0.5 && Math.abs(a[0] - b[0]) > 1) {
-        assert.ok(
-          a[1] <= jy + 0.5,
-          `horizontal at y=${a[1]} must be at/above junction ${jy}`,
-        );
-      }
-    }
+    const flats = pts
+      .slice(1)
+      .map((b, i) => [pts[i]!, b] as const)
+      .filter(([a, b]) => Math.abs(a[1] - b[1]) < 0.5 && Math.abs(a[0] - b[0]) > 1);
+    const last = flats[flats.length - 1];
+    assert.ok(last, 'expected a horizontal into the stem');
+    assert.ok(last[0][1] <= jy + 0.5, `horizontal at y=${last[0][1]} must be at/above junction ${jy}`);
   });
 
   it('forks horizontally at the stem junction when the parent is far above', () => {
@@ -129,7 +127,7 @@ describe('childRoute', () => {
     const child = card({ id: 'c', x: 400, y: 400, w: 160, h: 80 });
     const ax = parent.x + parent.w / 2;
     const ay = parent.y + parent.h;
-    const pts = childRoute(ax, ay, child, [parent.id, child.id], emptyCtx);
+    const pts = childRoute(ax, ay, child, [parent], emptyCtx);
     assert.ok(hasTopStem(pts, child));
     const jy = childStemJunctionY(child.y);
     const pre = pts[pts.length - 3];
@@ -153,7 +151,7 @@ describe('childRoute', () => {
       w: 160,
       h: 80,
     });
-    const pts = childRoute(ax, ay, child, ['max'], emptyCtx, tagsBottom);
+    const pts = childRoute(ax, ay, child, [], emptyCtx, tagsBottom);
     assert.ok(hasTopStem(pts, child));
     const stemEnd = unionStemJunctionY(ay, tagsBottom);
     assert.ok(stemEnd > tagsBottom, 'stem floor must sit below tag bottoms');
@@ -476,5 +474,110 @@ describe('skipRoute', () => {
       skipRoute: true,
     });
     assert.deepEqual(data, EMPTY_EDGE_DATA);
+  });
+});
+
+/** Orthogonal segments of a polyline. */
+function segments(pts: Point[]): [Point, Point][] {
+  const out: [Point, Point][] = [];
+  for (let i = 1; i < pts.length; i++) out.push([pts[i - 1]!, pts[i]!]);
+  return out;
+}
+
+/** True if two orthogonal segments share any point (cross, touch or overlap). */
+function segmentsMeet([a, b]: [Point, Point], [c, d]: [Point, Point]): boolean {
+  return (
+    Math.min(a[0], b[0]) <= Math.max(c[0], d[0]) + 0.5 &&
+    Math.min(c[0], d[0]) <= Math.max(a[0], b[0]) + 0.5 &&
+    Math.min(a[1], b[1]) <= Math.max(c[1], d[1]) + 0.5 &&
+    Math.min(c[1], d[1]) <= Math.max(a[1], b[1]) + 0.5
+  );
+}
+
+function linesMeet(a: Point[], b: Point[]): boolean {
+  return segments(a).some((s) => segments(b).some((t) => segmentsMeet(s, t)));
+}
+
+/** True if a polyline runs through the inside of a card. */
+function crossesInside(pts: Point[], n: SimNode): boolean {
+  return segments(pts).some(
+    ([a, b]) =>
+      Math.min(a[0], b[0]) < n.x + n.w - 1 &&
+      Math.max(a[0], b[0]) > n.x + 1 &&
+      Math.min(a[1], b[1]) < n.y + n.h - 1 &&
+      Math.max(a[1], b[1]) > n.y + 1,
+  );
+}
+
+describe('a child level with their parent', () => {
+  const show: ShowToggles = { groups: true, worlds: true };
+
+  it('goes around the parent card, never up through it', () => {
+    const parent = card({ id: 'p', x: 40, y: 100 });
+    const child = card({ id: 'c', x: 280, y: 100 });
+    const pts = childRoute(parent.x + parent.w / 2, parent.y + parent.h, child, [parent], emptyCtx);
+    assert.ok(hasTopStem(pts, child));
+    assert.equal(crossesInside(pts, parent), false);
+    // Nothing runs over the parent's top, where its own parents' line ends.
+    for (const [a, b] of segments(pts)) {
+      if (Math.abs(a[1] - b[1]) > 0.5 || a[1] > parent.y) continue;
+      assert.ok(
+        Math.min(a[0], b[0]) >= parent.x + parent.w,
+        `horizontal at y=${a[1]} runs over the parent (x ${a[0]}→${b[0]})`,
+      );
+    }
+  });
+
+  it('does not join the line to the grandparent (Tai → Mei, Mei → Amy)', () => {
+    // Mei's daughter Amy dragged up beside her: the line from Mei once
+    // climbed through Mei and ran along Tai's line, so Amy read as Tai's.
+    const tai = card({ id: 'Tai', x: 100, y: 0 });
+    const mei = card({ id: 'Mei', x: 0, y: 200 });
+    const amy = card({ id: 'Amy', x: 400, y: 200 });
+    const data = computeEdgeRenderData({
+      nodes: [tai, mei, amy],
+      edges: [
+        { id: 'tm', a: tai.id, b: mei.id, type: 'parent', source: 'save' },
+        { id: 'ma', a: mei.id, b: amy.id, type: 'parent', source: 'save' },
+      ],
+      groups: [],
+      show,
+      packVis: () => true,
+      fastRoute: true,
+    });
+    const toMei = data.blood.filter((p) => p.ids.includes('tm'));
+    const toAmy = data.blood.filter((p) => p.ids.includes('ma'));
+    assert.ok(toMei.length && toAmy.length);
+    for (const a of toAmy) {
+      assert.equal(crossesInside(a.pts, mei), false, 'runs through Mei');
+      for (const m of toMei) assert.equal(linesMeet(a.pts, m.pts), false, 'meets Tai’s line');
+    }
+    assert.ok(hasTopStem(toAmy[toAmy.length - 1]!.pts, amy));
+  });
+
+  it('keeps clear of the parents’ partner line', () => {
+    const mum = card({ id: 'Mum', x: 0, y: 100 });
+    const dad = card({ id: 'Dad', x: 200, y: 100, gender: 'Male' });
+    const kid = card({ id: 'Kid', x: 500, y: 100 });
+    const data = computeEdgeRenderData({
+      nodes: [mum, dad, kid],
+      edges: [
+        { id: 'm1', a: mum.id, b: dad.id, type: 'marriage', source: 'seed' },
+        { id: 'p1', a: mum.id, b: kid.id, type: 'parent', source: 'seed' },
+        { id: 'p2', a: dad.id, b: kid.id, type: 'parent', source: 'seed' },
+      ],
+      groups: [],
+      show,
+      packVis: () => true,
+      fastRoute: true,
+    });
+    const union = data.unions[0]!.pts.split(' ').map((s) => s.split(',').map(Number) as Point);
+    const toKid = data.blood.filter((p) => p.ids.includes('p1'));
+    assert.ok(toKid.length);
+    for (const k of toKid) {
+      assert.equal(linesMeet(k.pts, union), false, 'crosses the marriage line');
+      assert.equal(crossesInside(k.pts, mum), false);
+      assert.equal(crossesInside(k.pts, dad), false);
+    }
   });
 });

@@ -389,11 +389,11 @@ export function ensureChildTopStem(pts: Point[], child: SimNode): Point[] {
 }
 
 /** True if an orthogonal polyline crosses the open interior of the card. */
-function crossesChildInterior(pts: Point[], child: SimNode): boolean {
-  const L = child.x + 1;
-  const R = child.x + child.w - 1;
-  const T = child.y + 1;
-  const B = child.y + child.h - 1;
+function crossesCard(pts: Point[], card: SimNode): boolean {
+  const L = card.x + 1;
+  const R = card.x + card.w - 1;
+  const T = card.y + 1;
+  const B = card.y + card.h - 1;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1]!;
     const b = pts[i]!;
@@ -417,23 +417,30 @@ function crossesChildInterior(pts: Point[], child: SimNode): boolean {
 }
 
 /**
- * Reach the stem junction above the child without crossing the card body.
+ * Reach the stem junction above the child without crossing the child's card
+ * or the cards the line starts from. The line leaves under its parents, so
+ * climbing back up through them would come out on their top, along the
+ * line their own parents hang them from: a child level with its mother
+ * would read as her sibling.
  */
 function routeToChildStemJunction(
   ax: number,
   ay: number,
   child: SimNode,
-  exIds: string[],
+  from: SimNode[],
   ctx: RoutingContext,
 ): Point[] {
   const cx = child.x + child.w / 2;
   const jy = childStemJunctionY(child.y);
-  const ex = new Set([...exIds, child.id]);
+  // Only the child may be touched: the parents and their partner line are
+  // obstacles once the line has left them.
+  const ex = new Set([child.id]);
+  const cards = [child, ...from];
 
   const wingX =
     cx >= ax
-      ? Math.max(ax, child.x + child.w) + STUB
-      : Math.min(ax, child.x) - STUB;
+      ? Math.max(ax, ...cards.map((n) => n.x + n.w)) + STUB
+      : Math.min(ax, ...cards.map((n) => n.x)) - STUB;
   // The child's side facing the parent, when the parent is clear of it.
   const nearX =
     ax > child.x + child.w ? child.x + child.w + STUB : ax < child.x ? child.x - STUB : null;
@@ -472,12 +479,12 @@ function routeToChildStemJunction(
       [wingX, jy],
       [cx, jy],
     ],
-    () => orthPath([ax, ay], [cx, jy], [...exIds, child.id], ctx),
+    () => orthPath([ax, ay], [cx, jy], [child.id], ctx),
   ];
 
   for (const make of candidates) {
     const cand = make();
-    if (crossesChildInterior(cand, child)) continue;
+    if (cards.some((n) => crossesCard(cand, n))) continue;
     if (!clearPts(ctx, cand, ex)) continue;
     return simplify(cand);
   }
@@ -646,11 +653,15 @@ function pedigreeDrop(
   );
 }
 
+/**
+ * One parent line from its anchor under the parents (`from`, their cards)
+ * into the child's top.
+ */
 export function childRoute(
   ax: number,
   ay: number,
   child: SimNode,
-  exIds: string[],
+  from: SimNode[],
   ctx: RoutingContext,
   tagsBottom?: number,
 ): Point[] {
@@ -665,7 +676,7 @@ export function childRoute(
     ax,
     stemEnd,
     child,
-    exIds,
+    from,
     ctx,
   );
   return ensureChildTopStem([[ax, ay], ...approach], child);
@@ -1084,7 +1095,7 @@ export function computeEdgeRenderData(
             if (!p) return [];
             return kn.map((n) => ({
               ids: pEB[n.id] || [],
-              pts: childRoute(p.x + p.w / 2, p.y + p.h, n, [pid, n.id], ctx, p.y + p.h),
+              pts: childRoute(p.x + p.w / 2, p.y + p.h, n, [p], ctx, p.y + p.h),
               ...across(p.gid !== n.gid),
             }));
           }),
@@ -1123,6 +1134,7 @@ export function computeEdgeRenderData(
       ay = tagsBottom;
       exBase = [ps[0]!];
     }
+    const parentCards = ps.flatMap((pid) => (byid[pid] ? [byid[pid]!] : []));
     const belowK = kn.filter((n) => childBelowFork(ay, n, tagsBottom));
     const sideK = kn.filter((n) => !childBelowFork(ay, n, tagsBottom));
     for (const n of belowK) parentBusKids.add(n.id);
@@ -1144,7 +1156,7 @@ export function computeEdgeRenderData(
         for (const n of [...crossHHBelow, ...sideK]) {
           out.push({
             ids: pEB[n.id] || [],
-            pts: childRoute(ax, ay, n, exBase.concat([n.id]), ctx, tagsBottom),
+            pts: childRoute(ax, ay, n, parentCards, ctx, tagsBottom),
             ...across(crossHouseholdChild(n, ps, byid)),
           });
         }
