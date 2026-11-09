@@ -727,6 +727,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .gpanel .connection-log__sim:hover{background:none;color:var(--accent-strong);text-decoration:underline;text-underline-offset:2px}
 .gpanel .connection-log__sim:active{transform:none}
 .connection-log__rel,.connection-log__hh{font-weight:600;color:var(--ink)}
+.connection-log__world{font-weight:400;color:var(--ink-2)}
 /* Add a note: there when you point at a line, focus it or pick it. */
 .gpanel .connection-log__addnote{width:22px;height:22px;margin:-2px 0;padding:0;border-radius:6px;color:var(--ink-3);opacity:0}
 .gpanel .connection-log__addnote svg{width:14px;height:14px}
@@ -958,6 +959,14 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hhmove .movego:hover{background:#155bb8}
 .hhmove .movego:disabled{background:#9db6d9;cursor:not-allowed}
 .hhmove .movego:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.hhmove__hint{margin:6px 2px 0;font-size:10.5px;line-height:1.35;color:var(--ink-3)}
+/* Their own household's name in another world: moving it whole comes first. */
+.hhmove__whole{margin-top:8px;padding:8px;border:1px solid var(--chip-line);border-radius:8px;background:var(--accent-soft)}
+.hhmove__whole p{margin:0;font-size:11px;line-height:1.4;color:var(--ink-2)}
+/* Long household names wrap instead of running out of the button. */
+.hhmove .movego{white-space:normal;line-height:1.3}
+.hhmove .movego--alt,.editor .movego--alt{background:#fff;border:1px solid var(--rule);color:var(--ink-2)}
+.hhmove .movego--alt:hover,.editor .movego--alt:hover{background:var(--hover);color:var(--ink)}
 .selbar{position:absolute;left:50%;bottom:calc(12px + 40px + 8px + 28px + 8px);transform:translateX(-50%);z-index:7;width:min(440px, calc(100% - 24px));box-sizing:border-box;padding:8px 8px 8px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;line-height:1.35;box-shadow:var(--lift)}
 .selbar__row{display:flex;align-items:center;gap:8px}
 .selbar__what{flex:1 1 auto;min-width:0;margin:0;overflow-wrap:anywhere}
@@ -1039,6 +1048,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .brief__empty{margin-top:10px}
 .brief__away{margin:10px 0 0;padding:7px 9px;border:1px solid var(--chip-line);border-radius:8px;background:var(--chip);font-size:11.5px;line-height:1.45;color:var(--ink-2)}
 .brief__away b{color:var(--ink)}
+.brief__movebtn{display:block;width:100%;margin-top:8px;padding:6px 8px;border:1px dashed var(--chip-line);border-radius:8px;background:var(--accent-soft);color:var(--accent);font:inherit;font-size:12px;font-weight:600;text-align:center;cursor:pointer}
+.brief__movebtn:hover{background:var(--hover)}
+.brief__movebtn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.brief__moveform{margin-top:6px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .brief__foot{margin:12px 0 0;padding-top:8px;border-top:1px solid var(--line);font-size:10.5px;color:var(--ink-3)}
 
 /* ── Up next ─────────────────────────────────────────────────────────────── */

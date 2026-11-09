@@ -14,6 +14,15 @@ type Props = {
   /** The button, which says who moves ("Move Bella here", "Move 3 sims here"). */
   submitLabel: string;
   onMove: (world: string, houseGid: string, newName: string) => void;
+  /**
+   * The household the one sim moving lives in, with how many others do.
+   * A new household of its name in another world is most likely the whole
+   * household moving, so the form offers that.
+   */
+  home?: { hh: string; world: string; others: number };
+  /** Who moves alone, for "Move only Dirk". */
+  who?: string;
+  onMoveHousehold?: (world: string) => void;
 };
 
 /**
@@ -31,6 +40,9 @@ export function HouseholdMoveForm({
   exclude,
   submitLabel,
   onMove,
+  home,
+  who,
+  onMoveHousehold,
 }: Props) {
   const [world, setWorld] = useState(initialWorld);
   const [house, setHouse] = useState<string>(NEW_HOUSEHOLD);
@@ -42,6 +54,10 @@ export function HouseholdMoveForm({
   /** The name is the household they are all in already: nothing would move. */
   const stays = !!twin && twin.gid === exclude;
   const ready = isNew ? !!name.trim() && !stays : options.some((o) => o.gid === house);
+  /** Their own household's name in another world: the household moving, most likely. */
+  const wholeHome =
+    isNew && !!home && !!onMoveHousehold && home.others > 0 && world !== home.world &&
+    name.trim().toLocaleLowerCase() === home.hh.trim().toLocaleLowerCase();
 
   // Ready to type a name on a mouse; on a phone the keyboard would cover the form.
   useEffect(() => {
@@ -115,8 +131,19 @@ export function HouseholdMoveForm({
           )}
         </>
       )}
-      <button type="submit" className="movego" disabled={!ready}>
-        {submitLabel}
+      {wholeHome && (
+        <div className="hhmove__whole" role="group" aria-label={`Move the ${home.hh} household`}>
+          <p>
+            That’s their household’s name. To keep it one household, move it whole:{' '}
+            {home.others === 1 ? '1 other sim goes' : `${home.others} other sims go`} too.
+          </p>
+          <button type="button" className="movego" onClick={() => onMoveHousehold(world)}>
+            Move the {home.hh} household to {world}
+          </button>
+        </div>
+      )}
+      <button type="submit" className={wholeHome ? 'movego movego--alt' : 'movego'} disabled={!ready}>
+        {wholeHome ? `Move only ${who ?? 'this sim'}, to a second ${home.hh} household` : submitLabel}
       </button>
     </form>
   );

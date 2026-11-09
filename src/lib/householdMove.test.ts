@@ -10,6 +10,7 @@ import {
   householdSurnames,
   moveDestination,
   movesDoneBySave,
+  movesHousehold,
 } from './householdMove.ts';
 
 const worlds: World[] = [
@@ -186,5 +187,27 @@ describe('moves a save shows done', () => {
 
   it('is still a plan while the save has them elsewhere', () => {
     assert.equal(movesDoneBySave([mv('m1', 'j', 'Le Chien')], nodes, [{ saveSimId: '7', household: 'Bro' }]).size, 0);
+  });
+
+  it('waits for the world too when the household moves to another one', () => {
+    const world = mv('m1', 'j', 'Dreamer', {
+      fromGid: 'Not in any world||Dreamer',
+      fromHh: 'Dreamer',
+      fromWorld: 'Not in any world',
+      toGid: 'Ondarion||Dreamer',
+      toWorld: 'Ondarion',
+    });
+    // Still in the Dreamer household, still with no home lot: not done.
+    assert.equal(movesDoneBySave([world], nodes, [{ saveSimId: '7', household: 'Dreamer', unhoused: true }]).size, 0);
+    assert.deepEqual([...movesDoneBySave([world], nodes, [{ saveSimId: '7', household: 'Dreamer', world: 'Ondarion' }])], ['m1']);
+  });
+});
+
+describe('a household changing worlds', () => {
+  const m = (fromHh: string, fromWorld: string, toHh: string, toWorld: string) => ({ fromHh, fromWorld, toHh, toWorld });
+  it('keeps its name and leaves its world', () => {
+    assert.equal(movesHousehold(m('Dreamer', 'Not in any world', 'Dreamer', 'Ondarion')), true);
+    assert.equal(movesHousehold(m('Munch', 'Windenburg', 'Summerdream', 'Innisgreen')), false);
+    assert.equal(movesHousehold(m('Dreamer', 'Ondarion', 'dreamer', 'Ondarion')), false);
   });
 });

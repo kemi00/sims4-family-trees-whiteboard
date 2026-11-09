@@ -1,5 +1,6 @@
 import { GROWN_UP, daysFromBirth, daysUntilStage, everyoneAges, lifeView, wholeDaysText } from './lifeClock.ts';
 import { cardName, conflictText, isPlannedSim, type PlanConflict } from './plan.ts';
+import { changesWorld, movesHousehold } from './householdMove.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { edgeSourceOf, joinNotes, uKey } from './utils.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE } from './constants.ts';
@@ -335,7 +336,9 @@ export function householdPlans(opts: {
   // A sim moved to another household on the board, which no save shows yet:
   // in the game they move from where they are there, past any household
   // they were moved through on the board. A planned sim only lives there
-  // in the plan: born or found, it will.
+  // in the plan: born or found, it will. A household that changed worlds,
+  // its sims together, is one move in the game, and one line.
+  const households = new Map<string, { first: HouseholdMove; last: HouseholdMove; sims: string[]; notes: (string | undefined)[] }>();
   for (const [id, list] of pendingMoves(opts.moves)) {
     const n = byId.get(id);
     const first = list[0]!;
@@ -343,16 +346,42 @@ export function householdPlans(opts: {
     if (!n || isPlannedSim(n) || !living(n) || n.gid !== last.toGid) continue;
     // Moved back where the game has them: nothing to do there.
     if (first.fromGid === last.toGid) continue;
-    const from = first.fromHh && first.fromHh !== ADDED_HOUSEHOLD ? ` from ${first.fromHh}` : '';
+    const notes = list.map((m) => m.note);
+    if (list.every(movesHousehold)) {
+      const key = `${first.fromGid}|${last.toGid}`;
+      const h = households.get(key);
+      if (h) {
+        h.sims.push(n.id);
+        h.notes.push(...notes);
+      } else households.set(key, { first, last, sims: [n.id], notes });
+      continue;
+    }
+    const worlds = changesWorld({ fromWorld: first.fromWorld, toWorld: last.toWorld });
+    const from =
+      first.fromHh && first.fromHh !== ADDED_HOUSEHOLD
+        ? ` from ${first.fromHh}${worlds ? ` (${first.fromWorld})` : ''}`
+        : '';
     items.push({
       id: `move:${last.id}`,
       kind: 'move',
       state: 'ready',
-      text: `Move ${cardName(n)}${from} to the ${last.toHh} household`,
+      text: `Move ${cardName(n)}${from} to the ${last.toHh} household${worlds ? ` (${last.toWorld})` : ''}`,
       sims: [n.id],
       gids: uniq([last.toGid, ...(from ? [first.fromGid] : [])]),
       waits: [],
-      ...noted(joinNotes(...list.map((m) => m.note))),
+      ...noted(joinNotes(...notes)),
+    });
+  }
+  for (const { first, last, sims, notes } of households.values()) {
+    items.push({
+      id: `move:${last.id}`,
+      kind: 'move',
+      state: 'ready',
+      text: `Move the ${last.toHh} household from ${first.fromWorld} to ${last.toWorld}`,
+      sims,
+      gids: uniq([last.toGid, first.fromGid]),
+      waits: [],
+      ...noted(joinNotes(...notes)),
     });
   }
 

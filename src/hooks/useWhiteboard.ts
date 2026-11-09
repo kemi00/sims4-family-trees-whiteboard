@@ -18,7 +18,9 @@ import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
 import { householdPlans, householdsNotInGame, planTallies } from '../lib/householdPlan.ts';
 import { movesDoneBySave,
+  NEW_HOUSEHOLD,
   householdMovePlan,
+  movesInGame,
   householdSurnames,
   moveDestination,
   type MoveDestination,
@@ -63,6 +65,7 @@ import {
 import {
   computeLayout,
   householdAddSpot,
+  LAYOUT,
   partnerSpot,
   layoutBases,
   measureCard,
@@ -1299,7 +1302,7 @@ export function useWhiteboard() {
    * child) or on the move. An empty note takes it off.
    */
   const setLogNote = useCallback(
-    (entry: Pick<ConnectionLogEntry, 'edgeIds' | 'moveId' | 'note'>, text: string) => {
+    (entry: Pick<ConnectionLogEntry, 'edgeIds' | 'moveId' | 'moveIds' | 'note'>, text: string) => {
       const note = cleanNote(text);
       if (note === cleanNote(entry.note)) return;
       pushUndo();
@@ -1311,7 +1314,15 @@ export function useWhiteboard() {
         const ids = new Set(entry.edgeIds);
         setEdges((es) => es.map((e) => (ids.has(e.id) ? put(e) : e)));
       } else if (entry.moveId) {
-        setHouseholdMoves((ms) => ms.map((m) => (m.id === entry.moveId ? put(m) : m)));
+        // A household's move: the note goes on its first sim's, and only there.
+        const rest = new Set((entry.moveIds ?? []).filter((id) => id !== entry.moveId));
+        const drop = <T extends { note?: string }>(x: T): T => {
+          const { note: _old, ...others } = x;
+          return others as T;
+        };
+        setHouseholdMoves((ms) =>
+          ms.map((m) => (m.id === entry.moveId ? put(m) : rest.has(m.id) ? drop(m) : m)),
+        );
       }
     },
     [pushUndo],
@@ -1926,6 +1937,85 @@ export function useWhiteboard() {
       return true;
     },
     [nodes, nodesCore, groups, worlds, edges, byid, snap, pushUndo, lockViewToSims, flashStatus],
+  );
+
+  /**
+   * A household moves to another world, as the game moves one to a lot
+   * elsewhere: everyone in it goes, under its own name, joining a household
+   * of that name the world already has. One move in the game, a plan until
+   * a save shows it; the deceased and planned sims go along on the board
+   * only. The cards keep their places among themselves and land in the
+   * world, under the household they join if there is one; the view follows
+   * them. Returns where they went, or null when nothing moved.
+   */
+  const moveHouseholdToWorld = useCallback(
+    (gid: string, world: string): MoveDestination | null => {
+      const g = groups.find((x) => x.gid === gid);
+      const members = nodes.filter((n) => n.gid === gid);
+      if (!g || !members.length || isUnhousedGid(gid) || g.world === world) return null;
+      const dest = moveDestination(groups, nodes, worlds, world, NEW_HOUSEHOLD, g.hh);
+      if (!dest || dest.gid === gid) return null;
+      const ids = new Set(members.map((n) => n.id));
+      const { patches, moves } = householdMovePlan(nodes, [...ids], dest);
+      if (!patches.size) return null;
+      pushUndo();
+      trackAction('/action/household-world');
+      const newGroup: Group | null = dest.isNew
+        ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
+        : null;
+      if (newGroup) setGroups((gs) => (gs.some((x) => x.gid === newGroup.gid) ? gs : [...gs, newGroup]));
+      const createdAt = new Date().toISOString();
+      const recorded = moves.filter((m) => movesInGame(byid[m.simId] ?? members[0]!));
+      if (recorded.length) {
+        setHouseholdMoves((ms) => [...ms, ...recorded.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]);
+      }
+      // Where the block lands: the household's own place in the world, or
+      // under the one it joins.
+      const nextCore = nodesCore.map((x) => {
+        const patch = patches.get(x.id);
+        return patch ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x;
+      });
+      const bases = layoutBases(nextCore, worlds, edges);
+      const moved = members.map((n) => byid[n.id]).filter((n): n is SimNode => !!n);
+      const x0 = Math.min(...moved.map((n) => n.x));
+      const y0 = Math.min(...moved.map((n) => n.y));
+      const joined = nodes.filter((n) => n.gid === dest.gid && !ids.has(n.id));
+      const anchor = joined.length
+        ? tileSnapOrigin(
+            Math.min(...joined.map((n) => n.x)),
+            Math.max(...joined.map((n) => n.y + n.h)) + LAYOUT.gapYExtra,
+          )
+        : (() => {
+            const own = [...ids].map((id) => bases.get(id)).filter((b) => b !== undefined);
+            return { x: Math.min(...own.map((b) => b!.x)), y: Math.min(...own.map((b) => b!.y)) };
+          })();
+      const pinned = nextCore.map((node) => {
+        const base = bases.get(node.id);
+        const vis = byid[node.id];
+        if (!vis || !base) return node;
+        if (ids.has(node.id)) {
+          return { ...node, ox: vis.x - x0 + anchor.x - base.x, oy: vis.y - y0 + anchor.y - base.y };
+        }
+        const ox = vis.x - base.x;
+        const oy = vis.y - base.y;
+        if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
+        return { ...node, ox, oy };
+      });
+      const laid = computeLayout(pinned, worlds, edges);
+      setNodesCore(
+        coreOffsetsAfterImportSeparation(pinned, snap ? snapNodesToTiles(laid) : laid, newGroup ? [...groups, newGroup] : groups, nodes),
+      );
+      lockViewToSims([...ids]);
+      if (briefGid === gid) setBriefGid(dest.gid);
+      const plan = recorded.length ? ': a plan until a save shows it' : '';
+      flashStatus(
+        joined.length
+          ? `${moved.length === 1 ? `${cardName(moved[0]!)} of the ${g.hh} household joins` : `All ${moved.length} sims of the ${g.hh} household join`} the one in ${world}${plan}. Undo takes it back.`
+          : `The ${g.hh} household moves to ${world} with ${moved.length === 1 ? cardName(moved[0]!) : `its ${moved.length} sims`}${plan}. Undo takes it back.`,
+      );
+      return dest;
+    },
+    [groups, nodes, nodesCore, worlds, edges, byid, snap, briefGid, setBriefGid, pushUndo, lockViewToSims, flashStatus],
   );
 
   /** The link the partner menu makes, remembered for next time. */
@@ -3322,6 +3412,7 @@ export function useWhiteboard() {
     setHiddenPacks,
     moveSimToHousehold,
     moveSimsToHousehold,
+    moveHouseholdToWorld,
     toggleSimInSelection,
     isSelLink,
     setSnap,

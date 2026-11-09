@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { livingPlace } from '../lib/connectionLog.ts';
 import { waitText, type ElderTime, type PlanItem, type PlanState } from '../lib/householdPlan.ts';
 import { daysText, oldAgeSoonText } from '../lib/lifeClock.ts';
-import type { Group } from '../types/whiteboard.ts';
+import type { Group, SimNode, World } from '../types/whiteboard.ts';
+import { WorldMoveForm } from './WorldMoveForm.tsx';
 
 type Props = {
   group: Group;
@@ -24,6 +26,13 @@ type Props = {
   onPick: (item: PlanItem) => void;
   onPickSim: (id: string) => void;
   onClose: () => void;
+  /** Set when the household can move to another world: the board's worlds and households. */
+  move?: {
+    worlds: World[];
+    groups: Group[];
+    nodes: SimNode[];
+    onMove: (world: string) => void;
+  };
 };
 
 /** "Elsa Bjergsen", "Elsa Bjergsen and Joaquin Le Chien", "Elsa, Joaquin and Hugo". */
@@ -57,8 +66,10 @@ export function HouseholdBrief({
   onPick,
   onPickSim,
   onClose,
+  move,
 }: Props) {
   const sheet = usePanelSheet();
+  const [moveOpen, setMoveOpen] = useState(false);
   const place = livingPlace(group.nb, group.world);
   const hover = (ids: string[]) => ({
     onMouseEnter: () => onHover(ids),
@@ -98,6 +109,31 @@ export function HouseholdBrief({
           ✕
         </button>
       </header>
+      {move && (
+        <>
+          <button
+            type="button"
+            className="brief__movebtn"
+            aria-expanded={moveOpen}
+            aria-controls="briefMove"
+            onClick={() => setMoveOpen((o) => !o)}
+          >
+            ↪ Move to another world
+          </button>
+          {moveOpen && (
+            <div id="briefMove" className="brief__moveform">
+              <WorldMoveForm
+                idPrefix="briefMove"
+                group={group}
+                worlds={move.worlds}
+                groups={move.groups}
+                nodes={move.nodes}
+                onMove={move.onMove}
+              />
+            </div>
+          )}
+        </>
+      )}
       {notInGame && (
         <p className="brief__away">
           <b>Not in your game yet.</b> Move {listNames(notInGame.map(nameOf))} in, then upload a save: until then there’s no

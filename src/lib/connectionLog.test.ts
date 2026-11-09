@@ -176,6 +176,32 @@ describe('buildConnectionLog', () => {
     assert.equal(text('h2'), 'Lou X moved from A, Willow Creek to B, Willow Creek.');
   });
 
+  it('writes a household changing worlds as one line, and the worlds of a sim who changes them', () => {
+    const dirk = { ...node('D', 'Dirk', 'Dreamer'), gid: 'Ondarion||Dreamer', hh: 'Dreamer', world: 'Ondarion' };
+    const ama = { ...node('A', 'Amarachi', 'Darong'), gid: 'Ondarion||Dreamer', hh: 'Dreamer', world: 'Ondarion' };
+    const lucas = node('L', 'Lucas', 'Munch');
+    const at = '2026-11-09T10:42:34.559Z';
+    const world = (id: string, simId: string, note?: string): HouseholdMove => ({
+      id, simId, createdAt: at, fromGid: 'Not in any world||Dreamer', fromHh: 'Dreamer', fromWorld: 'Not in any world', fromNb: '-',
+      toGid: 'Ondarion||Dreamer', toHh: 'Dreamer', toWorld: 'Ondarion', toNb: '-', ...(note ? { note } : {}),
+    });
+    const log = buildConnectionLog([], { D: dirk, A: ama, L: lucas }, [
+      world('h1', 'D'),
+      world('h2', 'A', 'A home of their own'),
+      {
+        id: 'h3', simId: 'L', createdAt: at, fromGid: 'Windenburg||Munch', fromHh: 'Munch', fromWorld: 'Windenburg', fromNb: 'Windslar',
+        toGid: 'Innisgreen||Summerdream', toHh: 'Summerdream', toWorld: 'Innisgreen', toNb: 'Everdew',
+      },
+    ]);
+    const line = (id: string) => log.find((e) => e.id === id)!;
+    assert.equal(log.filter((e) => e.kind === 'move').length, 2);
+    assert.match(line('h1').text, /The Dreamer household moves from Not in any world to Ondarion, with Dirk Dreamer and Amarachi Darong\.$/);
+    assert.deepEqual([line('h1').moveIds, line('h1').note], [['h1', 'h2'], 'A home of their own']);
+    // Two households of one name: the worlds tell them apart.
+    const hh = line('h3').parts.filter((p) => p.kind === 'hh');
+    assert.deepEqual(hh.map((p) => (p.kind === 'hh' ? `${p.name} (${p.world})` : '')), ['Munch (Windenburg)', 'Summerdream (Innisgreen)']);
+  });
+
   it('puts the note of a link, a child or a move on its line', () => {
     const byid = { A: node('A', 'Ann', 'X'), B: node('B', 'Ben', 'X'), K: node('K', 'Kit', 'X') };
     const log = buildConnectionLog(

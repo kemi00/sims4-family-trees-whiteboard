@@ -7,15 +7,19 @@ import type {
   SimAgeUp,
   SimNode,
 } from '../types/whiteboard.ts';
-import { edgeSourceOf } from './utils.ts';
+import { edgeSourceOf, joinNotes } from './utils.ts';
+import { changesWorld, householdMoveKey, movesHousehold } from './householdMove.ts';
 import { cardName } from './plan.ts';
 
 export type LogPart =
   | { kind: 'time'; value: string }
   /** `place`: where the sim lives, written after the name in the text. */
   | { kind: 'sim'; id: string; name: string; place?: string }
-  /** A household in a move, with where it is. */
-  | { kind: 'hh'; name: string; place: string }
+  /**
+   * A household in a move, with where it is. `world` is written after the
+   * name when the move changes worlds: Dreamer (Ondarion).
+   */
+  | { kind: 'hh'; name: string; place: string; world?: string }
   | { kind: 'rel'; mark: string; label: string }
   | { kind: 'text'; value: string }
   | { kind: 'break' };
@@ -37,6 +41,8 @@ export type ConnectionLogEntry = {
   done?: true;
   /** The move this line is, to write its note. */
   moveId?: string;
+  /** Every move a household's world move is made of; the note goes on the first. */
+  moveIds?: string[];
   /** Your note on the link or move. */
   note?: string;
   text: string;
@@ -315,10 +321,13 @@ function moveParts(sim: SimNode, move: HouseholdMove): LogPart[] {
   const spawned = move.fromHh === ADDED_HOUSEHOLD;
   // A move still planned reads as a plan; one a save showed done, as done.
   const moved = move.done ? 'moved' : 'moves';
+  // Across worlds, the worlds tell two households of one name apart.
+  const worlds = changesWorld(move);
   const to: LogPart = {
     kind: 'hh',
     name: move.toHh.trim(),
     place: livingPlace(move.toNb, move.toWorld),
+    ...(worlds ? { world: move.toWorld } : {}),
   };
   if (spawned) {
     const from = livingPlace(move.fromNb, move.fromWorld);
@@ -336,9 +345,41 @@ function moveParts(sim: SimNode, move: HouseholdMove): LogPart[] {
   return [
     { kind: 'sim', id: sim.id, name: simName(sim) },
     { kind: 'text', value: ` ${moved} from ` },
-    { kind: 'hh', name: move.fromHh.trim(), place: livingPlace(move.fromNb, move.fromWorld) },
+    {
+      kind: 'hh',
+      name: move.fromHh.trim(),
+      place: livingPlace(move.fromNb, move.fromWorld),
+      ...(worlds ? { world: move.fromWorld } : {}),
+    },
     { kind: 'text', value: ' to ' },
     to,
+    { kind: 'text', value: '.' },
+  ];
+}
+
+/** Sims named in a household's move before "and N more". */
+const MOVERS_SHOWN = 3;
+
+/**
+ * `The Dreamer household moves from Not in any world to Ondarion, with Dirk
+ * Dreamer and Amarachi Darong.` One line for a household that changes
+ * worlds, as it is one move in the game.
+ */
+function householdMoveParts(sims: SimNode[], move: HouseholdMove, done: boolean): LogPart[] {
+  const shown = sims.slice(0, sims.length > MOVERS_SHOWN ? MOVERS_SHOWN - 1 : MOVERS_SHOWN);
+  const more = sims.length - shown.length;
+  const names: LogPart[] = [];
+  shown.forEach((n, i) => {
+    if (i > 0) names.push({ kind: 'text', value: i === shown.length - 1 && !more ? ' and ' : ', ' });
+    names.push({ kind: 'sim', id: n.id, name: simName(n) });
+  });
+  if (more) names.push({ kind: 'text', value: ` and ${more} more` });
+  return [
+    { kind: 'text', value: 'The ' },
+    // The worlds follow in the sentence, so the name stands alone.
+    { kind: 'hh', name: move.toHh.trim(), place: '' },
+    { kind: 'text', value: ` household ${done ? 'moved' : 'moves'} from ${move.fromWorld} to ${move.toWorld}, with ` },
+    ...names,
     { kind: 'text', value: '.' },
   ];
 }
@@ -455,9 +496,32 @@ export function buildConnectionLog(
     );
   }
 
+  // A household's world move: its sims' moves, recorded together, as one line.
+  const together = new Map<string, HouseholdMove[]>();
+  for (const move of moves) {
+    if (!movesHousehold(move) || !byid[move.simId]) continue;
+    const key = householdMoveKey(move);
+    together.set(key, [...(together.get(key) ?? []), move]);
+  }
+  for (const list of together.values()) {
+    const first = list[0]!;
+    const sims = list.map((m) => byid[m.simId]!);
+    const done = list.every((m) => m.done);
+    const note = joinNotes(...list.map((m) => m.note));
+    const entry = makeEntry(first.id, [], first.createdAt, householdMoveParts(sims, first, done), first.simId, 'planned');
+    entries.push({
+      ...entry,
+      kind: 'move',
+      moveId: first.id,
+      moveIds: list.map((m) => m.id),
+      ...(done ? { done: true as const } : {}),
+      ...(note ? { note } : {}),
+    });
+  }
+
   for (const move of moves) {
     const sim = byid[move.simId];
-    if (!sim) continue;
+    if (!sim || movesHousehold(move)) continue;
     const entry = makeEntry(move.id, [], move.createdAt, moveParts(sim, move), move.simId, 'planned');
     entries.push({
       ...entry,

@@ -81,6 +81,7 @@ import { SimEditor } from './SimEditor.tsx';
 import { cardName, isPlannedSim, notYetText, parentsLines } from '../lib/plan.ts';
 import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/householdPlan.ts';
 import { HouseholdBrief } from './HouseholdBrief.tsx';
+import { isUnhousedGid } from '../lib/unhoused.ts';
 import { dynastyKey, dynastyPhrase, type DynastyGeneration } from '../lib/generations.ts';
 import { riskText } from '../lib/dynastyMenu.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
@@ -2110,6 +2111,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           }}
           onPickSim={pickSim}
           onClose={() => wb.setBriefGid(null)}
+          move={
+            isUnhousedGid(briefGroup.gid) || !wb.nodes.some((n) => n.gid === briefGroup.gid)
+              ? undefined
+              : {
+                  worlds: wb.worlds,
+                  groups: wb.groups,
+                  nodes: wb.nodes,
+                  onMove: (world) => wb.moveHouseholdToWorld(briefGroup.gid, world),
+                }
+          }
         />
       )}
       {editNode && (
@@ -2140,6 +2151,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           }}
           onMove={(world, houseGid, newName) => {
             wb.moveSimToHousehold(editNode.id, world, houseGid, newName);
+          }}
+          onMoveHousehold={(world) => {
+            if (wb.moveHouseholdToWorld(editNode.gid, world)) wb.setEditNodeId(null);
           }}
           onClose={() => wb.setEditNodeId(null)}
           focusName={nameFocusId === editNode.id}

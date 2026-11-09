@@ -75,6 +75,7 @@ function LogParts({
       return (
         <span key={i} className="connection-log__hh" title={part.place || undefined}>
           {part.name || part.place}
+          {part.world && <span className="connection-log__world"> ({part.world})</span>}
         </span>
       );
     }

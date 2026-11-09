@@ -53,6 +53,7 @@ import {
   renamePlannedDynasty,
 } from '../lib/dynastyMenu.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
+import { WorldMoveForm } from './WorldMoveForm.tsx';
 import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
 import { fold } from '../lib/utils.ts';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
@@ -283,6 +284,8 @@ type Props = {
     planLabel?: string;
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
+  /** Move this sim's whole household to another world (moveHouseholdToWorld). */
+  onMoveHousehold: (world: string) => void;
   onLayout: () => void;
   onClose: () => void;
   /** Focus the first name, selected, so a sim just added can be named straight away. */
@@ -317,6 +320,7 @@ export function SimEditor({
   editorRef,
   onSave,
   onMove,
+  onMoveHousehold,
   onLayout,
   onClose,
   focusName,
@@ -375,6 +379,9 @@ export function SimEditor({
   /** The new dynasty's name, when "Create a new dynasty…" is picked. */
   const [newDynasty, setNewDynasty] = useState(n.sur);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [worldOpen, setWorldOpen] = useState(false);
+  /** A household of its own that can change worlds: not the Unhoused sims box. */
+  const movableHome = !!n.hh && !isUnhousedGid(n.gid);
   /** Explanations opened with ⓘ, by field. */
   const [tips, setTips] = useState<Record<string, boolean>>({});
   const toggleTip = (k: string) => setTips((t) => ({ ...t, [k]: !t[k] }));
@@ -857,7 +864,7 @@ export function SimEditor({
 
   useEffect(() => {
     onLayout();
-  }, [tab, moveOpen, linkOpen, allPartners, partnerStage, partnerQ, dynastyMenuOpen, renameOpen, tips, onLayout]);
+  }, [tab, moveOpen, worldOpen, linkOpen, allPartners, partnerStage, partnerQ, dynastyMenuOpen, renameOpen, tips, onLayout]);
 
   useEffect(() => {
     if (!compact) return;
@@ -1084,6 +1091,40 @@ export function SimEditor({
                 exclude={n.gid}
                 submitLabel={`Move ${n.first || 'this sim'} here`}
                 onMove={onMove}
+                {...(movableHome
+                  ? {
+                      home: {
+                        hh: n.hh,
+                        world: n.world,
+                        others: nodes.filter((x) => x.gid === n.gid && x.id !== n.id).length,
+                      },
+                      who: n.first || 'this sim',
+                      onMoveHousehold,
+                    }
+                  : {})}
+              />
+            </div>
+          )}
+          {movableHome && (
+            <button
+              type="button"
+              className="movebtn"
+              aria-expanded={worldOpen}
+              aria-controls="edWorld"
+              onClick={() => setWorldOpen(!worldOpen)}
+            >
+              ↪ Move the {n.hh} household to another world
+            </button>
+          )}
+          {movableHome && worldOpen && (
+            <div id="edWorld">
+              <WorldMoveForm
+                idPrefix="edWorld"
+                group={{ gid: n.gid, hh: n.hh, world: n.world }}
+                worlds={worlds}
+                groups={groups}
+                nodes={nodes}
+                onMove={onMoveHousehold}
               />
             </div>
           )}

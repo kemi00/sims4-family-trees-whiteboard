@@ -333,6 +333,24 @@ describe('household moves', () => {
     assert.deepEqual(plans(nodes, [], { moves: [{ ...moves[0]!, done: true }] }).filter((i) => i.kind === 'move'), []);
   });
 
+  it('make a household that changes worlds one move, and name the worlds of a sim who changes them', () => {
+    const inOndarion = (id: string) => sim(id, 'Dreamer', { gid: 'Ondarion||Dreamer', world: 'Ondarion' });
+    const nodes = [inOndarion('Dirk'), inOndarion('Amarachi'), sim('Lucas', 'Summerdream', { gid: 'Innisgreen||Summerdream', world: 'Innisgreen' })];
+    const world = { fromGid: 'Not in any world||Dreamer', fromWorld: 'Not in any world', toGid: 'Ondarion||Dreamer', toWorld: 'Ondarion' };
+    const moves = [
+      move('m1', 'Dirk', 'Dreamer', 'Dreamer', world),
+      move('m2', 'Amarachi', 'Dreamer', 'Dreamer', { ...world, note: 'Room to grow' }),
+      move('m3', 'Lucas', 'Munch', 'Summerdream', { fromGid: 'Windenburg||Munch', fromWorld: 'Windenburg', toGid: 'Innisgreen||Summerdream', toWorld: 'Innisgreen' }),
+    ];
+    assert.deepEqual(
+      plans(nodes, [], { moves }).filter((i) => i.kind === 'move').map((i) => [i.text, i.sims, i.yourNote]),
+      [
+        ['Move Lucas Summerdream from Munch (Windenburg) to the Summerdream household (Innisgreen)', ['Lucas'], undefined],
+        ['Move the Dreamer household from Not in any world to Ondarion', ['Dirk', 'Amarachi'], 'Room to grow'],
+      ],
+    );
+  });
+
   it('move from where the game has them, past households they were moved through', () => {
     const nodes = [child('Elsa', 'Le Chien')];
     const moves = [move('m1', 'Elsa', 'Bjergsen', 'Bro'), move('m2', 'Elsa', 'Bro', 'Le Chien')];

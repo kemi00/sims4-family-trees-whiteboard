@@ -1,5 +1,7 @@
 import type { Group, HouseholdMove, SimNode, World } from '../types/whiteboard.ts';
-import { worldColor } from './utils.ts';
+import { ADDED_HOUSEHOLD, DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
+import { isPlannedSim } from './plan.ts';
+import { fold as foldName, worldColor } from './utils.ts';
 
 /** The household picker's value for "Create a new household…". */
 export const NEW_HOUSEHOLD = '__new';
@@ -18,6 +20,36 @@ export type MoveDestination = {
 export type HouseholdOption = { gid: string; hh: string; count: number };
 
 const fold = (s: string) => s.trim().toLocaleLowerCase();
+
+type MovePlaces = Pick<HouseholdMove, 'fromHh' | 'fromWorld' | 'toHh' | 'toWorld'>;
+
+/** The move takes a sim to another world. */
+export function changesWorld(m: Pick<HouseholdMove, 'fromWorld' | 'toWorld'>): boolean {
+  return fold(m.fromWorld) !== fold(m.toWorld);
+}
+
+/**
+ * The household itself changes worlds: same name, another world, as when
+ * the game moves a household to a lot elsewhere. A sim who comes into
+ * existence on the board isn't moving a household.
+ */
+export function movesHousehold(m: MovePlaces): boolean {
+  return m.fromHh !== ADDED_HOUSEHOLD && fold(m.fromHh) === fold(m.toHh) && changesWorld(m);
+}
+
+/** The household moves recorded together: same time, same households. */
+export function householdMoveKey(m: Pick<HouseholdMove, 'createdAt' | 'fromGid' | 'toGid'>): string {
+  return `${m.createdAt}|${m.fromGid}|${m.toGid}`;
+}
+
+/**
+ * Who a household's world move records a move for: the sims in your game.
+ * The deceased and sims only planned go along on the board, with nothing
+ * for a save to show done.
+ */
+export function movesInGame(n: SimNode): boolean {
+  return n.state !== DECEASED_STATE && !isPlannedSim(n);
+}
 
 /**
  * Households in `world` that have sims, A to Z, with how many each holds.
@@ -157,15 +189,17 @@ export function householdSurnames(
 
 /**
  * Moves a save shows done: the sim lives in the household they were moved
- * to, matched by their sim id and the household's name. A sim's earlier
- * moves are settled with their last one.
+ * to, matched by their sim id and the household's name, and, for a move to
+ * another world, in that world (Dreamer in Ondarion, not the Dreamer
+ * household still in Not in any world). A sim's earlier moves are settled
+ * with their last one.
  */
 export function movesDoneBySave(
   moves: HouseholdMove[],
   nodes: Pick<SimNode, 'id' | 'saveSimId'>[],
-  sims: { saveSimId: string; household: string }[],
+  sims: { saveSimId: string; household: string; world?: string; unhoused?: true }[],
 ): Set<string> {
-  const home = new Map(sims.map((s) => [s.saveSimId, fold(s.household)]));
+  const home = new Map(sims.map((s) => [s.saveSimId, s]));
   const saveId = new Map(nodes.map((n) => [n.id, n.saveSimId]));
   const last = new Map<string, HouseholdMove>();
   for (const m of moves) {
@@ -176,8 +210,12 @@ export function movesDoneBySave(
   const doneSims = new Set<string>();
   for (const m of last.values()) {
     const sid = saveId.get(m.simId);
-    const hh = sid ? home.get(sid) : undefined;
-    if (hh && hh === fold(m.toHh)) doneSims.add(m.simId);
+    const s = sid ? home.get(sid) : undefined;
+    if (!s || fold(s.household) !== fold(m.toHh)) continue;
+    // A save that doesn't say where the household lives can't tell worlds apart.
+    const world = s.unhoused ? NOT_IN_WORLD : s.world?.trim();
+    if (changesWorld({ fromWorld: m.fromWorld, toWorld: m.toWorld }) && world && foldName(world) !== foldName(m.toWorld)) continue;
+    doneSims.add(m.simId);
   }
   return new Set(moves.filter((m) => !m.done && doneSims.has(m.simId)).map((m) => m.id));
 }
