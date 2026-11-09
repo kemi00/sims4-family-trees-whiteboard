@@ -1004,6 +1004,15 @@ function relativeNode(r: ShownRelative, home: BoardHome): SimNode {
   };
 }
 
+/**
+ * Whether the save's couple link (`saved`) shows a planned one done: the
+ * same, or a romance now a marriage. A planned wedding is not done by an
+ * engagement, nor a planned remarriage by the divorce before it.
+ */
+export function fulfilsPlan(planned: EdgeType, saved: EdgeType): boolean {
+  return planned === saved || (planned === 'romance' && saved === 'marriage');
+}
+
 export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const { parsed, seedNameKeys, now, nextEdgeId, worlds } = input;
   const nodes = input.nodes.map((n) => ({ ...n }));
@@ -1352,37 +1361,56 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     );
     const planned = unions.filter((e) => e.source === 'planned');
     const settled = unions.filter((e) => e.source !== 'planned');
+    // Only the plans this link fulfils are done. A wedding planned for a
+    // couple the save has engaged is still to come.
+    const done = planned.filter((p) => fulfilsPlan(p.type, type));
     const drop = (list: SourcedEdge[]) => {
       for (const extra of list) {
         const i = edges.indexOf(extra);
         if (i >= 0) edges.splice(i, 1);
       }
     };
-    if (settled.length) {
-      if (planned.length) {
-        drop(planned);
-        settled[0]!.wasPlanned = true;
+    // The save's link, on the board already. An engaged couple the save now
+    // has married: their romance becomes the marriage.
+    const same =
+      settled.find((e) => e.type === type) ??
+      (type === 'marriage' ? settled.find((e) => e.type === 'romance') : undefined);
+    if (same) {
+      if (same.type !== type) {
+        same.type = type;
+        delete same.secret;
+      }
+      if (done.length) {
+        drop(done);
+        same.wasPlanned = true;
         // Your reasons for the plan stay with the link the save confirmed.
-        const note = joinNotes(settled[0]!.note, ...planned.map((p) => p.note));
-        if (note) settled[0]!.note = note;
-        confirmed += planned.length;
+        const note = joinNotes(same.note, ...done.map((p) => p.note));
+        if (note) same.note = note;
+        confirmed += done.length;
       }
       if (rel.secret) {
         for (const u of settled) if (u.type === 'romance') u.secret = true;
       }
       return;
     }
-    if (planned.length) {
-      const keep = planned[0]!;
+    if (done.length) {
+      const keep = done[0]!;
       keep.source = 'save';
       keep.wasPlanned = true;
       delete keep.plan;
       keep.type = type;
       if (rel.secret) keep.secret = true;
-      const note = joinNotes(...planned.map((p) => p.note));
+      const note = joinNotes(...done.map((p) => p.note));
       if (note) keep.note = note;
       confirmed += 1;
-      drop(planned.slice(1));
+      drop(done.slice(1));
+      return;
+    }
+    // The board has the pair another way (divorced, say): it stays as it is.
+    if (settled.length) {
+      if (rel.secret) {
+        for (const u of settled) if (u.type === 'romance') u.secret = true;
+      }
       return;
     }
     const edge: SourcedEdge = {

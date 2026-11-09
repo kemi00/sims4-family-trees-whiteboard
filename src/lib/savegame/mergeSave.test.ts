@@ -192,6 +192,81 @@ describe('mergeSaveIntoBoard', () => {
     );
   });
 
+  it('settles a planned couple only when the save shows it, and marries an engaged couple', () => {
+    const emilia = sim({ id: 'E', first: 'Emilia', sur: 'Ernest', gender: 'Female' });
+    const darrel = sim({ id: 'D', first: 'Darrel', sur: 'Charm' });
+    const sims: ParsedSave['sims'] = [
+      { saveSimId: '1', householdId: '10', first: 'Emilia', last: 'Ernest', household: 'Ernest', age: 'Adult', gender: 'Female' },
+      { saveSimId: '2', householdId: '10', first: 'Darrel', last: 'Charm', household: 'Ernest', age: 'Adult', gender: 'Male' },
+    ];
+    const merge = (edges: Edge[], saved: 'romance' | 'marriage') =>
+      mergeSaveIntoBoard({
+        nodes: [emilia, darrel],
+        edges,
+        groups: [],
+        worlds: world,
+        parsed: {
+          sims,
+          rels: [{ a: '1', b: '2', type: saved }],
+          pairs: [{ a: '1', b: '2', tags: [saved === 'marriage' ? 'married' : 'engaged'] }],
+        },
+        seedNameKeys: seedNameKeysFromNodes([emilia, darrel]),
+        now: '2026-11-09T12:00:00.000Z',
+        nextEdgeId: () => 'v9',
+      }).edges.map((e) => [e.id, e.type, e.source, !!e.wasPlanned, e.note ?? '']);
+    const engaged: Edge = { id: 'v1', a: 'E', b: 'D', type: 'romance', source: 'save' };
+    const wedding: Edge = { id: 'u1', a: 'D', b: 'E', type: 'marriage', source: 'planned', note: 'June' };
+
+    // Still engaged: the wedding is still to come.
+    assert.deepEqual(merge([engaged, wedding], 'romance'), [
+      ['v1', 'romance', 'save', false, ''],
+      ['u1', 'marriage', 'planned', false, 'June'],
+    ]);
+    // Married in the game: the engagement becomes the marriage, the plan done.
+    assert.deepEqual(merge([engaged, wedding], 'marriage'), [['v1', 'marriage', 'save', true, 'June']]);
+    // Married with no plan: the board marries them too.
+    assert.deepEqual(merge([engaged], 'marriage'), [['v1', 'marriage', 'save', false, '']]);
+    // Only the wedding on the board, engaged in the game: both, the wedding a plan.
+    assert.deepEqual(merge([wedding], 'romance'), [
+      ['u1', 'marriage', 'planned', false, 'June'],
+      ['v9', 'romance', 'save', false, ''],
+    ]);
+    // A planned romance the game went past: done, as a marriage.
+    assert.deepEqual(merge([{ ...wedding, type: 'romance' }], 'marriage'), [['u1', 'marriage', 'save', true, 'June']]);
+  });
+
+  it('keeps a planned remarriage while the save has the pair divorced', () => {
+    const a = sim({ id: 'A', first: 'Ann', sur: 'One', gender: 'Female' });
+    const b = sim({ id: 'B', first: 'Bo', sur: 'Two' });
+    const r = mergeSaveIntoBoard({
+      nodes: [a, b],
+      edges: [
+        { id: 'v1', a: 'A', b: 'B', type: 'divorced', source: 'save' },
+        { id: 'u1', a: 'A', b: 'B', type: 'marriage', source: 'planned' },
+      ],
+      groups: [],
+      worlds: world,
+      parsed: {
+        sims: [
+          { saveSimId: '1', householdId: '10', first: 'Ann', last: 'One', household: 'One', age: 'Adult', gender: 'Female' },
+          { saveSimId: '2', householdId: '11', first: 'Bo', last: 'Two', household: 'Two', age: 'Adult', gender: 'Male' },
+        ],
+        rels: [{ a: '1', b: '2', type: 'divorced' }],
+      },
+      seedNameKeys: seedNameKeysFromNodes([a, b]),
+      now: '2026-11-09T12:00:00.000Z',
+      nextEdgeId: () => 'v9',
+    });
+    assert.deepEqual(
+      r.edges.map((e) => [e.id, e.type, e.source]),
+      [
+        ['v1', 'divorced', 'save'],
+        ['u1', 'marriage', 'planned'],
+      ],
+    );
+    assert.equal(r.summary.confirmed, 0);
+  });
+
   it('keeps planned links that are not in the save', () => {
     const a = sim({ id: 'A', first: 'A', sur: 'One' });
     const b = sim({ id: 'B', first: 'B', sur: 'Two' });
