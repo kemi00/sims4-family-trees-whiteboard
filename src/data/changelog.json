@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "152aec5",
+   "date": "2026-11-09",
+   "text": "Lines go round sim cards now. Parent lines take a clear way down instead of cutting through the cards in their path, and marriage and romance lines between far-apart sims go under or round the cards between them."
+  },
+  {
    "sha": "10aecf3",
    "date": "2026-11-09",
    "text": "A line from a parent to a child beside them no longer runs through the parent and joins the grandparent's line."
