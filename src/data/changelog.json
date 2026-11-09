@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "2e7439a",
+   "date": "2026-11-09",
+   "text": "The Log now has two tabs: Plan, for links and moves still to do, with anything off plan on top, and In your game, for what your saves show and the plans they showed done (marked ✓ planned). Lines are quieter: no pill on each, just the time, and places in the names' tooltips. You can add a note to any link or move, like why you're pairing two sims, and it stays with the plan when a save shows it done."
+  },
+  {
    "sha": "eca9206",
    "date": "2026-11-08",
    "text": "Dynasties with no heir, or with 2 sims or fewer to carry them on, now say they are at risk: in the Dynasties panel, with why, and on their members’ cards. The panel can also sort by size (Most sims, Fewest sims) and show only the dynasties at risk."
