@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "4d707b1",
+   "date": "2026-11-09",
+   "text": "Plans can be cancelled. Each line in the Log's Plan tab has a bin that puts the board back as your game has it: a planned link goes, a planned baby goes with its links, and a move sends its sims (or a whole household) back where they live in your game. Moving a sim back by hand cancels its move too, and a sim moved twice shows as one move from where they are in your game. Undo brings any of it back."
+  },
+  {
    "sha": "fb74c63",
    "date": "2026-11-09",
    "text": "The sim editor's move buttons now read Move sim to another household and Move household to another world, with sim and household in bold so the two are easy to tell apart. Long labels wrap inside the button instead of running out of it."
