@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 import { HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip } from './constants.ts';
-import { cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
+import { partneredIdSet, cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
 
 function edge(a: string, b: string, type: Edge['type'] = 'parent'): Edge {
   return { id: `${type}:${a}:${b}`, a, b, type, source: 'seed' };
@@ -129,6 +129,17 @@ describe('isHighlightMatch', () => {
     assert.deepEqual(glow([HI_NOT_BORN]), ['baby']);
     assert.deepEqual(glow([HI_NOT_BORN, 'Infant']), ['heir', 'baby']);
     assert.deepEqual(glow([HI_NOT_BORN, 'Male']), []);
+  });
+});
+
+describe('partners', () => {
+  it('counts married and romance links, not one with a planned divorce or breakup', () => {
+    const edges: Edge[] = [
+      { id: 'v1', a: 'a', b: 'b', type: 'marriage', source: 'save' },
+      { id: 'v2', a: 'c', b: 'd', type: 'romance', source: 'save', ending: { createdAt: 'x' } },
+      { id: 'v3', a: 'e', b: 'f', type: 'divorced', source: 'save' },
+    ];
+    assert.deepEqual([...partneredIdSet(edges)].sort(), ['a', 'b']);
   });
 });
 

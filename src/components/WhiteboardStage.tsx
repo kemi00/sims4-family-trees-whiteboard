@@ -1713,17 +1713,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
               if (pinchRef.current || pointersRef.current.size >= 2) return;
               wb.selectLink(ids);
             }}
-            onUnionClick={(a, b, ev) => {
+            onUnionClick={(a, b, ev, edgeId) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
               if (wb.connectMode) wb.handleConnectUnion(a, b);
-              else
-                wb.selectLink([
-                  wb.shownEdges.find(
-                    (e) =>
-                      (e.a === a && e.b === b) || (e.a === b && e.b === a),
-                  )?.id ?? '',
-                ]);
+              // The link drawn where you pressed: a planned marriage over the
+              // save's romance is the marriage, so Delete cancels the plan.
+              else wb.selectLink([edgeId]);
             }}
             onAddInfant={(u, ev) => {
               onHandlePointer(ev);
@@ -1888,6 +1884,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             const r = svgRef.current?.getBoundingClientRect();
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
           }}
+          {...(linkChip.couple
+            ? {
+                action: (() => {
+                  const c = linkChip.couple;
+                  const word = c.type === 'marriage' ? 'divorce' : 'breakup';
+                  return c.ending
+                    ? { label: `Cancel the ${word}`, onClick: () => wb.setEnding(c.id, false) }
+                    : { label: `Plan a ${word}`, onClick: () => wb.setEnding(c.id, true) };
+                })(),
+              }
+            : {})}
         />
       )}
       <div id="autosave-cue">
@@ -2019,7 +2026,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             const { dest, moved, back } = done;
             const where = `the ${dest.hh} household in ${dest.world}`;
             const cancels = back
-              ? ` ${back === moved ? 'That' : `For ${back} of them, that`} cancels a planned move: it's where your game has them.`
+              ? ` ${back === moved ? 'Back' : `${back} of them back`} where your game has them: a new step in your plan. To drop the earlier move instead, use the bin on it in the Log.`
               : '';
             wb.flashStatus(
               moved === 0

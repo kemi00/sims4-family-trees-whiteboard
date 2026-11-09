@@ -48,7 +48,7 @@ export type PlanWait = {
 };
 
 export type PlanItem = {
-  /** Stable key: `couple:<edge>`, `baby:<parents>`, `find:<sim>`, `role:<sim>`, `move:<move>`, `off:<edge>`. */
+  /** Stable key: `couple:<edge>`, `end:<edge>`, `baby:<parents>`, `find:<sim>`, `role:<sim>`, `move:<move>`, `off:<edge>`. */
   id: string;
   kind: 'couple' | 'baby' | 'find' | 'role' | 'move' | 'offPlan';
   state: PlanState;
@@ -333,55 +333,81 @@ export function householdPlans(opts: {
     });
   }
 
-  // A sim moved to another household on the board, which no save shows yet:
-  // in the game they move from where they are there, past any household
-  // they were moved through on the board. A planned sim only lives there
-  // in the plan: born or found, it will. A household that changed worlds,
-  // its sims together, is one move in the game, and one line.
-  const households = new Map<string, { first: HouseholdMove; last: HouseholdMove; sims: string[]; notes: (string | undefined)[] }>();
+  // A sim moved to another household on the board, which no save shows yet.
+  // Their moves are a story (into the Dreamer household, then back to
+  // Darong), so what's to do is its next step, from where the game has them;
+  // the rest follow once a save shows it done. A planned sim only lives
+  // there in the plan: born or found, it will. A household that changes
+  // worlds, its sims together, is one move in the game, and one line.
+  const households = new Map<string, { step: HouseholdMove; sims: string[]; notes: (string | undefined)[]; then: string | undefined }>();
   for (const [id, list] of pendingMoves(opts.moves)) {
     const n = byId.get(id);
-    const first = list[0]!;
+    const step = list[0]!;
     const last = list[list.length - 1]!;
     if (!n || isPlannedSim(n) || !living(n) || n.gid !== last.toGid) continue;
-    // Moved back where the game has them: nothing to do there.
-    if (first.fromGid === last.toGid) continue;
-    const notes = list.map((m) => m.note);
-    if (list.every(movesHousehold)) {
-      const key = `${first.fromGid}|${last.toGid}`;
+    const next = list[1];
+    const then = next
+      ? `Then to the ${next.toHh} household${list.length > 2 ? `, and ${list.length - 2} more ${list.length === 3 ? 'move' : 'moves'}` : ''}.`
+      : undefined;
+    if (movesHousehold(step)) {
+      // The same move in the game, whenever it was planned for each of them.
+      const key = `${step.fromGid}|${step.toGid}`;
       const h = households.get(key);
       if (h) {
         h.sims.push(n.id);
-        h.notes.push(...notes);
-      } else households.set(key, { first, last, sims: [n.id], notes });
+        h.notes.push(step.note);
+      } else households.set(key, { step, sims: [n.id], notes: [step.note], then });
       continue;
     }
-    const worlds = changesWorld({ fromWorld: first.fromWorld, toWorld: last.toWorld });
+    const worlds = changesWorld(step);
     const from =
-      first.fromHh && first.fromHh !== ADDED_HOUSEHOLD
-        ? ` from ${first.fromHh}${worlds ? ` (${first.fromWorld})` : ''}`
+      step.fromHh && step.fromHh !== ADDED_HOUSEHOLD
+        ? ` from ${step.fromHh}${worlds ? ` (${step.fromWorld})` : ''}`
         : '';
     items.push({
-      id: `move:${last.id}`,
+      id: `move:${step.id}`,
       kind: 'move',
       state: 'ready',
-      text: `Move ${cardName(n)}${from} to the ${last.toHh} household${worlds ? ` (${last.toWorld})` : ''}`,
+      text: `Move ${cardName(n)}${from} to the ${step.toHh} household${worlds ? ` (${step.toWorld})` : ''}`,
       sims: [n.id],
-      gids: uniq([last.toGid, ...(from ? [first.fromGid] : [])]),
+      gids: uniq([step.toGid, ...(from ? [step.fromGid] : [])]),
       waits: [],
+      ...(then ? { note: then } : {}),
+      ...noted(step.note),
+    });
+  }
+  for (const { step, sims, notes, then } of households.values()) {
+    items.push({
+      id: `move:${step.id}`,
+      kind: 'move',
+      state: 'ready',
+      text: `Move the ${step.toHh} household from ${step.fromWorld} to ${step.toWorld}`,
+      sims,
+      gids: uniq([step.toGid, step.fromGid]),
+      waits: [],
+      ...(then ? { note: then } : {}),
       ...noted(joinNotes(...notes)),
     });
   }
-  for (const { first, last, sims, notes } of households.values()) {
+
+  // A planned divorce or breakup: to do in the game, once the couple is one.
+  for (const e of edges) {
+    if (!e.ending || (e.type !== 'marriage' && e.type !== 'romance')) continue;
+    const a = byId.get(e.a);
+    const b = byId.get(e.b);
+    if (!a || !b || !living(a) || !living(b)) continue;
+    const [A, B] = [cardName(a), cardName(b)];
+    const first = edgeSourceOf(e) === 'planned';
     items.push({
-      id: `move:${last.id}`,
-      kind: 'move',
-      state: 'ready',
-      text: `Move the ${last.toHh} household from ${first.fromWorld} to ${last.toWorld}`,
-      sims,
-      gids: uniq([last.toGid, first.fromGid]),
+      id: `end:${e.id}`,
+      kind: 'couple',
+      state: first ? 'waiting' : 'ready',
+      text: e.type === 'marriage' ? `Divorce ${A} and ${B}` : `Break up ${A} and ${B}`,
+      sims: [a.id, b.id],
+      gids: uniq([a.gid, b.gid]),
       waits: [],
-      ...noted(joinNotes(...notes)),
+      ...(first ? { note: e.type === 'marriage' ? 'Once they marry, as your plan has it first.' : 'Once they get together, as your plan has it first.' } : {}),
+      ...noted(e.ending.note),
     });
   }
 

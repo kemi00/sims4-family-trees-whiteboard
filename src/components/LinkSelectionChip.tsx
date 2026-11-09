@@ -14,6 +14,8 @@ type Props = {
   obstacles?: ChipObstacle[];
   /** A name was clicked: select that sim and bring their card into view. */
   onGoToSim?: (id: string) => void;
+  /** What to do with the picked couple: plan its end, or cancel that plan. */
+  action?: { label: string; onClick: () => void };
 };
 
 /** Most names a chip lists; past that, the rest are "+ N more". */
@@ -82,6 +84,7 @@ export function LinkSelectionChip({
   stageH,
   obstacles = [],
   onGoToSim,
+  action,
 }: Props) {
   // The chip's real height (a big family or a note takes more lines), so
   // it's placed where all of it stays on screen.
@@ -117,7 +120,7 @@ export function LinkSelectionChip({
   return (
     <div
       ref={ref}
-      className={directed || info.yourNote ? 'link-sel-chip link-sel-chip--tall' : 'link-sel-chip'}
+      className={directed || info.yourNote || action ? 'link-sel-chip link-sel-chip--tall' : 'link-sel-chip'}
       data-side={placement.side}
       style={{ left, top }}
       role="status"
@@ -162,6 +165,16 @@ export function LinkSelectionChip({
         ) : null}
         {info.note && <span className="link-sel-chip__note">{info.note}</span>}
         {info.yourNote && <span className="link-sel-chip__yours">{info.yourNote}</span>}
+        {action && (
+          <button
+            type="button"
+            className="link-sel-chip__act"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={action.onClick}
+          >
+            {action.label}
+          </button>
+        )}
       </span>
     </div>
   );

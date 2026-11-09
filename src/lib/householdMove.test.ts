@@ -11,7 +11,6 @@ import {
   moveDestination,
   movesDoneBySave,
   movesHousehold,
-  settleMoves,
 } from './householdMove.ts';
 
 const worlds: World[] = [
@@ -190,6 +189,19 @@ describe('moves a save shows done', () => {
     assert.equal(movesDoneBySave([mv('m1', 'j', 'Le Chien')], nodes, [{ saveSimId: '7', household: 'Bro' }]).size, 0);
   });
 
+  it('settles a story step by step, and nothing while the save has them where it started', () => {
+    const steps = [
+      mv('s1', 'j', 'Dreamer', { fromHh: 'Darong', createdAt: '1' }),
+      mv('s2', 'j', 'Darong', { fromHh: 'Dreamer', createdAt: '2' }),
+      mv('s3', 'j', 'Le Chien', { fromHh: 'Darong', createdAt: '3' }),
+    ];
+    const at = (household: string) => [...movesDoneBySave(steps, nodes, [{ saveSimId: '7', household }])].sort();
+    // Back in Darong: maybe they never moved. The steps stay, easy to cancel.
+    assert.deepEqual(at('Darong'), []);
+    assert.deepEqual(at('Dreamer'), ['s1']);
+    assert.deepEqual(at('Le Chien'), ['s1', 's2', 's3']);
+  });
+
   it('waits for the world too when the household moves to another one', () => {
     const world = mv('m1', 'j', 'Dreamer', {
       fromGid: 'Not in any world||Dreamer',
@@ -201,33 +213,6 @@ describe('moves a save shows done', () => {
     // Still in the Dreamer household, still with no home lot: not done.
     assert.equal(movesDoneBySave([world], nodes, [{ saveSimId: '7', household: 'Dreamer', unhoused: true }]).size, 0);
     assert.deepEqual([...movesDoneBySave([world], nodes, [{ saveSimId: '7', household: 'Dreamer', world: 'Ondarion' }])], ['m1']);
-  });
-});
-
-describe('the plan’s moves netted out', () => {
-  const mv = (id: string, simId: string, from: string, to: string, extra: Partial<HouseholdMove> = {}): HouseholdMove => ({
-    id, simId, createdAt: id, fromGid: `W||${from}`, fromHh: from, fromWorld: 'W', fromNb: '', toGid: `W||${to}`, toHh: to, toWorld: 'W', toNb: '', ...extra,
-  });
-
-  it('cancels moves that bring a sim back where the game has them', () => {
-    const moves = [mv('m1', 'ama', 'Darong', 'Dreamer'), mv('m2', 'dirk', 'Dreamer', 'Le Chien'), mv('m3', 'ama', 'Dreamer', 'Darong')];
-    assert.deepEqual(settleMoves(moves).map((m) => m.id), ['m2']);
-  });
-
-  it('makes one move from where the game has them to where the board does, notes kept', () => {
-    const moves = [mv('m1', 'elsa', 'Bjergsen', 'Bro', { note: 'For now' }), mv('m2', 'elsa', 'Bro', 'Le Chien', { note: 'Her heir' })];
-    const [one, ...rest] = settleMoves(moves);
-    assert.equal(rest.length, 0);
-    assert.deepEqual(
-      [one!.id, one!.createdAt, one!.fromHh, one!.toHh, one!.note],
-      ['m2', 'm2', 'Bjergsen', 'Le Chien', 'For now\nHer heir'],
-    );
-  });
-
-  it('leaves moves a save showed done, and a board with nothing to net out as it is', () => {
-    const done = { ...mv('m1', 'ama', 'Darong', 'Dreamer'), done: true as const };
-    const moves = [done, mv('m2', 'ama', 'Dreamer', 'Darong')];
-    assert.equal(settleMoves(moves), moves);
   });
 });
 

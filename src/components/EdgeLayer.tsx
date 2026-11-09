@@ -95,6 +95,24 @@ function SecretBadge({ x, y, color }: { x: number; y: number; color: string }) {
   );
 }
 
+/** A planned breakup: the romance heart, struck through. */
+export function BreakupPill({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <>
+      <PillBg x={x} y={y} w={PILL_W.romance} color={color} />
+      <path
+        d={HEART_D}
+        fill={color}
+        fillOpacity={0.45}
+        stroke="none"
+        transform={`translate(${x} ${y}) scale(0.9) translate(-12 -12.2)`}
+      />
+      <line x1={x - 4} y1={y + 8} x2={x + 4} y2={y - 8} stroke="#fff" strokeWidth={3.4} />
+      <line x1={x - 4} y1={y + 8} x2={x + 4} y2={y - 8} stroke={color} strokeWidth={1.9} />
+    </>
+  );
+}
+
 export function DivorcePill({ x, y, color }: { x: number; y: number; color: string }) {
   return (
     <>
@@ -207,7 +225,8 @@ type Props = {
   /** Visible stroke for a selected link (thicker than the default 2.3). */
   selStroke: number;
   onLinkClick: (ids: string[], e: ReactPointerEvent) => void;
-  onUnionClick: (a: string, b: string, e: ReactPointerEvent) => void;
+  /** A couple's line was pressed: `edgeId` is the one drawn there, on top of any other between them. */
+  onUnionClick: (a: string, b: string, e: ReactPointerEvent, edgeId: string) => void;
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
   worldById?: ReadonlyMap<string, string>;
   gidById?: ReadonlyMap<string, string>;
@@ -326,8 +345,9 @@ export const EdgeLayer = memo(function EdgeLayer({
       {unions.map((u) => {
         // Violet means planned, not in the save yet, for divorces as for
         // every couple: a divorce from the save is gray like a marriage.
-        const lineCol = u.isUser ? UEDIT : COL.marriage;
-        const pillCol = u.type === 'romance' ? COL.romance : lineCol;
+        // A planned divorce or breakup is violet too, drawn as it will be.
+        const lineCol = u.isUser || u.ending ? UEDIT : COL.marriage;
+        const pillCol = u.type === 'romance' && !u.ending ? COL.romance : lineCol;
         const sq = isSelLink([u.edgeId]);
         const lc = sq ? '#1b6cd6' : lineCol;
         const pc = sq ? '#1b6cd6' : pillCol;
@@ -340,7 +360,7 @@ export const EdgeLayer = memo(function EdgeLayer({
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
             onPointerDown={(e) => {
               e.stopPropagation();
-              onUnionClick(u.a, u.b, e);
+              onUnionClick(u.a, u.b, e, u.edgeId);
             }}
           >
             <polyline
@@ -361,16 +381,18 @@ export const EdgeLayer = memo(function EdgeLayer({
             <g
               className={sq ? 'union-pill union-pill--plus' : 'union-pill'}
             >
-              {u.type === 'divorced' && (
+              {(u.type === 'divorced' || (u.type === 'marriage' && u.ending)) && (
                 <DivorcePill x={u.rx} y={u.ry} color={pc} />
               )}
+              {u.type === 'romance' && u.ending && <BreakupPill x={u.rx} y={u.ry} color={pc} />}
               {u.type === 'romance' &&
+                !u.ending &&
                 (u.secret ? (
                   <SecretLoversPill x={u.rx} y={u.ry} color={pc} />
                 ) : (
                   <HeartPill x={u.rx} y={u.ry} color={pc} />
                 ))}
-              {u.type === 'marriage' && (
+              {u.type === 'marriage' && !u.ending && (
                 <RingPill x={u.rx} y={u.ry} color={pc} />
               )}
               {offPlanEdgeIds?.has(u.edgeId) && <OffPlanMark x={u.rx} y={u.ry} />}

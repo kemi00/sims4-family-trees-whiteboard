@@ -238,7 +238,7 @@ export function ConnectionLogPanel({
     const isEditing = editing === entry.id;
     const noteable = canNote(entry);
     // Only what's still to do can be cancelled; off plan is settled in the editor.
-    const cancelable = tab === 'plan' && !off && (entry.kind === 'link' || entry.kind === 'move');
+    const cancelable = tab === 'plan' && !off && (entry.kind === 'link' || entry.kind === 'move' || entry.kind === 'end');
     return (
       <li key={entry.id}>
         <div
@@ -444,10 +444,10 @@ export function ConnectionLogPanel({
           )}
           {tab === 'plan' && (
             <p className="connection-log__foot">
-              When a save shows a plan done, it moves to In your game, with
-              its note. The bin cancels a plan, putting its sims back as your
-              game has them; moving a sim back by hand cancels its move too.
-              Undo brings either back.
+              Each line is a step of your plan, in order: move a sim there and
+              back, or plan a divorce, and both steps stay. The bin takes one
+              step back out. When a save shows a step done, it moves to In
+              your game, with its note.
             </p>
           )}
         </>

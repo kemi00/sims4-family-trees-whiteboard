@@ -92,6 +92,11 @@ describe('plans the game went against', () => {
     );
   });
 
+  it('lets a planned couple be when the other marriage has a planned divorce', () => {
+    const divorcing = edges.map((e) => (e.id === 'v1' ? { ...e, ending: { createdAt: 'x' } } : e));
+    assert.deepEqual(planConflicts(nodes, divorcing), []);
+  });
+
   it('calls dating someone else softer, and a death final', () => {
     const dating = edges.map((e) => (e.id === 'v1' ? { ...e, type: 'romance' as const } : e));
     assert.deepEqual(

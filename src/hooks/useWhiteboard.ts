@@ -22,7 +22,6 @@ import { movesDoneBySave,
   householdMovePlan,
   movesHousehold,
   movesInGame,
-  settleMoves,
   householdSurnames,
   moveDestination,
   type MoveDestination,
@@ -371,8 +370,7 @@ export function useWhiteboard() {
   const [dynastiesOpen, setDynastiesOpen] = useState(false);
   const [upNextSkipped, setUpNextSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [householdMoves, setHouseholdMoves] = useState<HouseholdMove[]>(
-    // Moves that came back where the game has them cancel out (settleMoves).
-    () => settleMoves(boot.householdMoves ?? []),
+    () => boot.householdMoves ?? [],
   );
   const [householdAgeUps, setHouseholdAgeUps] = useState<HouseholdAgeUp[]>(
     () => boot.householdAgeUps ?? [],
@@ -985,12 +983,34 @@ export function useWhiteboard() {
       if (editNodeId === sel.id) setEditNodeId(null);
       if (bloodlineId === sel.id) setBloodlineId(null);
     } else if (sel.type === 'link') {
+      const chosen = edges.filter((e) => sel.ids.includes(e.id));
+      const ends = chosen.flatMap((e) => [e.a, e.b]);
+      // The game can't unmake a couple it has: deleting one plans its end, a
+      // divorce or a breakup. Delete it again to take it off the board.
+      const toEnd = chosen.filter(
+        (e) => (e.type === 'marriage' || e.type === 'romance') && edgeSourceOf(e) !== 'planned' && !e.ending,
+      );
+      if (toEnd.length && toEnd.length === chosen.length) {
+        const at = new Date().toISOString();
+        const ids = new Set(toEnd.map((e) => e.id));
+        const nextEdges = edges.map((e) => (ids.has(e.id) ? { ...e, ending: { createdAt: at } } : e));
+        freezeAfterEdgeChange(ends, nextEdges);
+        setEdges(nextEdges);
+        const e = toEnd[0]!;
+        const [a, b] = [byid[e.a], byid[e.b]];
+        const names = `${a ? cardName(a) : 'They'} and ${b ? cardName(b) : 'their partner'}`;
+        flashStatus(
+          `Planned: ${names} ${e.type === 'marriage' ? 'divorce' : 'break up'}, until a save shows it. Undo takes it back; Delete again takes the link off the board.`,
+        );
+        // Still picked, so a second Delete can take it off.
+        return;
+      }
       const nextEdges = edges.filter((e) => !sel.ids.includes(e.id));
-      const ends = edges
-        .filter((e) => sel.ids.includes(e.id))
-        .flatMap((e) => [e.a, e.b]);
       freezeAfterEdgeChange(ends, nextEdges);
       setEdges(nextEdges);
+      if (chosen.some((e) => edgeSourceOf(e) === 'save')) {
+        flashStatus('Took the link off the board. A save that still has it brings it back.');
+      }
     }
     setSel(null);
   }, [
@@ -998,9 +1018,11 @@ export function useWhiteboard() {
     editNodeId,
     bloodlineId,
     edges,
+    byid,
     nodesCore,
     pinCardsToCurrentPlaces,
     freezeAfterEdgeChange,
+    flashStatus,
     pushUndo,
   ]);
 
@@ -1306,7 +1328,7 @@ export function useWhiteboard() {
    * child) or on the move. An empty note takes it off.
    */
   const setLogNote = useCallback(
-    (entry: Pick<ConnectionLogEntry, 'edgeIds' | 'moveId' | 'moveIds' | 'note'>, text: string) => {
+    (entry: Pick<ConnectionLogEntry, 'kind' | 'edgeIds' | 'moveId' | 'moveIds' | 'note'>, text: string) => {
       const note = cleanNote(text);
       if (note === cleanNote(entry.note)) return;
       pushUndo();
@@ -1314,7 +1336,11 @@ export function useWhiteboard() {
         const { note: _old, ...rest } = x;
         return (note ? { ...rest, note } : rest) as T;
       };
-      if (entry.edgeIds.length) {
+      if (entry.kind === 'end') {
+        // The note on a planned divorce goes with the ending, not the marriage.
+        const ids = new Set(entry.edgeIds);
+        setEdges((es) => es.map((e) => (ids.has(e.id) && e.ending ? { ...e, ending: put(e.ending) } : e)));
+      } else if (entry.edgeIds.length) {
         const ids = new Set(entry.edgeIds);
         setEdges((es) => es.map((e) => (ids.has(e.id) ? put(e) : e)));
       } else if (entry.moveId) {
@@ -1914,7 +1940,7 @@ export function useWhiteboard() {
       pushUndo();
       trackAction('/action/partner-move');
       const createdAt = new Date().toISOString();
-      setHouseholdMoves((ms) => settleMoves([...ms, ...moves.map((mv) => ({ ...mv, id: 'h' + eidcRef.current++, createdAt }))]));
+      setHouseholdMoves((ms) => [...ms, ...moves.map((mv) => ({ ...mv, id: 'h' + eidcRef.current++, createdAt }))]);
       const others = nodes.filter((x) => x.id !== mover);
       const home = others.filter((x) => x.gid === h.gid);
       const chrome = householdChrome(home, g);
@@ -2029,11 +2055,12 @@ export function useWhiteboard() {
       if (newGroup) setGroups((gs) => (gs.some((x) => x.gid === newGroup.gid) ? gs : [...gs, newGroup]));
       const createdAt = new Date().toISOString();
       const recorded = moves.filter((m) => movesInGame(byid[m.simId] ?? members[0]!));
-      // Back where the game has them: the planned move cancels out (settleMoves).
+      // Back where the game has them: a new step in the story, which the bin
+      // on the move there can take back instead.
       const homes = gameHomes(nodes, householdMoves);
       const back = recorded.length > 0 && recorded.every((m) => homes.get(m.simId) === dest.gid);
       if (recorded.length) {
-        setHouseholdMoves((ms) => settleMoves([...ms, ...recorded.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]));
+        setHouseholdMoves((ms) => [...ms, ...recorded.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]);
       }
       // Where the block lands: the household's own place in the world, or
       // under the one it joins.
@@ -2044,7 +2071,7 @@ export function useWhiteboard() {
       const plan = recorded.length ? ': a plan until a save shows it' : '';
       flashStatus(
         back
-          ? `The ${g.hh} household is back in ${world}, as your game has it: its planned move is cancelled. Undo brings it back.`
+          ? `The ${g.hh} household moves back to ${world}: a new step in your plan. To drop its move instead, use the bin on it in the Log.`
           : joined
           ? `${moved.length === 1 ? `${cardName(moved[0]!)} of the ${g.hh} household joins` : `All ${moved.length} sims of the ${g.hh} household join`} the one in ${world}${plan}. Undo takes it back.`
           : `The ${g.hh} household moves to ${world} with ${moved.length === 1 ? cardName(moved[0]!) : `its ${moved.length} sims`}${plan}. Undo takes it back.`,
@@ -2055,11 +2082,45 @@ export function useWhiteboard() {
   );
 
   /**
-   * A line of the Log's Plan cancelled: the board goes back to what your
-   * game has, as if it had never been planned. A planned link goes; a
-   * planned baby, or a planned sim that came onto the board, goes with its
-   * links; a move takes its sims back where the game has them (a household
-   * back to its world), and the move is no more. One undo step.
+   * A couple's planned end: a divorce for a marriage, a breakup for a
+   * romance, or that plan cancelled. The link stays as the game has it, drawn
+   * violet as it will be, until a save shows it over. True when it changed.
+   */
+  const setEnding = useCallback(
+    (id: string, on: boolean): boolean => {
+      const e = edges.find((x) => x.id === id);
+      if (!e || (e.type !== 'marriage' && e.type !== 'romance') || !!e.ending === on) return false;
+      pushUndo();
+      trackAction(on ? '/action/plan-ending' : '/action/cancel-ending');
+      const nextEdges = edges.map((x) => {
+        if (x.id !== id) return x;
+        if (on) return { ...x, ending: { createdAt: new Date().toISOString() } };
+        const { ending: _gone, ...rest } = x;
+        return rest;
+      });
+      freezeAfterEdgeChange([e.a, e.b], nextEdges);
+      setEdges(nextEdges);
+      const [a, b] = [byid[e.a], byid[e.b]];
+      const names = `${a ? cardName(a) : 'They'} and ${b ? cardName(b) : 'their partner'}`;
+      const marriage = e.type === 'marriage';
+      flashStatus(
+        on
+          ? `Planned: ${names} ${marriage ? 'divorce' : 'break up'}, until a save shows it. Undo takes it back.`
+          : `Cancelled the ${marriage ? 'divorce' : 'breakup'}: ${names} stay together. Undo brings it back.`,
+      );
+      return true;
+    },
+    [edges, byid, pushUndo, freezeAfterEdgeChange, flashStatus],
+  );
+
+  /**
+   * A line of the Log's Plan cancelled, as if that step had never been
+   * planned; the rest of the story stays. A planned link goes; a planned
+   * baby, or a planned sim that came onto the board, goes with its links; a
+   * planned divorce or breakup goes, the couple staying together. A move
+   * goes: its last step takes the sims back where the step before left them
+   * (a household back to its world), and a step in the middle hands its
+   * start to the next. One undo step.
    */
   const cancelPlan = useCallback(
     (entry: ConnectionLogEntry, view?: { w: number; h: number }): boolean => {
@@ -2082,12 +2143,15 @@ export function useWhiteboard() {
         if (sel?.type === 'node' && ids.has(sel.id)) setSel(null);
       };
 
+      if (entry.kind === 'end') {
+        return setEnding(entry.edgeIds[0] ?? '', false);
+      }
+
       if (entry.kind === 'move') {
         const wanted = new Set(entry.moveIds ?? (entry.moveId ? [entry.moveId] : []));
         const recs = householdMoves.filter((m) => wanted.has(m.id) && !m.done);
         const first = recs[0];
         if (!first) return false;
-        const simIds = new Set(recs.map((m) => m.simId));
         // A planned sim that came onto the board: there is nowhere in the game to go back to.
         if (first.fromHh === ADDED_HOUSEHOLD) {
           const n = nodesCore.find((x) => x.id === first.simId);
@@ -2098,15 +2162,50 @@ export function useWhiteboard() {
           flashStatus(`Cancelled: ${cardName(n)} is off the board. Undo brings them back.`);
           return true;
         }
-        const here = byid[first.simId];
+        // Each sim's moves are a story: this step goes, and the rest stay.
+        const story = (simId: string) =>
+          householdMoves
+            .filter((m) => m.simId === simId && !m.done)
+            .sort((x, y) => (x.createdAt < y.createdAt ? -1 : x.createdAt > y.createdAt ? 1 : 0));
+        const stitched = new Map<string, HouseholdMove>();
+        const lastSteps: HouseholdMove[] = [];
+        for (const m of recs) {
+          const chain = story(m.simId);
+          const next = chain[chain.findIndex((x) => x.id === m.id) + 1];
+          if (!next) {
+            lastSteps.push(m);
+            continue;
+          }
+          // A step in the middle: the next one now starts where this one did;
+          // the card stays. A next step that then goes nowhere goes too.
+          if (next.toGid === m.fromGid) wanted.add(next.id);
+          else stitched.set(next.id, { ...next, fromGid: m.fromGid, fromHh: m.fromHh, fromWorld: m.fromWorld, fromNb: m.fromNb });
+        }
+        const dropMoves = () =>
+          setHouseholdMoves((ms) => ms.filter((m) => !wanted.has(m.id)).map((m) => stitched.get(m.id) ?? m));
+        if (!lastSteps.length) {
+          pushUndo();
+          trackAction('/action/cancel-plan');
+          dropMoves();
+          flashStatus(
+            stitched.size
+              ? `Cancelled that move; the moves after it now start from the ${first.fromHh} household. Undo brings it back.`
+              : `Cancelled that move, and the move back after it, which now goes nowhere. Undo brings them back.`,
+          );
+          return true;
+        }
+        // The story's last step: back where the step before it left them.
+        const step = lastSteps[0]!;
+        const simIds = new Set(lastSteps.map((m) => m.simId));
+        const here = byid[step.simId];
         if (!here) return false;
         // A household that changed worlds goes back whole, with the deceased
         // and planned sims who went along, unless it joined others there.
-        const whole = movesHousehold(first);
+        const whole = movesHousehold(step);
         const members = nodes.filter((n) => n.gid === here.gid);
         const ids = whole && members.every((n) => simIds.has(n.id) || !movesInGame(n)) ? members.map((n) => n.id) : [...simIds];
-        const home = groups.find((g) => g.gid === first.fromGid);
-        const dest = moveDestination(groups, nodes, worlds, first.fromWorld, home ? home.gid : NEW_HOUSEHOLD, first.fromHh);
+        const home = groups.find((g) => g.gid === step.fromGid);
+        const dest = moveDestination(groups, nodes, worlds, step.fromWorld, home ? home.gid : NEW_HOUSEHOLD, step.fromHh);
         if (!dest) return false;
         const { patches } = householdMovePlan(nodes, ids, dest);
         pushUndo();
@@ -2115,7 +2214,7 @@ export function useWhiteboard() {
           ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
           : null;
         if (newGroup) setGroups((gs) => (gs.some((x) => x.gid === newGroup.gid) ? gs : [...gs, newGroup]));
-        setHouseholdMoves((ms) => ms.filter((m) => m.done || !simIds.has(m.simId)));
+        dropMoves();
         if (patches.size) {
           landCards(patches, dest.gid, newGroup);
           // From the Log they may be anywhere: show where they went.
@@ -2125,8 +2224,8 @@ export function useWhiteboard() {
         if (briefGid === here.gid && ids.length === members.length) setBriefGid(dest.gid);
         flashStatus(
           whole
-            ? `Cancelled: the ${dest.hh} household is back in ${dest.world}, as your game has it. Undo brings the plan back.`
-            : `Cancelled: ${ids.length === 1 ? `${cardName(here)} is` : `${ids.length} sims are`} back in the ${dest.hh} household, as your game has it. Undo brings the plan back.`,
+            ? `Cancelled: the ${dest.hh} household is back in ${dest.world}. Undo brings the plan back.`
+            : `Cancelled: ${ids.length === 1 ? `${cardName(here)} is` : `${ids.length} sims are`} back in the ${dest.hh} household. Undo brings the plan back.`,
         );
         return true;
       }
@@ -2177,6 +2276,7 @@ export function useWhiteboard() {
       lockViewToSims,
       pinCardsToCurrentPlaces,
       freezeAfterEdgeChange,
+      setEnding,
       flashStatus,
     ],
   );
@@ -2545,7 +2645,7 @@ export function useWhiteboard() {
         const loadedAgeUps = d.householdAgeUps ?? [];
         const loadedDeaths = d.deceasedMarks ?? [];
         const loadedSimAgeUps = d.simAgeUps ?? [];
-        setHouseholdMoves(settleMoves(loadedMoves));
+        setHouseholdMoves(loadedMoves);
         setHouseholdAgeUps(loadedAgeUps);
         setDeceasedMarks(loadedDeaths);
         setSimAgeUps(loadedSimAgeUps);
@@ -2770,7 +2870,7 @@ export function useWhiteboard() {
           setHouseholdMoves((prev) => {
             const seen = new Set(prev.map((m) => m.id));
             const extra = d.householdMoves!.filter((m) => !seen.has(m.id));
-            return extra.length ? settleMoves([...prev, ...extra]) : prev;
+            return extra.length ? [...prev, ...extra] : prev;
           });
         }
         const incomingFilters = fileFilters(d);
@@ -3150,8 +3250,8 @@ export function useWhiteboard() {
    * step. Their cards stay where they are, as a single sim's do; the
    * selection stays too, so they can be dragged into place. Returns where
    * they went, how many moved (sims already there are skipped), and how
-   * many of them are back where the game has them, which cancels their
-   * planned move (settleMoves).
+   * many of them are back where the game has them: a new step in their
+   * story, which the bin in the Log can take back instead.
    */
   const moveSimsToHousehold = useCallback(
     (
@@ -3188,9 +3288,7 @@ export function useWhiteboard() {
         );
       }
       const createdAt = new Date().toISOString();
-      setHouseholdMoves((ms) =>
-        settleMoves([...ms, ...moves.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]),
-      );
+      setHouseholdMoves((ms) => [...ms, ...moves.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]);
       // One pass for every card: patching them one by one would each start
       // from the same old board and keep only the last.
       const apply = (ns: SimNode[]) =>
@@ -3212,7 +3310,7 @@ export function useWhiteboard() {
       const n = byid[nodeId];
       if (done.back && n) {
         flashStatus(
-          `${cardName(n)} is back in the ${done.dest.hh} household, as your game has it: their planned move is cancelled. Undo brings it back.`,
+          `${cardName(n)} moves back to the ${done.dest.hh} household: a new step in your plan. To drop their earlier move instead, use the bin on it in the Log.`,
         );
       }
     },
@@ -3594,6 +3692,7 @@ export function useWhiteboard() {
     moveSimsToHousehold,
     moveHouseholdToWorld,
     cancelPlan,
+    setEnding,
     toggleSimInSelection,
     isSelLink,
     setSnap,

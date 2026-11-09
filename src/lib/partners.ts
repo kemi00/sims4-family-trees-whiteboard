@@ -113,6 +113,8 @@ export function partnerCandidates(opts: {
   const married = new Set<string>();
   const romance = new Set<string>();
   for (const e of opts.edges) {
+    // A couple with a planned divorce or breakup is free in the plan.
+    if (e.ending) continue;
     if (e.type === 'marriage') {
       married.add(e.a);
       married.add(e.b);
@@ -195,7 +197,7 @@ export function partnerSearch(opts: {
   const candidates = partnerCandidates({ id, nodes, edges, game: opts.game });
   const q = fold(opts.query);
   const blood = bloodRelatives(id, edges);
-  const married = new Set(edges.filter((e) => e.type === 'marriage').flatMap((e) => [e.a, e.b]));
+  const married = new Set(edges.filter((e) => e.type === 'marriage' && !e.ending).flatMap((e) => [e.a, e.b]));
   const hit = (n: SimNode, candidate?: PartnerCandidate): PartnerHit => ({
     id: n.id,
     ...(candidate ? { candidate } : {}),

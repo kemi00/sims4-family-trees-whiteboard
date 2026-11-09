@@ -157,6 +157,7 @@ function edgeIdentity(e: Edge) {
     source: e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
     createdAt: e.createdAt ?? null,
     bundleId: e.bundleId ?? null,
+    ending: e.ending ?? null,
     secret: !!e.secret,
     plan: e.plan ?? null,
     wasPlanned: !!e.wasPlanned,

@@ -327,11 +327,14 @@ export function canAgeUp(n: SimNode): boolean {
   return ageUpPatch(n) != null;
 }
 
-/** Current partners: marriage or romance. Divorced alone does not count. */
+/**
+ * Current partners: marriage or romance. Divorced alone does not count, nor
+ * a couple with a planned divorce or breakup: the board is the plan.
+ */
 export function partneredIdSet(edges: Edge[]): Set<string> {
   const ids = new Set<string>();
   for (const e of edges) {
-    if (e.type !== 'marriage' && e.type !== 'romance') continue;
+    if ((e.type !== 'marriage' && e.type !== 'romance') || e.ending) continue;
     ids.add(e.a);
     ids.add(e.b);
   }

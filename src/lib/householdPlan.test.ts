@@ -351,22 +351,41 @@ describe('household moves', () => {
     );
   });
 
-  it('move from where the game has them, past households they were moved through', () => {
+  it('take a story step by step, from where the game has them', () => {
     const nodes = [child('Elsa', 'Le Chien')];
     const moves = [move('m1', 'Elsa', 'Bjergsen', 'Bro'), move('m2', 'Elsa', 'Bro', 'Le Chien')];
     assert.deepEqual(
-      plans(nodes, [], { moves }).map((i) => [i.id, i.text, i.gids]),
-      [['move:m2', 'Move Elsa Le Chien from Bjergsen to the Le Chien household', ['W||Le Chien', 'W||Bjergsen']]],
+      plans(nodes, [], { moves }).map((i) => [i.id, i.text, i.gids, i.note]),
+      [['move:m1', 'Move Elsa Le Chien from Bjergsen to the Bro household', ['W||Bro', 'W||Bjergsen'], 'Then to the Le Chien household.']],
     );
     // A save that showed the first move done leaves the second.
     const later = [{ ...moves[0]!, done: true as const }, moves[1]!];
     assert.deepEqual(plans(nodes, [], { moves: later }).map((i) => i.text), ['Move Elsa Le Chien from Bro to the Le Chien household']);
   });
 
-  it('leave out a sim moved back where the game has them', () => {
+  it('keep a story that comes back where it started: its first step is still to do', () => {
     const nodes = [sim('Joaquin', 'Bro')];
     const moves = [move('m1', 'Joaquin', 'Bro', 'Le Chien'), move('m2', 'Joaquin', 'Le Chien', 'Bro')];
-    assert.deepEqual(plans(nodes, [], { moves }), []);
+    assert.deepEqual(
+      plans(nodes, [], { moves }).map((i) => [i.id, i.text, i.note]),
+      [['move:m1', 'Move Joaquin Bro from Bro to the Le Chien household', 'Then to the Bro household.']],
+    );
+  });
+
+  it('plan a divorce or a breakup, ready for a couple the game has and waiting for a planned one', () => {
+    const nodes = [sim('Dirk', 'Dreamer'), sim('Ama', 'Darong'), sim('Lucas', 'Munch'), sim('Mara', 'Summerdream')];
+    const edges: Edge[] = [
+      { id: 's1', a: 'Dirk', b: 'Ama', type: 'marriage', source: 'save', ending: { createdAt: 'x', note: 'Drama' } },
+      { id: 'u1', a: 'Lucas', b: 'Mara', type: 'romance', source: 'planned', ending: { createdAt: 'y' } },
+    ];
+    const ends = plans(nodes, edges).filter((i) => i.id.startsWith('end:'));
+    assert.deepEqual(
+      ends.map((i) => [i.text, i.state, i.yourNote]),
+      [
+        ['Divorce Dirk Dreamer and Ama Darong', 'ready', 'Drama'],
+        ['Break up Lucas Munch and Mara Summerdream', 'waiting', undefined],
+      ],
+    );
   });
 
   it('leave a sim to grow up where the game has them, so playing that household helps', () => {

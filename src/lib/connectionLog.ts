@@ -33,10 +33,11 @@ export type ConnectionLogEntry = {
   createdAt?: string;
   origin?: ConnectionLogOrigin;
   /**
-   * link: a link or a child. move: a household move. event: an age-up or a
+   * link: a link or a child. move: a household move. end: a planned
+   * divorce or breakup of the link in `edgeIds`. event: an age-up or a
    * death set on the board.
    */
-  kind?: 'link' | 'move' | 'event';
+  kind?: 'link' | 'move' | 'end' | 'event';
   /** A plan a save has since shown done (a move, or links it confirmed). */
   done?: true;
   /** The move this line is, to write its note. */
@@ -66,7 +67,7 @@ export function logSection(
   return (entry.origin ?? 'planned') === 'planned' ? 'plan' : 'game';
 }
 
-/** A note can go on links and moves, not on age-ups and deaths. */
+/** A note can go on links, moves and endings, not on age-ups and deaths. */
 export function canNote(entry: ConnectionLogEntry): boolean {
   return entry.edgeIds.length > 0 || !!entry.moveId;
 }
@@ -494,6 +495,28 @@ export function buildConnectionLog(
         [e],
       ),
     );
+  }
+
+  // A planned divorce or breakup, on a link of the game's or of your plan.
+  for (const e of edges) {
+    if (!e.ending || (e.type !== 'marriage' && e.type !== 'romance')) continue;
+    const a = byid[e.a];
+    const b = byid[e.b];
+    if (!a || !b) continue;
+    const entry = makeEntry(
+      `end:${e.id}`,
+      [e.id],
+      e.ending.createdAt,
+      [
+        { kind: 'sim', id: a.id, name: simName(a) },
+        { kind: 'text', value: ' and ' },
+        { kind: 'sim', id: b.id, name: simName(b) },
+        { kind: 'text', value: e.type === 'marriage' ? ' divorce.' : ' break up.' },
+      ],
+      undefined,
+      'planned',
+    );
+    entries.push({ ...entry, kind: 'end', ...(e.ending.note?.trim() ? { note: e.ending.note } : {}) });
   }
 
   // A household's world move: its sims' moves, recorded together, as one line.

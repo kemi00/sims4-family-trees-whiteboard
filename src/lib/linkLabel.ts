@@ -53,6 +53,8 @@ export type LinkSelectionInfo = {
   note?: string;
   /** Your note on the link: why you planned it. */
   yourNote?: string;
+  /** One couple picked: its planned end, or what Delete would plan. */
+  couple?: { id: string; type: 'marriage' | 'romance'; ending: boolean };
   /**
    * Ink polylines of the selected link in world space.
    * Sibling/parent geometry is often several disjoint strokes (bar + stems);
@@ -465,7 +467,22 @@ export function describeLinkSelection(
   const path = linkSelectionPath(ids, edgeData, edges, byid);
   if (!path?.length) return null;
 
-  const yourNote = joinNotes(...matched.map((e) => e.note));
-  return { mark, label, ...parties, note: copy.note, ...(yourNote ? { yourNote } : {}), path };
+  const first = matched[0]!;
+  const couple =
+    matched.length === 1 && (first.type === 'marriage' || first.type === 'romance')
+      ? { id: first.id, type: first.type, ending: !!first.ending }
+      : undefined;
+  // A planned end says so after the link's name, as the line draws it.
+  const ended = couple?.ending ? `${label} · ${couple.type === 'marriage' ? 'divorce' : 'breakup'} planned` : label;
+  const yourNote = joinNotes(...matched.map((e) => e.note), first.ending?.note);
+  return {
+    mark,
+    label: ended,
+    ...parties,
+    note: copy.note,
+    ...(yourNote ? { yourNote } : {}),
+    ...(couple ? { couple } : {}),
+    path,
+  };
 }
 

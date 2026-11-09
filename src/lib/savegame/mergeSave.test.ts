@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Edge, SaveGameInfo, SimNode } from '../../types/whiteboard.ts';
+import type { Edge, PairTag, SaveGameInfo, SimNode } from '../../types/whiteboard.ts';
 import {
   fillMissingSavePacks,
   hiddenPacksAfterImport,
@@ -120,6 +120,35 @@ describe('mergeSaveIntoBoard', () => {
     assert.ok(result.edges.some((e) => e.type === 'parent' && e.source === 'save'));
     assert.equal(result.summary.added, 1);
     assert.equal(result.summary.matched, 2);
+  });
+
+  it('shows a planned divorce or breakup done once the save has the couple apart', () => {
+    const bob = sim({ id: 'Bob Pancakes', first: 'Bob', sur: 'Pancakes' });
+    const eliza = sim({ id: 'Eliza Pancakes', first: 'Eliza', sur: 'Pancakes', gender: 'Female' });
+    const sims: ParsedSave['sims'] = [
+      { saveSimId: '1', householdId: '10', first: 'Bob', last: 'Pancakes', household: 'Pancakes', age: 'Adult', gender: 'Male' },
+      { saveSimId: '2', householdId: '10', first: 'Eliza', last: 'Pancakes', household: 'Pancakes', age: 'Adult', gender: 'Female' },
+    ];
+    const merge = (edge: Edge, tags: PairTag[]) =>
+      mergeSaveIntoBoard({
+        nodes: [bob, eliza],
+        edges: [edge],
+        groups: [],
+        worlds: world,
+        parsed: { sims, rels: [], pairs: tags.length ? [{ a: '1', b: '2', tags }] : [] },
+        seedNameKeys: seedNameKeysFromNodes([bob, eliza]),
+        now: '2026-08-24T12:00:00.000Z',
+        nextEdgeId: () => 'v9',
+      }).edges.map((e) => [e.type, e.source, !!e.ending, e.wasPlanned, e.note]);
+    const married: Edge = {
+      id: 'v1', a: bob.id, b: eliza.id, type: 'marriage', source: 'save', ending: { createdAt: 'x', note: 'Drama' },
+    };
+    // Still married in the game: the divorce is still a plan.
+    assert.deepEqual(merge(married, ['married']), [['marriage', 'save', true, undefined, undefined]]);
+    // Divorced in the game: the game's divorce, your note on it.
+    assert.deepEqual(merge(married, ['divorced']), [['divorced', 'save', false, true, 'Drama']]);
+    // Broken up: the romance goes.
+    assert.deepEqual(merge({ ...married, type: 'romance' }, ['exes']), []);
   });
 
   it('keeps your notes on plans the save shows done', () => {

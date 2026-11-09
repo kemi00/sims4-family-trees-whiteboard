@@ -10,6 +10,7 @@ import type {
   EdgeType,
   Group,
   PairStatus,
+  PairTag,
   SaveGameInfo,
   SimLife,
   SimNode,
@@ -1418,6 +1419,37 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     const a = saveIdToBoard.get(p.a);
     const b = saveIdToBoard.get(p.b);
     if (a && b && a !== b) pairStatus.push({ a, b, tags: [...p.tags] });
+  }
+
+  // A planned divorce or breakup the save shows done: a marriage becomes the
+  // game's divorce (your note going with it), a romance goes. One the game
+  // hasn't done yet stays planned.
+  const tagsOf = new Map(pairStatus.map((p) => [uKey(p.a, p.b), p.tags]));
+  const ROMANTIC: readonly PairTag[] = ['married', 'engaged', 'partners', 'secretLovers'];
+  for (const e of [...edges]) {
+    // A save read without relationship statuses can't say a couple ended.
+    if (!e.ending || !parsed.pairs || !inSave.has(e.a) || !inSave.has(e.b)) continue;
+    const tags = tagsOf.get(uKey(e.a, e.b)) ?? [];
+    const note = joinNotes(e.note, e.ending.note);
+    if (e.type === 'divorced' || (e.type === 'marriage' && !tags.includes('married'))) {
+      const twin = edges.find((x) => x !== e && x.type === 'divorced' && uKey(x.a, x.b) === uKey(e.a, e.b));
+      if (twin) {
+        edges.splice(edges.indexOf(e), 1);
+        twin.wasPlanned = true;
+        if (note) twin.note = note;
+      } else {
+        e.type = 'divorced';
+        e.source = 'save';
+        e.wasPlanned = true;
+        delete e.ending;
+        delete e.secret;
+        if (note) e.note = note;
+      }
+      confirmed += 1;
+    } else if (e.type === 'romance' && !tags.some((t) => ROMANTIC.includes(t))) {
+      edges.splice(edges.indexOf(e), 1);
+      confirmed += 1;
+    }
   }
 
   const parentsByChild = new Map<string, SourcedEdge[]>();

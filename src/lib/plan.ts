@@ -152,7 +152,8 @@ export function planConflicts(nodes: SimNode[], edges: Edge[]): PlanConflict[] {
   for (const e of edges) {
     if (e.type === 'parent') {
       parentsOf.set(e.b, [...(parentsOf.get(e.b) ?? []), e]);
-    } else if (!planned(e) && COUPLE.has(e.type)) {
+    } else if (!planned(e) && COUPLE.has(e.type) && !e.ending) {
+      // A couple with a planned divorce or breakup is free in the plan.
       settledWith.set(e.a, [...(settledWith.get(e.a) ?? []), { type: e.type, other: e.b }]);
       settledWith.set(e.b, [...(settledWith.get(e.b) ?? []), { type: e.type, other: e.a }]);
     }

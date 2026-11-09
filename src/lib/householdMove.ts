@@ -1,7 +1,7 @@
 import type { Group, HouseholdMove, SimNode, World } from '../types/whiteboard.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
 import { isPlannedSim } from './plan.ts';
-import { fold as foldName, joinNotes, worldColor } from './utils.ts';
+import { fold as foldName, worldColor } from './utils.ts';
 
 /** The household picker's value for "Create a new household…". */
 export const NEW_HOUSEHOLD = '__new';
@@ -188,11 +188,14 @@ export function householdSurnames(
 }
 
 /**
- * Moves a save shows done: the sim lives in the household they were moved
- * to, matched by their sim id and the household's name, and, for a move to
- * another world, in that world (Dreamer in Ondarion, not the Dreamer
- * household still in Not in any world). A sim's earlier moves are settled
- * with their last one.
+ * Moves a save shows done. A sim's planned moves are a story, step by step
+ * (into the Dreamer household, then back to Darong), so a save settles them
+ * in order: the steps up to the first one that ends where the save has the
+ * sim, matched by sim id and household name and, for a step to another
+ * world, the world (Dreamer in Ondarion, not the Dreamer household still in
+ * Not in any world). A save that has them where the story started settles
+ * nothing: they may not have moved at all, and a step left over is easy to
+ * cancel, where a step marked done by mistake would be lost.
  */
 export function movesDoneBySave(
   moves: HouseholdMove[],
@@ -201,74 +204,26 @@ export function movesDoneBySave(
 ): Set<string> {
   const home = new Map(sims.map((s) => [s.saveSimId, s]));
   const saveId = new Map(nodes.map((n) => [n.id, n.saveSimId]));
-  const last = new Map<string, HouseholdMove>();
-  for (const m of moves) {
-    if (m.done) continue;
-    const prev = last.get(m.simId);
-    if (!prev || prev.createdAt <= m.createdAt) last.set(m.simId, m);
-  }
-  const doneSims = new Set<string>();
-  for (const m of last.values()) {
-    const sid = saveId.get(m.simId);
-    const s = sid ? home.get(sid) : undefined;
-    if (!s || fold(s.household) !== fold(m.toHh)) continue;
-    // A save that doesn't say where the household lives can't tell worlds apart.
-    const world = s.unhoused ? NOT_IN_WORLD : s.world?.trim();
-    if (changesWorld({ fromWorld: m.fromWorld, toWorld: m.toWorld }) && world && foldName(world) !== foldName(m.toWorld)) continue;
-    doneSims.add(m.simId);
-  }
-  return new Set(moves.filter((m) => !m.done && doneSims.has(m.simId)).map((m) => m.id));
-}
-
-/**
- * The plan's moves netted out, as the Plan is what's left to do in the
- * game, not every step taken on the board. A sim's moves still planned are
- * one move from where the game has them (the first one's start) to where
- * the board has them (the last one's end), keeping the last one's id and
- * time and every note: Bjergsen → Bro → Le Chien is Bjergsen → Le Chien.
- * Moves that bring a sim back where the game has them cancel out and go:
- * Darong → Dreamer → Darong is nothing to do. Moves a save showed done stay.
- */
-export function settleMoves(moves: HouseholdMove[]): HouseholdMove[] {
   const chains = new Map<string, HouseholdMove[]>();
   for (const m of moves) if (!m.done) chains.set(m.simId, [...(chains.get(m.simId) ?? []), m]);
-  const keep = new Map<string, HouseholdMove | null>();
-  let changed = false;
-  for (const list of chains.values()) {
+  const done = new Set<string>();
+  for (const [simId, list] of chains) {
+    const sid = saveId.get(simId);
+    const s = sid ? home.get(sid) : undefined;
+    if (!s) continue;
     const chain = [...list].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+    // A save that doesn't say where the household lives can't tell worlds apart.
+    const world = s.unhoused ? NOT_IN_WORLD : s.world?.trim();
+    const at = (hh: string, w: string) => fold(s.household) === fold(hh) && (!world || foldName(world) === foldName(w));
     const first = chain[0]!;
-    const last = chain[chain.length - 1]!;
-    for (const m of chain) keep.set(m.id, null);
-    if (first.fromGid === last.toGid) {
-      changed = true;
-      continue;
-    }
-    if (chain.length === 1) {
-      keep.set(first.id, first);
-      continue;
-    }
-    changed = true;
-    const { note: _notes, ...rest } = last;
-    const note = joinNotes(...chain.map((m) => m.note));
-    keep.set(last.id, {
-      ...rest,
-      fromGid: first.fromGid,
-      fromHh: first.fromHh,
-      fromWorld: first.fromWorld,
-      fromNb: first.fromNb,
-      ...(note ? { note } : {}),
-    });
+    if (at(first.fromHh, first.fromWorld)) continue;
+    const upTo = chain.findIndex((m) =>
+      fold(s.household) === fold(m.toHh) &&
+      (!changesWorld({ fromWorld: m.fromWorld, toWorld: m.toWorld }) || !world || foldName(world) === foldName(m.toWorld)),
+    );
+    for (const m of chain.slice(0, upTo + 1)) done.add(m.id);
   }
-  if (!changed) return moves;
-  const out: HouseholdMove[] = [];
-  for (const m of moves) {
-    if (m.done || !keep.has(m.id)) out.push(m);
-    else {
-      const k = keep.get(m.id);
-      if (k) out.push(k);
-    }
-  }
-  return out;
+  return done;
 }
 
 /** The world most of these sims live in, for the picker to start on. */

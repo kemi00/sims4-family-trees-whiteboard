@@ -202,6 +202,19 @@ describe('buildConnectionLog', () => {
     assert.deepEqual(hh.map((p) => (p.kind === 'hh' ? `${p.name} (${p.world})` : '')), ['Munch (Windenburg)', 'Summerdream (Innisgreen)']);
   });
 
+  it('writes a planned divorce or breakup as a plan of its own, with its note', () => {
+    const byid = { A: node('A', 'Ann', 'X'), B: node('B', 'Ben', 'X') };
+    const log = buildConnectionLog(
+      [{ id: 'v1', a: 'A', b: 'B', type: 'marriage', source: 'save', createdAt: '2026-01-01T00:00:00.000Z', ending: { createdAt: '2026-02-01T00:00:00.000Z', note: 'Drama' } }],
+      byid,
+    );
+    const end = log.find((e) => e.id === 'end:v1')!;
+    assert.deepEqual([end.kind, end.edgeIds, end.note, logSection(end)], ['end', ['v1'], 'Drama', 'plan']);
+    assert.match(end.text, /Ann X and Ben X divorce\.$/);
+    // The marriage itself stays in your game's history.
+    assert.equal(logSection(log.find((e) => e.id === 'v1')!), 'game');
+  });
+
   it('puts the note of a link, a child or a move on its line', () => {
     const byid = { A: node('A', 'Ann', 'X'), B: node('B', 'Ben', 'X'), K: node('K', 'Kit', 'X') };
     const log = buildConnectionLog(

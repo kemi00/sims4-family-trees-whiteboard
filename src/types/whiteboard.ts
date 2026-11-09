@@ -244,6 +244,12 @@ export interface Edge {
    * plan done, so the reason is still there in your game's history.
    */
   note?: string;
+  /**
+   * A planned end to a couple: a divorce for a marriage, a breakup for a
+   * romance. The link stays as the game has it until a save shows it over;
+   * then a marriage becomes the game's divorce, and a romance goes.
+   */
+  ending?: { createdAt: string; note?: string };
 }
 
 /** What two sims are to each other in the save (strongest of each kind). */
@@ -477,6 +483,8 @@ export interface UnionRender {
   secret?: boolean;
   /** The partners live in different households: the line is thin and dashed. */
   cross?: true;
+  /** A planned divorce or breakup: drawn violet, as it will be. */
+  ending?: true;
 }
 
 /** Lock badge on a child's top stem: one of its parents is secret. */

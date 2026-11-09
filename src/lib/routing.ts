@@ -1213,6 +1213,7 @@ export function computeEdgeRenderData(
       ry: g0.ry,
       isUser: isUserE(e),
       ...(e.type === 'romance' && e.secret ? { secret: true } : {}),
+      ...((e.type === 'marriage' || e.type === 'romance') && e.ending ? { ending: true as const } : {}),
       ...across(byid[e.a]!.gid !== byid[e.b]!.gid),
     };
   });
