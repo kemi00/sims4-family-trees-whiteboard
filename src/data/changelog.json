@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "d88b291",
+   "date": "2026-11-09",
+   "text": "The ♥ menu now lists partners in the same cards as Possible partners in the sim editor: the dynasty role's mark, how close in age and their household, then in amber whether they're related, married or in a romance, not aging now, and their dynasty."
+  },
+  {
    "sha": "db0d10c",
    "date": "2026-11-09",
    "text": "A household can now move to another world whole: open its plan from its tag, or a sim's editor, and choose Move to another world. It keeps its name and everyone in it, and joins a household of that name if the world has one. The Log and the plan show it as one move, like \"The Dreamer household moves from Not in any world to Ondarion\". Moving one sim into a new household named like their own, in another world, now offers to move the whole household instead. Moves between worlds name both worlds, so they no longer read \"from Dreamer to Dreamer\"."
