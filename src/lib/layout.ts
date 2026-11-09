@@ -2521,6 +2521,31 @@ export function householdAddSpot(
 }
 
 /**
+ * Where a partner who moves in lands: beside the sim they move in with, on
+ * the side picked (else the other), as couples sit on the board. Null when
+ * neither side is free of other cards, with a little room around them: then
+ * householdAddSpot finds a place in the household.
+ */
+export function partnerSpot(
+  host: SpawnRect,
+  occupied: SpawnRect[],
+  side: 'left' | 'right',
+): { x: number; y: number } | null {
+  const size = { w: CARD_MIN_W, h: CARD_H };
+  const room = LAYOUT.partnerGap / 2;
+  const free = (x: number, y: number) =>
+    !occupied.some((o) =>
+      rectsOverlap({ x: x - room, y: y - room, w: size.w + room * 2, h: size.h + room * 2 }, o),
+    );
+  const right = tileSnapOrigin(host.x + host.w + LAYOUT.partnerGap, host.y);
+  const left = tileSnapOrigin(host.x - LAYOUT.partnerGap - size.w, host.y);
+  for (const at of side === 'left' ? [left, right] : [right, left]) {
+    if (free(at.x, at.y)) return at;
+  }
+  return null;
+}
+
+/**
  * Keep existing cards where they are. A sim who joins a household already on
  * the board goes in rows under that household's cards, so its box grows in
  * place instead of stretching down to wherever the newcomer lands. Pack

@@ -63,6 +63,7 @@ import {
 import {
   computeLayout,
   householdAddSpot,
+  partnerSpot,
   layoutBases,
   measureCard,
   OTHER_WORLD,
@@ -72,6 +73,7 @@ import {
 } from '../lib/layout.ts';
 import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
 import { lineageIds } from '../lib/bloodline.ts';
+import { hasNoHome } from '../lib/partners.ts';
 import {
   buildConnectionLog,
   householdAgeUpLine,
@@ -79,7 +81,7 @@ import {
   simName,
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
-import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, worldColor } from '../lib/utils.ts';
+import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -126,6 +128,36 @@ const INITIAL_VIEW: Viewport = { tx: 40, ty: 40, k: 0.72 };
 
 /** localStorage key: the family highlight's last scope, close or extended. */
 const FAMILY_SCOPE_KEY = 'sims4-family-trees:family-scope:v1';
+
+/** The couple links the partner menu makes. */
+export type PartnerChoice = 'marriage' | 'romance' | 'secretromance' | 'divorced';
+export const PARTNER_CHOICES: readonly PartnerChoice[] = ['marriage', 'romance', 'secretromance', 'divorced'];
+
+/** The partner menu: whose, the side clicked, where it opens, the link, and a partner picked by name. */
+export type PartnerMenuState = {
+  id: string;
+  side: 'left' | 'right';
+  x: number;
+  y: number;
+  choice: PartnerChoice;
+  /** Picked by name and linked: the menu now asks about one household. */
+  picked?: string;
+};
+
+/** The status line while the partner menu is open starts so. */
+const PARTNER_HINT = 'Partner for ';
+
+/** Where this browser remembers the partner menu's last link. */
+const PARTNER_CHOICE_KEY = 'partner-link';
+
+function readPartnerChoice(): PartnerChoice {
+  try {
+    const v = localStorage.getItem(PARTNER_CHOICE_KEY);
+    return (PARTNER_CHOICES as readonly string[]).includes(v ?? '') ? (v as PartnerChoice) : 'marriage';
+  } catch {
+    return 'marriage';
+  }
+}
 
 /** The link each connect choice adds, from the first sim clicked to the second (flip: the other way). */
 const CONNECT_LINKS: Record<
@@ -321,6 +353,11 @@ export function useWhiteboard() {
     x: number;
     y: number;
   } | null>(null);
+  /**
+   * The partner menu, opened from a ♥ on a card's side: the sim, the side
+   * clicked (where a partner who moves in lands), and where it opens.
+   */
+  const [partnerMenu, setPartnerMenu] = useState<PartnerMenuState | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   /** Up next is open, and the households skipped in it until the next save import. */
   const [upNextOpen, setUpNextOpen] = useState(false);
@@ -1801,6 +1838,130 @@ export function useWhiteboard() {
     [connectMenu, addEdge, byid, flashStatus, hideSecrets, parentCycleReason],
   );
 
+  /** The ♥ on a card's side: pick a partner by name, or by clicking them on the board. */
+  const openPartnerMenu = useCallback(
+    (id: string, side: 'left' | 'right', x: number, y: number) => {
+      const n = byid[id];
+      if (!n) return;
+      setConnectMenu(null);
+      setConnSrc(null);
+      setSel({ type: 'node', id });
+      setPartnerMenu({ id, side, x, y, choice: readPartnerChoice() });
+      setStatus(`${PARTNER_HINT}${cardName(n)}: type a name, or click a sim on the board (Esc to cancel)`);
+    },
+    [byid],
+  );
+
+  /**
+   * A couple link from the partner menu, as Connect makes it: false, with
+   * why on the status line, when it is already there.
+   */
+  const linkPartner = useCallback(
+    (a: string, b: string, choice: PartnerChoice): boolean => {
+      const link = CONNECT_LINKS[choice];
+      const there = edges.find((e) => e.type === link.type && uKey(e.a, e.b) === uKey(a, b));
+      const [A, B] = [byid[a], byid[b]];
+      if (!A || !B) return false;
+      if (there && (!link.secret || there.secret)) {
+        flashStatus(`${cardName(A)} and ${cardName(B)} already have that link.`);
+        return false;
+      }
+      addEdge(a, b, link.type, !!link.secret);
+      trackAction('/action/partner');
+      flashStatus(
+        link.secret && hideSecrets
+          ? `Linked ✓ ${cardName(A)} and ${cardName(B)}: it is secret, so Hide secrets keeps it off the board.`
+          : `Linked ✓ ${cardName(A)} and ${cardName(B)}. Undo takes it back.`,
+      );
+      return true;
+    },
+    [edges, byid, addEdge, flashStatus, hideSecrets],
+  );
+
+  /**
+   * One partner moves into the other's household, as a plan (a household
+   * move, done once a save shows it), and their card lands beside the
+   * other's on `side`, or wherever the household has room.
+   */
+  const moveInWith = useCallback(
+    (mover: string, host: string, side: 'left' | 'right' = 'right'): boolean => {
+      const m = nodes.find((x) => x.id === mover);
+      const h = nodes.find((x) => x.id === host);
+      if (!m || !h || m.gid === h.gid) return false;
+      const dest = moveDestination(groups, nodes, worlds, h.world, h.gid);
+      const g = groups.find((x) => x.gid === h.gid);
+      if (!dest || !g) return false;
+      const { patches, moves } = householdMovePlan(nodes, [mover], dest);
+      const patch = patches.get(mover);
+      if (!patch) return false;
+      pushUndo();
+      trackAction('/action/partner-move');
+      const createdAt = new Date().toISOString();
+      setHouseholdMoves((ms) => [...ms, ...moves.map((mv) => ({ ...mv, id: 'h' + eidcRef.current++, createdAt }))]);
+      const others = nodes.filter((x) => x.id !== mover);
+      const home = others.filter((x) => x.gid === h.gid);
+      const chrome = householdChrome(home, g);
+      const spot =
+        partnerSpot(h, others, side) ?? (chrome ? householdAddSpot(home, others, chrome.boxR) : null);
+      const nextCore = nodesCore.map((x) => (x.id === mover ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x));
+      const bases = layoutBases(nextCore, worlds, edges);
+      const pinned = nextCore.map((node) => {
+        const base = bases.get(node.id);
+        if (node.id === mover) return spot && base ? { ...node, ox: spot.x - base.x, oy: spot.y - base.y } : node;
+        const vis = byid[node.id];
+        if (!vis || !base) return node;
+        const ox = vis.x - base.x;
+        const oy = vis.y - base.y;
+        if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
+        return { ...node, ox, oy };
+      });
+      const laid = computeLayout(pinned, worlds, edges);
+      setNodesCore(coreOffsetsAfterImportSeparation(pinned, snap ? snapNodesToTiles(laid) : laid, groups, nodes));
+      lockViewToSims([host]);
+      flashStatus(
+        `${cardName(m)} moves in with ${cardName(h)}, in the ${dest.hh} household: a plan until a save shows it. Undo takes it back.`,
+      );
+      return true;
+    },
+    [nodes, nodesCore, groups, worlds, edges, byid, snap, pushUndo, lockViewToSims, flashStatus],
+  );
+
+  /** The link the partner menu makes, remembered for next time. */
+  const setPartnerChoice = useCallback((choice: PartnerChoice) => {
+    setPartnerMenu((m) => (m ? { ...m, choice } : m));
+    try {
+      localStorage.setItem(PARTNER_CHOICE_KEY, choice);
+    } catch {
+      // Private mode: it is forgotten when the page closes.
+    }
+  }, []);
+
+  const closePartnerMenu = useCallback(() => {
+    setPartnerMenu(null);
+    // Its hint goes; a "Linked ✓" or a move just made stays to be read.
+    setStatus((cur) => (cur.startsWith(PARTNER_HINT) ? '' : cur));
+  }, []);
+
+  /**
+   * A partner picked in the menu. Clicked on the board, the link is all:
+   * you can see where they are. Picked by name for a marriage or a romance,
+   * with the two in different households, the menu then asks whether one
+   * moves in with the other.
+   */
+  const pickPartner = useCallback(
+    (b: string, by: 'name' | 'board') => {
+      const menu = partnerMenu;
+      if (!menu || menu.picked || b === menu.id) return;
+      if (!linkPartner(menu.id, b, menu.choice)) return;
+      const [A, B] = [byid[menu.id], byid[b]];
+      const together = menu.choice === 'marriage' || menu.choice === 'romance';
+      const apart = !!A && !!B && A.gid !== B.gid && (!hasNoHome(A) || !hasNoHome(B));
+      if (by === 'name' && together && apart) setPartnerMenu({ ...menu, picked: b });
+      else setPartnerMenu(null);
+    },
+    [partnerMenu, linkPartner, byid],
+  );
+
   const fit = useCallback((svgWidth: number, svgHeight: number) => {
     const [x0, y0, x1, y1] = bbox(nodes, nodeVis);
     const w = x1 - x0;
@@ -3030,6 +3191,12 @@ export function useWhiteboard() {
     setConnectMenu,
     infantHouseMenu,
     setInfantHouseMenu,
+    partnerMenu,
+    openPartnerMenu,
+    closePartnerMenu,
+    setPartnerChoice,
+    pickPartner,
+    moveInWith,
     infantHouseChoices,
     requestInfantOfCouple,
     requestInfantOfSim,

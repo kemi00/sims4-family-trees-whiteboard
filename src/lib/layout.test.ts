@@ -4,6 +4,7 @@ import { CARD_H, CARD_MIN_W, HH_TAG_BAND, HH_TAG_INSET, HH_TAG_PILL_H, HH_TAG_ST
 import {
   computeLayout,
   householdAddSpot,
+  partnerSpot,
   layoutBases,
   packingKey,
   packingSignature,
@@ -640,6 +641,24 @@ describe('householdAddSpot', () => {
       x: 0,
       y: 2 * TILE + 2 * rowPitch(),
     });
+  });
+});
+
+describe('partnerSpot', () => {
+  const card = (x: number, y: number) => ({ x, y, w: CARD_MIN_W, h: CARD_H });
+  const host = card(5 * TILE, 0);
+  const right = { x: 5 * TILE + CARD_MIN_W + TILE, y: 0 };
+  const left = { x: 5 * TILE - TILE - CARD_MIN_W, y: 0 };
+
+  it('sits beside the partner on the side picked, as a couple does', () => {
+    assert.deepEqual(partnerSpot(host, [host], 'right'), right);
+    assert.deepEqual(partnerSpot(host, [host], 'left'), left);
+  });
+
+  it('takes the other side when a card is in the way, and none when both are', () => {
+    const r = card(right.x, 0);
+    assert.deepEqual(partnerSpot(host, [host, r], 'right'), left);
+    assert.equal(partnerSpot(host, [host, r, card(left.x, 0)], 'right'), null);
   });
 });
 

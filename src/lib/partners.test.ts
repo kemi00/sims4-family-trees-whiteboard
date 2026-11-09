@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode, SimLife } from '../types/whiteboard.ts';
-import { bloodRelatives, gapText, partnerCandidates } from './partners.ts';
+import { bloodRelatives, gapText, partnerCandidates, partnerSearch } from './partners.ts';
 
 const life = (stage: string, stageDays: number, extra: Partial<SimLife> = {}): SimLife => ({ born: 0, stage, stageDays, at: 0, ...extra });
 const sim = (id: string, age: string, extra: Partial<SimNode> = {}): SimNode =>
@@ -90,5 +90,39 @@ describe('possible partners', () => {
   it('narrows to one gender', () => {
     const list = partnerCandidates({ id: 'Heir', nodes: [...nodes, sim('Boy', 'Teen', { gender: 'Male', life: life('Teen', 4) })], edges, gender: 'Male' });
     assert.deepEqual(list.map((c) => c.id), ['Boy']);
+  });
+});
+
+describe('the partner menu’s search', () => {
+  const heir = sim('Heir', 'Young Adult', { gender: 'Male', sur: 'Munch', life: life('Young Adult', 4) });
+  const nodes = [
+    heir,
+    sim('Mara', 'Young Adult', { sur: 'Summerdream', life: life('Young Adult', 5) }),
+    sim('Mary', 'Teen', { sur: 'Mar', life: life('Teen', 5) }),
+    sim('Martha', 'Young Adult', { sur: 'Munch', life: life('Young Adult', 6) }),
+    sim('Marla', 'Adult', { sur: 'Wed', life: life('Adult', 6) }),
+    sim('Marge', 'Adult', { sur: 'Gone', state: 'Deceased' }),
+    sim('Marmalade', 'Adult', { species: 'Cat' }),
+  ];
+  const edges: Edge[] = [parent('Dad', 'Heir'), parent('Dad', 'Martha'), { id: 'm', a: 'Marla', b: 'Ex', type: 'marriage' }];
+  const search = (query: string) => partnerSearch({ id: 'Heir', nodes, edges, query, game: { importedAt: '', clock: 0, lifespan: 'Short' } });
+
+  it('suggests the closest in life with nothing typed', () => {
+    assert.deepEqual(search('').map((h) => h.id), ['Mara']);
+  });
+
+  it('finds anyone living by name, suggested partners first, and marks relatives and the married', () => {
+    const hits = search('mar');
+    assert.deepEqual(hits.map((h) => h.id), ['Mara', 'Marla', 'Martha', 'Mary']);
+    assert.ok(hits[0]!.candidate);
+    assert.deepEqual(
+      hits.slice(1).map((h) => [h.id, !!h.candidate, h.related, h.married]),
+      [
+        ['Marla', false, false, true],
+        ['Martha', false, true, false],
+        ['Mary', false, false, false],
+      ],
+    );
+    assert.deepEqual(search('summer').map((h) => h.id), ['Mara']);
   });
 });

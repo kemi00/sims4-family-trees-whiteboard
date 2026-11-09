@@ -73,6 +73,7 @@ import { EdgeLayer } from './EdgeLayer.tsx';
 import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
+import { PartnerMenu } from './PartnerMenu.tsx';
 import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
@@ -166,6 +167,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     more: boolean;
     /** Pressed on the card's ＋: a click plans a baby of this sim. */
     baby: boolean;
+    /** The ♥ on the card's side that was pressed, if any. */
+    partner?: 'left' | 'right';
     /** Shift-click, or any click in Select: a click adds the sim to the selection or takes them out. */
     toggle: boolean;
   } | null>(null);
@@ -1187,10 +1190,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     more = false,
     toggle = false,
     baby = false,
+    partner?: 'left' | 'right',
+    ev?: ReactPointerEvent,
   ) => {
     // The drop already wrote the snapped spot via moveNodesByIds. wb.byid is
     // still the pre-drag render, so snapping it here put the sim back.
     if (wasMoved) return;
+    if (partner) {
+      // The ♥ on a card's side: plan a partner, typed or clicked on the board.
+      lastClickRef.current = null;
+      const sr = stageRef.current?.getBoundingClientRect();
+      const x = ev && sr ? ev.clientX - sr.left : 0;
+      const y = ev && sr ? ev.clientY - sr.top : 0;
+      wb.openPartnerMenu(n.id, partner, x + (partner === 'right' ? 14 : -14), y);
+      return;
+    }
     if (baby) {
       // The ＋ on the card's foot: a planned baby of this sim alone.
       lastClickRef.current = null;
@@ -1344,7 +1358,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         );
       }
       dragRef.current = null;
-      finishNodePointer(wasMoved, n, d.more, d.toggle, d.baby);
+      finishNodePointer(wasMoved, n, d.more, d.toggle, d.baby, d.partner, ev);
       return;
     }
     if (panRef.current) {
@@ -1385,6 +1399,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         beginPinch();
         return;
       }
+      // The partner menu is open: a click on another sim picks them.
+      const pm = wbNow.partnerMenu;
+      if (pm && !pm.picked && n.id !== pm.id && !wbNow.connectMode) {
+        wbNow.pickPartner(n.id, 'board');
+        return;
+      }
       if (wbNow.connectMode) {
         const [wx, wy] = toWorld(ev.clientX, ev.clientY);
         const union = unionAtPoint(wx, wy, wbNow.edgeData.unions);
@@ -1399,9 +1419,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       const [wx, wy] = toWorld(ev.clientX, ev.clientY);
       const more = !!(ev.target as Element).closest?.('.node__more');
       const baby = !!(ev.target as Element).closest?.('.node__baby');
+      const partnerSide = (ev.target as Element).closest?.('.node__partner')?.getAttribute('data-side');
+      const partner = partnerSide === 'left' || partnerSide === 'right' ? partnerSide : undefined;
       // Shift (⌘ or Ctrl too) picks sims one by one; in Select any click does.
       const toggle =
-        !more && !baby && (ev.shiftKey || ev.metaKey || ev.ctrlKey || wbNow.selectMode);
+        !more && !baby && !partner && (ev.shiftKey || ev.metaKey || ev.ctrlKey || wbNow.selectMode);
       if (multiSelContainsNode(wbNow.multiSel, n.id) && wbNow.multiSel) {
         beginMultiDragRef.current(wbNow.multiSel, wx, wy, ev);
         if (toggle && multiDragRef.current) multiDragRef.current.toggleId = n.id;
@@ -1423,11 +1445,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         armed: false,
         more,
         baby,
+        partner,
         toggle,
       };
       movedRef.current = false;
       clearLongPress();
-      if (ev.pointerType !== 'mouse' && !baby) {
+      if (ev.pointerType !== 'mouse' && !baby && !partner) {
         longPressRef.current = setTimeout(() => {
           longPressRef.current = null;
           if (!dragRef.current || dragRef.current.armed) return;
@@ -1778,6 +1801,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 dynastyTag={n.dynasty ? wb.dynastyNames.get(dynastyKey(n) ?? '')?.tag : undefined}
                 dynastyRisk={dynastyRiskOf(n)}
                 babyPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
+                partnerPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.briefHover ?? wb.dynastyFocusIds ?? wb.familyIds}
@@ -2015,6 +2039,23 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             wb.setConnectMenu(null);
             wb.cancelConnect();
           }}
+        />
+      )}
+      {wb.partnerMenu && (
+        <PartnerMenu
+          key={`${wb.partnerMenu.id}|${wb.partnerMenu.side}`}
+          menu={wb.partnerMenu}
+          nodes={wb.nodes}
+          byid={wb.byid}
+          edges={wb.edges}
+          saveGame={wb.saveGame}
+          onChoice={wb.setPartnerChoice}
+          onPick={(id) => wb.pickPartner(id, 'name')}
+          onMove={(mover, host) => {
+            wb.moveInWith(mover, host, host === wb.partnerMenu?.id ? wb.partnerMenu.side : 'right');
+            wb.closePartnerMenu();
+          }}
+          onClose={wb.closePartnerMenu}
         />
       )}
       {wb.infantHouseMenu && (

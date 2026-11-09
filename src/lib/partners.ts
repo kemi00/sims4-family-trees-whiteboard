@@ -1,6 +1,8 @@
 import { DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
 import { approxLifeDays, lifeDays, scaleOf } from './lifeClock.ts';
 import { isUnhousedGid } from './unhoused.ts';
+import { cardName } from './plan.ts';
+import { fold } from './utils.ts';
 import type { Edge, SaveGameInfo, SimLife, SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -158,4 +160,69 @@ export function gapText(c: PartnerCandidate): string {
   if (days < 1) return c.approx ? 'about the same age' : 'same age';
   const unit = days === 1 ? 'day' : 'days';
   return `${c.approx ? 'about ' : ''}${days} ${unit} ${c.gapDays > 0 ? 'older' : 'younger'}`;
+}
+
+/** A sim the partner picker lists. */
+export type PartnerHit = {
+  id: string;
+  /** Set when they're a suggested partner (partnerCandidates): how close in life. */
+  candidate?: PartnerCandidate;
+  /** Shares an ancestor with the sim, or descends from one they share. */
+  related: boolean;
+  /** Married to someone on the board. */
+  married: boolean;
+};
+
+/**
+ * Who the partner picker lists for `id`. With nothing typed, the closest
+ * suggested partners (partnerCandidates). With a name typed, anyone living
+ * whose name has it, suggested partners first, then the rest A to Z: a
+ * plan can pair anyone, and a relative or a married sim is marked rather
+ * than hidden.
+ */
+export function partnerSearch(opts: {
+  id: string;
+  nodes: SimNode[];
+  edges: Edge[];
+  query: string;
+  game?: SaveGameInfo | null;
+  /** Suggestions shown with nothing typed. */
+  suggest?: number;
+  /** Most matches listed. */
+  limit?: number;
+}): PartnerHit[] {
+  const { id, nodes, edges } = opts;
+  const candidates = partnerCandidates({ id, nodes, edges, game: opts.game });
+  const q = fold(opts.query);
+  const blood = bloodRelatives(id, edges);
+  const married = new Set(edges.filter((e) => e.type === 'marriage').flatMap((e) => [e.a, e.b]));
+  const hit = (n: SimNode, candidate?: PartnerCandidate): PartnerHit => ({
+    id: n.id,
+    ...(candidate ? { candidate } : {}),
+    related: blood.has(n.id),
+    married: married.has(n.id),
+  });
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  if (!q) {
+    return candidates.slice(0, opts.suggest ?? 6).map((c) => hit(byId.get(c.id)!, c));
+  }
+  const matches = (n: SimNode) =>
+    fold(`${n.first} ${n.sur}`).includes(q) || fold(cardName(n)).includes(q);
+  const fromCandidates = candidates
+    .map((c) => byId.get(c.id)!)
+    .filter(matches)
+    .map((n) => hit(n, candidates.find((c) => c.id === n.id)));
+  const listed = new Set(fromCandidates.map((h) => h.id));
+  const rest = nodes
+    .filter(
+      (n) =>
+        n.id !== id &&
+        !listed.has(n.id) &&
+        !n.species &&
+        n.state !== DECEASED_STATE &&
+        matches(n),
+    )
+    .sort((a, b) => cardName(a).localeCompare(cardName(b), undefined, { sensitivity: 'base' }))
+    .map((n) => hit(n));
+  return [...fromCandidates, ...rest].slice(0, opts.limit ?? 30);
 }

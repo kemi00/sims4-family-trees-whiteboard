@@ -40,6 +40,12 @@ type Props = {
    */
   babyPlus?: boolean;
   /**
+   * A ♥ on each side of the card, where a couple's line meets it: it plans
+   * a partner (married, romance, secret lovers, divorced). Shown on hover
+   * and while the card is selected, as the ＋ below is.
+   */
+  partnerPlus?: boolean;
+  /**
    * "Travis’s line" when another dynasty has the same name as theirs: the
    * last line then reads "Scott dynasty (Travis’s line)".
    */
@@ -85,6 +91,7 @@ export const SimNodeView = memo(function SimNodeView({
   notYet,
   parents,
   babyPlus = false,
+  partnerPlus = false,
   dynastyTag,
   dynastyRisk,
   onPointerDown,
@@ -315,6 +322,24 @@ export const SimNodeView = memo(function SimNodeView({
           </text>
         </g>
       )}
+      {/* Couples' lines meet a card at its sides, children's at its foot:
+          the ♥ on either side plans a partner. Clicked through WhiteboardStage. */}
+      {labels &&
+        partnerPlus &&
+        (['left', 'right'] as const).map((side) => (
+          <g
+            key={side}
+            className="node__partner"
+            data-side={side}
+            transform={`translate(${side === 'left' ? 0 : n.w || CARD_MIN_W},${h / 2})`}
+          >
+            <title>Plan a partner for {cardName(n)}</title>
+            <circle r={PILL_H / 2} fill={UEDIT} stroke="#fff" strokeWidth={1.4} />
+            <text y={4} fontSize={11} fontWeight={700} textAnchor="middle" fill="#fff">
+              ♥
+            </text>
+          </g>
+        ))}
       {fromSave && (
         <g
           transform={`translate(${hasBadge || added ? n.w - 38 : n.w - 15}, 15)`}

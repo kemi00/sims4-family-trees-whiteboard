@@ -621,6 +621,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .node:hover .node__baby,.node.sel .node__baby{opacity:1;pointer-events:auto}
 .node__baby:hover circle{filter:brightness(1.12)}
 .node__baby text{pointer-events:none}
+.node__partner{opacity:0;pointer-events:none;cursor:pointer;transition:opacity .12s ease}
+.node:hover .node__partner,.node.sel .node__partner{opacity:1;pointer-events:auto}
+.node__partner:hover circle{filter:brightness(1.12)}
+.node__partner text{pointer-events:none}
 .node.sel>rect:first-of-type{stroke:#1b6cd6!important;stroke-width:4.5px!important;fill:#e9f2ff!important}
 .node.sel{filter:drop-shadow(0 0 0 #1b6cd6) drop-shadow(0 0 7px rgba(27,108,214,.9))}
 /* Soft membership highlight when a parent world/household is multi-selected. */
@@ -632,6 +636,33 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu{position:absolute;background:#fff;border:1px solid #cdd3da;border-radius:var(--r-surface);box-shadow:0 8px 24px #0003;padding:6px;z-index:20;font-size:12px;display:none;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain}
 .editor{position:fixed;background:#fff;border:1px solid #cdd3da;border-radius:var(--r-surface);box-shadow:0 8px 24px #0003;padding:6px;z-index:50;font-size:12px;display:none}
 .menu button{display:block;width:100%;text-align:left;margin:2px 0;border:none;background:#f5f6f8;white-space:normal;line-height:1.3}
+/* ── partner menu (the ♥ on a card's side) ── */
+.menu.pmenu{width:300px;padding:10px}
+.pmenu__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;font-size:12.5px;color:var(--ink)}
+.menu .pmenu__close{flex:none;width:24px;height:24px;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:transparent;color:var(--ink-3)}
+.menu .pmenu__close:hover{background:var(--hover);color:var(--ink-2)}
+.pmenu__close svg{width:14px;height:14px}
+.pmenu__kinds{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:2px;margin:0 0 8px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
+.menu .pmenu__kind{margin:0;padding:5px 8px;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11.5px;font-weight:600;text-align:center}
+.menu .pmenu__kind:hover{background:var(--hover);color:var(--ink)}
+.menu .pmenu__kind[aria-checked=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1f}
+.pmenu__search{display:block;box-sizing:border-box;width:100%;height:32px;padding:0 10px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:12.5px}
+.pmenu__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.pmenu__label{min-height:4px;margin:6px 2px 2px;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-3)}
+.pmenu__list{margin:0;padding:0;list-style:none;max-height:240px;overflow-y:auto}
+.menu .pmenu__opt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;margin:0;padding:6px 8px;border-radius:6px;background:transparent}
+.menu .pmenu__opt--on,.menu .pmenu__opt:hover{background:var(--accent-soft)}
+.pmenu__name{font-weight:600;color:var(--ink)}
+.pmenu__meta{font-size:11px;font-weight:500;color:var(--ink-2)}
+.pmenu__flag{color:var(--warn)}
+.pmenu__empty{margin:4px 2px;color:var(--ink-2)}
+.pmenu__hint{margin:8px 2px 0;font-size:11px;color:var(--ink-3)}
+.pmenu__done{margin:0 0 6px;font-weight:600;color:var(--done)}
+.pmenu__ask{margin:0 0 6px;font-size:12.5px;font-weight:600;color:var(--ink)}
+.menu .pmenu__move{justify-content:flex-start;margin:3px 0;padding:8px 10px;border-radius:var(--r-control);font-weight:600;color:var(--ink)}
+.menu .pmenu__move--first{background:var(--accent);color:#fff}
+.menu .pmenu__move--first:hover{background:var(--accent-strong)}
+.menu .pmenu__keep{background:transparent;color:var(--ink-2)}
 .gpanel{position:fixed;z-index:60;background:#fff;border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:0 12px 34px #0003;padding:9px;font-size:12px;max-height:74vh;overflow:auto;width:256px;display:none}
 .gpanel__empty{margin:6px 2px 2px;color:var(--ink-2);font-size:12px}
 .gpanel .gph{display:flex;justify-content:space-between;align-items:center;margin:2px 4px 8px;font-size:11px;color:#5a6673}

@@ -67,6 +67,7 @@ export default function App() {
         if (devUpdatesOpen) closeDevUpdates();
         else if (wb.saveImport) wb.cancelSaveImport();
         else if (wb.pendingLoadJson) wb.cancelLoadJson();
+        else if (wb.partnerMenu) wb.closePartnerMenu();
         else if (wb.gamesOpen) wb.setGamesOpen(false);
         else if (wb.playOpen) wb.setPlayOpen(false);
         else if (wb.agesOpen) wb.setAgesOpen(false);
