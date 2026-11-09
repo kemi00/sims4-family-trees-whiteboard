@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "0c0367c",
+   "date": "2026-11-09",
+   "text": "Plans can tell a story now. Moving a sim somewhere and back keeps both moves as steps, and the bin in the Log takes out just one step. Couples can have a planned divorce or breakup: select the link and choose Plan a divorce or Plan a breakup, or press Delete on a couple from your save. The line turns violet with a divorce mark or a struck heart, the Log and household plan list it, and a save that shows them apart marks it done."
+  },
+  {
    "sha": "4d707b1",
    "date": "2026-11-09",
    "text": "Plans can be cancelled. Each line in the Log's Plan tab has a bin that puts the board back as your game has it: a planned link goes, a planned baby goes with its links, and a move sends its sims (or a whole household) back where they live in your game. Moving a sim back by hand cancels its move too, and a sim moved twice shows as one move from where they are in your game. Undo brings any of it back."
