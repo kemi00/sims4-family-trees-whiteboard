@@ -11,6 +11,7 @@ import {
 } from './routing.ts';
 import type { Edge, Point, ShowToggles, SimNode } from '../types/whiteboard.ts';
 import { PILL_DROP, STUB } from './constants.ts';
+import { segHit } from './geometry.ts';
 
 function card(partial: Partial<SimNode> & Pick<SimNode, 'id' | 'x' | 'y'>): SimNode {
   return {
@@ -579,5 +580,56 @@ describe('a child level with their parent', () => {
       assert.equal(crossesInside(k.pts, mum), false);
       assert.equal(crossesInside(k.pts, dad), false);
     }
+  });
+});
+
+describe('lines keep off other cards', () => {
+  const show: ShowToggles = { groups: true, worlds: true };
+  const route = (nodes: SimNode[], edges: Edge[]) =>
+    computeEdgeRenderData({ nodes, edges, groups: [], show, packVis: () => true, fastRoute: false });
+
+  it('drops past a card right under the parent (Ermelinda, Sofia, Thiago)', () => {
+    const ermelinda = card({ id: 'Ermelinda', x: 0, y: 0, gid: 'abrantes' });
+    const sofia = card({ id: 'Sofia', x: 0, y: 200, gid: 'abrantes' });
+    const thiago = card({ id: 'Thiago', x: 400, y: 400, gid: 'thebe' });
+    const data = route(
+      [ermelinda, sofia, thiago],
+      [
+        { id: 'es', a: 'Ermelinda', b: 'Sofia', type: 'parent', source: 'save' },
+        { id: 'et', a: 'Ermelinda', b: 'Thiago', type: 'parent', source: 'save' },
+      ],
+    );
+    const toThiago = data.blood.filter((p) => p.ids.includes('et') && !p.ids.includes('es'));
+    assert.ok(toThiago.length);
+    for (const p of toThiago) assert.equal(crossesInside(p.pts, sofia), false, 'runs through Sofia');
+    assert.ok(hasTopStem(toThiago[toThiago.length - 1]!.pts, thiago));
+  });
+
+  it('takes a partner line round a card between the pair, pill below', () => {
+    const left = card({ id: 'L', x: 0, y: 100 });
+    const mid = card({ id: 'M', x: 220, y: 100 });
+    const right = card({ id: 'R', x: 440, y: 100, gender: 'Male' });
+    const data = route([left, mid, right], [{ id: 'm', a: 'L', b: 'R', type: 'marriage', source: 'save' }]);
+    const u = data.unions[0]!;
+    const pts = u.pts.split(' ').map((s) => s.split(',').map(Number) as Point);
+    assert.equal(crossesInside(pts, mid), false, 'runs through the card between them');
+    assert.ok(u.ry > mid.y + mid.h, `pill at y=${u.ry} should sit under the cards`);
+    // The pill sits on the line.
+    assert.ok(segments(pts).some(([a, b]) => Math.abs(a[1] - u.ry) < 0.5 && Math.abs(b[1] - u.ry) < 0.5 && Math.min(a[0], b[0]) <= u.rx && Math.max(a[0], b[0]) >= u.rx));
+  });
+
+  it('keeps the usual partner line when nothing is in the way', () => {
+    const left = card({ id: 'L', x: 0, y: 100 });
+    const right = card({ id: 'R', x: 220, y: 100, gender: 'Male' });
+    const data = route([left, right], [{ id: 'm', a: 'L', b: 'R', type: 'marriage', source: 'save' }]);
+    assert.equal(data.unions[0]!.pts, `160,140 220,140`);
+  });
+
+  it('lets a line cross a partner line, but not run along it', () => {
+    const flat = { l: 0, t: 96, r: 200, b: 104, id: '__m_0_x', line: 'h' as const };
+    assert.equal(segHit(100, 0, 100, 200, flat), false, 'crossing at a right angle');
+    assert.equal(segHit(50, 100, 150, 100, flat), true, 'running along it');
+    const box = { ...flat, line: undefined };
+    assert.equal(segHit(100, 0, 100, 200, box), true, 'a box blocks both ways');
   });
 });

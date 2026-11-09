@@ -413,6 +413,11 @@ export interface Rect {
   r: number;
   b: number;
   id: string;
+  /**
+   * A stretch of a partner line, flat ('h') or upright ('v'), rather than a
+   * box: other lines may cross it at right angles but not run along it.
+   */
+  line?: 'h' | 'v';
 }
 
 /** 2D point as [x, y] tuple (path vertices). */

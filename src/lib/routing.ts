@@ -1,4 +1,4 @@
-import { BAND, MINDROP, PILL_DROP, STUB } from './constants.ts';
+import { BAND, MINDROP, PILL_DROP, PILL_H, PILL_W, RGAP, STUB, UNION_MIN_GAP } from './constants.ts';
 import {
   buildRects,
   ptsClear,
@@ -119,6 +119,12 @@ function clearPts(ctx: RoutingContext, pts: Point[], ex: Set<string>): boolean {
   return ptsClear(pts, ctx.rbands, ex);
 }
 
+/**
+ * Largest search grid A* takes on. Long lines between worlds cross a few
+ * hundred cards; a cap that left them out sent them straight through.
+ */
+const ASTAR_MAX_GRID = 160000;
+
 function astar(
   p0: Point,
   p1: Point,
@@ -172,7 +178,7 @@ function astar(
       if (v >= miny && v <= maxy) ys.add(v);
     });
   }
-  if (xs.size * ys.size > 60000) return null;
+  if (xs.size * ys.size > ASTAR_MAX_GRID) return null;
   const X = [...xs].sort((a, b) => a - b);
   const Y = [...ys].sort((a, b) => a - b);
   const NX = X.length;
@@ -199,13 +205,15 @@ function astar(
   };
   for (const r of near) {
     // Horizontal steps: row strictly inside (t, b), span overlapping (l, r).
+    // A partner line blocks only steps along it, not across.
     const j0 = bound(Y, r.t, true);
-    const j1 = bound(Y, r.b, false);
+    const j1 = r.line === 'v' ? j0 : bound(Y, r.b, false);
     const i0 = Math.max(0, bound(X, r.l, true) - 1);
     const i1 = Math.min(NX - 2, bound(X, r.r, false) - 1);
     for (let j = j0; j < j1; j++) {
       for (let i = i0; i <= i1; i++) blockH[i * NY + j] = 1;
     }
+    if (r.line === 'h') continue;
     // Vertical steps: column strictly inside (l, r), span overlapping (t, b).
     const c0 = bound(X, r.l, true);
     const c1 = bound(X, r.r, false);
@@ -417,6 +425,91 @@ function crossesCard(pts: Point[], card: SimNode): boolean {
 }
 
 /**
+ * The child's own household tag. A child in the top row sits right under
+ * it, so the line's last stretch into the child may cross it; nothing else
+ * may.
+ */
+function ownTag(child: SimNode): string {
+  return `__t_${child.gid}`;
+}
+
+/** How far a channel route looks for a clear lane past each end. */
+const CHANNEL_REACH = 240;
+/** How many open columns a channel route tries, nearest the straight way first. */
+const CHANNEL_COLUMNS = 60;
+
+/**
+ * A long line the grid search can't take (too many cards in its box): down
+ * to a clear lane under the start, across to a clear column, along it to a
+ * clear lane by the end, across, and on to the end. Columns are tried by how
+ * little they add to the way, nearest the start first; lanes from each end
+ * outward. Only the first stretch, leaving the parents, may touch `exStart`;
+ * only the last two, into the child, may touch `exEnd`.
+ */
+function channelRoute(
+  ax: number,
+  y0: number,
+  cx: number,
+  jy: number,
+  ctx: RoutingContext,
+  exStart: string[] = [],
+  exEnd: string[] = [],
+): Point[] | null {
+  const none = new Set<string>();
+  const start = new Set(exStart);
+  const end = new Set(exEnd);
+  const lo = Math.min(y0, jy) - CHANNEL_REACH;
+  const hi = Math.max(y0, jy) + CHANNEL_REACH;
+  const cols = new Set<number>([ax, cx]);
+  for (const r of ctx.rects) {
+    if (r.b < lo || r.t > hi) continue;
+    cols.add(r.l - 8);
+    cols.add(r.r + 8);
+  }
+  const ranked = [...cols].sort(
+    (a, b) =>
+      Math.abs(a - ax) + Math.abs(a - cx) - (Math.abs(b - ax) + Math.abs(b - cx)) ||
+      Math.abs(a - ax) - Math.abs(b - ax),
+  );
+  const down = jy >= y0;
+  // The stretch of column every choice of lanes runs along: a column blocked
+  // there is no use, whatever the lanes.
+  const [ia, ib] = down ? [y0 + CHANNEL_REACH, jy - CHANNEL_REACH] : [jy, y0];
+  let tried = 0;
+  for (const x of ranked) {
+    if (tried >= CHANNEL_COLUMNS) break;
+    if (ia < ib && !clearSeg(ctx, x, ia, x, ib, none)) continue;
+    tried++;
+    let y1: number | null = null;
+    for (let y = y0; y <= y0 + CHANNEL_REACH; y += 8) {
+      if (clearSeg(ctx, ax, y0, ax, y, start) && clearSeg(ctx, ax, y, x, y, none)) {
+        y1 = y;
+        break;
+      }
+    }
+    if (y1 == null) continue;
+    let y2: number | null = null;
+    for (let y = jy; y >= jy - CHANNEL_REACH; y -= 8) {
+      if (down && y < y1) break;
+      if (clearSeg(ctx, x, y, cx, y, end) && clearSeg(ctx, cx, y, cx, jy, end)) {
+        y2 = y;
+        break;
+      }
+    }
+    if (y2 == null || !clearSeg(ctx, x, y1, x, y2, none)) continue;
+    return simplify([
+      [ax, y0],
+      [ax, y1],
+      [x, y1],
+      [x, y2],
+      [cx, y2],
+      [cx, jy],
+    ]);
+  }
+  return null;
+}
+
+/**
  * Reach the stem junction above the child without crossing the child's card
  * or the cards the line starts from. The line leaves under its parents, so
  * climbing back up through them would come out on their top, along the
@@ -432,9 +525,10 @@ function routeToChildStemJunction(
 ): Point[] {
   const cx = child.x + child.w / 2;
   const jy = childStemJunctionY(child.y);
-  // Only the child may be touched: the parents and their partner line are
-  // obstacles once the line has left them.
-  const ex = new Set([child.id]);
+  // Nothing but the child's household tag may be touched: the parents and
+  // their partner line are obstacles once the line has left them, and the
+  // stem junction sits clear of the child's own card.
+  const ex = new Set([ownTag(child)]);
   const cards = [child, ...from];
 
   const wingX =
@@ -479,7 +573,7 @@ function routeToChildStemJunction(
       [wingX, jy],
       [cx, jy],
     ],
-    () => orthPath([ax, ay], [cx, jy], [child.id], ctx),
+    () => orthPath([ax, ay], [cx, jy], [ownTag(child)], ctx),
   ];
 
   for (const make of candidates) {
@@ -488,6 +582,8 @@ function routeToChildStemJunction(
     if (!clearPts(ctx, cand, ex)) continue;
     return simplify(cand);
   }
+  const channel = channelRoute(ax, ay, cx, jy, ctx, [], [ownTag(child)]);
+  if (channel && !cards.some((n) => crossesCard(channel, n))) return channel;
 
   // Last resort: always wing around (may overlap other obstacles).
   return simplify([
@@ -537,12 +633,19 @@ function drawPedigreeFork(
   tagsBottom: number,
 ): void {
   if (!belowK.length) return;
-  const laneTop = Math.min(...belowK.map((n) => childStemJunctionY(n.y)));
   const stemEnd = unionStemJunctionY(ay, tagsBottom);
   // Prefer a clear lane near the children (short top stems), but never fork
   // above the floor that clears the parent tags.
   const bus = laneBus(ax, ay, belowK, exBase, ctx, tagsBottom);
-  const forkY = Math.max(stemEnd, bus ?? laneTop);
+  if (bus == null) {
+    // No one lane clears every child: rather than cut through the cards in
+    // the way, each child gets its own way down.
+    for (const n of belowK) {
+      blood.push({ ids: pEB[n.id] || [], pts: belowRoute(ax, ay, n, exBase, ctx, tagsBottom) });
+    }
+    return;
+  }
+  const forkY = Math.max(stemEnd, bus);
 
   // Shared trunk must carry every child's parent-edge ids — otherwise only
   // the short top stem is clickable / highlightable.
@@ -600,6 +703,79 @@ function drawPedigreeFork(
   }
 }
 
+/** How far past the pair a partner line looks for a clear lane. */
+const UNION_LANE_REACH = 240;
+
+/** A partner line and where its pill sits. */
+export type UnionPath = { pts: Point[]; rx: number; ry: number };
+
+/** Middle of the longest flat run: where a routed line's pill sits. */
+function pillSpot(pts: Point[]): Point {
+  let best: Point = pts[Math.floor(pts.length / 2)]!;
+  let len = -1;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    const run = Math.abs(b[0] - a[0]);
+    if (Math.abs(a[1] - b[1]) < 0.5 && run > len) {
+      len = run;
+      best = [(a[0] + b[0]) / 2, a[1]];
+    }
+  }
+  return best;
+}
+
+/**
+ * A partner line kept off every other card. The usual shape
+ * ({@link unionGeom}) when nothing is in its way; else a lane under the
+ * pair, so their children still hang below the pill; else one over them;
+ * else a path routed round the cards. The usual shape stays when nothing
+ * clear is found.
+ */
+export function unionRoute(a: SimNode, b: SimNode, ctx: RoutingContext): UnionPath {
+  const g = unionGeom(a, b);
+  const usual: Point[] = g.pts.split(' ').map((s) => s.split(',').map(Number) as Point);
+  const pair = new Set([a.id, b.id]);
+  if (clearPts(ctx, usual, pair)) return { pts: usual, rx: g.rx, ry: g.ry };
+
+  const L = a.x <= b.x ? a : b;
+  const R = L === a ? b : a;
+  const clear = (pts: Point[]): boolean =>
+    clearPts(ctx, pts, pair) && !crossesCard(pts, L) && !crossesCard(pts, R);
+  // Out of the facing sides, as usual, one stub clear of each card.
+  const sx = L.x + L.w;
+  const sy = L.y + L.h / 2;
+  const ex = R.x;
+  const ey = R.y + R.h / 2;
+  const lx = sx + STUB;
+  const rx = ex - STUB;
+  const lane = (y: number): Point[] => [
+    [sx, sy],
+    [lx, sy],
+    [lx, y],
+    [rx, y],
+    [rx, ey],
+    [ex, ey],
+  ];
+  if (rx - lx >= UNION_MIN_GAP) {
+    const under = Math.max(L.y + L.h, R.y + R.h) + RGAP;
+    for (let y = under; y <= under + UNION_LANE_REACH; y += 8) {
+      if (clear(lane(y))) return { pts: simplify(lane(y)), rx: (lx + rx) / 2, ry: y };
+    }
+    const over = Math.min(L.y, R.y) - RGAP;
+    for (let y = over; y >= over - UNION_LANE_REACH; y -= 8) {
+      if (clear(lane(y))) return { pts: simplify(lane(y)), rx: (lx + rx) / 2, ry: y };
+    }
+    const mid = orthPath([lx, sy], [rx, ey], [], ctx);
+    const pts = simplify([[sx, sy], ...mid, [ex, ey]]);
+    if (clear(pts)) {
+      const [px, py] = pillSpot(pts);
+      return { pts, rx: px, ry: py };
+    }
+  }
+  return { pts: usual, rx: g.rx, ry: g.ry };
+}
+
 /** Height of the co-parent join: one stub below the lower parent's card. */
 function coParentJoinY(p0: SimNode, p1: SimNode): number {
   return Math.max(p0.y + p0.h, p1.y + p1.h) + STUB;
@@ -654,8 +830,39 @@ function pedigreeDrop(
 }
 
 /**
+ * One child below its parents, kept off every other card: the T at the
+ * first clear lane (from just above the child up to under the parents);
+ * else a path routed round the cards in the way; else the plain T.
+ * `exIds`: the parents and their partner line, which the trunk leaves.
+ */
+function belowRoute(
+  ax: number,
+  ay: number,
+  child: SimNode,
+  exIds: string[],
+  ctx: RoutingContext,
+  tagsBottom?: number,
+): Point[] {
+  const lane = laneBus(ax, ay, [child], exIds, ctx, tagsBottom);
+  if (lane != null) return pedigreeDrop(ax, ay, child, tagsBottom, lane);
+  const stemEnd = unionStemJunctionY(ay, tagsBottom);
+  // The stem junction sits clear of the child's own card, so the child is
+  // an obstacle too: the way round never runs through it.
+  const cx = child.x + child.w / 2;
+  const jy = childStemJunctionY(child.y);
+  const around = orthPath([ax, stemEnd], [cx, jy], [ownTag(child)], ctx);
+  if (clearPts(ctx, around, new Set([ownTag(child)]))) {
+    return ensureChildTopStem([[ax, ay], ...around], child);
+  }
+  const channel = channelRoute(ax, stemEnd, cx, jy, ctx, exIds, [ownTag(child)]);
+  if (channel) return ensureChildTopStem([[ax, ay], ...channel], child);
+  return pedigreeDrop(ax, ay, child, tagsBottom);
+}
+
+/**
  * One parent line from its anchor under the parents (`from`, their cards)
- * into the child's top.
+ * into the child's top. `partnerLine`: the obstacle ids of the parents'
+ * own partner line and pill, which the line leaves from.
  */
 export function childRoute(
   ax: number,
@@ -664,9 +871,10 @@ export function childRoute(
   from: SimNode[],
   ctx: RoutingContext,
   tagsBottom?: number,
+  partnerLine: string[] = [],
 ): Point[] {
   if (childBelowFork(ay, child, tagsBottom)) {
-    return pedigreeDrop(ax, ay, child, tagsBottom);
+    return belowRoute(ax, ay, child, [...from.map((n) => n.id), ...partnerLine], ctx, tagsBottom);
   }
 
   // Beside or above the union: mandatory bottom stem (past parent tags),
@@ -691,6 +899,9 @@ export function laneBus(
   tagsBottom?: number,
 ): number | null {
   const ex = new Set([...exIds, ...kidNodes.map((n) => n.id)]);
+  // A child in the top row sits right under its household tag: the bus and
+  // drops run along its foot, as they always have.
+  const exEnd = new Set([...ex, ...kidNodes.map(ownTag)]);
   const cxs = kidNodes.map((n) => n.x + n.w / 2);
   const minx = Math.min(ax, ...cxs);
   const maxx = Math.max(ax, ...cxs);
@@ -701,12 +912,12 @@ export function laneBus(
   // floor that clears parent tag bottoms.
   for (let lane = topLimit; lane >= stemEnd; lane -= 8) {
     if (!clearSeg(ctx, ax, ay, ax, lane, ex)) continue;
-    if (!clearSeg(ctx, minx, lane, maxx, lane, ex)) continue;
+    if (!clearSeg(ctx, minx, lane, maxx, lane, exEnd)) continue;
     let ok = true;
     for (const n of kidNodes) {
       const cx = n.x + n.w / 2;
       // Drop only needs a clear path to the stem junction, not through the card.
-      if (!clearSeg(ctx, cx, lane, cx, childStemJunctionY(n.y), ex)) {
+      if (!clearSeg(ctx, cx, lane, cx, childStemJunctionY(n.y), exEnd)) {
         ok = false;
         break;
       }
@@ -895,6 +1106,8 @@ type CachedRoute = { sig: string; probe: Box; out: unknown };
 export class RouteCache {
   /** Obstacle boxes of the last pass, keyed by id (plus a count for repeats). */
   rects = new Map<string, Rect>();
+  /** The cards and tags alone, which partner lines are routed round. */
+  baseRects = new Map<string, Rect>();
   units = new Map<string, CachedRoute>();
   fastRoute = false;
   /** Units routed (not reused) by the last pass — for tests and profiling. */
@@ -990,47 +1203,13 @@ export function computeEdgeRenderData(
       vis(e),
   );
 
-  const uAnchor: Record<string, { rx: number; ry: number }> = {};
-  const mObs: Record<string, string[]> = {};
-
-  unions.forEach((e) => {
-    const g0 = unionGeom(byid[e.a]!, byid[e.b]!);
-    const key = uKey(e.a, e.b);
-    uAnchor[key] = { rx: g0.rx, ry: g0.ry };
-    mObs[key] = [];
-    const pp = g0.pts.split(' ').map((s) => s.split(',').map(Number) as Point);
-    for (let i = 0; i + 1 < pp.length; i++) {
-      const M = 4;
-      const id = `__m_${i}_${key}`;
-      const segRect: Rect = {
-        l: Math.min(pp[i]![0], pp[i + 1]![0]) - M,
-        t: Math.min(pp[i]![1], pp[i + 1]![1]) - M,
-        r: Math.max(pp[i]![0], pp[i + 1]![0]) + M,
-        b: Math.max(pp[i]![1], pp[i + 1]![1]) + M,
-        id,
-      };
-      RECTS.push(segRect);
-      mObs[key]!.push(id);
-      const b0 = Math.floor(segRect.t / BAND);
-      const b1 = Math.floor(segRect.b / BAND);
-      for (let bb = b0; bb <= b1; bb++) {
-        (RBANDS[bb] = RBANDS[bb] || []).push(segRect);
-      }
-    }
-  });
-
-  ctx.rects = RECTS;
-  ctx.rbands = RBANDS;
-
-  const nextRects = cache ? rectKeyMap(RECTS) : null;
-  const moved =
-    cache && nextRects && cache.fastRoute === fastRoute
-      ? changedObstacles(cache.rects, nextRects)
-      : null;
   const nextUnits = new Map<string, CachedRoute>();
   let routedCount = 0;
-  /** Reuse a unit's route from the last pass, or route it now and keep it. */
-  const routed = <T>(key: string, sig: string, run: () => T): T => {
+  /**
+   * Reuse a unit's route from the last pass, or route it now and keep it.
+   * `moved`: the obstacles that changed since then, or null to route anew.
+   */
+  const reuseOrRoute = <T>(moved: Box[] | null, key: string, sig: string, run: () => T): T => {
     const hit = moved ? cache!.units.get(key) : undefined;
     if (
       hit &&
@@ -1050,6 +1229,76 @@ export function computeEdgeRenderData(
     nextUnits.set(key, { sig, probe, out });
     return out;
   };
+  // Partner lines go round cards and tags only, so they are kept or
+  // re-routed by what changed among those.
+  const nextBase = cache ? rectKeyMap(built.rects) : null;
+  const baseMoved =
+    cache && nextBase && cache.fastRoute === fastRoute
+      ? changedObstacles(cache.baseRects, nextBase)
+      : null;
+
+  const uAnchor: Record<string, { rx: number; ry: number }> = {};
+  const mObs: Record<string, string[]> = {};
+
+  // Every partner line is placed against the cards and tags alone, before
+  // any of them becomes an obstacle, so one couple's line never pushes
+  // another's.
+  const uPath = new Map<string, UnionPath>();
+  for (const e of unions) {
+    const a = byid[e.a]!;
+    const b = byid[e.b]!;
+    uPath.set(
+      e.id,
+      reuseOrRoute(baseMoved, `u:${e.id}`, `${nodeSig(a)};${nodeSig(b)}`, () => unionRoute(a, b, ctx)),
+    );
+  }
+
+  unions.forEach((e) => {
+    const g0 = uPath.get(e.id)!;
+    const key = uKey(e.a, e.b);
+    uAnchor[key] = { rx: g0.rx, ry: g0.ry };
+    mObs[key] = [];
+    const pp = g0.pts;
+    // Each stretch of the line, then its pill: other lines may cross the
+    // line, but never run along it or through the pill, where they would
+    // read as this couple's child.
+    const boxes: Rect[] = [];
+    for (let i = 0; i + 1 < pp.length; i++) {
+      const M = 4;
+      const [p, q] = [pp[i]!, pp[i + 1]!];
+      boxes.push({
+        l: Math.min(p[0], q[0]) - M,
+        t: Math.min(p[1], q[1]) - M,
+        r: Math.max(p[0], q[0]) + M,
+        b: Math.max(p[1], q[1]) + M,
+        id: `__m_${i}_${key}`,
+        line: Math.abs(p[1] - q[1]) < 0.5 ? 'h' : 'v',
+      });
+    }
+    const pw = PILL_W[e.type as keyof typeof PILL_W] / 2 + 4;
+    boxes.push({ l: g0.rx - pw, t: g0.ry - PILL_H / 2 - 4, r: g0.rx + pw, b: g0.ry + PILL_H / 2 + 4, id: `__m_p_${key}` });
+    for (const segRect of boxes) {
+      const id = segRect.id;
+      RECTS.push(segRect);
+      mObs[key]!.push(id);
+      const b0 = Math.floor(segRect.t / BAND);
+      const b1 = Math.floor(segRect.b / BAND);
+      for (let bb = b0; bb <= b1; bb++) {
+        (RBANDS[bb] = RBANDS[bb] || []).push(segRect);
+      }
+    }
+  });
+
+  ctx.rects = RECTS;
+  ctx.rbands = RBANDS;
+
+  const nextRects = cache ? rectKeyMap(RECTS) : null;
+  const moved =
+    cache && nextRects && cache.fastRoute === fastRoute
+      ? changedObstacles(cache.rects, nextRects)
+      : null;
+  const routed = <T>(key: string, sig: string, run: () => T): T =>
+    reuseOrRoute(moved, key, sig, run);
 
   const pEdges = edges.filter((e) => e.type === 'parent' && vis(e));
   const parentsOf: Record<string, string[]> = {};
@@ -1156,7 +1405,7 @@ export function computeEdgeRenderData(
         for (const n of [...crossHHBelow, ...sideK]) {
           out.push({
             ids: pEB[n.id] || [],
-            pts: childRoute(ax, ay, n, parentCards, ctx, tagsBottom),
+            pts: childRoute(ax, ay, n, parentCards, ctx, tagsBottom, exBase),
             ...across(crossHouseholdChild(n, ps, byid)),
           });
         }
@@ -1214,13 +1463,13 @@ export function computeEdgeRenderData(
   }
 
   const unionRenders: UnionRender[] = unions.map((e) => {
-    const g0 = unionGeom(byid[e.a]!, byid[e.b]!);
+    const g0 = uPath.get(e.id)!;
     return {
       edgeId: e.id,
       type: e.type as UnionRender['type'],
       a: e.a,
       b: e.b,
-      pts: g0.pts,
+      pts: g0.pts.map((p) => p.join(',')).join(' '),
       rx: g0.rx,
       ry: g0.ry,
       isUser: isUserE(e),
@@ -1267,6 +1516,7 @@ export function computeEdgeRenderData(
 
   if (cache) {
     cache.rects = nextRects!;
+    cache.baseRects = nextBase!;
     cache.units = nextUnits;
     cache.fastRoute = fastRoute;
     cache.lastRouted = routedCount;

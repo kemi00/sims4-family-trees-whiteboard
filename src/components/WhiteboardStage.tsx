@@ -720,7 +720,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         const A = wb.byid[cs.union[0]];
         const B = wb.byid[cs.union[1]];
         if (!A || !B) return;
-        const g0 = unionGeom(A, B);
+        // From the pill as drawn: a line routed round cards moves its pill.
+        const drawn = wb.edgeData.unions.find(
+          (u) => (u.a === A.id && u.b === B.id) || (u.a === B.id && u.b === A.id),
+        );
+        const g0 = drawn ?? unionGeom(A, B);
         setTempLine({ x1: g0.rx, y1: g0.ry, x2: wx, y2: wy });
         return;
       }

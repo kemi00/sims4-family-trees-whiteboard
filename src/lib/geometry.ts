@@ -878,13 +878,13 @@ export function segHit(
   r: Rect,
 ): boolean {
   if (Math.abs(x1 - x2) < 1e-6) {
-    if (x1 <= r.l || x1 >= r.r) return false;
+    if (r.line === 'h' || x1 <= r.l || x1 >= r.r) return false;
     const lo = Math.min(y1, y2);
     const hi = Math.max(y1, y2);
     return !(hi <= r.t || lo >= r.b);
   }
   if (Math.abs(y1 - y2) < 1e-6) {
-    if (y1 <= r.t || y1 >= r.b) return false;
+    if (r.line === 'v' || y1 <= r.t || y1 >= r.b) return false;
     const lo = Math.min(x1, x2);
     const hi = Math.max(x1, x2);
     return !(hi <= r.l || lo >= r.r);
