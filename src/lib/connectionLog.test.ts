@@ -176,6 +176,31 @@ describe('buildConnectionLog', () => {
     assert.equal(text('h2'), 'Lou X moved from A, Willow Creek to B, Willow Creek.');
   });
 
+  it('says adopted for an adoptive parent', () => {
+    const byid = {
+      M: node('M', 'Marilla', 'Cuthbert'),
+      A: node('A', 'Anne', 'Cuthbert'),
+      R: node('R', 'Rose', 'Y'),
+      S: node('S', 'Sam', 'Y'),
+      K: node('K', 'Kit', 'Y'),
+    };
+    const log = buildConnectionLog(
+      [
+        { id: 'v1', a: 'M', b: 'A', type: 'parent', source: 'save', adopted: true },
+        // Kit: Sam's by birth, Rose's by adoption.
+        { id: 'v2', a: 'R', b: 'K', type: 'parent', source: 'save', adopted: true },
+        { id: 'v3', a: 'S', b: 'K', type: 'parent', source: 'save' },
+      ],
+      byid,
+    );
+    const texts = log.map((e) => e.text);
+    assert.ok(texts.includes('Marilla Cuthbert, from Willow Creek adopted a ┳ child, Anne Cuthbert.'), texts.join('\n'));
+    assert.ok(
+      texts.includes('Sam Y, from Willow Creek had a ┳ child, Kit Y, with Rose Y, from Willow Creek (adoptive parent).'),
+      texts.join('\n'),
+    );
+  });
+
   it('writes a household changing worlds as one line, and the worlds of a sim who changes them', () => {
     const dirk = { ...node('D', 'Dirk', 'Dreamer'), gid: 'Ondarion||Dreamer', hh: 'Dreamer', world: 'Ondarion' };
     const ama = { ...node('A', 'Amarachi', 'Darong'), gid: 'Ondarion||Dreamer', hh: 'Dreamer', world: 'Ondarion' };

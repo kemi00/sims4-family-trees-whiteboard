@@ -931,6 +931,47 @@ describe('mergeSaveIntoBoard secrets and statuses', () => {
       ['u1:planned:true', 'u2:planned:true'],
     );
   });
+
+  it('marks adoptive parents, on new links and on links the board has', () => {
+    const adoptedSave: ParsedSave = {
+      ...parsed,
+      rels: parsed.rels.map((r) => (r.a === '1' && r.b === '3' ? { ...r, adopted: true as const } : r)),
+    };
+    const fresh = merge({ parsed: adoptedSave });
+    const adopted = (edges: { type: string; a: string; b: string; adopted?: true }[]) =>
+      edges.filter((e) => e.adopted).map((e) => `${e.type}:${e.a}>${e.b}`);
+    assert.deepEqual(adopted(fresh.edges), ['parent:s1>s3']);
+    assert.equal(fresh.summary.adoptions, 1);
+
+    // A board merged before adoption was read gets the flag on its link.
+    const before = merge();
+    assert.deepEqual(adopted(before.edges), []);
+    const again = mergeSaveIntoBoard({
+      nodes: before.nodes,
+      edges: before.edges,
+      groups: before.groups,
+      worlds: world,
+      parsed: adoptedSave,
+      seedNameKeys: new Set(),
+      now: '2026-10-13T00:00:00.000Z',
+      nextEdgeId: () => `w${n++}`,
+    });
+    assert.deepEqual(adopted(again.edges), ['parent:s1>s3']);
+    assert.equal(again.summary.newLinks, 0);
+
+    // And loses it when the save no longer has it.
+    const undone = mergeSaveIntoBoard({
+      nodes: again.nodes,
+      edges: again.edges,
+      groups: again.groups,
+      worlds: world,
+      parsed,
+      seedNameKeys: new Set(),
+      now: '2026-10-14T00:00:00.000Z',
+      nextEdgeId: () => `x${n++}`,
+    });
+    assert.deepEqual(adopted(undone.edges), []);
+  });
 });
 
 describe('games for save sims', () => {

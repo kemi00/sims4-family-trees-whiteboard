@@ -231,15 +231,25 @@ function secretLoversParts(a: SimNode, b: SimNode): LogPart[] {
   ];
 }
 
-/** Plans read as plans ("has a child"), what happened as done ("had"). */
-function hadOrHas(planned: boolean): string {
+/**
+ * Plans read as plans ("has a child"), what happened as done ("had"); an
+ * adoption says so ("adopted", "adopts").
+ */
+function hadOrHas(planned: boolean, adopted = false): string {
+  if (adopted) return planned ? 'adopts' : 'adopted';
   return planned ? 'has' : 'had';
 }
 
-function parentParts(parent: SimNode, child: SimNode, secret = false, planned = false): LogPart[] {
+function parentParts(
+  parent: SimNode,
+  child: SimNode,
+  secret = false,
+  planned = false,
+  adopted = false,
+): LogPart[] {
   return [
     ...mention(parent),
-    { kind: 'text', value: ` ${hadOrHas(planned)} a ${secret ? 'secret ' : ''}` },
+    { kind: 'text', value: ` ${hadOrHas(planned, adopted)} a ${secret ? 'secret ' : ''}` },
     rel('parent'),
     { kind: 'text', value: ', ' },
     { kind: 'sim', id: child.id, name: simName(child) },
@@ -252,10 +262,16 @@ function parentsChildParts(
   child: SimNode,
   secretIds: ReadonlySet<string> = new Set(),
   planned = false,
+  adoptiveIds: ReadonlySet<string> = new Set(),
 ): LogPart[] {
   const [first, ...rest] = parents;
   if (!first) return [];
-  if (!rest.length) return parentParts(first, child, secretIds.has(first.id), planned);
+  if (!rest.length) {
+    return parentParts(first, child, secretIds.has(first.id), planned, adoptiveIds.has(first.id));
+  }
+  // Both adopted the child together: "adopted a child … with". Else the
+  // adoptive one says so after their name, as a secret parent does.
+  const together = parents.every((p) => adoptiveIds.has(p.id));
   const withClause: LogPart[] = [];
   rest.forEach((p, i) => {
     if (i === 0) {
@@ -267,10 +283,13 @@ function parentsChildParts(
     }
     withClause.push(...mention(p));
     if (secretIds.has(p.id)) withClause.push({ kind: 'text', value: ' (secret parent)' });
+    if (!together && adoptiveIds.has(p.id)) {
+      withClause.push({ kind: 'text', value: ' (adoptive parent)' });
+    }
   });
   return [
     ...mention(first),
-    { kind: 'text', value: ` ${hadOrHas(planned)} a ` },
+    { kind: 'text', value: ` ${hadOrHas(planned, together)} a ` },
     rel('parent'),
     { kind: 'text', value: ', ' },
     { kind: 'sim', id: child.id, name: simName(child) },
@@ -386,7 +405,9 @@ function householdMoveParts(sims: SimNode[], move: HouseholdMove, done: boolean)
 }
 
 function sentenceParts(e: Edge, a: SimNode, b: SimNode): LogPart[] {
-  if (e.type === 'parent') return parentParts(a, b, !!e.secret, edgeSourceOf(e) === 'planned');
+  if (e.type === 'parent') {
+    return parentParts(a, b, !!e.secret, edgeSourceOf(e) === 'planned', !!e.adopted);
+  }
   if (e.type === 'romance' && e.secret) return secretLoversParts(a, b);
   return unionParts(e.type, a, b);
 }
@@ -453,13 +474,16 @@ export function buildConnectionLog(
   for (const [childId, parents] of parentsByChild) {
     if (parents.length < 2) continue;
     const child = byid[childId];
-    // Secret parents last, so the sentence names the known parent first.
-    const ordered = [...parents].sort((x, y) => Number(!!x.secret) - Number(!!y.secret));
+    // Secret and adoptive parents last, so the sentence names a birth
+    // parent first and the rest say what they are.
+    const rank = (e: Edge) => Number(!!e.secret) * 2 + Number(!!e.adopted);
+    const ordered = [...parents].sort((x, y) => rank(x) - rank(y));
     const parentNodes = ordered
       .map((e) => byid[e.a])
       .filter((n): n is SimNode => !!n);
     if (!child || parentNodes.length < 2) continue;
     const secretIds = new Set(parents.filter((e) => e.secret).map((e) => e.a));
+    const adoptiveIds = new Set(parents.filter((e) => e.adopted).map((e) => e.a));
     parents.forEach((e) => used.add(e.id));
     const saved = parents.every((e) => edgeSourceOf(e) === 'save');
     entries.push(
@@ -468,7 +492,7 @@ export function buildConnectionLog(
           `child:${childId}`,
           parents.map((e) => e.id),
           earliestCreatedAt(parents),
-          parentsChildParts(parentNodes, child, secretIds, !saved),
+          parentsChildParts(parentNodes, child, secretIds, !saved, adoptiveIds),
           undefined,
           saved ? 'save' : 'planned',
         ),

@@ -159,6 +159,7 @@ function edgeIdentity(e: Edge) {
     bundleId: e.bundleId ?? null,
     ending: e.ending ?? null,
     secret: !!e.secret,
+    adopted: !!e.adopted,
     plan: e.plan ?? null,
     wasPlanned: !!e.wasPlanned,
     note: e.note ?? null,

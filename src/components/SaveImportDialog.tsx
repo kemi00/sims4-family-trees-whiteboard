@@ -253,6 +253,12 @@ export function SaveImportDialog({
                       <b>{summary.secretLovers}</b> secret lovers, marked with a lock
                     </li>
                   )}
+                  {summary.adoptions > 0 && (
+                    <li>
+                      <b>{summary.adoptions}</b> {summary.adoptions === 1 ? 'adopted child' : 'adopted children'},
+                      marked “adopted” on their link
+                    </li>
+                  )}
                 </ul>
               </span>
             </label>

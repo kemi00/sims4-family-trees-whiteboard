@@ -309,6 +309,8 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   min-width:0;
 }
 .link-sel-chip__label{color:var(--ink)}
+/* "(adopted)": part of the label, said more quietly. */
+.link-sel-chip__tag{color:var(--ink-2);font-weight:500}
 .link-sel-chip__names{
   font-size:11px;
   font-weight:500;

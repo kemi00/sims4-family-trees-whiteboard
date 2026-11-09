@@ -276,6 +276,26 @@ describe('describeLinkSelection', () => {
     assert.deepEqual(info!.path[0]![1], [200, 10]);
   });
 
+  it('says (adopted) on an adoptive parent link, and who when only some are', () => {
+    const kids = { ...byid, c: node('c', 'Cassandra', 0, 200), d: node('d', 'Alexander', 200, 200) };
+    const links: Edge[] = [
+      { id: 'p1', a: 'a', b: 'c', type: 'parent', source: 'save', adopted: true },
+      { id: 'p2', a: 'a', b: 'd', type: 'parent', source: 'save' },
+    ];
+    const data: EdgeRenderData = {
+      blood: [{ ids: ['p1', 'p2'], pts: [[100, 80], [100, 200]] }],
+      unions: [],
+      customs: [],
+    };
+    const one = describeLinkSelection(['p1'], links, kids, data)!;
+    assert.equal(one.label, 'Parent → child');
+    assert.equal(one.tag, 'adopted');
+    const both = describeLinkSelection(['p1', 'p2'], links, kids, data)!;
+    assert.equal(both.tag, undefined);
+    assert.match(both.note ?? '', /Adopted: Cassandra/);
+    assert.equal(describeLinkSelection(['p2'], links, kids, data)!.tag, undefined);
+  });
+
   it('carries your note on the link', () => {
     const noted = [{ ...edges[0]!, note: 'Bella’s heir comes from here' }];
     assert.equal(describeLinkSelection(['e1'], noted, byid, edgeData)!.yourNote, 'Bella’s heir comes from here');

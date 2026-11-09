@@ -49,6 +49,8 @@ export type LinkSelectionInfo = {
   fromSims?: ChipSim[];
   toSims?: ChipSim[];
   sims?: ChipSim[];
+  /** A word after the label, lighter: "adopted" for an adoptive parent link. */
+  tag?: string;
   /** Extra line: a secret parent, or what co-parents are to each other. */
   note?: string;
   /** Your note on the link: why you planned it. */
@@ -417,7 +419,7 @@ function relationshipCopy(
   edges: Edge[],
   byid: Record<string, SimNode>,
   pairs: PairIndex | undefined,
-): { label?: string; note?: string } {
+): { label?: string; tag?: string; note?: string } {
   const first = matched[0]!;
   if (first.type === 'romance') {
     if (first.secret) return { label: 'Secret lovers' };
@@ -425,10 +427,19 @@ function relationshipCopy(
     return word ? { label: word } : {};
   }
   if (first.type !== 'parent') return {};
+  // Adoption: on the label when every link picked is one, else who was.
+  const adopted = matched.every((e) => e.adopted) ? { tag: 'adopted' } : {};
   if (matched.every((e) => e.secret)) {
-    return { label: parentChipLabel(new Set(matched.map((e) => e.a)).size, new Set(matched.map((e) => e.b)).size, true) };
+    return {
+      label: parentChipLabel(new Set(matched.map((e) => e.a)).size, new Set(matched.map((e) => e.b)).size, true),
+      ...adopted,
+    };
   }
   const notes: string[] = [];
+  if (!adopted.tag) {
+    const kids = namesForIds([...new Set(matched.filter((e) => e.adopted).map((e) => e.b))], byid);
+    if (kids) notes.push(`Adopted: ${kids}`);
+  }
   const secret = namesForIds(
     matched.filter((e) => e.secret).map((e) => e.a),
     byid,
@@ -440,7 +451,7 @@ function relationshipCopy(
     const couple = edges.some((e) => UNION_TYPES.has(e.type) && uKey(e.a, e.b) === pair);
     if (!couple) notes.push(coParentNote(pairs?.get(pair)));
   }
-  return notes.length ? { note: notes.join(' · ') } : {};
+  return { ...adopted, ...(notes.length ? { note: notes.join(' · ') } : {}) };
 }
 
 export function describeLinkSelection(
@@ -478,6 +489,7 @@ export function describeLinkSelection(
   return {
     mark,
     label: ended,
+    ...(copy.tag ? { tag: copy.tag } : {}),
     ...parties,
     note: copy.note,
     ...(yourNote ? { yourNote } : {}),

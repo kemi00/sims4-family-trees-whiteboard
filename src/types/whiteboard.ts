@@ -239,6 +239,8 @@ export interface Edge {
    * family tree does not list; on a romance link, secret lovers.
    */
   secret?: true;
+  /** On a parent link: an adoptive parent, as the save marks it. */
+  adopted?: true;
   /**
    * Your note on this link: why you planned it. Stays when a save shows the
    * plan done, so the reason is still there in your game's history.

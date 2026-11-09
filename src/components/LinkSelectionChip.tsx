@@ -126,7 +126,7 @@ export function LinkSelectionChip({
       role="status"
       aria-live="polite"
       aria-label={[
-        [info.label, info.names].filter(Boolean).join(': '),
+        [info.tag ? `${info.label} (${info.tag})` : info.label, info.names].filter(Boolean).join(': '),
         info.note,
         info.yourNote && `Your note: ${info.yourNote}`,
       ]
@@ -137,7 +137,10 @@ export function LinkSelectionChip({
         {info.mark}
       </span>
       <span className="link-sel-chip__body">
-        <span className="link-sel-chip__label">{info.label}</span>
+        <span className="link-sel-chip__label">
+          {info.label}
+          {info.tag && <span className="link-sel-chip__tag"> ({info.tag})</span>}
+        </span>
         {directed ? (
           <span className="link-sel-chip__names">
             <span className="link-sel-chip__party">

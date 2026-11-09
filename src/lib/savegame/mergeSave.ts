@@ -43,6 +43,8 @@ export type SaveMergeSummary = {
   secretParents: number;
   /** Pairs the save calls secret lovers. */
   secretLovers: number;
+  /** Parent links the save marks adopted. */
+  adoptions: number;
   /** Sims moved into the box that holds the rest of their save household. */
   rejoined: string[];
   /** Sims the game generated, put in the Unhoused sims box. */
@@ -1305,6 +1307,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   let newLinks = 0;
   /** Links this save calls secret, by pairKey. Others lose a stale flag. */
   const secretKeys = new Set<string>();
+  /** Parent links this save calls adopted, by pairKey. Others lose the flag. */
+  const adoptedKeys = new Set<string>();
 
   const applyRel = (rel: ParsedSaveRel) => {
     const a = saveIdToBoard.get(rel.a);
@@ -1312,6 +1316,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     if (!a || !b) return;
     const type = rel.type as EdgeType;
     if (rel.secret) secretKeys.add(pairKey(type, a, b));
+    if (rel.adopted) adoptedKeys.add(pairKey(type, a, b));
     if (type === 'parent') {
       const existing = byPair.get(pairKey('parent', a, b));
       if (existing) {
@@ -1321,6 +1326,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
           confirmed += 1;
         }
         if (rel.secret) existing.secret = true;
+        if (rel.adopted) existing.adopted = true;
         return;
       }
       const edge: SourcedEdge = {
@@ -1331,6 +1337,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         source: 'save',
         createdAt: now,
         ...(rel.secret ? { secret: true as const } : {}),
+        ...(rel.adopted ? { adopted: true as const } : {}),
       };
       edges.push(edge);
       byPair.set(pairKey('parent', a, b), edge);
@@ -1411,6 +1418,11 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     if (!e.secret || e.source === 'planned' || !inSave.has(e.a) || !inSave.has(e.b)) continue;
     if (!secretKeys.has(pairKey(e.type, e.a, e.b))) delete e.secret;
   }
+  // So does an adoption the save no longer has, on the same terms.
+  for (const e of edges) {
+    if (!e.adopted || e.source === 'planned' || !inSave.has(e.a) || !inSave.has(e.b)) continue;
+    if (!adoptedKeys.has(pairKey(e.type, e.a, e.b))) delete e.adopted;
+  }
 
   const pairStatus: PairStatus[] = (input.pairStatus ?? []).filter(
     (p) => !inSave.has(p.a) || !inSave.has(p.b),
@@ -1468,6 +1480,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const stillPlanned = edges.filter((e) => edgeSourceOf(e) === 'planned').length;
   const secretParents = edges.filter((e) => e.secret && e.type === 'parent').length;
   const secretLovers = edges.filter((e) => e.secret && e.type === 'romance').length;
+  const adoptions = edges.filter((e) => e.adopted && e.type === 'parent').length;
   const groups = input.groups.filter((g) => !vacated.has(g.gid));
   const gids = new Set(groups.map((g) => g.gid));
   for (const n of nodes) {
@@ -1549,6 +1562,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       hidePacks,
       secretParents,
       secretLovers,
+      adoptions,
       rejoined: rejoined.map(nameOf),
       unhoused: unhousedIds.map(nameOf),
       toNotInWorld: toNotInWorld.map(nameOf),

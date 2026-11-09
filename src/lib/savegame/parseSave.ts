@@ -74,6 +74,8 @@ export type ParsedSaveRel = {
   type: SaveRelType;
   /** Secret parent (parent rels) or secret lovers (romance rels). */
   secret?: true;
+  /** An adoptive parent: in the family bits, not the family tree. */
+  adopted?: true;
 };
 
 /**
@@ -228,6 +230,15 @@ const REL_BIT = {
 const FAMILY_BIT = {
   child: 8805n,
   parent: 8809n,
+  /**
+   * Adoption, beside the family bits: an adoptive parent holds
+   * `adoptedChild` about the child, the child `adoptiveParent` about them.
+   * Birth parents never have them. Read off the Nov 9 Slot 8 save: Marilla
+   * Cuthbert and Anne, Crispin Black and Ollie Mark, Kristopher Volkov and
+   * Jacob Volkov and Rory Oaklow. The tree lists all but Marilla.
+   */
+  adoptedChild: 310897n,
+  adoptiveParent: 310896n,
 } as const;
 
 /** Bits that map to a tag, strongest first within each kind. */
@@ -589,10 +600,13 @@ function parseRelationships(rels: Uint8Array): {
   secretParents: { parent: string; child: string }[];
   /** Parents by the family bits (see FAMILY_BIT), adoptive ones included. */
   familyParents: { parent: string; child: string }[];
+  /** Adoptive parents, by the adoption bits: `parent>child`. */
+  adoptive: Set<string>;
 } {
   const pairs: ParsedSavePair[] = [];
   const secretParents: { parent: string; child: string }[] = [];
   const familyParents: { parent: string; child: string }[] = [];
+  const adoptive = new Set<string>();
   for (const rec of decodeFields(rels)) {
     if (rec.field !== 1 || !rec.bytes) continue;
     const fs = decodeFields(rec.bytes);
@@ -619,8 +633,14 @@ function parseRelationships(rels: Uint8Array): {
     if (bAboutA.has(FAMILY_BIT.child) || aAboutB.has(FAMILY_BIT.parent)) {
       familyParents.push({ parent: idStr(b), child: idStr(a) });
     }
+    if (aAboutB.has(FAMILY_BIT.adoptedChild) || bAboutA.has(FAMILY_BIT.adoptiveParent)) {
+      adoptive.add(`${idStr(a)}>${idStr(b)}`);
+    }
+    if (bAboutA.has(FAMILY_BIT.adoptedChild) || aAboutB.has(FAMILY_BIT.adoptiveParent)) {
+      adoptive.add(`${idStr(b)}>${idStr(a)}`);
+    }
   }
-  return { pairs, secretParents, familyParents };
+  return { pairs, secretParents, familyParents, adoptive };
 }
 
 /** The couple link a romantic status calls for (see withStatusCouples). */
@@ -653,18 +673,25 @@ function withStatusCouples(rels: ParsedSaveRel[], pairs: ParsedSavePair[]): Pars
   return out;
 }
 
-/** Parent links the family bits have and the tree does not: adoptions. */
+/**
+ * Adoptions: parent links the family bits have and the tree does not, and
+ * every parent link the adoption bits mark (`adoptive`, `parent>child`),
+ * which the tree may list as an ordinary parent.
+ */
 function withAdoptions(
   rels: ParsedSaveRel[],
   familyParents: { parent: string; child: string }[],
+  adoptive: ReadonlySet<string> = new Set(),
 ): ParsedSaveRel[] {
   const known = new Set(rels.filter((r) => r.type === 'parent').map((r) => `${r.a}>${r.b}`));
-  const out = [...rels];
+  const out = rels.map((r) =>
+    r.type === 'parent' && adoptive.has(`${r.a}>${r.b}`) ? { ...r, adopted: true as const } : r,
+  );
   for (const { parent, child } of familyParents) {
     const key = `${parent}>${child}`;
     if (known.has(key)) continue;
     known.add(key);
-    out.push({ a: parent, b: child, type: 'parent' });
+    out.push({ a: parent, b: child, type: 'parent', adopted: true });
   }
   return out;
 }
@@ -843,11 +870,11 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
   const treeRels = graph ? parseTreeRels(graph) : [];
   const treeRelatives = graph ? parseTreeRelatives(graph, seen) : [];
   const relData = gameplay ? firstBytes(gameplay, 13) : null;
-  const { pairs, secretParents, familyParents } = relData
+  const { pairs, secretParents, familyParents, adoptive } = relData
     ? parseRelationships(relData)
-    : { pairs: [], secretParents: [], familyParents: [] };
+    : { pairs: [], secretParents: [], familyParents: [], adoptive: new Set<string>() };
   const rels = withSecrets(
-    withStatusCouples(withAdoptions(treeRels, familyParents), pairs),
+    withStatusCouples(withAdoptions(treeRels, familyParents, adoptive), pairs),
     pairs,
     secretParents,
   );

@@ -291,7 +291,8 @@ function secretsSave(): Uint8Array {
 /**
  * Marilla (1) adopted Anne (2): the family tree leaves that out, the family
  * bits have it. Matthew (3) is Marilla's son in the tree and in the bits.
- * Hot-Pursuit (4) is a horse, Rosie (5) a small dog.
+ * Hot-Pursuit (4) is a horse, Rosie (5) a small dog. Crispin (6) adopted
+ * Ollie (7): the tree lists him as a parent; the adoption bits say how.
  */
 function familySave(): Uint8Array {
   const sims = [
@@ -300,6 +301,8 @@ function familySave(): Uint8Array {
     [3, 'Matthew', 4096, 32, 0],
     [4, 'Hot-Pursuit', 8192, 4, 6],
     [5, 'Rosie', 8192, 32, 4],
+    [6, 'Crispin', 4096, 32, 0],
+    [7, 'Ollie', 4096, 8, 0],
   ] as const;
   const blobs = sims.map(([id, first, gender, age, species]) =>
     encodeBytes(
@@ -307,10 +310,17 @@ function familySave(): Uint8Array {
       simBlob({ id, householdId: 10, first, last: 'Cuthbert', household: 'Green Gables', gender, age, species }),
     ),
   );
-  const graph = concat(treeNode(1, treeEdge(1, 3, 1)), treeNode(2), treeNode(3));
+  const graph = concat(
+    treeNode(1, treeEdge(1, 3, 1)),
+    treeNode(2),
+    treeNode(3),
+    treeNode(6, treeEdge(6, 7, 1)),
+    treeNode(7),
+  );
   const rels = concat(
-    relRecord(1, 2, [15799], [8805], [8809]), // Marilla holds child about Anne
+    relRecord(1, 2, [15799], [8805, 310897], [8809, 310896]), // Marilla: child, adopted child
     relRecord(3, 1, [15799], [8809], [8805]), // Matthew holds parent about Marilla
+    relRecord(7, 6, [15799], [8809, 310896], [8805, 310897]), // Ollie (a): parent, adoptive parent
   );
   const gameplay = encodeBytes(
     8,
@@ -324,7 +334,14 @@ describe('family bits and species', () => {
 
   it('adds an adoptive parent the family tree leaves out', () => {
     const parents = parsed.rels.filter((r) => r.type === 'parent').map((r) => `${r.a}>${r.b}`);
-    assert.deepEqual(parents.sort(), ['1>2', '1>3']);
+    assert.deepEqual(parents.sort(), ['1>2', '1>3', '6>7']);
+  });
+
+  it('marks adoptive parents, whether the tree lists them or not', () => {
+    const adopted = parsed.rels
+      .filter((r) => r.type === 'parent' && r.adopted)
+      .map((r) => `${r.a}>${r.b}`);
+    assert.deepEqual(adopted.sort(), ['1>2', '6>7']);
   });
 
   it('reads horses and small dogs as pets', () => {
@@ -335,6 +352,8 @@ describe('family bits and species', () => {
       Matthew: 'human',
       'Hot-Pursuit': 'Horse',
       Rosie: 'Dog',
+      Crispin: 'human',
+      Ollie: 'human',
     });
   });
 });
