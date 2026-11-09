@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "cf38d62",
+   "date": "2026-11-09",
+   "text": "Merging a save no longer drops a wedding you planned for an engaged couple, and an engaged couple your game has married now shows as married."
+  },
+  {
    "sha": "34df857",
    "date": "2026-11-09",
    "text": "Adopted children say so. Their link reads Parent → child (adopted), and the Log says who adopted whom. Merge your save into your board to mark them; nothing moves."
