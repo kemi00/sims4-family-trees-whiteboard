@@ -1,6 +1,16 @@
 {
  "entries": [
   {
+   "sha": "db0d10c",
+   "date": "2026-11-09",
+   "text": "A household can now move to another world whole: open its plan from its tag, or a sim's editor, and choose Move to another world. It keeps its name and everyone in it, and joins a household of that name if the world has one. The Log and the plan show it as one move, like \"The Dreamer household moves from Not in any world to Ondarion\". Moving one sim into a new household named like their own, in another world, now offers to move the whole household instead. Moves between worlds name both worlds, so they no longer read \"from Dreamer to Dreamer\"."
+  },
+  {
+   "sha": "2ecd6ac",
+   "date": "2026-11-09",
+   "text": "Highlight has two new rows. Family adds No children, beside Single, for sims with no child on the board, planned babies counted. Dynasty picks heads, heirs, members with no role, and outcasts. Picks in one row add up, while different rows narrow each other, so Young Adult, Female, Single, No children and Member finds single female young adults with no children who are plain members of a dynasty."
+  },
+  {
    "sha": "bea9ab7",
    "date": "2026-11-09",
    "text": "Hover or select a sim and a ♥ shows on each side of the card: it plans a partner. Pick married, romance, secret lovers or divorced, then type a name or click them on the board. Picked by name for a marriage or romance, the board asks whether one moves in with the other, and puts their card beside their partner's."
