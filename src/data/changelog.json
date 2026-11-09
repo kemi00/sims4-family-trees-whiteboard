@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "d64ebf2",
+   "date": "2026-11-09",
+   "text": "Your plan notes now show beyond the Log: under each plan in a household's brief, on a selected link, and in the save review when the game went against a plan, so the reason is there when you decide to keep it or follow the game."
+  },
+  {
    "sha": "2e7439a",
    "date": "2026-11-09",
    "text": "The Log now has two tabs: Plan, for links and moves still to do, with anything off plan on top, and In your game, for what your saves show and the plans they showed done (marked ✓ planned). Lines are quieter: no pill on each, just the time, and places in the names' tooltips. You can add a note to any link or move, like why you're pairing two sims, and it stays with the plan when a save shows it done."
