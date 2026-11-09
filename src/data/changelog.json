@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "fb74c63",
+   "date": "2026-11-09",
+   "text": "The sim editor's move buttons now read Move sim to another household and Move household to another world, with sim and household in bold so the two are easy to tell apart. Long labels wrap inside the button instead of running out of it."
+  },
+  {
    "sha": "09c2778",
    "date": "2026-11-09",
    "text": "Highlight has a Not born yet chip at the start of Life stage, for the planned babies whose cards say Not born yet. It adds up with the ages you pick, so Not born yet and Infant shows both."
