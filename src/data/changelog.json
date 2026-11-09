@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "450b1b3",
+   "date": "2026-11-09",
+   "text": "The + on a card now asks: a new sim, or adopt one. Adopt lists the sims who could be: younger and not family yet. Connect can plan an adoption, a divorce or a breakup, and says which links two sims have already."
+  },
+  {
    "sha": "cf38d62",
    "date": "2026-11-09",
    "text": "Merging a save no longer drops a wedding you planned for an engaged couple, and an engaged couple your game has married now shows as married."
