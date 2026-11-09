@@ -1,7 +1,7 @@
 import type { Group, HouseholdMove, SimNode, World } from '../types/whiteboard.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
 import { isPlannedSim } from './plan.ts';
-import { fold as foldName, worldColor } from './utils.ts';
+import { fold as foldName, joinNotes, worldColor } from './utils.ts';
 
 /** The household picker's value for "Create a new household…". */
 export const NEW_HOUSEHOLD = '__new';
@@ -218,6 +218,57 @@ export function movesDoneBySave(
     doneSims.add(m.simId);
   }
   return new Set(moves.filter((m) => !m.done && doneSims.has(m.simId)).map((m) => m.id));
+}
+
+/**
+ * The plan's moves netted out, as the Plan is what's left to do in the
+ * game, not every step taken on the board. A sim's moves still planned are
+ * one move from where the game has them (the first one's start) to where
+ * the board has them (the last one's end), keeping the last one's id and
+ * time and every note: Bjergsen → Bro → Le Chien is Bjergsen → Le Chien.
+ * Moves that bring a sim back where the game has them cancel out and go:
+ * Darong → Dreamer → Darong is nothing to do. Moves a save showed done stay.
+ */
+export function settleMoves(moves: HouseholdMove[]): HouseholdMove[] {
+  const chains = new Map<string, HouseholdMove[]>();
+  for (const m of moves) if (!m.done) chains.set(m.simId, [...(chains.get(m.simId) ?? []), m]);
+  const keep = new Map<string, HouseholdMove | null>();
+  let changed = false;
+  for (const list of chains.values()) {
+    const chain = [...list].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+    const first = chain[0]!;
+    const last = chain[chain.length - 1]!;
+    for (const m of chain) keep.set(m.id, null);
+    if (first.fromGid === last.toGid) {
+      changed = true;
+      continue;
+    }
+    if (chain.length === 1) {
+      keep.set(first.id, first);
+      continue;
+    }
+    changed = true;
+    const { note: _notes, ...rest } = last;
+    const note = joinNotes(...chain.map((m) => m.note));
+    keep.set(last.id, {
+      ...rest,
+      fromGid: first.fromGid,
+      fromHh: first.fromHh,
+      fromWorld: first.fromWorld,
+      fromNb: first.fromNb,
+      ...(note ? { note } : {}),
+    });
+  }
+  if (!changed) return moves;
+  const out: HouseholdMove[] = [];
+  for (const m of moves) {
+    if (m.done || !keep.has(m.id)) out.push(m);
+    else {
+      const k = keep.get(m.id);
+      if (k) out.push(k);
+    }
+  }
+  return out;
 }
 
 /** The world most of these sims live in, for the picker to start on. */

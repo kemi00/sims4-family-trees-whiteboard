@@ -16,11 +16,13 @@ import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, 
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
-import { householdPlans, householdsNotInGame, planTallies } from '../lib/householdPlan.ts';
+import { gameHomes, householdPlans, householdsNotInGame, planTallies } from '../lib/householdPlan.ts';
 import { movesDoneBySave,
   NEW_HOUSEHOLD,
   householdMovePlan,
+  movesHousehold,
   movesInGame,
+  settleMoves,
   householdSurnames,
   moveDestination,
   type MoveDestination,
@@ -81,6 +83,7 @@ import {
   buildConnectionLog,
   householdAgeUpLine,
   householdPlace,
+  partsToText,
   simName,
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
@@ -368,7 +371,8 @@ export function useWhiteboard() {
   const [dynastiesOpen, setDynastiesOpen] = useState(false);
   const [upNextSkipped, setUpNextSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [householdMoves, setHouseholdMoves] = useState<HouseholdMove[]>(
-    () => boot.householdMoves ?? [],
+    // Moves that came back where the game has them cancel out (settleMoves).
+    () => settleMoves(boot.householdMoves ?? []),
   );
   const [householdAgeUps, setHouseholdAgeUps] = useState<HouseholdAgeUp[]>(
     () => boot.householdAgeUps ?? [],
@@ -1910,7 +1914,7 @@ export function useWhiteboard() {
       pushUndo();
       trackAction('/action/partner-move');
       const createdAt = new Date().toISOString();
-      setHouseholdMoves((ms) => [...ms, ...moves.map((mv) => ({ ...mv, id: 'h' + eidcRef.current++, createdAt }))]);
+      setHouseholdMoves((ms) => settleMoves([...ms, ...moves.map((mv) => ({ ...mv, id: 'h' + eidcRef.current++, createdAt }))]));
       const others = nodes.filter((x) => x.id !== mover);
       const home = others.filter((x) => x.gid === h.gid);
       const chrome = householdChrome(home, g);
@@ -1940,6 +1944,65 @@ export function useWhiteboard() {
   );
 
   /**
+   * Sims to frame once the board is laid out again: a cancel in the Log may
+   * send them somewhere off screen, so the view goes to them.
+   */
+  const frameNextRef = useRef<{ ids: string[]; w: number; h: number } | null>(null);
+
+  /**
+   * Cards a move sends to household `destGid` (their `patches`) land there
+   * as a block, keeping their places among themselves: under the
+   * household's other cards, or where the layout puts the household when
+   * they are all of it. Every other card stays where it is. True when they
+   * joined cards already there.
+   */
+  const landCards = useCallback(
+    (patches: Map<string, Partial<SimNode>>, destGid: string, newGroup: Group | null): boolean => {
+      const ids = new Set(patches.keys());
+      const moved = [...ids].map((id) => byid[id]).filter((n): n is SimNode => !!n);
+      const nextCore = nodesCore.map((x) => {
+        const patch = patches.get(x.id);
+        return patch ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x;
+      });
+      const joined = nodes.filter((n) => n.gid === destGid && !ids.has(n.id));
+      if (!moved.length) {
+        setNodesCore(nextCore);
+        return joined.length > 0;
+      }
+      const bases = layoutBases(nextCore, worlds, edges);
+      const x0 = Math.min(...moved.map((n) => n.x));
+      const y0 = Math.min(...moved.map((n) => n.y));
+      const anchor = joined.length
+        ? tileSnapOrigin(
+            Math.min(...joined.map((n) => n.x)),
+            Math.max(...joined.map((n) => n.y + n.h)) + LAYOUT.gapYExtra,
+          )
+        : (() => {
+            const own = [...ids].map((id) => bases.get(id)).filter((b) => b !== undefined);
+            return { x: Math.min(...own.map((b) => b!.x)), y: Math.min(...own.map((b) => b!.y)) };
+          })();
+      const pinned = nextCore.map((node) => {
+        const base = bases.get(node.id);
+        const vis = byid[node.id];
+        if (!vis || !base) return node;
+        if (ids.has(node.id)) {
+          return { ...node, ox: vis.x - x0 + anchor.x - base.x, oy: vis.y - y0 + anchor.y - base.y };
+        }
+        const ox = vis.x - base.x;
+        const oy = vis.y - base.y;
+        if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
+        return { ...node, ox, oy };
+      });
+      const laid = computeLayout(pinned, worlds, edges);
+      setNodesCore(
+        coreOffsetsAfterImportSeparation(pinned, snap ? snapNodesToTiles(laid) : laid, newGroup ? [...groups, newGroup] : groups, nodes),
+      );
+      return joined.length > 0;
+    },
+    [nodes, nodesCore, groups, worlds, edges, byid, snap],
+  );
+
+  /**
    * A household moves to another world, as the game moves one to a lot
    * elsewhere: everyone in it goes, under its own name, joining a household
    * of that name the world already has. One move in the game, a plan until
@@ -1966,56 +2029,156 @@ export function useWhiteboard() {
       if (newGroup) setGroups((gs) => (gs.some((x) => x.gid === newGroup.gid) ? gs : [...gs, newGroup]));
       const createdAt = new Date().toISOString();
       const recorded = moves.filter((m) => movesInGame(byid[m.simId] ?? members[0]!));
+      // Back where the game has them: the planned move cancels out (settleMoves).
+      const homes = gameHomes(nodes, householdMoves);
+      const back = recorded.length > 0 && recorded.every((m) => homes.get(m.simId) === dest.gid);
       if (recorded.length) {
-        setHouseholdMoves((ms) => [...ms, ...recorded.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]);
+        setHouseholdMoves((ms) => settleMoves([...ms, ...recorded.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]));
       }
       // Where the block lands: the household's own place in the world, or
       // under the one it joins.
-      const nextCore = nodesCore.map((x) => {
-        const patch = patches.get(x.id);
-        return patch ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x;
-      });
-      const bases = layoutBases(nextCore, worlds, edges);
-      const moved = members.map((n) => byid[n.id]).filter((n): n is SimNode => !!n);
-      const x0 = Math.min(...moved.map((n) => n.x));
-      const y0 = Math.min(...moved.map((n) => n.y));
-      const joined = nodes.filter((n) => n.gid === dest.gid && !ids.has(n.id));
-      const anchor = joined.length
-        ? tileSnapOrigin(
-            Math.min(...joined.map((n) => n.x)),
-            Math.max(...joined.map((n) => n.y + n.h)) + LAYOUT.gapYExtra,
-          )
-        : (() => {
-            const own = [...ids].map((id) => bases.get(id)).filter((b) => b !== undefined);
-            return { x: Math.min(...own.map((b) => b!.x)), y: Math.min(...own.map((b) => b!.y)) };
-          })();
-      const pinned = nextCore.map((node) => {
-        const base = bases.get(node.id);
-        const vis = byid[node.id];
-        if (!vis || !base) return node;
-        if (ids.has(node.id)) {
-          return { ...node, ox: vis.x - x0 + anchor.x - base.x, oy: vis.y - y0 + anchor.y - base.y };
-        }
-        const ox = vis.x - base.x;
-        const oy = vis.y - base.y;
-        if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
-        return { ...node, ox, oy };
-      });
-      const laid = computeLayout(pinned, worlds, edges);
-      setNodesCore(
-        coreOffsetsAfterImportSeparation(pinned, snap ? snapNodesToTiles(laid) : laid, newGroup ? [...groups, newGroup] : groups, nodes),
-      );
+      const joined = landCards(patches, dest.gid, newGroup);
+      const moved = members;
       lockViewToSims([...ids]);
       if (briefGid === gid) setBriefGid(dest.gid);
       const plan = recorded.length ? ': a plan until a save shows it' : '';
       flashStatus(
-        joined.length
+        back
+          ? `The ${g.hh} household is back in ${world}, as your game has it: its planned move is cancelled. Undo brings it back.`
+          : joined
           ? `${moved.length === 1 ? `${cardName(moved[0]!)} of the ${g.hh} household joins` : `All ${moved.length} sims of the ${g.hh} household join`} the one in ${world}${plan}. Undo takes it back.`
           : `The ${g.hh} household moves to ${world} with ${moved.length === 1 ? cardName(moved[0]!) : `its ${moved.length} sims`}${plan}. Undo takes it back.`,
       );
       return dest;
     },
-    [groups, nodes, nodesCore, worlds, edges, byid, snap, briefGid, setBriefGid, pushUndo, lockViewToSims, flashStatus],
+    [groups, nodes, worlds, byid, householdMoves, briefGid, setBriefGid, pushUndo, landCards, lockViewToSims, flashStatus],
+  );
+
+  /**
+   * A line of the Log's Plan cancelled: the board goes back to what your
+   * game has, as if it had never been planned. A planned link goes; a
+   * planned baby, or a planned sim that came onto the board, goes with its
+   * links; a move takes its sims back where the game has them (a household
+   * back to its world), and the move is no more. One undo step.
+   */
+  const cancelPlan = useCallback(
+    (entry: ConnectionLogEntry, view?: { w: number; h: number }): boolean => {
+      const what = partsToText(
+        entry.parts
+          .filter((p) => p.kind !== 'time' && p.kind !== 'break')
+          .map((p) => (p.kind === 'sim' ? { kind: 'sim' as const, id: p.id, name: p.name } : p)),
+      ).trim();
+      /** Planned sims off the board, with their links and records. */
+      const removeSims = (ids: ReadonlySet<string>) => {
+        const nextCore = nodesCore.filter((n) => !ids.has(n.id));
+        const nextEdges = edges.filter((e) => !ids.has(e.a) && !ids.has(e.b));
+        pinCardsToCurrentPlaces(nextEdges, nextCore);
+        setEdges(nextEdges);
+        setHouseholdMoves((ms) => ms.filter((m) => !ids.has(m.simId)));
+        setDeceasedMarks((ms) => ms.filter((m) => !ids.has(m.simId)));
+        setSimAgeUps((ms) => ms.filter((m) => !ids.has(m.simId)));
+        if (editNodeId && ids.has(editNodeId)) setEditNodeId(null);
+        if (bloodlineId && ids.has(bloodlineId)) setBloodlineId(null);
+        if (sel?.type === 'node' && ids.has(sel.id)) setSel(null);
+      };
+
+      if (entry.kind === 'move') {
+        const wanted = new Set(entry.moveIds ?? (entry.moveId ? [entry.moveId] : []));
+        const recs = householdMoves.filter((m) => wanted.has(m.id) && !m.done);
+        const first = recs[0];
+        if (!first) return false;
+        const simIds = new Set(recs.map((m) => m.simId));
+        // A planned sim that came onto the board: there is nowhere in the game to go back to.
+        if (first.fromHh === ADDED_HOUSEHOLD) {
+          const n = nodesCore.find((x) => x.id === first.simId);
+          if (!n || !isPlannedSim(n)) return false;
+          pushUndo();
+          trackAction('/action/cancel-plan');
+          removeSims(new Set([n.id]));
+          flashStatus(`Cancelled: ${cardName(n)} is off the board. Undo brings them back.`);
+          return true;
+        }
+        const here = byid[first.simId];
+        if (!here) return false;
+        // A household that changed worlds goes back whole, with the deceased
+        // and planned sims who went along, unless it joined others there.
+        const whole = movesHousehold(first);
+        const members = nodes.filter((n) => n.gid === here.gid);
+        const ids = whole && members.every((n) => simIds.has(n.id) || !movesInGame(n)) ? members.map((n) => n.id) : [...simIds];
+        const home = groups.find((g) => g.gid === first.fromGid);
+        const dest = moveDestination(groups, nodes, worlds, first.fromWorld, home ? home.gid : NEW_HOUSEHOLD, first.fromHh);
+        if (!dest) return false;
+        const { patches } = householdMovePlan(nodes, ids, dest);
+        pushUndo();
+        trackAction('/action/cancel-plan');
+        const newGroup: Group | null = dest.isNew
+          ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
+          : null;
+        if (newGroup) setGroups((gs) => (gs.some((x) => x.gid === newGroup.gid) ? gs : [...gs, newGroup]));
+        setHouseholdMoves((ms) => ms.filter((m) => m.done || !simIds.has(m.simId)));
+        if (patches.size) {
+          landCards(patches, dest.gid, newGroup);
+          // From the Log they may be anywhere: show where they went.
+          if (view) frameNextRef.current = { ids, ...view };
+          else lockViewToSims(ids);
+        }
+        if (briefGid === here.gid && ids.length === members.length) setBriefGid(dest.gid);
+        flashStatus(
+          whole
+            ? `Cancelled: the ${dest.hh} household is back in ${dest.world}, as your game has it. Undo brings the plan back.`
+            : `Cancelled: ${ids.length === 1 ? `${cardName(here)} is` : `${ids.length} sims are`} back in the ${dest.hh} household, as your game has it. Undo brings the plan back.`,
+        );
+        return true;
+      }
+
+      if (entry.kind !== 'link') return false;
+      const wanted = new Set(entry.edgeIds);
+      const planned = edges.filter((e) => wanted.has(e.id) && edgeSourceOf(e) === 'planned');
+      if (!planned.length) return false;
+      // A planned baby whose parents are all planned is a plan itself: it goes.
+      const childId = planned.every((e) => e.type === 'parent' && e.b === planned[0]!.b) ? planned[0]!.b : null;
+      const child = childId ? nodesCore.find((n) => n.id === childId) : undefined;
+      if (
+        child &&
+        isPlannedSim(child) &&
+        edges.filter((e) => e.type === 'parent' && e.b === child.id).every((e) => edgeSourceOf(e) === 'planned')
+      ) {
+        pushUndo();
+        trackAction('/action/cancel-plan');
+        removeSims(new Set([child.id]));
+        flashStatus(`Cancelled: ${cardName(child)} won’t be born. Undo brings the plan back.`);
+        return true;
+      }
+      pushUndo();
+      trackAction('/action/cancel-plan');
+      const gone = new Set(planned.map((e) => e.id));
+      const nextEdges = edges.filter((e) => !gone.has(e.id));
+      freezeAfterEdgeChange(planned.flatMap((e) => [e.a, e.b]), nextEdges);
+      setEdges(nextEdges);
+      if (sel?.type === 'link' && sel.ids.some((id) => gone.has(id))) setSel(null);
+      flashStatus(`Cancelled the plan: “${what}” Undo brings it back.`);
+      return true;
+    },
+    [
+      edges,
+      nodes,
+      nodesCore,
+      groups,
+      worlds,
+      byid,
+      householdMoves,
+      sel,
+      editNodeId,
+      bloodlineId,
+      briefGid,
+      setBriefGid,
+      pushUndo,
+      landCards,
+      lockViewToSims,
+      pinCardsToCurrentPlaces,
+      freezeAfterEdgeChange,
+      flashStatus,
+    ],
   );
 
   /** The link the partner menu makes, remembered for next time. */
@@ -2201,6 +2364,13 @@ export function useWhiteboard() {
     },
     [byid],
   );
+  // Frame sims a cancel moved, once their cards are in their new places.
+  useEffect(() => {
+    const next = frameNextRef.current;
+    if (!next) return;
+    frameNextRef.current = null;
+    frameSims(next.ids, next.w, next.h);
+  }, [frameSims]);
 
   const focusSim = useCallback(
     (id: string, svgWidth: number, svgHeight: number) => {
@@ -2375,7 +2545,7 @@ export function useWhiteboard() {
         const loadedAgeUps = d.householdAgeUps ?? [];
         const loadedDeaths = d.deceasedMarks ?? [];
         const loadedSimAgeUps = d.simAgeUps ?? [];
-        setHouseholdMoves(loadedMoves);
+        setHouseholdMoves(settleMoves(loadedMoves));
         setHouseholdAgeUps(loadedAgeUps);
         setDeceasedMarks(loadedDeaths);
         setSimAgeUps(loadedSimAgeUps);
@@ -2600,7 +2770,7 @@ export function useWhiteboard() {
           setHouseholdMoves((prev) => {
             const seen = new Set(prev.map((m) => m.id));
             const extra = d.householdMoves!.filter((m) => !seen.has(m.id));
-            return extra.length ? [...prev, ...extra] : prev;
+            return extra.length ? settleMoves([...prev, ...extra]) : prev;
           });
         }
         const incomingFilters = fileFilters(d);
@@ -2979,7 +3149,9 @@ export function useWhiteboard() {
    * Move sims to a household on the board, or to a new one, as one undo
    * step. Their cards stay where they are, as a single sim's do; the
    * selection stays too, so they can be dragged into place. Returns where
-   * they went and how many moved (sims already there are skipped).
+   * they went, how many moved (sims already there are skipped), and how
+   * many of them are back where the game has them, which cancels their
+   * planned move (settleMoves).
    */
   const moveSimsToHousehold = useCallback(
     (
@@ -2987,11 +3159,13 @@ export function useWhiteboard() {
       world: string,
       houseGid: string,
       newName?: string,
-    ): { dest: MoveDestination; moved: number } | null => {
+    ): { dest: MoveDestination; moved: number; back: number } | null => {
       const dest = moveDestination(groups, nodes, worlds, world, houseGid, newName);
       if (!dest) return null;
       const { patches, moves } = householdMovePlan(nodes, ids, dest);
-      if (!patches.size) return { dest, moved: 0 };
+      if (!patches.size) return { dest, moved: 0, back: 0 };
+      const homes = gameHomes(nodes, householdMoves);
+      const back = [...patches.keys()].filter((id) => homes.get(id) === dest.gid).length;
       pushUndo();
       if (dest.isNew) {
         setGroups((gs) =>
@@ -3014,10 +3188,9 @@ export function useWhiteboard() {
         );
       }
       const createdAt = new Date().toISOString();
-      setHouseholdMoves((ms) => [
-        ...ms,
-        ...moves.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt })),
-      ]);
+      setHouseholdMoves((ms) =>
+        settleMoves([...ms, ...moves.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]),
+      );
       // One pass for every card: patching them one by one would each start
       // from the same old board and keep only the last.
       const apply = (ns: SimNode[]) =>
@@ -3026,17 +3199,24 @@ export function useWhiteboard() {
           return patch ? toCore({ ...n, ...patch }) : n;
         });
       pinCardsToCurrentPlaces(edges, apply(nodesCore));
-      return { dest, moved: patches.size };
+      return { dest, moved: patches.size, back };
     },
-    [groups, nodes, nodesCore, worlds, edges, pushUndo, pinCardsToCurrentPlaces],
+    [groups, nodes, nodesCore, worlds, edges, householdMoves, pushUndo, pinCardsToCurrentPlaces],
   );
 
   const moveSimToHousehold = useCallback(
     (nodeId: string, world: string, houseGid: string, newName?: string) => {
       const done = moveSimsToHousehold([nodeId], world, houseGid, newName);
-      if (done) setEditNodeId(null);
+      if (!done) return;
+      setEditNodeId(null);
+      const n = byid[nodeId];
+      if (done.back && n) {
+        flashStatus(
+          `${cardName(n)} is back in the ${done.dest.hh} household, as your game has it: their planned move is cancelled. Undo brings it back.`,
+        );
+      }
     },
-    [moveSimsToHousehold],
+    [moveSimsToHousehold, byid, flashStatus],
   );
 
   /**
@@ -3413,6 +3593,7 @@ export function useWhiteboard() {
     moveSimToHousehold,
     moveSimsToHousehold,
     moveHouseholdToWorld,
+    cancelPlan,
     toggleSimInSelection,
     isSelLink,
     setSnap,

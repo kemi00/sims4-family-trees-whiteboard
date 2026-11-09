@@ -367,6 +367,10 @@ export default function App() {
               entries={wb.connectionLog}
               offPlanEdgeIds={wb.offPlan.edges}
               onNote={wb.setLogNote}
+              onCancel={(entry) => {
+                const r = svgRef.current?.getBoundingClientRect();
+                wb.cancelPlan(entry, r ? { w: r.width, h: r.height } : undefined);
+              }}
               anchorRect={
                 logBtnRef.current?.getBoundingClientRect() ?? null
               }

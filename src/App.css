@@ -731,6 +731,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .gpanel .connection-log__addnote{width:22px;height:22px;margin:-2px 0;padding:0;border-radius:6px;color:var(--ink-3);opacity:0}
 .gpanel .connection-log__addnote svg{width:14px;height:14px}
 .gpanel .connection-log__addnote:hover{background:var(--press);color:var(--ink)}
+.gpanel .connection-log__cancel:hover{background:var(--danger-soft);color:var(--danger)}
 .connection-log__item:hover .connection-log__addnote,.connection-log__item:focus-within .connection-log__addnote,.connection-log__item--on .connection-log__addnote{opacity:1}
 .gpanel .connection-log__note{display:block;width:100%;margin:5px 0 1px;padding:4px 8px;border:none;border-left:2px solid var(--rule);border-radius:0 6px 6px 0;background:var(--recess);color:var(--ink-2);font-size:12px;font-weight:500;line-height:1.45;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;cursor:text}
 .gpanel .connection-log__note:hover{background:var(--press)}

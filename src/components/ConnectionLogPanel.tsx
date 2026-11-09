@@ -1,4 +1,4 @@
-import { ArrowsDownUp, Check, NotePencil, Warning, X } from '../icons.ts';
+import { ArrowsDownUp, Check, NotePencil, Trash, Warning, X } from '../icons.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CONNECTION_LOG_PANEL_W } from '../lib/constants.ts';
 import { panelPosition } from '../lib/chrome.ts';
@@ -27,6 +27,8 @@ type Props = {
   offPlanEdgeIds?: ReadonlySet<string>;
   /** Write (or, with an empty text, take off) the note on a line. */
   onNote: (entry: ConnectionLogEntry, text: string) => void;
+  /** Cancel a plan still to do: the board goes back to what the game has. */
+  onCancel: (entry: ConnectionLogEntry) => void;
 };
 
 type Tab = 'plan' | 'game';
@@ -161,6 +163,7 @@ export function ConnectionLogPanel({
   onClose,
   offPlanEdgeIds,
   onNote,
+  onCancel,
 }: Props) {
   const sheet = usePanelSheet();
   const pos = panelPosition(anchorRect, CONNECTION_LOG_PANEL_W);
@@ -234,6 +237,8 @@ export function ConnectionLogPanel({
     const stamp = formatLogTime(entry.createdAt);
     const isEditing = editing === entry.id;
     const noteable = canNote(entry);
+    // Only what's still to do can be cancelled; off plan is settled in the editor.
+    const cancelable = tab === 'plan' && !off && (entry.kind === 'link' || entry.kind === 'move');
     return (
       <li key={entry.id}>
         <div
@@ -284,6 +289,20 @@ export function ConnectionLogPanel({
                   }}
                 >
                   <NotePencil aria-hidden="true" />
+                </button>
+              )}
+              {cancelable && !isEditing && (
+                <button
+                  type="button"
+                  className="connection-log__addnote connection-log__cancel"
+                  title="Cancel this plan: put the board back as your game has it"
+                  aria-label="Cancel this plan"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancel(entry);
+                  }}
+                >
+                  <Trash aria-hidden="true" />
                 </button>
               )}
               {stamp && (
@@ -426,7 +445,9 @@ export function ConnectionLogPanel({
           {tab === 'plan' && (
             <p className="connection-log__foot">
               When a save shows a plan done, it moves to In your game, with
-              its note.
+              its note. The bin cancels a plan, putting its sims back as your
+              game has them; moving a sim back by hand cancels its move too.
+              Undo brings either back.
             </p>
           )}
         </>

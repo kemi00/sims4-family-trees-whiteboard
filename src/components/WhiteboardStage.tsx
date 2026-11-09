@@ -2016,12 +2016,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             if (!done) return;
             // Keep the sims picked, so their cards can be dragged into place.
             wb.setMultiSel({ kind: 'nodes', ids });
-            const { dest, moved } = done;
+            const { dest, moved, back } = done;
             const where = `the ${dest.hh} household in ${dest.world}`;
+            const cancels = back
+              ? ` ${back === moved ? 'That' : `For ${back} of them, that`} cancels a planned move: it's where your game has them.`
+              : '';
             wb.flashStatus(
               moved === 0
                 ? `They already live in ${where}.`
-                : `Moved ${moved === 1 ? '1 sim' : `${moved} sims`} to ${where}${dest.isNew ? ' (new)' : ''}. Their cards stay put: drag them into place. Undo with ⌘Z.`,
+                : `Moved ${moved === 1 ? '1 sim' : `${moved} sims`} to ${where}${dest.isNew ? ' (new)' : ''}.${cancels} Their cards stay put: drag them into place. Undo with ⌘Z.`,
             );
           }}
           onClear={() => wb.clearMultiSel()}
