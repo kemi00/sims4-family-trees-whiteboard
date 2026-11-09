@@ -195,6 +195,9 @@ describe('buildConnectionLog', () => {
     );
     const texts = log.map((e) => e.text);
     assert.ok(texts.includes('Marilla Cuthbert, from Willow Creek adopted a ┳ child, Anne Cuthbert.'), texts.join('\n'));
+    // A planned adoption reads as a plan.
+    const planned = buildConnectionLog([{ id: 'u1', a: 'M', b: 'A', type: 'parent', source: 'planned', adopted: true }], byid);
+    assert.equal(planned[0]!.text, 'Marilla Cuthbert, from Willow Creek adopts a ┳ child, Anne Cuthbert.');
     assert.ok(
       texts.includes('Sam Y, from Willow Creek had a ┳ child, Kit Y, with Rose Y, from Willow Creek (adoptive parent).'),
       texts.join('\n'),

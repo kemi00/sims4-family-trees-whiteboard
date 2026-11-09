@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { COL } from '../lib/constants.ts';
 import type { ConnectChoice } from '../types/whiteboard.ts';
+import type { ConnectOption, connectOptions } from '../lib/connectOptions.ts';
 import { InlineLock } from './LockGlyph.tsx';
 
 type Props = {
@@ -9,24 +10,14 @@ type Props = {
   bName: string;
   left: number;
   top: number;
-  /** Hide sibling option when both sims already share parents on the board. */
-  hideSibling?: boolean;
-  /** Why a parent/child option is off — it would make a sim their own ancestor. */
-  blocked?: Partial<Record<'parent' | 'childof', string>>;
+  /** What to offer, from connectOptions. */
+  options: ReturnType<typeof connectOptions>;
   onConfirm: (type: ConnectChoice) => void;
   onCancel: () => void;
 };
 
-/** Which cycle check a choice is subject to. */
-const CYCLE: Partial<Record<ConnectChoice, 'parent' | 'childof'>> = {
-  parent: 'parent',
-  secretparent: 'parent',
-  childof: 'childof',
-  secretchildof: 'childof',
-};
-
-function label(ty: ConnectChoice, a: string, b: string): ReactNode {
-  switch (ty) {
+function label(opt: ConnectOption, a: string, b: string): ReactNode {
+  switch (opt.choice) {
     case 'marriage':
       return '⚭ Marriage';
     case 'romance':
@@ -39,6 +30,10 @@ function label(ty: ConnectChoice, a: string, b: string): ReactNode {
       );
     case 'divorced':
       return '⚮ Divorced';
+    case 'divorce':
+      return opt.cancel ? '⚭ Cancel their planned divorce' : '⚮ Plan their divorce';
+    case 'breakup':
+      return opt.cancel ? '❤ Cancel their planned breakup' : '♡ Plan their breakup';
     case 'parent':
       return `┳ ${a} is the parent of ${b}`;
     case 'secretparent':
@@ -47,6 +42,8 @@ function label(ty: ConnectChoice, a: string, b: string): ReactNode {
           <InlineLock color={COL.blood} /> {a} is the secret parent of {b}
         </>
       );
+    case 'adoptive':
+      return `┳ ${a} is the adoptive parent of ${b}`;
     case 'childof':
       return `┻ ${a} is the child of ${b}`;
     case 'secretchildof':
@@ -55,6 +52,8 @@ function label(ty: ConnectChoice, a: string, b: string): ReactNode {
           <InlineLock color={COL.blood} /> {a} is the secret child of {b}
         </>
       );
+    case 'adoptedby':
+      return `┻ ${a} is the adopted child of ${b}`;
     case 'coparents':
       return '⊔ Co-parents, not a couple: pick their child next';
     case 'sibling':
@@ -66,27 +65,11 @@ function label(ty: ConnectChoice, a: string, b: string): ReactNode {
 
 /**
  * Grouped so the longer list scans: what the two are to each other, then
- * family. Each secret option sits under its plain one.
+ * family. Each secret or adoptive option sits under its plain one. Links the
+ * two have already are off, with why; a couple's end is planned here as on
+ * the board (connectOptions).
  */
-const SECTIONS: { title: string | null; options: ConnectChoice[] }[] = [
-  { title: 'Couple', options: ['marriage', 'romance', 'secretromance', 'divorced'] },
-  {
-    title: 'Family',
-    options: ['parent', 'secretparent', 'childof', 'secretchildof', 'coparents', 'sibling'],
-  },
-  { title: null, options: ['custom'] },
-];
-
-export function ConnectMenu({
-  aName,
-  bName,
-  left,
-  top,
-  hideSibling,
-  blocked,
-  onConfirm,
-  onCancel,
-}: Props) {
+export function ConnectMenu({ aName, bName, left, top, options, onConfirm, onCancel }: Props) {
   const { compact, ref, style } = useFitMenuInStage(left, top);
   return (
     <div
@@ -97,33 +80,28 @@ export function ConnectMenu({
       aria-label={`Link ${aName} and ${bName}`}
       style={style}
     >
-      <div style={{ fontSize: 10, color: '#889', padding: '2px 4px' }}>
+      <div className="menu__pair">
         {aName} ↔ {bName}
+        {options.now && <span className="menu__now"> · {options.now}</span>}
       </div>
-      {SECTIONS.map(({ title, options }) => (
+      {options.sections.map(({ title, options: list }) => (
         <div key={title ?? 'other'} role="group" aria-label={title ?? undefined}>
           {title && <div className="menu__section">{title}</div>}
-          {options
-            .filter((ty) => !(hideSibling && ty === 'sibling'))
-            .map((ty) => {
-              const check = CYCLE[ty];
-              const why = check ? blocked?.[check] : undefined;
-              return (
-                <button
-                  key={ty}
-                  type="button"
-                  disabled={!!why}
-                  onClick={() => onConfirm(ty)}
-                >
-                  {label(ty, aName, bName)}
-                  {why && <span className="menu__why">{why}</span>}
-                </button>
-              );
-            })}
+          {list.map((opt) => (
+            <button
+              key={opt.choice}
+              type="button"
+              disabled={!!opt.why}
+              onClick={() => onConfirm(opt.choice)}
+            >
+              {label(opt, aName, bName)}
+              {opt.why && <span className="menu__why">{opt.why}</span>}
+            </button>
+          ))}
         </div>
       ))}
-      <button type="button" style={{ color: '#b00' }} onClick={onCancel}>
-        ✕ cancel
+      <button type="button" className="menu__cancel" onClick={onCancel}>
+        ✕ Cancel
       </button>
     </div>
   );

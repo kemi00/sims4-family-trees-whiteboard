@@ -78,6 +78,7 @@ import {
 import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
 import { lineageIds } from '../lib/bloodline.ts';
 import { hasNoHome } from '../lib/partners.ts';
+import { whyNotAdopt } from '../lib/adoption.ts';
 import {
   buildConnectionLog,
   householdAgeUpLine,
@@ -86,7 +87,7 @@ import {
   simName,
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
-import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, uKey, worldColor } from '../lib/utils.ts';
+import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -149,6 +150,19 @@ export type PartnerMenuState = {
   picked?: string;
 };
 
+/**
+ * The menu from the ＋ on a card's foot: a new sim (a planned baby), or an
+ * existing sim to adopt; then, adopted and living apart, whether they move in.
+ */
+export type ChildMenuState = {
+  id: string;
+  x: number;
+  y: number;
+  step: 'choose' | 'adopt' | 'move';
+  /** The sim just adopted, asked about moving in. */
+  picked?: string;
+};
+
 /** The status line while the partner menu is open starts so. */
 const PARTNER_HINT = 'Partner for ';
 
@@ -164,10 +178,14 @@ function readPartnerChoice(): PartnerChoice {
   }
 }
 
-/** The link each connect choice adds, from the first sim clicked to the second (flip: the other way). */
+/**
+ * The link each connect choice adds, from the first sim clicked to the
+ * second (flip: the other way). Co-parents pick a child next; a divorce or
+ * breakup is planned on the couple's link (setEnding), not added.
+ */
 const CONNECT_LINKS: Record<
-  Exclude<ConnectChoice, 'coparents'>,
-  { type: Edge['type']; flip?: true; secret?: true }
+  Exclude<ConnectChoice, 'coparents' | 'divorce' | 'breakup'>,
+  { type: Edge['type']; flip?: true; secret?: true; adopted?: true }
 > = {
   marriage: { type: 'marriage' },
   romance: { type: 'romance' },
@@ -177,6 +195,8 @@ const CONNECT_LINKS: Record<
   secretparent: { type: 'parent', secret: true },
   childof: { type: 'parent', flip: true },
   secretchildof: { type: 'parent', flip: true, secret: true },
+  adoptive: { type: 'parent', adopted: true },
+  adoptedby: { type: 'parent', flip: true, adopted: true },
   sibling: { type: 'sibling' },
   custom: { type: 'custom' },
 };
@@ -363,6 +383,7 @@ export function useWhiteboard() {
    * clicked (where a partner who moves in lands), and where it opens.
    */
   const [partnerMenu, setPartnerMenu] = useState<PartnerMenuState | null>(null);
+  const [childMenu, setChildMenu] = useState<ChildMenuState | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   /** Up next is open, and the households skipped in it until the next save import. */
   const [upNextOpen, setUpNextOpen] = useState(false);
@@ -929,23 +950,29 @@ export function useWhiteboard() {
   );
 
   /**
-   * `secret`: a secret parent or secret lovers. When the same link is already
-   * on the board, it is marked secret rather than drawn twice.
+   * `secret`: a secret parent or secret lovers; `adopted`: an adoptive
+   * parent. When the same link is already on the board, it is marked so
+   * rather than drawn twice.
    */
-  const addEdge = useCallback((a: string, b: string, type: Edge['type'], secret = false) => {
+  const addEdge = useCallback((a: string, b: string, type: Edge['type'], secret = false, adopted = false) => {
     if (type === 'sibling' && siblingsShareParents(a, b, edges)) return;
     let nextEdges: Edge[] | null = null;
     pushUndo();
     setEdges((e) => {
-      const same = secret
-        ? e.find(
-            (x) =>
-              x.type === type &&
-              ((x.a === a && x.b === b) || (type !== 'parent' && x.a === b && x.b === a)),
-          )
-        : undefined;
+      const same =
+        secret || adopted
+          ? e.find(
+              (x) =>
+                x.type === type &&
+                ((x.a === a && x.b === b) || (type !== 'parent' && x.a === b && x.b === a)),
+            )
+          : undefined;
       if (same) {
-        nextEdges = e.map((x) => (x === same ? { ...x, secret: true as const } : x));
+        nextEdges = e.map((x) =>
+          x === same
+            ? { ...x, ...(secret ? { secret: true as const } : {}), ...(adopted ? { adopted: true as const } : {}) }
+            : x,
+        );
         return nextEdges;
       }
       const id = 'u' + eidcRef.current++;
@@ -959,6 +986,7 @@ export function useWhiteboard() {
           source: 'planned',
           createdAt: new Date().toISOString(),
           ...(secret ? { secret: true as const } : {}),
+          ...(adopted ? { adopted: true as const } : {}),
         },
       ]);
       return nextEdges;
@@ -1858,10 +1886,15 @@ export function useWhiteboard() {
         );
         return;
       }
+      if (choice === 'divorce' || choice === 'breakup') return;
       const link = CONNECT_LINKS[choice];
       const [from, to] = link.flip ? [b, a] : [a, b];
       if (link.type === 'parent') {
-        const why = parentCycleReason(from, to);
+        const why =
+          parentCycleReason(from, to) ??
+          (link.adopted && byid[from] && byid[to]
+            ? whyNotAdopt(byid[from]!, byid[to]!, edges, plannedChildIds)
+            : null);
         if (why) {
           setConnectMenu(null);
           setConnSrc(null);
@@ -1869,7 +1902,8 @@ export function useWhiteboard() {
           return;
         }
       }
-      addEdge(from, to, link.type, !!link.secret);
+      addEdge(from, to, link.type, !!link.secret, !!link.adopted);
+      if (link.adopted) trackAction('/action/adopt');
       setConnectMenu(null);
       flashStatus(
         link.secret && hideSecrets
@@ -1878,7 +1912,7 @@ export function useWhiteboard() {
       );
       setConnSrc(null);
     },
-    [connectMenu, addEdge, byid, flashStatus, hideSecrets, parentCycleReason],
+    [connectMenu, addEdge, byid, edges, plannedChildIds, flashStatus, hideSecrets, parentCycleReason],
   );
 
   /** The ♥ on a card's side: pick a partner by name, or by clicking them on the board. */
@@ -1927,7 +1961,7 @@ export function useWhiteboard() {
    * other's on `side`, or wherever the household has room.
    */
   const moveInWith = useCallback(
-    (mover: string, host: string, side: 'left' | 'right' = 'right'): boolean => {
+    (mover: string, host: string, side: 'left' | 'right' | null = 'right'): boolean => {
       const m = nodes.find((x) => x.id === mover);
       const h = nodes.find((x) => x.id === host);
       if (!m || !h || m.gid === h.gid) return false;
@@ -1945,7 +1979,8 @@ export function useWhiteboard() {
       const home = others.filter((x) => x.gid === h.gid);
       const chrome = householdChrome(home, g);
       const spot =
-        partnerSpot(h, others, side) ?? (chrome ? householdAddSpot(home, others, chrome.boxR) : null);
+        (side ? partnerSpot(h, others, side) : null) ??
+        (chrome ? householdAddSpot(home, others, chrome.boxR) : null);
       const nextCore = nodesCore.map((x) => (x.id === mover ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x));
       const bases = layoutBases(nextCore, worlds, edges);
       const pinned = nextCore.map((node) => {
@@ -1962,7 +1997,7 @@ export function useWhiteboard() {
       setNodesCore(coreOffsetsAfterImportSeparation(pinned, snap ? snapNodesToTiles(laid) : laid, groups, nodes));
       lockViewToSims([host]);
       flashStatus(
-        `${cardName(m)} moves in with ${cardName(h)}, in the ${dest.hh} household: a plan until a save shows it. Undo takes it back.`,
+        `${cardName(m)} moves in with ${cardName(h)}, in ${theHousehold(dest.hh)}: a plan until a save shows it. Undo takes it back.`,
       );
       return true;
     },
@@ -2296,6 +2331,50 @@ export function useWhiteboard() {
     // Its hint goes; a "Linked ✓" or a move just made stays to be read.
     setStatus((cur) => (cur.startsWith(PARTNER_HINT) ? '' : cur));
   }, []);
+
+  /** The ＋ on a card's foot: a new sim, or one to adopt. */
+  const openChildMenu = useCallback(
+    (id: string, x: number, y: number) => {
+      if (!byid[id]) return;
+      setConnectMenu(null);
+      setConnSrc(null);
+      setPartnerMenu(null);
+      setSel({ type: 'node', id });
+      setChildMenu({ id, x, y, step: 'choose' });
+    },
+    [byid],
+  );
+
+  const closeChildMenu = useCallback(() => setChildMenu(null), []);
+
+  const setChildMenuStep = useCallback(
+    (step: ChildMenuState['step']) => setChildMenu((m) => (m ? { ...m, step } : m)),
+    [],
+  );
+
+  /**
+   * `parent` adopts `child`: a planned parent link marked adopted, done once
+   * a save shows it. Living apart, the menu then asks whether the child
+   * moves in. False, with why on the status line, when it can't be.
+   */
+  const adoptChild = useCallback(
+    (parent: string, child: string): boolean => {
+      const [P, C] = [byid[parent], byid[child]];
+      if (!P || !C) return false;
+      const why = whyNotAdopt(P, C, edges, plannedChildIds) ?? parentCycleReason(parent, child);
+      if (why) {
+        flashStatus(`Not adopted: ${why}`);
+        return false;
+      }
+      addEdge(parent, child, 'parent', false, true);
+      trackAction('/action/adopt');
+      flashStatus(`Planned ✓ ${cardName(P)} adopts ${cardName(C)}, until a save shows it. Undo takes it back.`);
+      if (P.gid !== C.gid && !hasNoHome(P)) setChildMenu((m) => (m ? { ...m, step: 'move', picked: child } : m));
+      else setChildMenu(null);
+      return true;
+    },
+    [byid, edges, plannedChildIds, parentCycleReason, addEdge, flashStatus],
+  );
 
   /**
    * A partner picked in the menu. Clicked on the board, the link is all:
@@ -3565,6 +3644,11 @@ export function useWhiteboard() {
     partnerMenu,
     openPartnerMenu,
     closePartnerMenu,
+    childMenu,
+    openChildMenu,
+    closeChildMenu,
+    setChildMenuStep,
+    adoptChild,
     setPartnerChoice,
     pickPartner,
     moveInWith,

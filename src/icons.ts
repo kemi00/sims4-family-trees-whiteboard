@@ -7,6 +7,7 @@ export { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwi
 export { ArrowsDownUp } from '@phosphor-icons/react/ArrowsDownUp';
 export { CalendarBlank } from '@phosphor-icons/react/CalendarBlank';
 export { CaretDown } from '@phosphor-icons/react/CaretDown';
+export { CaretLeft } from '@phosphor-icons/react/CaretLeft';
 export { CaretUp } from '@phosphor-icons/react/CaretUp';
 export { Check } from '@phosphor-icons/react/Check';
 export { CornersOut } from '@phosphor-icons/react/CornersOut';

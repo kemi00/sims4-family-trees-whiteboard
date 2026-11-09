@@ -883,6 +883,20 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu button:disabled:hover{background:#f5f6f8}
 .menu__why{display:block;margin-top:3px;font-size:11px;font-weight:400;color:#6b7684}
 .menu__section{margin:8px 4px 2px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7a8594}
+/* Connect: who, and where the two stand now ("married · divorce planned"). */
+.menu__pair{padding:2px 4px;font-size:10.5px;color:var(--ink-3)}
+.menu__now{color:var(--ink-2);font-weight:600}
+.menu .menu__cancel{color:var(--danger)}
+.menu .menu__cancel:hover{background:var(--danger-soft)}
+/* The ＋ menu's two kinds of child: a new sim, or one to adopt. */
+.menu .cmenu__pick{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:4px 0;padding:9px 10px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff}
+.menu .cmenu__pick:hover:not(:disabled){background:var(--hover);border-color:var(--accent)}
+.menu .cmenu__pick:disabled:hover{background:#fff}
+.cmenu__title{font-size:12.5px;font-weight:700;color:var(--ink)}
+.cmenu__sub{font-size:11px;font-weight:400;color:var(--ink-2)}
+.menu .pmenu__back{display:inline-flex;align-items:center;gap:4px;width:auto;margin:0;padding:2px 6px 2px 2px;background:transparent;color:var(--ink)}
+.menu .pmenu__back:hover{background:var(--hover)}
+.pmenu__back svg{width:13px;height:13px;color:var(--ink-3)}
 /*
  * The sim editor: the name and tabs stay at the top and Save at the bottom,
  * while the section between them scrolls. See SimEditor.tsx.

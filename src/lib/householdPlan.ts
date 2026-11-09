@@ -2,7 +2,7 @@ import { GROWN_UP, daysFromBirth, daysUntilStage, everyoneAges, lifeView, wholeD
 import { cardName, conflictText, isPlannedSim, type PlanConflict } from './plan.ts';
 import { changesWorld, movesHousehold } from './householdMove.ts';
 import { isUnhousedGid } from './unhoused.ts';
-import { edgeSourceOf, joinNotes, uKey } from './utils.ts';
+import { edgeSourceOf, joinNotes, theHousehold, uKey } from './utils.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE } from './constants.ts';
 import { dynastyKey, dynastyNames, dynastyPhrase } from './generations.ts';
 import type { Edge, Group, HouseholdMove, PairStatus, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
@@ -487,7 +487,7 @@ export function unblockedBy(items: PlanItem[], gid: string): PlanItem[] {
 export function householdName(gid: string, groups: Group[], nodes: SimNode[]): string {
   const hh = groups.find((g) => g.gid === gid)?.hh ?? nodes.find((n) => n.gid === gid)?.hh ?? gid.split('||')[1] ?? '';
   if (isUnhousedGid(gid)) return 'the unhoused sims';
-  return hh ? `the ${hh} household` : 'their household';
+  return hh ? theHousehold(hh) : 'their household';
 }
 
 /**

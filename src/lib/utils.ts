@@ -208,6 +208,14 @@ export function pruneContradictoryParentEdges(edges: Edge[]): Edge[] {
   });
 }
 
+/**
+ * "the Munch household", in a sentence. A household whose name starts with
+ * "The" (The Nectar Making Duo) keeps its own: never "the The …".
+ */
+export function theHousehold(hh: string): string {
+  return /^the\s/i.test(hh) ? `${hh} household` : `the ${hh} household`;
+}
+
 /** Sanitize relationship edges used for layout and routing. */
 export function sanitizeEdges(edges: Edge[]): Edge[] {
   return pruneImpliedSiblingEdges(pruneContradictoryParentEdges(edges));

@@ -78,7 +78,7 @@ export function hasNoHome(n: Pick<SimNode, 'world' | 'gid'>): boolean {
 }
 
 /** Days a card has lived as far as the board can tell, in Normal days. */
-function placeInLife(n: SimNode): { days: number; approx: boolean } | null {
+export function placeInLife(n: SimNode): { days: number; approx: boolean } | null {
   if (n.life && n.life.stage === n.age) {
     const d = lifeDays(n.life);
     if (d !== null) return { days: d, approx: false };

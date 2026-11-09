@@ -4,6 +4,7 @@ import { PartnerRow } from './PartnerRow.tsx';
 import { X } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
+import { theHousehold } from '../lib/utils.ts';
 import { hasNoHome, partnerSearch } from '../lib/partners.ts';
 import { PARTNER_CHOICES, type PartnerChoice, type PartnerMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
@@ -95,7 +96,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
             className={i === 0 ? 'pmenu__move pmenu__move--first' : 'pmenu__move'}
             onClick={() => onMove(mover.id, host.id)}
           >
-            {cardName(mover)} moves into the {host.hh} household
+            {cardName(mover)} moves into {theHousehold(host.hh)}
           </button>
         ))}
         <button type="button" className="pmenu__move pmenu__keep" onClick={onClose}>

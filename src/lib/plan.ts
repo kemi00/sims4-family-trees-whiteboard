@@ -198,7 +198,8 @@ export function planConflicts(nodes: SimNode[], edges: Edge[]): PlanConflict[] {
     }
   }
   for (const e of edges) {
-    if (e.type !== 'parent' || !planned(e) || e.plan === 'kept' || covered.has(e.id)) continue;
+    // An adoption adds a parent beside the ones the game gave: no conflict.
+    if (e.type !== 'parent' || e.adopted || !planned(e) || e.plan === 'kept' || covered.has(e.id)) continue;
     const others = (parentsOf.get(e.b) ?? []).filter((p) => !planned(p) && p.a !== e.a);
     if (others.length < 2) continue;
     out.push({ edgeId: e.id, kind: 'otherParents', a: e.a, b: e.b, children: [], strong: true });

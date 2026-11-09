@@ -39,8 +39,9 @@ type Props = {
    */
   parents?: { lines: string[]; title: string };
   /**
-   * A ＋ on the card's foot, as a couple has under its ring: it plans a baby
-   * of this sim alone. Shown on hover and while the card is selected.
+   * A ＋ on the card's foot, as a couple has under its ring: a child of this
+   * sim alone, a new sim (a planned baby) or one to adopt (ChildMenu).
+   * Shown on hover and while the card is selected.
    */
   babyPlus?: boolean;
   /**
@@ -321,7 +322,7 @@ export const SimNodeView = memo(function SimNodeView({
           below"; the same ＋ as a couple's. Clicked through WhiteboardStage. */}
       {labels && babyPlus && (
         <g className="node__baby" transform={`translate(${(n.w || CARD_MIN_W) / 2},${h})`}>
-          <title>Plan a baby of {cardName(n)}</title>
+          <title>Add a child of {cardName(n)}: a new sim, or one to adopt</title>
           <circle r={PILL_H / 2} fill={UEDIT} stroke="#fff" strokeWidth={1.4} />
           <text y={4.5} fontSize={13} fontWeight={700} textAnchor="middle" fill="#fff">
             ＋

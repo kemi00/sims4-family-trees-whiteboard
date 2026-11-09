@@ -13,6 +13,8 @@ type Props = {
   /** A blood relative: found by name, never suggested. */
   related?: boolean;
   married?: boolean;
+  /** More to weigh, after the rest (the adoption list's "has 2 parents"). */
+  extra?: string[];
 };
 
 /**
@@ -22,13 +24,14 @@ type Props = {
  * their dynasty). Only the inside of the row: each list wraps it in its own
  * button.
  */
-export function PartnerRow({ sim: p, candidate: c, dynasties, related, married }: Props) {
+export function PartnerRow({ sim: p, candidate: c, dynasties, related, married, extra = [] }: Props) {
   const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
   const flags = [
     related ? 'related' : '',
     married ? 'married' : c?.taken ? 'in a romance' : '',
     c?.frozen ? 'not aging now' : '',
     p.dynasty ? dynastyPhrase(dynasties.get(dynastyKey(p) ?? '') ?? { name: p.dynasty }) : '',
+    ...extra,
   ].filter(Boolean);
   return (
     <>

@@ -57,7 +57,7 @@ import {
   type ChipObstacle,
 } from '../lib/linkLabel.ts';
 import { slug, trackAction } from '../lib/analytics.ts';
-import { isUserE, siblingsShareParents } from '../lib/utils.ts';
+import { isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
@@ -74,6 +74,8 @@ import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { PartnerMenu } from './PartnerMenu.tsx';
+import { ChildMenu } from './ChildMenu.tsx';
+import { connectOptions } from '../lib/connectOptions.ts';
 import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
@@ -166,7 +168,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     armed: boolean;
     /** Pressed on the card's ⠇: a click opens the editor at once. */
     more: boolean;
-    /** Pressed on the card's ＋: a click plans a baby of this sim. */
+    /** Pressed on the card's ＋: a click opens the child menu (new sim or adopt). */
     baby: boolean;
     /** The ♥ on the card's side that was pressed, if any. */
     partner?: 'left' | 'right';
@@ -1211,9 +1213,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       return;
     }
     if (baby) {
-      // The ＋ on the card's foot: a planned baby of this sim alone.
+      // The ＋ on the card's foot: a new sim (a planned baby) or one to adopt.
       lastClickRef.current = null;
-      wb.requestInfantOfSim(n.id);
+      const sr = stageRef.current?.getBoundingClientRect();
+      const x = ev && sr ? ev.clientX - sr.left : 0;
+      const y = ev && sr ? ev.clientY - sr.top : 0;
+      wb.openChildMenu(n.id, x, y + 14);
       return;
     }
     if (toggle) {
@@ -2042,18 +2047,37 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           onPlan={oneHousehold ? () => wb.setBriefGid(oneHousehold) : undefined}
         />
       )}
-      {menu && (
+      {menu && wb.byid[menu.a] && wb.byid[menu.b] && (
         <ConnectMenu
-          aName={wb.byid[menu.a]?.first ?? ''}
-          bName={wb.byid[menu.b]?.first ?? ''}
+          aName={wb.byid[menu.a]!.first}
+          bName={wb.byid[menu.b]!.first}
           left={menu.x}
           top={menu.y}
-          hideSibling={siblingsShareParents(menu.a, menu.b, wb.edges)}
-          blocked={{
-            parent: wb.parentCycleReason(menu.a, menu.b) ?? undefined,
-            childof: wb.parentCycleReason(menu.b, menu.a) ?? undefined,
+          options={connectOptions({
+            a: wb.byid[menu.a]!,
+            b: wb.byid[menu.b]!,
+            edges: wb.edges,
+            unborn: wb.plannedChildIds,
+            cycle: {
+              parent: wb.parentCycleReason(menu.a, menu.b) ?? undefined,
+              childof: wb.parentCycleReason(menu.b, menu.a) ?? undefined,
+            },
+            hideSibling: siblingsShareParents(menu.a, menu.b, wb.edges),
+          })}
+          onConfirm={(type) => {
+            if (type === 'divorce' || type === 'breakup') {
+              // Planned on the couple's link, as from the link chip or Delete.
+              const want = type === 'divorce' ? 'marriage' : 'romance';
+              const link = wb.edges.find(
+                (e) => e.type === want && uKey(e.a, e.b) === uKey(menu.a, menu.b),
+              );
+              // Reset Connect first, so the plan's own message is the one shown.
+              wb.cancelConnect();
+              if (link) wb.setEnding(link.id, !link.ending);
+              return;
+            }
+            wb.confirmConnect(type);
           }}
-          onConfirm={(type) => wb.confirmConnect(type)}
           onCancel={() => {
             wb.setConnectMenu(null);
             wb.cancelConnect();
@@ -2075,6 +2099,29 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             wb.closePartnerMenu();
           }}
           onClose={wb.closePartnerMenu}
+        />
+      )}
+      {wb.childMenu && (
+        <ChildMenu
+          key={wb.childMenu.id}
+          menu={wb.childMenu}
+          nodes={wb.nodes}
+          byid={wb.byid}
+          edges={wb.edges}
+          saveGame={wb.saveGame}
+          unborn={wb.plannedChildIds}
+          onNewSim={() => {
+            const id = wb.childMenu!.id;
+            wb.closeChildMenu();
+            wb.requestInfantOfSim(id);
+          }}
+          onAdoptStep={wb.setChildMenuStep}
+          onAdopt={(child) => wb.adoptChild(wb.childMenu!.id, child)}
+          onMoveIn={(child) => {
+            wb.moveInWith(child, wb.childMenu!.id, null);
+            wb.closeChildMenu();
+          }}
+          onClose={wb.closeChildMenu}
         />
       )}
       {wb.infantHouseMenu && (

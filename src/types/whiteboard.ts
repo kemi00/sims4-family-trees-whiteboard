@@ -205,7 +205,11 @@ export type ConnectChoice =
   | 'secretparent'
   | 'childof'
   | 'secretchildof'
+  | 'adoptive'
+  | 'adoptedby'
   | 'coparents'
+  | 'divorce'
+  | 'breakup'
   | 'sibling'
   | 'custom';
 

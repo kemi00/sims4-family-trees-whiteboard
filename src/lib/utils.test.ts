@@ -156,3 +156,11 @@ describe('notes', () => {
     assert.equal(joinNotes(undefined, ''), undefined);
   });
 });
+
+describe('theHousehold', () => {
+  it('names a household in a sentence, never "the The"', async () => {
+    const { theHousehold } = await import('./utils.ts');
+    assert.equal(theHousehold('Munch'), 'the Munch household');
+    assert.equal(theHousehold('The Nectar Making Duo'), 'The Nectar Making Duo household');
+  });
+});
