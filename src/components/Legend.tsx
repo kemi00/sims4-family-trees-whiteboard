@@ -68,11 +68,18 @@ function LineSample({
   );
 }
 
-/** A family shape in board lines: ┳ parents to children, ⊔, ⊓. */
-function ShapeSample({ label, d }: { label: string; d: string }) {
+/**
+ * A family shape in board lines: ┳ parents to children, ⊔, ⊓. `into`: the
+ * x of each child's line, which ends in an arrowhead at the bottom, as on
+ * the board.
+ */
+function ShapeSample({ label, d, into = [] }: { label: string; d: string; into?: number[] }) {
   return (
     <Sample label={label}>
       <path d={d} fill="none" stroke={COL.blood} strokeWidth={1.7} strokeLinejoin="round" strokeLinecap="round" />
+      {into.map((x) => (
+        <polygon key={x} points={`${x},${SH} ${x - 2.6},${SH - 4} ${x + 2.6},${SH - 4}`} fill={COL.blood} />
+      ))}
     </Sample>
   );
 }
@@ -315,11 +322,11 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
             <KeyRow sample={<LineSample label="Solid line" />} label="Same household" />
             <KeyRow sample={<LineSample label="Thin dashed line" across />} label="Different households" />
             <KeyRow
-              sample={<ShapeSample label="Fork" d="M13 1.5 V6 M5 13.5 V6 H21 V13.5" />}
+              sample={<ShapeSample label="Fork, arrows to the children" d="M13 1.5 V6 M5 12 V6 H21 V12" into={[5, 21]} />}
               label="Parents to children"
             />
             <KeyRow
-              sample={<ShapeSample label="U shape" d="M5 1.5 V6 H21 V1.5 M13 6 V13.5" />}
+              sample={<ShapeSample label="U shape, arrow to the child" d="M5 1.5 V6 H21 V1.5 M13 6 V12" into={[13]} />}
               label="Parents, not a couple"
             />
             <KeyRow

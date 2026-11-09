@@ -246,6 +246,9 @@ export const MINDROP = 46;
  * that exit is {@link STUB}, same length as the child top stem.
  */
 export const PILL_DROP = 12;
+/** Arrowhead on a line: tip to base, and half its width at the base. */
+export const ARROW_LEN = 9;
+export const ARROW_HALF_W = 4.5;
 /** Relationship pill height (rings / heart / divorce capsule). */
 export const PILL_H = 24;
 /** Half-width of the widest relationship pill (the ⚮ capsule is 38 wide). */

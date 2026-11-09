@@ -1,5 +1,7 @@
 import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import {
+  ARROW_HALF_W,
+  ARROW_LEN,
   COL,
   LINK_STROKE,
   LINK_STROKE_ACROSS,
@@ -12,8 +14,37 @@ import {
 } from '../lib/constants.ts';
 import { sharedChromeValue } from '../lib/liveScene.ts';
 import { ptsStr } from '../lib/utils.ts';
-import type { BloodPath, BloodVert, SecretMark, UnionRender } from '../types/whiteboard.ts';
+import type { Arrow, BloodPath, BloodVert, SecretMark, UnionRender } from '../types/whiteboard.ts';
 import { LockGlyph } from './LockGlyph.tsx';
+
+/**
+ * A line's arrowheads, in its colour: which way the link runs. Inside the
+ * line's own group, so they fade, highlight and move with it.
+ */
+function ArrowHeads({ arrows, color }: { arrows?: readonly Arrow[]; color: string }) {
+  if (!arrows?.length) return null;
+  return (
+    <>
+      {arrows.map(({ tip: [x, y], dir: [dx, dy] }) => {
+        const bx = x - dx * ARROW_LEN;
+        const by = y - dy * ARROW_LEN;
+        const px = -dy * ARROW_HALF_W;
+        const py = dx * ARROW_HALF_W;
+        return (
+          <polygon
+            key={`${x},${y},${dx},${dy}`}
+            className="link-arrow"
+            points={`${x},${y} ${bx + px},${by + py} ${bx - px},${by - py}`}
+            fill={color}
+            stroke={color}
+            strokeWidth={1}
+            strokeLinejoin="round"
+          />
+        );
+      })}
+    </>
+  );
+}
 
 /** Opaque capsule that masks the connector where the relationship glyph sits. */
 function PillBg({
@@ -215,7 +246,14 @@ type Props = {
   bloodVerts: BloodVert[];
   hopD: (pts: [number, number][], verts: BloodVert[], pi: number) => string;
   unions: UnionRender[];
-  customs: { edgeId: string; pts: [number, number][]; isUser: boolean; a?: string; b?: string }[];
+  customs: {
+    edgeId: string;
+    pts: [number, number][];
+    isUser: boolean;
+    a?: string;
+    b?: string;
+    arrows?: Arrow[];
+  }[];
   secrets?: SecretMark[];
   endsById: ReadonlyMap<string, readonly [string, string]>;
   userEdgeIds: Set<string>;
@@ -333,6 +371,7 @@ export const EdgeLayer = memo(function EdgeLayer({
               strokeLinecap={p.cross ? 'butt' : 'round'}
               style={selected ? { pointerEvents: 'none' } : undefined}
             />
+            <ArrowHeads arrows={p.arrows} color={col} />
             <path
               d={d}
               fill="none"
@@ -378,6 +417,7 @@ export const EdgeLayer = memo(function EdgeLayer({
               strokeLinejoin="round"
               strokeLinecap={u.cross ? 'butt' : 'round'}
             />
+            <ArrowHeads arrows={u.arrows} color={lc} />
             <g
               className={sq ? 'union-pill union-pill--plus' : 'union-pill'}
             >
@@ -453,6 +493,7 @@ export const EdgeLayer = memo(function EdgeLayer({
               strokeLinejoin="round"
               strokeLinecap="round"
             />
+            <ArrowHeads arrows={c.arrows} color={col} />
             <polyline
               points={pts}
               fill="none"

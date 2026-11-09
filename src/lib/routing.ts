@@ -1,4 +1,4 @@
-import { BAND, MINDROP, PILL_DROP, PILL_H, PILL_W, RGAP, STUB, UNION_MIN_GAP } from './constants.ts';
+import { ARROW_LEN, BAND, MINDROP, PILL_DROP, PILL_H, PILL_W, RGAP, STUB, UNION_MIN_GAP } from './constants.ts';
 import {
   buildRects,
   ptsClear,
@@ -7,6 +7,7 @@ import {
 } from './geometry.ts';
 import { isUserE, simplify, uKey } from './utils.ts';
 import type {
+  Arrow,
   BloodPath,
   BloodVert,
   CustomRender,
@@ -776,6 +777,92 @@ export function unionRoute(a: SimNode, b: SimNode, ctx: RoutingContext): UnionPa
   return { pts: usual, rx: g.rx, ry: g.ry };
 }
 
+/** Unit step along the longer axis from `a` to `b`. */
+function stepDir(a: Point, b: Point): Point {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  return Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
+}
+
+/** Arrowhead at a line's end, pointing the way its last stretch runs. */
+export function endArrow(pts: Point[]): Arrow | null {
+  const tip = pts[pts.length - 1];
+  for (let i = pts.length - 2; tip && i >= 0; i--) {
+    const from = pts[i]!;
+    if (Math.abs(from[0] - tip[0]) + Math.abs(from[1] - tip[1]) > 0.5) {
+      return { tip, dir: stepDir(from, tip) };
+    }
+  }
+  return null;
+}
+
+/** Arrowhead leaving `at` (its base) along `dir`. */
+function leaveArrow(at: Point, dir: Point): Arrow {
+  return { tip: [at[0] + dir[0] * ARROW_LEN, at[1] + dir[1] * ARROW_LEN], dir };
+}
+
+/**
+ * Arrowheads on one family's lines: into each child's card; out of the
+ * couple's pill (`fromPill`), on the line with the most children; and where
+ * a line leaves another down the trunk, pointing the way it turns.
+ */
+function familyArrows(
+  out: BloodPath[],
+  ax: number,
+  ay: number,
+  kids: SimNode[],
+  fromPill: boolean,
+): BloodPath[] {
+  const tops = new Set(kids.map((n) => `${n.x + n.w / 2},${n.y}`));
+  const res = out.map((p) => ({ ...p, arrows: [...(p.arrows ?? [])] }));
+  for (const p of res) {
+    const last = p.pts[p.pts.length - 1]!;
+    if (!tops.has(`${last[0]},${last[1]}`)) continue;
+    const a = endArrow(p.pts);
+    if (a) p.arrows.push(a);
+  }
+  const fromAnchor = res.filter(
+    (p) => Math.abs(p.pts[0]![0] - ax) < 0.5 && Math.abs(p.pts[0]![1] - ay) < 0.5,
+  );
+  // How far down the anchor's column a line runs before it turns.
+  const reach = (p: BloodPath): number => {
+    const [a, b] = p.pts;
+    return b && Math.abs(a![0] - b[0]) < 0.5 ? b[1] : ay;
+  };
+  if (fromPill && fromAnchor.length) {
+    const trunk = fromAnchor.reduce((m, p) => (p.ids.length > m.ids.length ? p : m));
+    trunk.arrows.push(leaveArrow([ax, ay], [0, 1]));
+  }
+  for (const p of fromAnchor) {
+    const y1 = reach(p);
+    const turn = p.pts[2];
+    if (!turn || y1 <= ay + 0.5) continue;
+    if (!fromAnchor.some((q) => q !== p && reach(q) >= y1 - 0.5)) continue;
+    p.arrows.push(leaveArrow([ax, y1], stepDir([ax, y1], turn)));
+  }
+  return res.map((p) => (p.arrows.length ? p : { ids: p.ids, pts: p.pts, ...(p.cross ? { cross: p.cross } : {}) }));
+}
+
+/**
+ * Arrowhead where a custom link enters `b`'s card: the line runs centre to
+ * centre, under both cards.
+ */
+function customArrow(pts: Point[], b: SimNode): Arrow | null {
+  const inside = (p: Point) => p[0] >= b.x && p[0] <= b.x + b.w && p[1] >= b.y && p[1] <= b.y + b.h;
+  for (let i = pts.length - 1; i > 0; i--) {
+    const a = pts[i - 1]!;
+    const c = pts[i]!;
+    if (inside(a) || !inside(c)) continue;
+    const dir = stepDir(a, c);
+    const tip: Point =
+      dir[0] === 0
+        ? [a[0], a[1] < b.y ? b.y : b.y + b.h]
+        : [a[0] < b.x ? b.x : b.x + b.w, a[1]];
+    return { tip, dir };
+  }
+  return null;
+}
+
 /** Height of the co-parent join: one stub below the lower parent's card. */
 function coParentJoinY(p0: SimNode, p1: SimNode): number {
   return Math.max(p0.y + p0.h, p1.y + p1.h) + STUB;
@@ -1342,11 +1429,12 @@ export function computeEdgeRenderData(
           ps.flatMap((pid) => {
             const p = byid[pid];
             if (!p) return [];
-            return kn.map((n) => ({
+            const lines = kn.map((n) => ({
               ids: pEB[n.id] || [],
               pts: childRoute(p.x + p.w / 2, p.y + p.h, n, [p], ctx, p.y + p.h),
               ...across(p.gid !== n.gid),
             }));
+            return familyArrows(lines, p.x + p.w / 2, p.y + p.h, kn, false);
           }),
         ),
       );
@@ -1409,7 +1497,7 @@ export function computeEdgeRenderData(
             ...across(crossHouseholdChild(n, ps, byid)),
           });
         }
-        return out;
+        return familyArrows(out, ax, ay, kn, isCouple);
       }),
     );
   });
@@ -1472,6 +1560,8 @@ export function computeEdgeRenderData(
       pts: g0.pts.map((p) => p.join(',')).join(' '),
       rx: g0.rx,
       ry: g0.ry,
+      // Into each partner's card, at both ends of the line.
+      arrows: [endArrow([...g0.pts].reverse()), endArrow(g0.pts)].filter((a): a is Arrow => !!a),
       isUser: isUserE(e),
       ...(e.type === 'romance' && e.secret ? { secret: true } : {}),
       ...((e.type === 'marriage' || e.type === 'romance') && e.ending ? { ending: true as const } : {}),
@@ -1498,19 +1588,17 @@ export function computeEdgeRenderData(
     .map((e) => {
       const a = byid[e.a]!;
       const b = byid[e.b]!;
+      const pts = routed(`c:${e.id}`, `${nodeSig(a)};${nodeSig(b)}`, () =>
+        orthPath([a.x + a.w / 2, a.y + a.h / 2], [b.x + b.w / 2, b.y + b.h / 2], [e.a, e.b], ctx),
+      );
+      const arrow = customArrow(pts, b);
       return {
         edgeId: e.id,
         a: e.a,
         b: e.b,
-        pts: routed(`c:${e.id}`, `${nodeSig(a)};${nodeSig(b)}`, () =>
-          orthPath(
-            [a.x + a.w / 2, a.y + a.h / 2],
-            [b.x + b.w / 2, b.y + b.h / 2],
-            [e.a, e.b],
-            ctx,
-          ),
-        ),
+        pts,
         isUser: isUserE(e),
+        ...(arrow ? { arrows: [arrow] } : {}),
       };
     });
 

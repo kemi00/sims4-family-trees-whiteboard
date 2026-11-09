@@ -10,7 +10,7 @@ import {
   type RoutingContext,
 } from './routing.ts';
 import type { Edge, Point, ShowToggles, SimNode } from '../types/whiteboard.ts';
-import { PILL_DROP, STUB } from './constants.ts';
+import { ARROW_LEN, PILL_DROP, STUB } from './constants.ts';
 import { segHit } from './geometry.ts';
 
 function card(partial: Partial<SimNode> & Pick<SimNode, 'id' | 'x' | 'y'>): SimNode {
@@ -631,5 +631,90 @@ describe('lines keep off other cards', () => {
     assert.equal(segHit(50, 100, 150, 100, flat), true, 'running along it');
     const box = { ...flat, line: undefined };
     assert.equal(segHit(100, 0, 100, 200, box), true, 'a box blocks both ways');
+  });
+});
+
+describe('arrowheads show which way a link runs', () => {
+  const show: ShowToggles = { groups: true, worlds: true };
+  const route = (nodes: SimNode[], edges: Edge[]) =>
+    computeEdgeRenderData({ nodes, edges, groups: [], show, packVis: () => true, fastRoute: false });
+  const arrowsOf = (paths: { ids: string[]; arrows?: { tip: Point; dir: Point }[] }[], id: string) =>
+    paths.filter((p) => p.ids.includes(id)).flatMap((p) => p.arrows ?? []);
+  const has = (arrows: { tip: Point; dir: Point }[], tip: Point, dir: Point) =>
+    arrows.some(
+      (a) =>
+        Math.abs(a.tip[0] - tip[0]) < 0.5 &&
+        Math.abs(a.tip[1] - tip[1]) < 0.5 &&
+        a.dir[0] === dir[0] &&
+        a.dir[1] === dir[1],
+    );
+
+  // Mum and Dad married; Ann and Ben at home; Cal in another household.
+  const mum = card({ id: 'Mum', x: 0, y: 0, gid: 'hh' });
+  const dad = card({ id: 'Dad', x: 220, y: 0, gid: 'hh', gender: 'Male' });
+  const ann = card({ id: 'Ann', x: 0, y: 200, gid: 'hh' });
+  const ben = card({ id: 'Ben', x: 220, y: 200, gid: 'hh', gender: 'Male' });
+  const cal = card({ id: 'Cal', x: 600, y: 150, gid: 'other', gender: 'Male' });
+  const family: Edge[] = [
+    { id: 'm', a: 'Mum', b: 'Dad', type: 'marriage', source: 'save' },
+    ...['Ann', 'Ben', 'Cal'].flatMap((k): Edge[] => [
+      { id: `mum-${k}`, a: 'Mum', b: k, type: 'parent', source: 'save' },
+      { id: `dad-${k}`, a: 'Dad', b: k, type: 'parent', source: 'save' },
+    ]),
+  ];
+
+  it('points into every child, out of the pill, and where a line branches off', () => {
+    const data = route([mum, dad, ann, ben, cal], family);
+    for (const kid of [ann, ben, cal]) {
+      assert.ok(
+        has(arrowsOf(data.blood, `mum-${kid.id}`), [kid.x + kid.w / 2, kid.y], [0, 1]),
+        `an arrow into ${kid.id}'s top`,
+      );
+    }
+    const u = data.unions[0]!;
+    const all = data.blood.flatMap((p) => p.arrows ?? []);
+    assert.ok(has(all, [u.rx, u.ry + PILL_DROP + ARROW_LEN], [0, 1]), 'an arrow out of the pill');
+    // Cal's line leaves the trunk down the pill's column, then turns right.
+    const toCal = data.blood.find((p) => p.ids.includes('mum-Cal') && !p.ids.includes('mum-Ann'))!;
+    const turn = toCal.pts[1]!;
+    assert.equal(turn[0], u.rx);
+    assert.ok(has(toCal.arrows ?? [], [turn[0] + ARROW_LEN, turn[1]], [1, 0]), 'an arrow where Cal’s line branches');
+  });
+
+  it('points into both partners from the pill', () => {
+    const u = route([mum, dad], [family[0]!]).unions[0]!;
+    assert.deepEqual(u.arrows, [
+      { tip: [mum.x + mum.w, mum.y + mum.h / 2], dir: [-1, 0] },
+      { tip: [dad.x, dad.y + dad.h / 2], dir: [1, 0] },
+    ]);
+  });
+
+  it('gives one parent no arrow out of their card, only into the child', () => {
+    const data = route([mum, ann], [{ id: 'p', a: 'Mum', b: 'Ann', type: 'parent', source: 'save' }]);
+    const arrows = data.blood.flatMap((p) => p.arrows ?? []);
+    assert.deepEqual(arrows, [{ tip: [ann.x + ann.w / 2, ann.y], dir: [0, 1] }]);
+  });
+
+  it('leaves sibling lines without arrows: they run both ways', () => {
+    const data = route(
+      [ann, ben],
+      [{ id: 's', a: 'Ann', b: 'Ben', type: 'sibling', source: 'save' }],
+    );
+    assert.ok(data.blood.length > 0);
+    assert.ok(data.blood.every((p) => !p.arrows?.length));
+  });
+
+  it('points a custom link into its second sim, at the card edge', () => {
+    const data = route(
+      [mum, cal],
+      [{ id: 'c', a: 'Mum', b: 'Cal', type: 'custom', source: 'user' }],
+    );
+    const [arrow] = data.customs[0]!.arrows ?? [];
+    assert.ok(arrow, 'expected an arrow');
+    const [x, y] = arrow.tip;
+    const onEdge =
+      (Math.abs(x - cal.x) < 0.5 || Math.abs(x - cal.x - cal.w) < 0.5) ||
+      (Math.abs(y - cal.y) < 0.5 || Math.abs(y - cal.y - cal.h) < 0.5);
+    assert.ok(onEdge, `tip ${x},${y} should sit on Cal's edge`);
   });
 });

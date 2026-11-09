@@ -467,11 +467,22 @@ export interface BloodVert {
 }
 
 /** A parent/sibling blood-line polyline. */
+/**
+ * An arrowhead on a line, showing which way the link runs: its tip, and the
+ * way it points (a unit step along x or y).
+ */
+export interface Arrow {
+  tip: Point;
+  dir: Point;
+}
+
 export interface BloodPath {
   ids: string[];
   pts: Point[];
   /** Joins sims in different households: drawn thin and dashed. */
   cross?: true;
+  /** Arrowheads drawn in the line's colour. */
+  arrows?: Arrow[];
 }
 
 /** Render data for a spouse union (marriage / romance / divorced). */
@@ -490,6 +501,8 @@ export interface UnionRender {
   cross?: true;
   /** A planned divorce or breakup: drawn violet, as it will be. */
   ending?: true;
+  /** Arrowheads into each partner's card. */
+  arrows?: Arrow[];
 }
 
 /** Lock badge on a child's top stem: one of its parents is secret. */
@@ -507,6 +520,8 @@ export interface CustomRender {
   b: string;
   pts: Point[];
   isUser: boolean;
+  /** Arrowhead into `b`'s card. */
+  arrows?: Arrow[];
 }
 
 export interface EdgeRenderData {
