@@ -1,4 +1,4 @@
-import { AGES_H, DECEASED_STATE, GENDERS, SPECIES_H } from './constants.ts';
+import { AGES_H, DECEASED_STATE, GENDERS, HI_DYNASTY, HI_NO_CHILDREN, hiDynastyChip, SPECIES_H, type HiDynastyRole } from './constants.ts';
 import { isHighlightMatch } from './utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
@@ -10,6 +10,13 @@ const AGE_NOUN: Record<string, [string, string]> = {
   'Young Adult': ['young adult', 'young adults'],
   Adult: ['adult', 'adults'],
   Elder: ['elder', 'elders'],
+};
+
+const ROLE_NOUN: Record<HiDynastyRole, [string, string]> = {
+  head: ['head', 'heads'],
+  heir: ['heir', 'heirs'],
+  member: ['member with no role', 'members with no role'],
+  outcast: ['outcast', 'outcasts'],
 };
 
 const SPECIES_NOUN: Record<string, [string, string]> = {
@@ -31,9 +38,11 @@ function listed(items: string[], word: 'and' | 'or'): string {
 
 /**
  * What the highlight chips pick, in words, for `n` matches: "female
- * infants", "single male elders and teens", "female cats",
- * "infants, plus cats". Singular for one ("1 female infant"). Age and pet
- * chips add up; gender and Single narrow them, as in isHighlightMatch.
+ * infants", "single male elders and teens", "female cats", "infants, plus
+ * cats", "single female young adults with no children who are dynasty
+ * members with no role". Singular for one ("1 female infant"). Age and pet
+ * chips add up; gender, Single, No children and dynasty roles narrow them,
+ * as in isHighlightMatch.
  */
 export function highlightPhrase(hi: ReadonlySet<string>, hiSingle: boolean, n: number): string {
   const one = n === 1;
@@ -44,10 +53,13 @@ export function highlightPhrase(hi: ReadonlySet<string>, hiSingle: boolean, n: n
     .join(' or ');
   const ages = AGES_H.filter((a) => hi.has(a)).map((a) => pick(AGE_NOUN[a]!));
   const pets = SPECIES_H.filter((s) => hi.has(s)).map((s) => pick(SPECIES_NOUN[s]!));
+  const roles = HI_DYNASTY.filter((r) => hi.has(hiDynastyChip(r))).map((r) => pick(ROLE_NOUN[r]));
   const groups: string[] = [];
   if (ages.length || !pets.length) {
     const noun = ages.length ? listed(ages, word) : one ? 'sim' : 'sims';
-    groups.push([hiSingle ? 'single' : '', gender, noun].filter(Boolean).join(' '));
+    const kids = hi.has(HI_NO_CHILDREN) ? ' with no children' : '';
+    const role = roles.length ? ` who ${one ? 'is a' : 'are'} dynasty ${listed(roles, word)}` : '';
+    groups.push([hiSingle ? 'single' : '', gender, noun].filter(Boolean).join(' ') + kids + role);
   }
   if (pets.length) groups.push([gender, listed(pets, word)].filter(Boolean).join(' '));
   return groups.join(', plus ');
@@ -69,7 +81,9 @@ export function highlightSummary(opts: {
   shown: (n: SimNode) => boolean;
   hi: ReadonlySet<string>;
   hiSingle: boolean;
-  partnered: Set<string>;
+  partnered: ReadonlySet<string>;
+  /** Sims with a child: No children leaves them out. */
+  parents?: ReadonlySet<string>;
 }): HighlightSummary {
   let count = 0;
   let deceased = 0;
@@ -78,7 +92,7 @@ export function highlightSummary(opts: {
   for (const n of opts.nodes) {
     if (!opts.shown(n)) continue;
     shown += 1;
-    if (!isHighlightMatch(n, hi, opts.hiSingle, opts.partnered)) continue;
+    if (!isHighlightMatch(n, hi, opts.hiSingle, opts.partnered, opts.parents)) continue;
     count += 1;
     if (n.state === DECEASED_STATE) deceased += 1;
   }

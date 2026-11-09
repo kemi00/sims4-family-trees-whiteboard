@@ -1803,6 +1803,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 babyPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partnerPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}
+                parentIds={wb.parentIds}
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.briefHover ?? wb.dynastyFocusIds ?? wb.familyIds}
                 generation={generationTitle(wb.dynastyGens.get(n.id))}
@@ -1959,6 +1960,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
               hi: wb.hiAges,
               hiSingle: wb.hiSingle,
               partnered: wb.partneredIds,
+              parents: wb.parentIds,
             })}
             onChange={() => {
               wb.setGamesOpen(false);

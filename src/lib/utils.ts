@@ -1,4 +1,4 @@
-import { AGES_H, DECEASED_STATE, GENDER_CHIPS, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD } from './constants.ts';
+import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, hiDynastyChip, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
 import type {
   DeceasedMark,
   Edge,
@@ -342,25 +342,56 @@ export function isUnpartnered(id: string, edges: Edge[]): boolean {
   return !partneredIdSet(edges).has(id);
 }
 
+/** Sims who have a child on the board, planned babies included. */
+export function parentIdSet(edges: Edge[]): Set<string> {
+  const ids = new Set<string>();
+  for (const e of edges) if (e.type === 'parent') ids.add(e.a);
+  return ids;
+}
+
+/**
+ * A sim's place in a dynasty as the board has it, plan included: their role,
+ * `member` for one with none, or null outside any dynasty. One planned to
+ * leave is out; pets are never in one.
+ */
+export function dynastyStanding(n: SimNode): HiDynastyRole | null {
+  if (!n.dynasty || n.species || n.dynastyPlan === 'none') return null;
+  return n.dynastyRole ?? 'member';
+}
+
+const NO_IDS: ReadonlySet<string> = new Set();
+
 /**
  * Age/species chips OR with each other; gender chips OR with each other and
- * AND with that set, and so does Single. Pets ignore Single and only glow
- * for their species chip, which a gender chip narrows like it does ages.
+ * AND with that set, and so do the dynasty role chips. Single and No
+ * children each narrow on their own. Pets ignore Single, No children and
+ * dynasty roles, and only glow for their species chip, which a gender chip
+ * narrows like it does ages.
  */
 export function isHighlightMatch(
   n: SimNode,
-  hi: Set<string>,
+  hi: ReadonlySet<string>,
   hiSingle: boolean,
-  partnered: Set<string>,
+  partnered: ReadonlySet<string>,
+  parents: ReadonlySet<string> = NO_IDS,
 ): boolean {
   if (hi.size === 0 && !hiSingle) return true;
   let genders = 0;
-  for (const h of hi) if (GENDER_CHIPS.has(h)) genders++;
+  let roles = 0;
+  for (const h of hi) {
+    if (GENDER_CHIPS.has(h)) genders++;
+    else if (HI_DYNASTY_CHIPS.has(h)) roles++;
+  }
+  const noKids = hi.has(HI_NO_CHILDREN);
+  const kinds = hi.size - genders - roles - (noKids ? 1 : 0);
   const genderOk = genders === 0 || hi.has(n.gender);
   if (isPet(n)) return !!n.species && hi.has(n.species) && genderOk;
-  const ageOk = hi.size === genders || hi.has(n.age);
+  const ageOk = kinds === 0 || hi.has(n.age);
   const singleOk = !hiSingle || !partnered.has(n.id);
-  return ageOk && genderOk && singleOk;
+  const kidsOk = !noKids || !parents.has(n.id);
+  const standing = roles ? dynastyStanding(n) : null;
+  const roleOk = roles === 0 || (!!standing && hi.has(hiDynastyChip(standing)));
+  return ageOk && genderOk && singleOk && kidsOk && roleOk;
 }
 
 /** Lowercase, trimmed and without accents, for search: "ananou" finds "Ánanou". */

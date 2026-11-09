@@ -177,6 +177,18 @@ export const DYNASTY_ROLES = {
   outcast: { mark: '🥀', label: 'Dynasty outcast', noun: 'Outcast' },
 } as const;
 
+/**
+ * Highlight chips for children and dynasty roles. They share the set with the
+ * age, gender and pet chips, so they persist and undo with them; the prefix
+ * keeps them from clashing with a value a sim can have.
+ */
+export const HI_NO_CHILDREN = 'family:no-children';
+/** A dynasty role chip, head to outcast; `member` is a member with no role. */
+export const HI_DYNASTY = ['head', 'heir', 'member', 'outcast'] as const;
+export type HiDynastyRole = (typeof HI_DYNASTY)[number];
+export const hiDynastyChip = (role: HiDynastyRole): string => `dynasty:${role}`;
+export const HI_DYNASTY_CHIPS: ReadonlySet<string> = new Set(HI_DYNASTY.map(hiDynastyChip));
+
 /** Genders assigned when the user adds a sim. */
 export const NEW_SIM_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
 

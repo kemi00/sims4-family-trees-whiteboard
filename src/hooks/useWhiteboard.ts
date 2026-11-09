@@ -81,7 +81,7 @@ import {
   simName,
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
-import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, uKey, worldColor } from '../lib/utils.ts';
+import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -570,6 +570,8 @@ export function useWhiteboard() {
   const boardTotals = useMemo(() => worldTotals(nodes, nodeVis), [nodes, nodeVis]);
 
   const partneredIds = useMemo(() => partneredIdSet(shownEdges), [shownEdges]);
+  /** Sims with a child, for the No children highlight. */
+  const parentIds = useMemo(() => parentIdSet(shownEdges), [shownEdges]);
 
   const connectionLog = useMemo(
     () =>
@@ -3170,6 +3172,7 @@ export function useWhiteboard() {
     family,
     familyIds,
     partneredIds,
+    parentIds,
     status,
     fastRoute,
     editNodeId,

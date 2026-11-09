@@ -1,5 +1,5 @@
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { GENDER_CHIPS, SPECIES_H } from './constants.ts';
+import { GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, SPECIES_H } from './constants.ts';
 
 /** What Load JSON would discard from the current board. */
 export type LoadJsonRisk = {
@@ -150,15 +150,19 @@ export function filterChangeNote(
     file.hideSecrets && 'secrets',
     file.hideDeceased && 'deceased sims',
   ].filter(Boolean);
-  // One set holds the age, pet and gender chips.
+  // One set holds the age, pet, gender, No children and dynasty role chips.
   const genders = file.hiAges.filter((h) => GENDER_CHIPS.has(h)).length;
   const pets = file.hiAges.filter((h) => (SPECIES_H as readonly string[]).includes(h)).length;
-  const ages = file.hiAges.length - genders - pets;
+  const roles = file.hiAges.filter((h) => HI_DYNASTY_CHIPS.has(h)).length;
+  const noKids = file.hiAges.includes(HI_NO_CHILDREN);
+  const ages = file.hiAges.length - genders - pets - roles - (noKids ? 1 : 0);
   const highlights = [
     ages && count(ages, 'age', 'ages'),
     genders && count(genders, 'gender', 'genders'),
     pets && count(pets, 'pet species', 'pet species'),
     file.hiSingle && 'single sims',
+    noKids && 'sims with no children',
+    roles && count(roles, 'dynasty role', 'dynasty roles'),
   ].filter(Boolean);
   const parts = [
     hides.length ? `hides ${listed(hides)}` : 'shows every game',

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
+import { HI_NO_CHILDREN, hiDynastyChip } from './constants.ts';
 import { cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
 
 function edge(a: string, b: string, type: Edge['type'] = 'parent'): Edge {
@@ -98,6 +99,24 @@ describe('isHighlightMatch', () => {
   it('narrows pets only once their species is picked', () => {
     assert.deepEqual(glowing(['Cat', 'Female']), ['cat']);
     assert.deepEqual(glowing(['Cat', 'Male']), []);
+  });
+
+  it('narrows to sims with no children, and to dynasty roles, which add to each other', () => {
+    const parents = new Set(['bella']);
+    const head = { ...sim('head', 'Adult', 'Male'), dynasty: 'Goth', dynastyRole: 'head' } as SimNode;
+    const member = { ...sim('member', 'Young Adult', 'Female'), dynasty: 'Goth' } as SimNode;
+    const leaving = { ...sim('leaving', 'Young Adult', 'Female'), dynasty: 'Goth', dynastyPlan: 'none' } as SimNode;
+    const outcast = { ...sim('outcast', 'Teen', 'Male'), dynasty: 'Goth', dynastyRole: 'outcast' } as SimNode;
+    const all = [bella, mortimer, cassandra, nb, cat, head, member, leaving, outcast];
+    const glow = (hi: string[], single = false) =>
+      all.filter((n) => isHighlightMatch(n, new Set(hi), single, partnered, parents)).map((n) => n.id);
+    assert.deepEqual(glow(['Adult', HI_NO_CHILDREN]), ['mortimer', 'head']);
+    assert.deepEqual(glow([hiDynastyChip('member')]), ['member']);
+    assert.deepEqual(glow([hiDynastyChip('head'), hiDynastyChip('outcast')]), ['head', 'outcast']);
+    // Female young adults, single, with no children, members with no role.
+    assert.deepEqual(glow(['Young Adult', 'Female', HI_NO_CHILDREN, hiDynastyChip('member')], true), ['member']);
+    // Pets are in no dynasty and only glow for their species.
+    assert.deepEqual(glow(['Cat', HI_NO_CHILDREN]), ['cat']);
   });
 });
 

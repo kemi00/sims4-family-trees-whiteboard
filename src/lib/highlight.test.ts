@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { SimNode } from '../types/whiteboard.ts';
+import { HI_NO_CHILDREN, hiDynastyChip } from './constants.ts';
 import { highlightActive, highlightPhrase, highlightSummary } from './highlight.ts';
 
 const sim = (id: string, extra: Partial<SimNode>): SimNode =>
@@ -17,6 +18,15 @@ describe('the highlight in words', () => {
     assert.equal(highlightPhrase(new Set(['Cat', 'Female']), false, 3), 'female cats');
     assert.equal(highlightPhrase(new Set(['Infant', 'Dog']), false, 4), 'infants, plus dogs');
     assert.equal(highlightPhrase(new Set(['Female', 'Male', 'Adult']), false, 9), 'female or male adults');
+    assert.equal(
+      highlightPhrase(new Set(['Female', 'Young Adult', HI_NO_CHILDREN, hiDynastyChip('member')]), true, 4),
+      'single female young adults with no children who are dynasty members with no role',
+    );
+    assert.equal(
+      highlightPhrase(new Set([hiDynastyChip('head'), hiDynastyChip('heir')]), false, 1),
+      'sim who is a dynasty head or heir',
+    );
+    assert.equal(highlightPhrase(new Set([HI_NO_CHILDREN]), false, 7), 'sims with no children');
   });
 
   it('is on when any chip is', () => {
