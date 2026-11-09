@@ -1,8 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { dynastyNames } from '../lib/generations.ts';
+import { PartnerRow } from './PartnerRow.tsx';
 import { X } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
-import { gapText, hasNoHome, partnerSearch } from '../lib/partners.ts';
+import { hasNoHome, partnerSearch } from '../lib/partners.ts';
 import { PARTNER_CHOICES, type PartnerChoice, type PartnerMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
@@ -46,6 +48,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
     () => (me ? partnerSearch({ id: me.id, nodes, edges, query, game: saveGame }) : []),
     [me, nodes, edges, query, saveGame],
   );
+  const dynasties = useMemo(() => dynastyNames(nodes), [nodes]);
   useEffect(() => {
     // A frame later: the menu is hidden while it measures where it fits.
     // On a phone the keyboard would cover the board, where you can also pick.
@@ -176,28 +179,20 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
             : ''}
       </p>
       {hits.length > 0 ? (
-        <ul id={listId} className="pmenu__list" role="listbox" aria-label="Partners">
+        <ul id={listId} className="partners pmenu__list" role="listbox" aria-label="Partners">
           {hits.map((h, i) => {
             const p = byid[h.id];
             if (!p) return null;
-            const flags = [
-              h.related ? 'related' : '',
-              h.married ? 'married' : h.candidate?.taken ? 'in a romance' : '',
-            ].filter(Boolean);
             return (
               <li key={h.id} id={optionId(h.id)} role="option" aria-selected={i === active}>
                 <button
                   type="button"
                   tabIndex={-1}
-                  className={i === active ? 'pmenu__opt pmenu__opt--on' : 'pmenu__opt'}
+                  className={i === active ? 'partners__on' : undefined}
                   onMouseEnter={() => setActive(i)}
                   onClick={() => onPick(h.id)}
                 >
-                  <span className="pmenu__name">{cardName(p)}</span>
-                  <span className="pmenu__meta">
-                    {h.candidate ? gapText(h.candidate) : p.age} · {p.hh || 'no household'}
-                    {flags.length > 0 && <span className="pmenu__flag"> · {flags.join(' · ')}</span>}
-                  </span>
+                  <PartnerRow sim={p} {...(h.candidate ? { candidate: h.candidate } : {})} dynasties={dynasties} related={h.related} married={h.married} />
                 </button>
               </li>
             );

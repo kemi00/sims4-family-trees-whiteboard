@@ -43,6 +43,10 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  --danger:#b8352a;
  --danger-soft:#fceceb;
  --warn:#8a5a00;
+ /* Possible partners: a soft rose card, as in the editor and the ♥ menu. */
+ --partner-line:#eadde3;
+ --partner-hover:#fdf1f6;
+ --partner-hover-line:#e3b3c8;
  --warn-strong:#b45309;
  --warn-soft:#fdf3e3;
  --warn-line:#f0d3a8;
@@ -649,12 +653,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .pmenu__search{display:block;box-sizing:border-box;width:100%;height:32px;padding:0 10px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:12.5px}
 .pmenu__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
 .pmenu__label{min-height:4px;margin:6px 2px 2px;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-3)}
-.pmenu__list{margin:0;padding:0;list-style:none;max-height:240px;overflow-y:auto}
-.menu .pmenu__opt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;margin:0;padding:6px 8px;border-radius:6px;background:transparent}
-.menu .pmenu__opt--on,.menu .pmenu__opt:hover{background:var(--accent-soft)}
-.pmenu__name{font-weight:600;color:var(--ink)}
-.pmenu__meta{font-size:11px;font-weight:500;color:var(--ink-2)}
-.pmenu__flag{color:var(--warn)}
+.pmenu .pmenu__list{max-height:240px;overflow-y:auto;padding-right:2px}
 .pmenu__empty{margin:4px 2px;color:var(--ink-2)}
 .pmenu__hint{margin:8px 2px 0;font-size:11px;color:var(--ink-3)}
 .pmenu__done{margin:0 0 6px;font-weight:600;color:var(--done)}
@@ -1243,13 +1242,14 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edgen{margin-bottom:5px;font-weight:600}
 .editor .edgen__planned{font-weight:400;color:#6b5bd6}
 .editor .edgen__also{margin-top:2px;font-weight:400;color:#5a6673}
-.editor .partners{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
-.editor .partners button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;min-width:0;padding:5px 7px;border:1px solid #eadde3;border-radius:7px;background:#fff;text-align:left;cursor:pointer;font:inherit;white-space:normal;overflow-wrap:anywhere}
-.editor .partners button:hover{background:#fdf1f6;border-color:#e3b3c8}
-.editor .partners button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
-.editor .partners__name{font-size:12px;font-weight:600;color:#22304a}
-.editor .partners__meta{font-size:10.5px;color:#5c6673}
-.editor .partners__flags{font-size:10px;color:#8a5a00}
+/* Possible partners (PartnerRow): the editor's list and the ♥ menu's, alike. */
+.editor .partners,.pmenu .partners{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.editor .partners button,.pmenu .partners button{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:1px;width:100%;min-width:0;margin:0;padding:5px 7px;border:1px solid var(--partner-line);border-radius:7px;background:#fff;text-align:left;cursor:pointer;font:inherit;white-space:normal;overflow-wrap:anywhere}
+.editor .partners button:hover,.pmenu .partners button:hover,.pmenu .partners button.partners__on{background:var(--partner-hover);border-color:var(--partner-hover-line)}
+.editor .partners button:focus-visible,.pmenu .partners button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.editor .partners__name,.pmenu .partners__name{font-size:12px;font-weight:600;color:#22304a}
+.editor .partners__meta,.pmenu .partners__meta{font-size:10.5px;font-weight:400;color:#5c6673}
+.editor .partners__flags,.pmenu .partners__flags{font-size:10px;font-weight:400;color:var(--warn)}
 /* Age and gender: two ways of narrowing the partner list, side by side. */
 .editor .edfilters{display:flex;gap:8px}
 .editor .edfilters select{flex:1 1 0;min-width:0}

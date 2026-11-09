@@ -32,7 +32,7 @@ import {
   yearText,
   type LifeView,
 } from '../lib/lifeClock.ts';
-import { gapText, partnerBand, partnerCandidates, type PartnerCandidate } from '../lib/partners.ts';
+import { partnerBand, partnerCandidates, type PartnerCandidate } from '../lib/partners.ts';
 import {
   GENDER_NOT_KNOWN,
   NOT_YET_AGE,
@@ -54,6 +54,7 @@ import {
 } from '../lib/dynastyMenu.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import { WorldMoveForm } from './WorldMoveForm.tsx';
+import { PartnerRow } from './PartnerRow.tsx';
 import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
 import { fold } from '../lib/utils.ts';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
@@ -1535,23 +1536,10 @@ export function SimEditor({
                 {shownPartners.map((c) => {
                   const p = byId[c.id];
                   if (!p) return null;
-                  const mark = p.dynastyRole ? `${DYNASTY_ROLES[p.dynastyRole].mark} ` : '';
-                  const flags = [
-                    c.frozen ? 'not aging now' : '',
-                    c.taken ? 'in a romance' : '',
-                    p.dynasty ? dynastyPhrase(names.get(dynastyKey(p) ?? '') ?? { name: p.dynasty }) : '',
-                  ].filter(Boolean);
                   return (
                     <li key={c.id}>
                       <button type="button" onClick={() => onPickPartner(c.id)}>
-                        <span className="partners__name">
-                          {mark}
-                          {p.first} {p.sur}
-                        </span>
-                        <span className="partners__meta">
-                          {gapText(c)} · {p.hh}
-                        </span>
-                        {flags.length > 0 && <span className="partners__flags">{flags.join(' · ')}</span>}
+                        <PartnerRow sim={p} candidate={c} dynasties={names} />
                       </button>
                     </li>
                   );
