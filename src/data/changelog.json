@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "09c2778",
+   "date": "2026-11-09",
+   "text": "Highlight has a Not born yet chip at the start of Life stage, for the planned babies whose cards say Not born yet. It adds up with the ages you pick, so Not born yet and Infant shows both."
+  },
+  {
    "sha": "d88b291",
    "date": "2026-11-09",
    "text": "The ♥ menu now lists partners in the same cards as Possible partners in the sim editor: the dynasty role's mark, how close in age and their household, then in amber whether they're related, married or in a romance, not aging now, and their dynasty."
