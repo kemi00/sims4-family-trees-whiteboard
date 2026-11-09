@@ -1074,12 +1074,14 @@ export function SimEditor({
           </div>
           <button
             type="button"
-            className="movebtn"
+            className="movebtn movebtn--key"
             aria-expanded={moveOpen}
             aria-controls="edMove"
             onClick={() => setMoveOpen(!moveOpen)}
           >
-            ↪ Move to another household
+            <span>
+              ↪ Move <b>sim</b> to another household
+            </span>
           </button>
           {moveOpen && (
             <div id="edMove">
@@ -1109,12 +1111,15 @@ export function SimEditor({
           {movableHome && (
             <button
               type="button"
-              className="movebtn"
+              className="movebtn movebtn--key"
+              title={`Move the ${n.hh} household to another world`}
               aria-expanded={worldOpen}
               aria-controls="edWorld"
               onClick={() => setWorldOpen(!worldOpen)}
             >
-              ↪ Move the {n.hh} household to another world
+              <span>
+                ↪ Move <b>household</b> to another world
+              </span>
             </button>
           )}
           {movableHome && worldOpen && (
