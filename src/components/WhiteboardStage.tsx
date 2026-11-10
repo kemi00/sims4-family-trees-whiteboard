@@ -2214,7 +2214,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           editorRef={editorRef}
           onLayout={positionEditor}
           onSave={({ genRoot, ...patch }) => {
-            wb.pushUndo();
+            wb.pushUndo(`Edit ${cardName(editNode)}`);
             wb.updateNode(editNode.id, patch);
             if (genRoot) wb.setDynastyGenRoot(genRoot.key, genRoot.id, { undo: false });
             wb.setEditNodeId(null);

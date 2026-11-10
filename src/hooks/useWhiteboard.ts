@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { growHousehold, landMovedCards } from '../lib/landing.ts';
+import { clipStep, linkStep } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import {
@@ -261,6 +262,8 @@ const LAYER_STATUS: Record<keyof ShowToggles, { on: string; off: string }> = {
 };
 
 type BoardSnap = {
+  /** What the step did, as Undo names it: "Add a sim to Gooseman". */
+  what: string;
   nodesCore: SimNode[];
   edges: Edge[];
   groups: Group[];
@@ -495,7 +498,9 @@ export function useWhiteboard() {
     ),
   );
   const undoRef = useRef<BoardSnap[]>([]);
-  const [canUndo, setCanUndo] = useState(false);
+  /** What Undo would take back now, or null with nothing to undo. */
+  const [undoWhat, setUndoWhat] = useState<string | null>(null);
+  const canUndo = undoWhat !== null;
   const statusFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectModeRef = useRef(connectMode);
   connectModeRef.current = connectMode;
@@ -518,6 +523,11 @@ export function useWhiteboard() {
     });
     return m;
   }, [nodes]);
+  /** A sim as an undo step names them: as their card does. */
+  const simCalled = useCallback((id: string) => {
+    const n = byid[id];
+    return n ? cardName(n) : 'a sim';
+  }, [byid]);
 
   const frameSim = useCallback(
     (n: SimNode, svgWidth: number, svgHeight: number) => {
@@ -775,8 +785,14 @@ export function useWhiteboard() {
 
   const reloadBoard = useCallback(() => window.location.reload(), []);
 
-  const pushUndo = useCallback((opts?: { filters?: boolean }) => {
+  /**
+   * Keeps the board as it is, to come back to with Undo. `what` names the
+   * step about to happen, as the person would say it ("Add a sim to
+   * Gooseman"): the Undo button's tip and the status line after an undo use it.
+   */
+  const pushUndo = useCallback((what: string, opts?: { filters?: boolean }) => {
     undoRef.current.push({
+      what,
       nodesCore: nodesCore.map((n) => ({ ...n })),
       edges: edges.map((e) => ({ ...e })),
       groups: groups.map((g) => ({ ...g })),
@@ -797,7 +813,7 @@ export function useWhiteboard() {
           }
         : undefined,
     });
-    setCanUndo(true);
+    setUndoWhat(what);
   }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased]);
 
   const undo = useCallback(() => {
@@ -820,12 +836,12 @@ export function useWhiteboard() {
       setHideSecrets(!!prev.filters.hideSecrets);
       setHideDeceased(!!prev.filters.hideDeceased);
     }
-    setCanUndo(undoRef.current.length > 0);
+    setUndoWhat(undoRef.current.at(-1)?.what ?? null);
     setSel(null);
     setEditNodeId(null);
     setInfantHouseMenu(null);
     trackAction('/action/undo');
-    flashStatus('Undone');
+    flashStatus(`Undone: ${prev.what}.`);
   }, [flashStatus]);
 
   const toggleShow = useCallback(
@@ -1000,7 +1016,7 @@ export function useWhiteboard() {
   const addEdge = useCallback((a: string, b: string, type: Edge['type'], secret = false, adopted = false) => {
     if (type === 'sibling' && siblingsShareParents(a, b, edges)) return;
     let nextEdges: Edge[] | null = null;
-    pushUndo();
+    pushUndo(linkStep(type, simCalled(a), simCalled(b), { secret, adopted }));
     setEdges((e) => {
       const same =
         secret || adopted
@@ -1035,11 +1051,28 @@ export function useWhiteboard() {
       return nextEdges;
     });
     if (nextEdges) freezeAfterEdgeChange([a, b], nextEdges);
-  }, [edges, freezeAfterEdgeChange, pushUndo]);
+  }, [edges, freezeAfterEdgeChange, pushUndo, simCalled]);
 
   const deleteSelected = useCallback(() => {
     if (!sel) return;
-    pushUndo();
+    // What Delete does, as Undo names it.
+    let step = 'Delete a link';
+    if (sel.type === 'node') step = `Delete ${simCalled(sel.id)}`;
+    else {
+      const chosen = edges.filter((e) => sel.ids.includes(e.id));
+      const e = chosen[0];
+      if (e) {
+        const pair = `${simCalled(e.a)} and ${simCalled(e.b)}`;
+        const ends = chosen.every(
+          (x) => (x.type === 'marriage' || x.type === 'romance') && edgeSourceOf(x) !== 'planned' && !x.ending,
+        );
+        if (ends) step = `Plan ${e.type === 'marriage' ? 'a divorce' : 'a breakup'} of ${pair}`;
+        else if (chosen.length === 1) step = `Delete the link between ${pair}`;
+        else if (chosen.every((x) => x.type === 'parent' && x.b === e.b)) step = `Delete ${simCalled(e.b)}’s parent links`;
+        else step = `Delete ${chosen.length} links`;
+      }
+    }
+    pushUndo(step);
     trackAction('/action/delete');
     if (sel.type === 'node') {
       const nextCore = nodesCore.filter((n) => n.id !== sel.id);
@@ -1095,10 +1128,11 @@ export function useWhiteboard() {
     freezeAfterEdgeChange,
     flashStatus,
     pushUndo,
+    simCalled,
   ]);
 
   const addSim = useCallback((svgWidth: number, svgHeight: number) => {
-    pushUndo();
+    pushUndo('Add a new sim');
     trackAction('/action/create-sim');
     const id = 'new' + eidcRef.current++;
     const world =
@@ -1216,7 +1250,7 @@ export function useWhiteboard() {
       const home = nodes.filter((n) => n.gid === gid);
       const chrome = householdChrome(home, g);
       if (!g || !chrome) return null;
-      pushUndo();
+      pushUndo(`Add a sim to ${g.hh}`);
       trackAction('/action/add-household-sim');
       const id = 'new' + eidcRef.current++;
       const sur = householdSurnames(home, g.hh)[0] ?? 'Sim';
@@ -1274,10 +1308,13 @@ export function useWhiteboard() {
    */
   const setDynastyGenRoot = useCallback(
     (key: string, id: string | null, opts?: { undo?: boolean }) => {
-      if (opts?.undo !== false) pushUndo();
+      if (opts?.undo !== false) {
+        const phrase = dynastyPhrase(dynastyNames(nodesCore).get(key) ?? { name: '' });
+        pushUndo(`Count the ${phrase}’s generations from ${id ? simCalled(id) : 'the start'}`);
+      }
       setNodesCore((ns) => setGenRoot(ns, key, id));
     },
-    [pushUndo],
+    [pushUndo, nodesCore, simCalled],
   );
 
   /**
@@ -1294,7 +1331,7 @@ export function useWhiteboard() {
       const done = renamePlannedDynasty(nodesCore, key, name);
       if (done.nodes === nodesCore) return null;
       const count = nodesCore.filter((n) => dynastyKey(n) === key && !n.species).length;
-      pushUndo();
+      pushUndo(`Rename the ${from} to ${name}`);
       setNodesCore(done.nodes);
       // A lit dynasty stays lit under its new name.
       setDynastyFocusState((k) => (k === key ? done.key : k));
@@ -1315,7 +1352,7 @@ export function useWhiteboard() {
       if (next === nodesCore) return false;
       const members = nodesCore.filter((n) => dynastyKey(n) === key && !n.species);
       const phrase = dynastyPhrase(dynastyNames(nodesCore).get(key) ?? { name: members[0]?.dynasty ?? '' });
-      pushUndo();
+      pushUndo(`Remove the planned ${phrase}`);
       setNodesCore(next);
       trackAction('/action/remove-dynasty');
       flashStatus(
@@ -1393,7 +1430,7 @@ export function useWhiteboard() {
     (entry: Pick<ConnectionLogEntry, 'kind' | 'edgeIds' | 'moveId' | 'moveIds' | 'note'>, text: string) => {
       const note = cleanNote(text);
       if (note === cleanNote(entry.note)) return;
-      pushUndo();
+      pushUndo(note ? (cleanNote(entry.note) ? 'Edit a note in the Log' : 'Add a note in the Log') : 'Remove a note from the Log');
       const put = <T extends { note?: string }>(x: T): T => {
         const { note: _old, ...rest } = x;
         return (note ? { ...rest, note } : rest) as T;
@@ -1520,7 +1557,7 @@ export function useWhiteboard() {
       base: Record<string, { ox: number; oy: number }>,
     ) => {
       // A drop is one step back with ⌘Z, like any other change.
-      if (dx || dy) pushUndo();
+      if (dx || dy) pushUndo(`Move ${theHousehold(groups.find((g) => g.gid === gid)?.hh ?? 'a')}`);
       setNodesCore((ns) =>
         ns.map((n) => {
           const bb = base[n.id];
@@ -1530,7 +1567,7 @@ export function useWhiteboard() {
         }),
       );
     },
-    [pushUndo],
+    [pushUndo, groups],
   );
 
   const moveNodesByWorld = useCallback(
@@ -1540,7 +1577,7 @@ export function useWhiteboard() {
       dy: number,
       base: Record<string, { ox: number; oy: number }>,
     ) => {
-      if (dx || dy) pushUndo();
+      if (dx || dy) pushUndo(`Move ${world}`);
       setNodesCore((ns) =>
         ns.map((n) => {
           const bb = base[n.id];
@@ -1561,7 +1598,7 @@ export function useWhiteboard() {
       dy: number,
       base: Record<string, { ox: number; oy: number }>,
     ) => {
-      if (dx || dy) pushUndo();
+      if (dx || dy) pushUndo(ids.length === 1 ? `Move ${simCalled(ids[0]!)}` : `Move ${ids.length} sims`);
       const set = new Set(ids);
       setNodesCore((ns) =>
         ns.map((n) => {
@@ -1572,7 +1609,7 @@ export function useWhiteboard() {
         }),
       );
     },
-    [pushUndo],
+    [pushUndo, simCalled],
   );
 
   const snapDragPosition = useCallback(
@@ -1609,7 +1646,7 @@ export function useWhiteboard() {
         flashStatus(`Not linked — ${why}. Click a sim for the next link`);
         return;
       }
-      pushUndo();
+      pushUndo(`Make ${simCalled(childId)} a child of ${simCalled(pa)} and ${simCalled(pb)}`);
       let nextEdges: Edge[] | null = null;
       setEdges((es) => {
         const bundleId = 'b' + eidcRef.current++;
@@ -1650,7 +1687,7 @@ export function useWhiteboard() {
       setConnSrc(null);
       setConnectMenu(null);
     },
-    [byid, cancelConnect, flashStatus, freezeAfterEdgeChange, parentCycleReason, pushUndo],
+    [byid, cancelConnect, flashStatus, freezeAfterEdgeChange, parentCycleReason, pushUndo, simCalled],
   );
 
   /**
@@ -1678,7 +1715,7 @@ export function useWhiteboard() {
       if (!ps.length || ps.some((p) => !p)) return;
       const parents = ps as SimNode[];
       const a = parents[0]!;
-      pushUndo();
+      pushUndo(`Plan a child of ${parents.map(cardName).join(' and ')}`);
       const host = parents.find((p) => p.gid === destGid) ?? a;
       const g = groups.find((x) => x.gid === destGid);
       const dest = g
@@ -2014,7 +2051,7 @@ export function useWhiteboard() {
       const { patches, moves } = householdMovePlan(nodes, [mover], dest);
       const patch = patches.get(mover);
       if (!patch) return false;
-      pushUndo();
+      pushUndo(`Move ${cardName(m)} in with ${cardName(h)}`);
       trackAction('/action/partner-move');
       const createdAt = new Date().toISOString();
       setHouseholdMoves((ms) => [...ms, ...moves.map((mv) => ({ ...mv, id: 'h' + eidcRef.current++, createdAt }))]);
@@ -2095,7 +2132,7 @@ export function useWhiteboard() {
       const ids = new Set(members.map((n) => n.id));
       const { patches, moves } = householdMovePlan(nodes, [...ids], dest);
       if (!patches.size) return null;
-      pushUndo();
+      pushUndo(`Move ${theHousehold(g.hh)} to ${world}`);
       trackAction('/action/household-world');
       const newGroup: Group | null = dest.isNew
         ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
@@ -2139,7 +2176,8 @@ export function useWhiteboard() {
     (id: string, on: boolean): boolean => {
       const e = edges.find((x) => x.id === id);
       if (!e || (e.type !== 'marriage' && e.type !== 'romance') || !!e.ending === on) return false;
-      pushUndo();
+      const end = e.type === 'marriage' ? 'divorce' : 'breakup';
+      pushUndo(`${on ? `Plan a ${end}` : `Cancel the ${end}`} of ${simCalled(e.a)} and ${simCalled(e.b)}`);
       trackAction(on ? '/action/plan-ending' : '/action/cancel-ending');
       const nextEdges = edges.map((x) => {
         if (x.id !== id) return x;
@@ -2159,7 +2197,7 @@ export function useWhiteboard() {
       );
       return true;
     },
-    [edges, byid, pushUndo, freezeAfterEdgeChange, flashStatus],
+    [edges, byid, pushUndo, freezeAfterEdgeChange, flashStatus, simCalled],
   );
 
   /**
@@ -2178,6 +2216,7 @@ export function useWhiteboard() {
           .filter((p) => p.kind !== 'time' && p.kind !== 'break')
           .map((p) => (p.kind === 'sim' ? { kind: 'sim' as const, id: p.id, name: p.name } : p)),
       ).trim();
+      const undoStep = `Cancel the plan “${clipStep(what, 40)}”`;
       /** Planned sims off the board, with their links and records. */
       const removeSims = (ids: ReadonlySet<string>) => {
         const nextCore = nodesCore.filter((n) => !ids.has(n.id));
@@ -2205,7 +2244,7 @@ export function useWhiteboard() {
         if (first.fromHh === ADDED_HOUSEHOLD) {
           const n = nodesCore.find((x) => x.id === first.simId);
           if (!n || !isPlannedSim(n)) return false;
-          pushUndo();
+          pushUndo(undoStep);
           trackAction('/action/cancel-plan');
           removeSims(new Set([n.id]));
           flashStatus(`Cancelled: ${cardName(n)} is off the board. Undo brings them back.`);
@@ -2233,7 +2272,7 @@ export function useWhiteboard() {
         const dropMoves = () =>
           setHouseholdMoves((ms) => ms.filter((m) => !wanted.has(m.id)).map((m) => stitched.get(m.id) ?? m));
         if (!lastSteps.length) {
-          pushUndo();
+          pushUndo(undoStep);
           trackAction('/action/cancel-plan');
           dropMoves();
           flashStatus(
@@ -2257,7 +2296,7 @@ export function useWhiteboard() {
         const dest = moveDestination(groups, nodes, worlds, step.fromWorld, home ? home.gid : NEW_HOUSEHOLD, step.fromHh);
         if (!dest) return false;
         const { patches } = householdMovePlan(nodes, ids, dest);
-        pushUndo();
+        pushUndo(undoStep);
         trackAction('/action/cancel-plan');
         const newGroup: Group | null = dest.isNew
           ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
@@ -2291,13 +2330,13 @@ export function useWhiteboard() {
         isPlannedSim(child) &&
         edges.filter((e) => e.type === 'parent' && e.b === child.id).every((e) => edgeSourceOf(e) === 'planned')
       ) {
-        pushUndo();
+        pushUndo(undoStep);
         trackAction('/action/cancel-plan');
         removeSims(new Set([child.id]));
         flashStatus(`Cancelled: ${cardName(child)} won’t be born. Undo brings the plan back.`);
         return true;
       }
-      pushUndo();
+      pushUndo(undoStep);
       trackAction('/action/cancel-plan');
       const gone = new Set(planned.map((e) => e.id));
       const nextEdges = edges.filter((e) => !gone.has(e.id));
@@ -2385,7 +2424,7 @@ export function useWhiteboard() {
           return false;
         }
       }
-      pushUndo();
+      pushUndo(`Plan ${ps.map(cardName).join(' and ')} adopting ${cardName(C)}`);
       const bundleId = 'b' + eidcRef.current++;
       const createdAt = new Date().toISOString();
       const nextEdges = sanitizeEdges([
@@ -2469,7 +2508,7 @@ export function useWhiteboard() {
    */
   const organiseBoard = useCallback(
     (svgWidth: number, svgHeight: number) => {
-      pushUndo();
+      pushUndo('Organise the board');
       trackAction('/action/organise');
       const fresh = nodesCore.map((n) => (n.ox || n.oy ? { ...n, ox: 0, oy: 0 } : n));
       const laid = computeLayout(fresh, worlds, edges);
@@ -2684,7 +2723,7 @@ export function useWhiteboard() {
       setSourceFileName(null);
       setFromBrowserDraft(false);
       undoRef.current = [];
-      setCanUndo(false);
+      setUndoWhat(null);
       setSel(null);
       setEditNodeId(null);
       eidcRef.current = nextEidc(seedEdges, 100000);
@@ -2780,7 +2819,7 @@ export function useWhiteboard() {
           ],
         );
         undoRef.current = [];
-        setCanUndo(false);
+        setUndoWhat(null);
         if (d.groups) setGroups(fileGroups);
         setHiddenPacks(new Set(d.hiddenPacks || []));
         setHiddenPlay(new Set(d.hiddenPlay || []));
@@ -2940,7 +2979,7 @@ export function useWhiteboard() {
           worlds,
           edges: incomingEdges,
         });
-        pushUndo({ filters: true });
+        pushUndo('Merge a board file', { filters: true });
         const merged = mergeJsonIntoBoard({
           boardNodes: nodesCore,
           boardEdges: edges,
@@ -3056,7 +3095,7 @@ export function useWhiteboard() {
     ) => {
       if (mode === 'replace') {
         undoRef.current = [];
-        setCanUndo(false);
+        setUndoWhat(null);
         setHouseholdMoves([]);
         setHouseholdAgeUps([]);
         setDeceasedMarks([]);
@@ -3070,7 +3109,7 @@ export function useWhiteboard() {
         setFromBrowserDraft(false);
         setSourceFileName(null);
       } else {
-        pushUndo();
+        pushUndo('Merge your save');
       }
       setEdges(result.edges);
       setGroups(result.groups);
@@ -3234,7 +3273,9 @@ export function useWhiteboard() {
     (edgeId: string, choice: PlanChoice) => {
       const c = planIssues.find((x) => x.edgeId === edgeId);
       if (!c) return;
-      pushUndo();
+      const link = edges.find((e) => e.id === edgeId);
+      const pair = link ? ` for ${nameOfCore(link.a)} and ${nameOfCore(link.b)}` : '';
+      pushUndo(choice === 'keep' ? `Keep the plan${pair}` : choice === 'drop' ? `Drop the plan${pair}` : `Follow your game${pair}`);
       let n = eidcRef.current;
       const r = resolvePlanConflict(nodesCore, edges, c, choice, () => 'u' + n++, new Date().toISOString());
       eidcRef.current = n;
@@ -3275,7 +3316,7 @@ export function useWhiteboard() {
       const slot = nodesCore.find((x) => x.id === slotId);
       const real = nodesCore.find((x) => x.id === realId);
       if (!slot || !real) return;
-      pushUndo();
+      pushUndo(`Match ${cardName(real)} to ${cardName(slot)}`);
       const r = linkPlannedSim(nodesCore, edges, slotId, realId, new Date().toISOString());
       setEdges(r.edges);
       setHouseholdMoves((ms) => ms.filter((m) => m.simId !== slotId));
@@ -3299,7 +3340,7 @@ export function useWhiteboard() {
     (id: string) => {
       const real = nodesCore.find((x) => x.id === id);
       if (!real?.plannedAs) return;
-      pushUndo();
+      pushUndo(`Unlink ${cardName(real)} from their plan`);
       let n = eidcRef.current;
       const r = unlinkPlannedSim(nodesCore, edges, id, () => 'new' + n++, () => 'u' + n++);
       eidcRef.current = n;
@@ -3389,7 +3430,8 @@ export function useWhiteboard() {
       if (!patches.size) return { dest, moved: 0, back: 0 };
       const homes = gameHomes(nodes, householdMoves);
       const back = [...patches.keys()].filter((id) => homes.get(id) === dest.gid).length;
-      pushUndo();
+      const [only] = patches.keys();
+      pushUndo(`Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${theHousehold(dest.hh)}`);
       if (dest.isNew) {
         setGroups((gs) =>
           gs.some((g) => g.gid === dest.gid)
@@ -3422,7 +3464,7 @@ export function useWhiteboard() {
       pinCardsToCurrentPlaces(edges, apply(nodesCore));
       return { dest, moved: patches.size, back };
     },
-    [groups, nodes, nodesCore, worlds, edges, householdMoves, pushUndo, pinCardsToCurrentPlaces],
+    [groups, nodes, nodesCore, worlds, edges, householdMoves, pushUndo, pinCardsToCurrentPlaces, simCalled],
   );
 
   const moveSimToHousehold = useCallback(
@@ -3474,7 +3516,7 @@ export function useWhiteboard() {
         flashStatus('No one in this household can age up.');
         return;
       }
-      pushUndo();
+      pushUndo(`Age up ${theHousehold(members[0]!.hh)}`);
       const nextCore = nodesCore.map((n) => {
         const patch = nextById.get(n.id);
         return patch ? { ...n, ...patch } : n;
@@ -3766,6 +3808,7 @@ export function useWhiteboard() {
     unlinkPlanned,
     pushUndo,
     canUndo,
+    undoWhat,
     undo,
     ageUpHousehold,
     toggleBloodline,

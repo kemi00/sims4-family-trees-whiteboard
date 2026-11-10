@@ -35,6 +35,7 @@ import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
 import type { LinksView } from '../lib/family.ts';
 import { saveChipText } from '../lib/lifeClock.ts';
+import { undoTip } from '../lib/undoNames.ts';
 import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
 import { SaveDetails } from './SaveStatus.tsx';
 import { ToolButton } from './ToolButton.tsx';
@@ -512,7 +513,7 @@ export function AppBar({
       />
       <ToolButton
         icon={ArrowCounterClockwise}
-        label="Undo (Ctrl/⌘ Z)"
+        label={undoTip(wb.undoWhat)}
         disabled={!wb.canUndo}
         onClick={wb.undo}
       />

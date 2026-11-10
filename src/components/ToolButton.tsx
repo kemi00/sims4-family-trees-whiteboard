@@ -1,5 +1,5 @@
 import { CaretDown, type Icon } from '../icons.ts';
-import type { ReactNode, Ref } from 'react';
+import { useState, type ReactNode, type Ref } from 'react';
 
 type Tone = 'neutral' | 'primary' | 'danger';
 
@@ -43,6 +43,9 @@ export function ToolButton({
   ref,
   onClick,
 }: Props) {
+  // A click hides the tip until the pointer leaves: what the click did shows
+  // on the board and the status line, which the tip would sit over.
+  const [quiet, setQuiet] = useState(false);
   return (
     <button
       id={id}
@@ -51,13 +54,17 @@ export function ToolButton({
       className={`${children ? 'tool' : 'tool tool--icon'}${menu ? ' tool--menu' : ''}${className ? ` ${className}` : ''}`}
       data-tone={tone}
       data-pressed={pressed === undefined ? undefined : String(pressed)}
-      data-tooltip={label}
+      data-tooltip={quiet ? undefined : label}
       aria-pressed={menu ? undefined : pressed}
       aria-haspopup={menu ? 'menu' : undefined}
       aria-expanded={expanded}
       aria-label={children ? undefined : label}
       disabled={disabled}
-      onClick={onClick}
+      onClick={() => {
+        setQuiet(true);
+        onClick?.();
+      }}
+      onPointerLeave={() => setQuiet(false)}
     >
       <Glyph aria-hidden="true" />
       {children && <span className="tool__label">{children}</span>}
