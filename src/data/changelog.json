@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "5f4337a",
+   "date": "2026-11-10",
+   "text": "The Undo button's tip names the change it will take back (\"Undo: Add a sim to Gooseman\"), and after an undo the status line says what was undone."
+  },
+  {
    "sha": "12e4c2b",
    "date": "2026-11-10",
    "text": "Planned sims with no name are numbered only when two or more share a last name, and the numbers are recounted on every change, so there are no gaps. A couple's new baby asks which last name it takes when the parents' differ."
