@@ -1054,42 +1054,39 @@ export function useWhiteboard() {
    */
   const addEdge = useCallback((a: string, b: string, type: Edge['type'], secret = false, adopted = false) => {
     if (type === 'sibling' && siblingsShareParents(a, b, edges)) return;
-    let nextEdges: Edge[] | null = null;
     pushUndo(linkStep(type, simCalled(a), simCalled(b), { secret, adopted }));
-    setEdges((e) => {
-      const same =
-        secret || adopted
-          ? e.find(
-              (x) =>
-                x.type === type &&
-                ((x.a === a && x.b === b) || (type !== 'parent' && x.a === b && x.b === a)),
-            )
-          : undefined;
-      if (same) {
-        nextEdges = e.map((x) =>
+    // Built here from the links as they are, not in a setEdges updater: React
+    // may run that only at the next render, leaving the cards unpinned, and a
+    // new couple or parent repacks every world around them.
+    const same =
+      secret || adopted
+        ? edges.find(
+            (x) =>
+              x.type === type &&
+              ((x.a === a && x.b === b) || (type !== 'parent' && x.a === b && x.b === a)),
+          )
+        : undefined;
+    const nextEdges: Edge[] = same
+      ? edges.map((x) =>
           x === same
             ? { ...x, ...(secret ? { secret: true as const } : {}), ...(adopted ? { adopted: true as const } : {}) }
             : x,
-        );
-        return nextEdges;
-      }
-      const id = 'u' + eidcRef.current++;
-      nextEdges = sanitizeEdges([
-        ...e,
-        {
-          id,
-          a,
-          b,
-          type,
-          source: 'planned',
-          createdAt: new Date().toISOString(),
-          ...(secret ? { secret: true as const } : {}),
-          ...(adopted ? { adopted: true as const } : {}),
-        },
-      ]);
-      return nextEdges;
-    });
-    if (nextEdges) freezeAfterEdgeChange([a, b], nextEdges);
+        )
+      : sanitizeEdges([
+          ...edges,
+          {
+            id: 'u' + eidcRef.current++,
+            a,
+            b,
+            type,
+            source: 'planned',
+            createdAt: new Date().toISOString(),
+            ...(secret ? { secret: true as const } : {}),
+            ...(adopted ? { adopted: true as const } : {}),
+          },
+        ]);
+    setEdges(nextEdges);
+    freezeAfterEdgeChange([a, b], nextEdges);
   }, [edges, freezeAfterEdgeChange, pushUndo, simCalled]);
 
   const deleteSelected = useCallback(() => {
@@ -1686,47 +1683,44 @@ export function useWhiteboard() {
         return;
       }
       pushUndo(`Make ${simCalled(childId)} a child of ${simCalled(pa)} and ${simCalled(pb)}`);
-      let nextEdges: Edge[] | null = null;
-      setEdges((es) => {
-        const bundleId = 'b' + eidcRef.current++;
-        const createdAt = new Date().toISOString();
-        const next = [...es];
-        [pa, pb].forEach((p) => {
-          const idx = next.findIndex(
-            (e) => e.type === 'parent' && e.a === p && e.b === childId,
-          );
-          if (idx >= 0) {
-            const existing = next[idx]!;
-            if (isUserE(existing)) {
-              next[idx] = {
-                ...existing,
-                bundleId,
-                createdAt: existing.createdAt ?? createdAt,
-              };
-            }
-            return;
+      // Built from the links as they are, not in an updater (see addEdge).
+      const bundleId = 'b' + eidcRef.current++;
+      const createdAt = new Date().toISOString();
+      const next = [...edges];
+      [pa, pb].forEach((p) => {
+        const idx = next.findIndex(
+          (e) => e.type === 'parent' && e.a === p && e.b === childId,
+        );
+        if (idx >= 0) {
+          const existing = next[idx]!;
+          if (isUserE(existing)) {
+            next[idx] = {
+              ...existing,
+              bundleId,
+              createdAt: existing.createdAt ?? createdAt,
+            };
           }
-          next.push({
-            id: 'u' + eidcRef.current++,
-            a: p,
-            b: childId,
-            type: 'parent',
-            source: 'planned',
-            createdAt,
-            bundleId,
-          });
+          return;
+        }
+        next.push({
+          id: 'u' + eidcRef.current++,
+          a: p,
+          b: childId,
+          type: 'parent',
+          source: 'planned',
+          createdAt,
+          bundleId,
         });
-        nextEdges = next;
-        return next;
       });
-      if (nextEdges) freezeAfterEdgeChange([pa, pb, childId], nextEdges);
+      setEdges(next);
+      freezeAfterEdgeChange([pa, pb, childId], next);
       flashStatus(
         `Linked ✓ — ${byid[childId]?.first ?? 'Sim'} is now a child of ${byid[pa]?.first ?? ''} ＋ ${byid[pb]?.first ?? ''}. Click a sim for the next link`,
       );
       setConnSrc(null);
       setConnectMenu(null);
     },
-    [byid, cancelConnect, flashStatus, freezeAfterEdgeChange, parentCycleReason, pushUndo, simCalled],
+    [byid, edges, cancelConnect, flashStatus, freezeAfterEdgeChange, parentCycleReason, pushUndo, simCalled],
   );
 
   /**
