@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "8d73e9f",
+   "date": "2026-11-10",
+   "text": "Redo (Ctrl/⌘ Shift Z) puts back what Undo took back; its tip names the step, and on a phone it waits at the top of More."
+  },
+  {
    "sha": "5f4337a",
    "date": "2026-11-10",
    "text": "The Undo button's tip names the change it will take back (\"Undo: Add a sim to Gooseman\"), and after an undo the status line says what was undone."
