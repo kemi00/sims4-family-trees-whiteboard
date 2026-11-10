@@ -337,12 +337,14 @@ export function canAgeUp(n: SimNode): boolean {
 
 /**
  * Current partners: marriage or romance. Divorced alone does not count, nor
- * a couple with a planned divorce or breakup: the board is the plan.
+ * a couple with a planned divorce or breakup: the board is the plan. With
+ * `alive`, a partner who has died doesn't count either: the widowed are single.
  */
-export function partneredIdSet(edges: Edge[]): Set<string> {
+export function partneredIdSet(edges: Edge[], alive: (id: string) => boolean = () => true): Set<string> {
   const ids = new Set<string>();
   for (const e of edges) {
     if ((e.type !== 'marriage' && e.type !== 'romance') || e.ending) continue;
+    if (!alive(e.a) || !alive(e.b)) continue;
     ids.add(e.a);
     ids.add(e.b);
   }
@@ -353,10 +355,13 @@ export function isUnpartnered(id: string, edges: Edge[]): boolean {
   return !partneredIdSet(edges).has(id);
 }
 
-/** Sims who have a child on the board, planned babies included. */
-export function parentIdSet(edges: Edge[]): Set<string> {
+/**
+ * Sims who have a child on the board, planned babies included. With `alive`,
+ * only living children count.
+ */
+export function parentIdSet(edges: Edge[], alive: (id: string) => boolean = () => true): Set<string> {
   const ids = new Set<string>();
-  for (const e of edges) if (e.type === 'parent') ids.add(e.a);
+  for (const e of edges) if (e.type === 'parent' && alive(e.b)) ids.add(e.a);
   return ids;
 }
 
@@ -387,7 +392,8 @@ export type HighlightSets = {
  * chips OR with each other and AND with that set, and so do the dynasty role
  * chips. Single and No children each narrow on their own. Pets ignore
  * Single, No children and dynasty roles, and only glow for their species
- * chip, which a gender chip narrows like it does ages.
+ * chip, which a gender chip narrows like it does ages. The deceased never
+ * match.
  */
 export function isHighlightMatch(
   n: SimNode,
@@ -396,6 +402,7 @@ export function isHighlightMatch(
   { partnered, parents = NO_IDS, unborn = NO_IDS }: HighlightSets,
 ): boolean {
   if (hi.size === 0 && !hiSingle) return true;
+  if (n.state === DECEASED_STATE) return false;
   let genders = 0;
   let roles = 0;
   for (const h of hi) {

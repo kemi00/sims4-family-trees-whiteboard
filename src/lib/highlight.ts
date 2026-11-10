@@ -69,16 +69,17 @@ export function highlightPhrase(hi: ReadonlySet<string>, hiSingle: boolean, n: n
 }
 
 export type HighlightSummary = {
-  /** Shown cards the highlight picks out. */
+  /** Living shown cards the highlight picks out. */
   count: number;
-  /** Of those, sims marked Deceased. */
-  deceased: number;
-  /** Cards shown at all (games, play and Hide deceased allowing). */
-  shown: number;
+  /** Living cards shown at all (games and play allowing). */
+  living: number;
   phrase: string;
 };
 
-/** How many shown cards the highlight picks out, and what they are. */
+/**
+ * How many shown cards the highlight picks out, and what they are. The
+ * deceased are left out of both counts, since the chips never pick them.
+ */
 export function highlightSummary(
   opts: HighlightSets & {
     nodes: SimNode[];
@@ -88,15 +89,12 @@ export function highlightSummary(
   },
 ): HighlightSummary {
   let count = 0;
-  let deceased = 0;
-  let shown = 0;
+  let living = 0;
   const hi = opts.hi as Set<string>;
   for (const n of opts.nodes) {
-    if (!opts.shown(n)) continue;
-    shown += 1;
-    if (!isHighlightMatch(n, hi, opts.hiSingle, opts)) continue;
-    count += 1;
-    if (n.state === DECEASED_STATE) deceased += 1;
+    if (!opts.shown(n) || n.state === DECEASED_STATE) continue;
+    living += 1;
+    if (isHighlightMatch(n, hi, opts.hiSingle, opts)) count += 1;
   }
-  return { count, deceased, shown, phrase: highlightPhrase(opts.hi, opts.hiSingle, count) };
+  return { count, living, phrase: highlightPhrase(opts.hi, opts.hiSingle, count) };
 }

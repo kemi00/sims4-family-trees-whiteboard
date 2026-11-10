@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 import { HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip } from './constants.ts';
-import { partneredIdSet, cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
+import { partneredIdSet, parentIdSet, cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
 
 function edge(a: string, b: string, type: Edge['type'] = 'parent'): Edge {
   return { id: `${type}:${a}:${b}`, a, b, type, source: 'seed' };
@@ -130,6 +130,21 @@ describe('isHighlightMatch', () => {
     assert.deepEqual(glow([HI_NOT_BORN, 'Infant']), ['heir', 'baby']);
     assert.deepEqual(glow([HI_NOT_BORN, 'Male']), []);
   });
+
+  it('never picks the deceased, pets included', () => {
+    const dead = { ...sim('dead', 'Elder', 'Female'), state: 'Deceased' } as SimNode;
+    const deadCat = { ...sim('deadCat', 'Adult', 'Female', 'Cat'), state: 'Deceased' } as SimNode;
+    const glow = (hi: string[], single = false) =>
+      [bella, dead, cat, deadCat]
+        .filter((n) => isHighlightMatch(n, new Set(hi), single, { partnered }))
+        .map((n) => n.id);
+    assert.deepEqual(glow(['Female']), ['bella']);
+    assert.deepEqual(glow(['Elder']), []);
+    assert.deepEqual(glow([], true), []);
+    assert.deepEqual(glow(['Cat']), ['cat']);
+    // With no chip on, nothing is picked out and every card shows as usual.
+    assert.deepEqual(glow([]), ['bella', 'dead', 'cat', 'deadCat']);
+  });
 });
 
 describe('partners', () => {
@@ -140,6 +155,21 @@ describe('partners', () => {
       { id: 'v3', a: 'e', b: 'f', type: 'divorced', source: 'save' },
     ];
     assert.deepEqual([...partneredIdSet(edges)].sort(), ['a', 'b']);
+  });
+
+  it('leaves out the deceased when asked: the widowed are single, and a child who died does not count', () => {
+    const edges: Edge[] = [
+      { id: 'v1', a: 'widow', b: 'late', type: 'marriage', source: 'save' },
+      { id: 'v2', a: 'g', b: 'h', type: 'romance', source: 'save' },
+      { id: 'p1', a: 'widow', b: 'lostChild', type: 'parent', source: 'save' },
+      { id: 'p2', a: 'g', b: 'kid', type: 'parent', source: 'save' },
+      { id: 'p3', a: 'late', b: 'kid', type: 'parent', source: 'save' },
+    ];
+    const alive = (id: string) => id !== 'late' && id !== 'lostChild';
+    assert.deepEqual([...partneredIdSet(edges, alive)].sort(), ['g', 'h']);
+    assert.deepEqual([...partneredIdSet(edges)].sort(), ['g', 'h', 'late', 'widow']);
+    assert.deepEqual([...parentIdSet(edges, alive)].sort(), ['g', 'late']);
+    assert.deepEqual([...parentIdSet(edges)].sort(), ['g', 'late', 'widow']);
   });
 });
 

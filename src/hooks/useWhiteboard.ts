@@ -598,9 +598,12 @@ export function useWhiteboard() {
   /** What the world tags add up to, for the Worlds card. */
   const boardTotals = useMemo(() => worldTotals(nodes, nodeVis), [nodes, nodeVis]);
 
-  const partneredIds = useMemo(() => partneredIdSet(shownEdges), [shownEdges]);
-  /** Sims with a child, for the No children highlight. */
-  const parentIds = useMemo(() => parentIdSet(shownEdges), [shownEdges]);
+  // The highlight acts as if the deceased weren't there: the widowed are
+  // single, and children who died don't count.
+  const alive = useCallback((id: string) => byid[id]?.state !== DECEASED_STATE, [byid]);
+  const partneredIds = useMemo(() => partneredIdSet(shownEdges, alive), [shownEdges, alive]);
+  /** Sims with a living child, for the No children highlight. */
+  const parentIds = useMemo(() => parentIdSet(shownEdges, alive), [shownEdges, alive]);
 
   const connectionLog = useMemo(
     () =>

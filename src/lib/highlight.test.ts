@@ -47,7 +47,7 @@ describe('the highlight count', () => {
     sim('e', { age: 'Infant', pack: 'Hidden' }),
     sim('f', { age: 'Elder' }),
   ];
-  it('counts shown matches and the deceased among them', () => {
+  it('counts living shown matches, of the living shown', () => {
     const s = highlightSummary({
       nodes,
       shown: (n) => n.pack !== 'Hidden',
@@ -55,6 +55,6 @@ describe('the highlight count', () => {
       hiSingle: false,
       partnered: new Set(),
     });
-    assert.deepEqual(s, { count: 3, deceased: 1, shown: 5, phrase: 'female infants' });
+    assert.deepEqual(s, { count: 2, living: 4, phrase: 'female infants' });
   });
 });

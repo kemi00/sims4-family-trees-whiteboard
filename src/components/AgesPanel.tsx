@@ -1,9 +1,9 @@
-import { AGES_H, DYNASTY_ROLES, GENDERS, HI_DYNASTY, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, NEW_SIM_GENDERS, SPECIES, SPECIES_H, hiDynastyChip, type HiDynastyRole } from '../lib/constants.ts';
+import { AGES_H, DECEASED_STATE, DYNASTY_ROLES, GENDERS, HI_DYNASTY, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, NEW_SIM_GENDERS, SPECIES, SPECIES_H, hiDynastyChip, type HiDynastyRole } from '../lib/constants.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
-import { dynastyStanding, isPet, parentIdSet, partneredIdSet } from '../lib/utils.ts';
-import type { Edge, SimNode } from '../types/whiteboard.ts';
+import { dynastyStanding, isPet } from '../lib/utils.ts';
+import type { SimNode } from '../types/whiteboard.ts';
 
 const sectionLabel = {
   fontSize: 11,
@@ -23,7 +23,10 @@ const ROLE_CHIP: Record<HiDynastyRole, { text: string; title: string }> = {
 
 type Props = {
   nodes: SimNode[];
-  edges: Edge[];
+  /** Married or in a romance with a living sim. */
+  partnered: Set<string>;
+  /** Sims with a living child. */
+  parents: Set<string>;
   hiAges: Set<string>;
   hiSingle: boolean;
   /** Planned babies, not born yet. */
@@ -37,7 +40,8 @@ type Props = {
 
 export function AgesPanel({
   nodes,
-  edges,
+  partnered,
+  parents,
   hiAges,
   hiSingle,
   unborn,
@@ -51,13 +55,11 @@ export function AgesPanel({
   const pos = panelPosition(anchorRect, 266);
   if (!pos) return null;
 
-  // Counts follow what the board shows: hidden games, play types and the
-  // deceased (Filters → Hide deceased) are left out, as on the board.
-  const visible = nodes.filter(packVis);
-  const sims = visible.filter((n) => !isPet(n));
-  const pets = visible.filter(isPet);
-  const partnered = partneredIdSet(edges);
-  const parents = parentIdSet(edges);
+  // Counts follow what the board shows: hidden games and play types are left
+  // out, as on the board. So are the deceased, whom the chips never pick.
+  const living = nodes.filter((n) => packVis(n) && n.state !== DECEASED_STATE);
+  const sims = living.filter((n) => !isPet(n));
+  const pets = living.filter(isPet);
   const cntAge = (a: string) => sims.filter((n) => n.age === a).length;
   const cntSpecies = (s: string) =>
     pets.filter((n) => n.species === s).length;
@@ -97,8 +99,7 @@ export function AgesPanel({
         {active ? (
           <>
             <b>{summary.count}</b> {summary.phrase}
-            {summary.deceased > 0 && <> · {summary.deceased} deceased</>}
-            <span className="hlsum__of"> of {summary.shown} shown</span>
+            <span className="hlsum__of"> of {summary.living} living on the board</span>
           </>
         ) : (
           <>
@@ -109,7 +110,7 @@ export function AgesPanel({
                 · <b>{pets.length}</b> pets
               </>
             )}{' '}
-            shown. Pick what to highlight.
+            living on the board. Pick what to highlight.
           </>
         )}
       </div>

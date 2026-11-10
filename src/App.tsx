@@ -272,7 +272,8 @@ export default function App() {
           <div ref={agesPanelRef}>
             <AgesPanel
               nodes={wb.nodes}
-              edges={wb.shownEdges}
+              partnered={wb.partneredIds}
+              parents={wb.parentIds}
               hiAges={wb.hiAges}
               hiSingle={wb.hiSingle}
               unborn={wb.plannedChildIds}

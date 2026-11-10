@@ -9,7 +9,8 @@ type Props = {
 
 /**
  * While a highlight is on and its panel is closed, say how many cards it
- * picks out, so the count stays in view on the board.
+ * picks out, so the count stays in view on the board. The deceased don't
+ * count: the chips never pick them.
  */
 export function HighlightBanner({ summary, onChange, onClear }: Props) {
   return (
@@ -19,8 +20,7 @@ export function HighlightBanner({ summary, onChange, onClear }: Props) {
       onPointerDown={(e) => e.stopPropagation()}
     >
       <p>
-        Highlighting <b>{summary.count}</b> {summary.phrase}
-        {summary.deceased > 0 ? ` (${summary.deceased} deceased)` : ''} of {summary.shown} shown.
+        Highlighting <b>{summary.count}</b> {summary.phrase} of {summary.living} living on the board.
       </p>
       <button type="button" className="highlight-banner__change" onClick={onChange}>
         Change
