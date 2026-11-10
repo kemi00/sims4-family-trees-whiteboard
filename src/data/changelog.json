@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "34506ea",
+   "date": "2026-11-10",
+   "text": "Your arrangement holds: any edit, whatever it is, now leaves every card it isn't about exactly where it is. Only Organise, loading a file, importing a save and Undo/Redo rearrange the board."
+  },
+  {
    "sha": "4630309",
    "date": "2026-11-10",
    "text": "Fixed: planning a marriage or another link no longer shifts the worlds around the couple; every card stays where it is."
