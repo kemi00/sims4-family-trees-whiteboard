@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "4630309",
+   "date": "2026-11-10",
+   "text": "Fixed: planning a marriage or another link no longer shifts the worlds around the couple; every card stays where it is."
+  },
+  {
    "sha": "8d73e9f",
    "date": "2026-11-10",
    "text": "Redo (Ctrl/⌘ Shift Z) puts back what Undo took back; its tip names the step, and on a phone it waits at the top of More."
