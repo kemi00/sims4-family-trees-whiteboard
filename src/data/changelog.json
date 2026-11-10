@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "76e786a",
+   "date": "2026-11-10",
+   "text": "Moving a household to another world no longer shoves other worlds around: it lands in free room in its new world, where that world is on your board, and every other card stays put."
+  },
+  {
    "sha": "18abc29",
    "date": "2026-11-10",
    "text": "Plan heirs generations ahead: pick \"Heir after Eric\" for his daughter, and \"Heir after Olivia\" for hers. The Family tab shows the line of succession, cards say \"Lewis heir after Eric\", and a save that makes Eric head makes Olivia the planned heir. Boards with an heir planned at each generation turn into a line."
