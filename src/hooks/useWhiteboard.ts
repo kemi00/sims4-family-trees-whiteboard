@@ -77,6 +77,7 @@ import {
   spawnChildOrigin,
 } from '../lib/layout.ts';
 import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
+import { holdUntouchedCards } from '../lib/holdLayout.ts';
 import { lineageIds } from '../lib/bloodline.ts';
 import { hasNoHome } from '../lib/partners.ts';
 import { whyNotAdopt } from '../lib/adoption.ts';
@@ -546,10 +547,45 @@ export function useWhiteboard() {
   );
 
   /**
+   * The board's promise: a change moves only the cards it is about (see
+   * holdUntouchedCards). After every change, the cards it did not touch go
+   * back to where they were on screen before it is painted. Changes meant to
+   * move everything — Organise, loading or importing a board, Undo and
+   * Redo — call `releaseLayout` with their state, so the new places stand.
+   */
+  const [layoutRelease, setLayoutRelease] = useState(0);
+  const releaseLayout = useCallback(() => setLayoutRelease((n) => n + 1), []);
+  const shownRef = useRef<{
+    core: SimNode[];
+    byid: Record<string, SimNode>;
+    snap: boolean;
+    release: number;
+  } | null>(null);
+  /** The hold put cards back; what is on screen now is not final yet. */
+  const holdingRef = useRef(false);
+  useLayoutEffect(() => {
+    const was = shownRef.current;
+    shownRef.current = { core: nodesCore, byid, snap, release: layoutRelease };
+    holdingRef.current = false;
+    if (!was || was.snap !== snap || was.release !== layoutRelease) return;
+    const r = holdUntouchedCards(
+      was.core,
+      (id) => was.byid[id],
+      nodesCore,
+      (id) => byid[id],
+    );
+    if (!r.held) return;
+    holdingRef.current = true;
+    setNodesCore(r.core);
+  }, [nodesCore, byid, snap, layoutRelease]);
+
+  /**
    * New family links reflow household packing. If cards still shifted after
    * ox/oy pinning, pan so the linked sims stay on screen.
    */
   useLayoutEffect(() => {
+    // The hold is putting cards back: pan once they are where they stay.
+    if (holdingRef.current) return;
     const lock = viewAnchorRef.current;
     if (!lock) return;
     const next = simCentroid(lock.ids, byid);
@@ -821,6 +857,8 @@ export function useWhiteboard() {
 
   /** The board as `snap` kept it; nothing stays picked or open over it. */
   const restoreSnap = useCallback((snap: BoardSnap) => {
+    // The board goes back exactly as it was, every card included.
+    releaseLayout();
     setNodesCore(snap.nodesCore);
     setEdges(snap.edges);
     setGroups(snap.groups);
@@ -841,7 +879,7 @@ export function useWhiteboard() {
     setSel(null);
     setEditNodeId(null);
     setInfantHouseMenu(null);
-  }, []);
+  }, [releaseLayout]);
 
   /**
    * Keeps the board as it is, to come back to with Undo. `what` names the
@@ -2545,6 +2583,7 @@ export function useWhiteboard() {
       trackAction('/action/organise');
       const fresh = nodesCore.map((n) => (n.ox || n.oy ? { ...n, ox: 0, oy: 0 } : n));
       const laid = computeLayout(fresh, worlds, edges);
+      releaseLayout();
       setNodesCore(
         coreOffsetsAfterWorldSeparation(
           fresh,
@@ -2558,7 +2597,7 @@ export function useWhiteboard() {
         'Board organised: worlds in columns by households and sims, each household packed. Undo puts it back.',
       );
     },
-    [nodesCore, worlds, edges, groups, snap, pushUndo, fitWhenLaidOut, flashStatus],
+    [nodesCore, worlds, edges, groups, snap, pushUndo, releaseLayout, fitWhenLaidOut, flashStatus],
   );
 
   /**
@@ -2737,6 +2776,7 @@ export function useWhiteboard() {
             e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
         })),
       );
+      releaseLayout();
       setNodesCore(migrated.nodes.map((n) => toCore(n)));
       setEdges(seedEdges);
       setGroups((migrated.groups ?? seed.groups).map((g) => ({ ...g })));
@@ -2767,7 +2807,7 @@ export function useWhiteboard() {
       flashStatus('Reset the board');
       fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [seed, flashStatus, fitWhenLaidOut],
+    [seed, flashStatus, fitWhenLaidOut, releaseLayout],
   );
 
   const saveJson = useCallback(() => {
@@ -2831,6 +2871,7 @@ export function useWhiteboard() {
               snap,
             })
           : fileNamed.core;
+        releaseLayout();
         setNodesCore(loadedCore);
         setEdges(loadedEdges);
         const loadedMoves = d.householdMoves ?? [];
@@ -2890,6 +2931,7 @@ export function useWhiteboard() {
         setTimeout(() => {
           if (!keepBoardPositions && prepared.repacked) {
             // Fresh pack only. A loaded board may have user-overlapped worlds.
+            releaseLayout();
             setNodesCore((core) => {
               const laid = snap
                 ? snapNodesToTiles(computeLayout(core, worlds, loadedEdges))
@@ -2910,7 +2952,7 @@ export function useWhiteboard() {
         setPendingLoadJson(null);
       }
     },
-    [fit, snap, worlds, groups, byid, flashStatus, seed.nodes],
+    [fit, snap, worlds, groups, byid, flashStatus, seed.nodes, releaseLayout],
   );
 
   /**
@@ -3040,6 +3082,7 @@ export function useWhiteboard() {
           worlds,
           merged.edges,
         );
+        releaseLayout();
         setNodesCore(
           keepBoardPositions
             ? separateLoadOverlaps({
@@ -3086,6 +3129,8 @@ export function useWhiteboard() {
           `JSON merged — ${s.nodesUpdated} updated, ${s.nodesAdded} added, ${s.relationshipsOverwritten} relationships overwritten.${pending.filtersNote ? ' Filters now match the file.' : ''} Download JSON to keep it.`,
         );
         setTimeout(() => {
+          // New worlds from the file take free room, wherever that moves them.
+          if (!keepBoardPositions) releaseLayout();
           setNodesCore((core) => {
             // Kept positions were already fitted around the board above.
             if (keepBoardPositions) return core;
@@ -3121,6 +3166,7 @@ export function useWhiteboard() {
     flashStatus,
     fit,
     seed.nodes,
+    releaseLayout,
   ]);
 
   const applySaveBoard = useCallback(
@@ -3154,6 +3200,7 @@ export function useWhiteboard() {
       setGroups(result.groups);
       setPairStatus(result.pairStatus);
       setSaveGame(result.saveGame);
+      releaseLayout();
       setNodesCore(
         saveImportCore({
           mode,
@@ -3193,7 +3240,7 @@ export function useWhiteboard() {
       );
       fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore],
+    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, releaseLayout],
   );
 
   const previewSave = useCallback((file: File) => {
