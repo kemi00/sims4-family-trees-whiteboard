@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "195325d",
+   "date": "2026-11-10",
+   "text": "Adding a sim, moving in with a partner, a planned baby or joining a household no longer pushes other households or worlds: the household grows into free room, or moves whole to free room in its world when it has none, and the status line says so."
+  },
+  {
    "sha": "76e786a",
    "date": "2026-11-10",
    "text": "Moving a household to another world no longer shoves other worlds around: it lands in free room in its new world, where that world is on your board, and every other card stays put."
