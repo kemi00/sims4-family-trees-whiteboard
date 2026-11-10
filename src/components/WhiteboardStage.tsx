@@ -88,6 +88,8 @@ import { dynastyKey, dynastyPhrase, type DynastyGeneration } from '../lib/genera
 import { riskText } from '../lib/dynastyMenu.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { SimNodeView } from './SimNode.tsx';
+import { StepText } from './StepText.tsx';
+import { named } from '../lib/undoNames.ts';
 import { ViewControls } from './ViewControls.tsx';
 import { WorldLayer } from './WorldLayer.tsx';
 
@@ -1882,7 +1884,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       </svg>
       {wb.status && (
         <div id="status" role="status" aria-live="polite" style={{ display: 'block' }}>
-          {wb.status}
+          <StepText text={wb.status} />
         </div>
       )}
       {linkChip && (
@@ -2214,7 +2216,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           editorRef={editorRef}
           onLayout={positionEditor}
           onSave={({ genRoot, ...patch }) => {
-            wb.pushUndo(`Edit ${cardName(editNode)}`);
+            wb.pushUndo(`Edit ${named(cardName(editNode))}`);
             wb.updateNode(editNode.id, patch);
             if (genRoot) wb.setDynastyGenRoot(genRoot.key, genRoot.id, { undo: false });
             wb.setEditNodeId(null);

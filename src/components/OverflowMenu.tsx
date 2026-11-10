@@ -12,6 +12,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { CONTACT_EMAIL, CONTACT_MAILTO } from '../lib/credits.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import { CreditsPanel } from './CreditsPanel.tsx';
+import { StepText } from './StepText.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
 /** A bar control that phones fold into this menu, listed above the file actions. */
@@ -123,7 +124,7 @@ export function OverflowMenu({
               <Glyph aria-hidden="true" />
               <span className="pop__text">
                 {name}
-                {note && <small>{note}</small>}
+                {note && <small><StepText text={note} /></small>}
               </span>
             </button>
           ))}

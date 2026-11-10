@@ -7,6 +7,11 @@ type Props = {
   icon: Icon;
   /** Accessible name and tooltip. Required even when a visible label is shown. */
   label: string;
+  /**
+   * A tip richer than `label` (lines, names set apart), shown in its place.
+   * `label` stays the accessible name, so it should say the same in words.
+   */
+  tip?: ReactNode;
   /** Visible label. Omit for an icon-only, square button. */
   children?: ReactNode;
   tone?: Tone;
@@ -31,6 +36,7 @@ type Props = {
 export function ToolButton({
   icon: Glyph,
   label,
+  tip,
   children,
   tone = 'neutral',
   pressed,
@@ -54,7 +60,7 @@ export function ToolButton({
       className={`${children ? 'tool' : 'tool tool--icon'}${menu ? ' tool--menu' : ''}${className ? ` ${className}` : ''}`}
       data-tone={tone}
       data-pressed={pressed === undefined ? undefined : String(pressed)}
-      data-tooltip={quiet ? undefined : label}
+      data-tooltip={quiet || tip ? undefined : label}
       aria-pressed={menu ? undefined : pressed}
       aria-haspopup={menu ? 'menu' : undefined}
       aria-expanded={expanded}
@@ -72,6 +78,11 @@ export function ToolButton({
       {children && <span className="tool__label">{children}</span>}
       {count ? <span className="tool__count">{count}</span> : null}
       {menu && <CaretDown className="tool__caret" weight="bold" aria-hidden="true" />}
+      {tip && !quiet && (
+        <span className="tool__tip" aria-hidden="true">
+          {tip}
+        </span>
+      )}
     </button>
   );
 }

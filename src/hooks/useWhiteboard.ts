@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { growHousehold, landMovedCards } from '../lib/landing.ts';
-import { clipStep, linkStep } from '../lib/undoNames.ts';
+import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import {
@@ -124,6 +124,7 @@ import {
   dynastyPhrase,
   familyGenerations,
   setGenRoot,
+  type DynastyName,
 } from '../lib/generations.ts';
 import { dynastyIndex, removePlannedDynasty, renamePlannedDynasty, type DynastyRisk } from '../lib/dynastyMenu.ts';
 import { worldTotals } from '../lib/worldTag.ts';
@@ -211,10 +212,10 @@ const CONNECT_LINKS: Record<
  * neighbours. Empty when it grew in place.
  */
 function roomNote(hh: string, world: string, r: { moved: boolean; crowded: boolean }): string {
-  const name = theHousehold(hh);
+  const name = theHousehold(hh, named);
   const The = `${name[0]!.toUpperCase()}${name.slice(1)}`;
-  if (r.crowded) return ` There was no free room for ${name} in ${world}, so it now runs into what is beside it: drag things apart to make room.`;
-  if (r.moved) return ` ${The} had no room to grow where it was, so it moved to free room in ${world}.`;
+  if (r.crowded) return ` There was no free room for ${name} in ${named(world)}, so it now runs into what is beside it: drag things apart to make room.`;
+  if (r.moved) return ` ${The} had no room to grow where it was, so it moved to free room in ${named(world)}.`;
   return '';
 }
 
@@ -228,6 +229,11 @@ function coupleSurnames(a: SimNode, b: SimNode): string[] {
     if (sur && !out.some((s) => s.toLocaleLowerCase() === sur.toLocaleLowerCase())) out.push(sur);
   }
   return out;
+}
+
+/** A dynasty as steps and the status line say it, its name marked. */
+function dynastyCalled(d: DynastyName): string {
+  return named(d.name) + dynastyPhrase(d).slice(d.name.length);
 }
 
 function simCentroid(
@@ -531,7 +537,7 @@ export function useWhiteboard() {
   /** A sim as an undo step names them: as their card does. */
   const simCalled = useCallback((id: string) => {
     const n = byid[id];
-    return n ? cardName(n) : 'a sim';
+    return n ? named(cardName(n)) : 'a sim';
   }, [byid]);
 
   const frameSim = useCallback(
@@ -1324,7 +1330,7 @@ export function useWhiteboard() {
       const home = nodes.filter((n) => n.gid === gid);
       const chrome = householdChrome(home, g);
       if (!g || !chrome) return null;
-      pushUndo(`Add a sim to ${g.hh}`);
+      pushUndo(`Add a sim to ${named(g.hh)}`);
       trackAction('/action/add-household-sim');
       const id = 'new' + eidcRef.current++;
       const sur = householdSurnames(home, g.hh)[0] ?? 'Sim';
@@ -1369,7 +1375,7 @@ export function useWhiteboard() {
       if (r.moved) lockViewToSims(home.map((x) => x.id));
       setSel({ type: 'node', id });
       setEditNodeId(id);
-      flashStatus(`Added a sim to ${g.hh}: name them, then press Enter.${roomNote(g.hh, g.world, r)}`);
+      flashStatus(`Added a sim to ${named(g.hh)}: name them, then press Enter.${roomNote(g.hh, g.world, r)}`);
       return id;
     },
     [groups, nodes, nodesCore, worlds, edges, pushUndo, lockViewToSims, flashStatus],
@@ -1383,7 +1389,7 @@ export function useWhiteboard() {
   const setDynastyGenRoot = useCallback(
     (key: string, id: string | null, opts?: { undo?: boolean }) => {
       if (opts?.undo !== false) {
-        const phrase = dynastyPhrase(dynastyNames(nodesCore).get(key) ?? { name: '' });
+        const phrase = dynastyCalled(dynastyNames(nodesCore).get(key) ?? { name: '' });
         pushUndo(`Count the ${phrase}’s generations from ${id ? simCalled(id) : 'the start'}`);
       }
       setNodesCore((ns) => setGenRoot(ns, key, id));
@@ -1401,16 +1407,16 @@ export function useWhiteboard() {
     (key: string, to: string): string | null => {
       const name = to.trim();
       const was = nodesCore.find((n) => dynastyKey(n) === key)?.dynasty ?? '';
-      const from = dynastyPhrase(dynastyNames(nodesCore).get(key) ?? { name: was });
+      const from = dynastyCalled(dynastyNames(nodesCore).get(key) ?? { name: was });
       const done = renamePlannedDynasty(nodesCore, key, name);
       if (done.nodes === nodesCore) return null;
       const count = nodesCore.filter((n) => dynastyKey(n) === key && !n.species).length;
-      pushUndo(`Rename the ${from} to ${name}`);
+      pushUndo(`Rename the ${from} to ${named(name)}`);
       setNodesCore(done.nodes);
       // A lit dynasty stays lit under its new name.
       setDynastyFocusState((k) => (k === key ? done.key : k));
       trackAction('/action/rename-dynasty');
-      flashStatus(`Renamed the ${from} to ${name}, on ${count === 1 ? 'its 1 sim' : `all ${count} of its sims`}.`);
+      flashStatus(`Renamed the ${from} to ${named(name)}, on ${count === 1 ? 'its 1 sim' : `all ${count} of its sims`}.`);
       return done.key;
     },
     [nodesCore, pushUndo, flashStatus],
@@ -1425,7 +1431,7 @@ export function useWhiteboard() {
       const next = removePlannedDynasty(nodesCore, key);
       if (next === nodesCore) return false;
       const members = nodesCore.filter((n) => dynastyKey(n) === key && !n.species);
-      const phrase = dynastyPhrase(dynastyNames(nodesCore).get(key) ?? { name: members[0]?.dynasty ?? '' });
+      const phrase = dynastyCalled(dynastyNames(nodesCore).get(key) ?? { name: members[0]?.dynasty ?? '' });
       pushUndo(`Remove the planned ${phrase}`);
       setNodesCore(next);
       trackAction('/action/remove-dynasty');
@@ -1631,7 +1637,7 @@ export function useWhiteboard() {
       base: Record<string, { ox: number; oy: number }>,
     ) => {
       // A drop is one step back with ⌘Z, like any other change.
-      if (dx || dy) pushUndo(`Move ${theHousehold(groups.find((g) => g.gid === gid)?.hh ?? 'a')}`);
+      if (dx || dy) pushUndo(`Move ${theHousehold(groups.find((g) => g.gid === gid)?.hh ?? 'a', named)}`);
       setNodesCore((ns) =>
         ns.map((n) => {
           const bb = base[n.id];
@@ -1651,7 +1657,7 @@ export function useWhiteboard() {
       dy: number,
       base: Record<string, { ox: number; oy: number }>,
     ) => {
-      if (dx || dy) pushUndo(`Move ${world}`);
+      if (dx || dy) pushUndo(`Move ${named(world)}`);
       setNodesCore((ns) =>
         ns.map((n) => {
           const bb = base[n.id];
@@ -1786,7 +1792,7 @@ export function useWhiteboard() {
       if (!ps.length || ps.some((p) => !p)) return;
       const parents = ps as SimNode[];
       const a = parents[0]!;
-      pushUndo(`Plan a child of ${parents.map(cardName).join(' and ')}`);
+      pushUndo(`Plan a child of ${parents.map((p) => named(cardName(p))).join(' and ')}`);
       const host = parents.find((p) => p.gid === destGid) ?? a;
       const g = groups.find((x) => x.gid === destGid);
       const dest = g
@@ -1878,10 +1884,10 @@ export function useWhiteboard() {
       setSel({ type: 'node', id });
       setInfantHouseMenu(null);
       trackAction(parentIds.length > 1 ? '/action/add-infant' : '/action/add-infant-one-parent');
-      const who = parents.map((p) => p.first || cardName(p)).join(' ＋ ');
+      const who = parents.map((p) => named(p.first || cardName(p))).join(' ＋ ');
       const room = roomNote(dest.hh, dest.world, r);
       const name = sur || 'Sim';
-      const one = `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}`;
+      const one = `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${sur ? named(name) : name}`;
       flashStatus(
         parentIds.length > 1
           ? `Planned a child of ${who}: ${one}, not born yet.${room} Give them a plan label in the editor.`
@@ -2090,15 +2096,15 @@ export function useWhiteboard() {
       const [A, B] = [byid[a], byid[b]];
       if (!A || !B) return false;
       if (there && (!link.secret || there.secret)) {
-        flashStatus(`${cardName(A)} and ${cardName(B)} already have that link.`);
+        flashStatus(`${named(cardName(A))} and ${named(cardName(B))} already have that link.`);
         return false;
       }
       addEdge(a, b, link.type, !!link.secret);
       trackAction('/action/partner');
       flashStatus(
         link.secret && hideSecrets
-          ? `Linked ✓ ${cardName(A)} and ${cardName(B)}: it is secret, so Hide secrets keeps it off the board.`
-          : `Linked ✓ ${cardName(A)} and ${cardName(B)}. Undo takes it back.`,
+          ? `Linked ✓ ${named(cardName(A))} and ${named(cardName(B))}: it is secret, so Hide secrets keeps it off the board.`
+          : `Linked ✓ ${named(cardName(A))} and ${named(cardName(B))}. Undo takes it back.`,
       );
       return true;
     },
@@ -2122,7 +2128,7 @@ export function useWhiteboard() {
       const { patches, moves } = householdMovePlan(nodes, [mover], dest);
       const patch = patches.get(mover);
       if (!patch) return false;
-      pushUndo(`Move ${cardName(m)} in with ${cardName(h)}`);
+      pushUndo(`Move ${named(cardName(m))} in with ${named(cardName(h))}`);
       trackAction('/action/partner-move');
       const createdAt = new Date().toISOString();
       setHouseholdMoves((ms) => [...ms, ...moves.map((mv) => ({ ...mv, id: 'h' + eidcRef.current++, createdAt }))]);
@@ -2151,7 +2157,7 @@ export function useWhiteboard() {
       setNodesCore(r.core);
       lockViewToSims([host]);
       flashStatus(
-        `${cardName(m)} moves in with ${cardName(h)}, in ${theHousehold(dest.hh)}: a plan until a save shows it.${roomNote(dest.hh, dest.world, r)} Undo takes it back.`,
+        `${named(cardName(m))} moves in with ${named(cardName(h))}, in ${theHousehold(dest.hh, named)}: a plan until a save shows it.${roomNote(dest.hh, dest.world, r)} Undo takes it back.`,
       );
       return true;
     },
@@ -2203,7 +2209,7 @@ export function useWhiteboard() {
       const ids = new Set(members.map((n) => n.id));
       const { patches, moves } = householdMovePlan(nodes, [...ids], dest);
       if (!patches.size) return null;
-      pushUndo(`Move ${theHousehold(g.hh)} to ${world}`);
+      pushUndo(`Move ${theHousehold(g.hh, named)} to ${named(world)}`);
       trackAction('/action/household-world');
       const newGroup: Group | null = dest.isNew
         ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
@@ -2228,9 +2234,9 @@ export function useWhiteboard() {
       const plan = recorded.length ? ': a plan until a save shows it' : '';
       flashStatus(
         back
-          ? `The ${g.hh} household moves back to ${world}: a new step in your plan. To drop its move instead, use the bin on it in the Log.`
+          ? `The ${named(g.hh)} household moves back to ${named(world)}: a new step in your plan. To drop its move instead, use the bin on it in the Log.`
           : joined
-          ? `${moved.length === 1 ? `${cardName(moved[0]!)} of the ${g.hh} household joins` : `All ${moved.length} sims of the ${g.hh} household join`} the one in ${world}${plan}.${roomNote(dest.hh, world, landed)} Undo takes it back.`
+          ? `${moved.length === 1 ? `${named(cardName(moved[0]!))} of the ${named(g.hh)} household joins` : `All ${moved.length} sims of the ${named(g.hh)} household join`} the one in ${named(world)}${plan}.${roomNote(dest.hh, world, landed)} Undo takes it back.`
           : `The ${g.hh} household moves to ${world} with ${moved.length === 1 ? cardName(moved[0]!) : `its ${moved.length} sims`}${plan}. Undo takes it back.`,
       );
       return dest;
@@ -2285,9 +2291,16 @@ export function useWhiteboard() {
       const what = partsToText(
         entry.parts
           .filter((p) => p.kind !== 'time' && p.kind !== 'break')
-          .map((p) => (p.kind === 'sim' ? { kind: 'sim' as const, id: p.id, name: p.name } : p)),
+          .map((p) =>
+            p.kind === 'sim'
+              ? { kind: 'sim' as const, id: p.id, name: named(p.name) }
+              : p.kind === 'hh'
+                ? { ...p, name: named(p.name), place: p.place && named(p.place) }
+                : p,
+          ),
       ).trim();
-      const undoStep = `Cancel the plan “${clipStep(what, 40)}”`;
+      // The plan as a sentence ends in a full stop; the step's name doesn't.
+      const undoStep = `Cancel the plan “${what.replace(/\.\s*$/, '')}”`;
       /** Planned sims off the board, with their links and records. */
       const removeSims = (ids: ReadonlySet<string>) => {
         const nextCore = nodesCore.filter((n) => !ids.has(n.id));
@@ -2318,7 +2331,7 @@ export function useWhiteboard() {
           pushUndo(undoStep);
           trackAction('/action/cancel-plan');
           removeSims(new Set([n.id]));
-          flashStatus(`Cancelled: ${cardName(n)} is off the board. Undo brings them back.`);
+          flashStatus(`Cancelled: ${named(cardName(n))} is off the board. Undo brings them back.`);
           return true;
         }
         // Each sim's moves are a story: this step goes, and the rest stay.
@@ -2384,7 +2397,7 @@ export function useWhiteboard() {
         flashStatus(
           whole
             ? `Cancelled: the ${dest.hh} household is back in ${dest.world}. Undo brings the plan back.`
-            : `Cancelled: ${ids.length === 1 ? `${cardName(here)} is` : `${ids.length} sims are`} back in the ${dest.hh} household. Undo brings the plan back.`,
+            : `Cancelled: ${ids.length === 1 ? `${named(cardName(here))} is` : `${ids.length} sims are`} back in the ${named(dest.hh)} household. Undo brings the plan back.`,
         );
         return true;
       }
@@ -2404,7 +2417,7 @@ export function useWhiteboard() {
         pushUndo(undoStep);
         trackAction('/action/cancel-plan');
         removeSims(new Set([child.id]));
-        flashStatus(`Cancelled: ${cardName(child)} won’t be born. Undo brings the plan back.`);
+        flashStatus(`Cancelled: ${named(cardName(child))} won’t be born. Undo brings the plan back.`);
         return true;
       }
       pushUndo(undoStep);
@@ -2495,7 +2508,7 @@ export function useWhiteboard() {
           return false;
         }
       }
-      pushUndo(`Plan ${ps.map(cardName).join(' and ')} adopting ${cardName(C)}`);
+      pushUndo(`Plan ${ps.map((p) => named(cardName(p))).join(' and ')} adopting ${named(cardName(C))}`);
       const bundleId = 'b' + eidcRef.current++;
       const createdAt = new Date().toISOString();
       const nextEdges = sanitizeEdges([
@@ -2514,8 +2527,8 @@ export function useWhiteboard() {
       setEdges(nextEdges);
       freezeAfterEdgeChange([...parents, child], nextEdges);
       trackAction(ps.length > 1 ? '/action/adopt-couple' : '/action/adopt');
-      const who = ps.map((P) => cardName(P)).join(' and ');
-      flashStatus(`Planned ✓ ${who} ${ps.length > 1 ? 'adopt' : 'adopts'} ${cardName(C)}, until a save shows it. Undo takes it back.`);
+      const who = ps.map((P) => named(cardName(P))).join(' and ');
+      flashStatus(`Planned ✓ ${who} ${ps.length > 1 ? 'adopt' : 'adopts'} ${named(cardName(C))}, until a save shows it. Undo takes it back.`);
       const homes = ps.filter((P) => P.gid !== C.gid && !hasNoHome(P));
       if (homes.length && !ps.some((P) => P.gid === C.gid)) {
         setChildMenu((m) => (m ? { ...m, step: 'move', picked: child } : m));
@@ -3360,7 +3373,7 @@ export function useWhiteboard() {
       const c = planIssues.find((x) => x.edgeId === edgeId);
       if (!c) return;
       const link = edges.find((e) => e.id === edgeId);
-      const pair = link ? ` for ${nameOfCore(link.a)} and ${nameOfCore(link.b)}` : '';
+      const pair = link ? ` for ${named(nameOfCore(link.a))} and ${named(nameOfCore(link.b))}` : '';
       pushUndo(choice === 'keep' ? `Keep the plan${pair}` : choice === 'drop' ? `Drop the plan${pair}` : `Follow your game${pair}`);
       let n = eidcRef.current;
       const r = resolvePlanConflict(nodesCore, edges, c, choice, () => 'u' + n++, new Date().toISOString());
@@ -3402,7 +3415,7 @@ export function useWhiteboard() {
       const slot = nodesCore.find((x) => x.id === slotId);
       const real = nodesCore.find((x) => x.id === realId);
       if (!slot || !real) return;
-      pushUndo(`Match ${cardName(real)} to ${cardName(slot)}`);
+      pushUndo(`Match ${named(cardName(real))} to ${named(cardName(slot))}`);
       const r = linkPlannedSim(nodesCore, edges, slotId, realId, new Date().toISOString());
       setEdges(r.edges);
       setHouseholdMoves((ms) => ms.filter((m) => m.simId !== slotId));
@@ -3412,9 +3425,9 @@ export function useWhiteboard() {
       setEditNodeId(null);
       const over = r.overruled.map((id) => nodesCore.find((x) => x.id === id)).filter((x) => !!x);
       flashStatus(
-        `${cardName(real)} now fills ${cardName(slot)}.` +
+        `${named(cardName(real))} now fills ${named(cardName(slot))}.` +
           (over.length
-            ? ` Parents come from your save, so ${over.map(cardName).join(' & ')} ${over.length === 1 ? 'is' : 'are'} no longer a planned parent.`
+            ? ` Parents come from your save, so ${over.map((x) => named(cardName(x))).join(' & ')} ${over.length === 1 ? 'is' : 'are'} no longer a planned parent.`
             : ''),
       );
     },
@@ -3426,14 +3439,14 @@ export function useWhiteboard() {
     (id: string) => {
       const real = nodesCore.find((x) => x.id === id);
       if (!real?.plannedAs) return;
-      pushUndo(`Unlink ${cardName(real)} from their plan`);
+      pushUndo(`Unlink ${named(cardName(real))} from their plan`);
       let n = eidcRef.current;
       const r = unlinkPlannedSim(nodesCore, edges, id, () => 'new' + n++, () => 'u' + n++);
       eidcRef.current = n;
       setEdges(r.edges);
       pinCardsToCurrentPlaces(r.edges, r.nodes, r.plannedId ? new Set([r.plannedId]) : undefined);
       setEditNodeId(null);
-      flashStatus(`${real.plannedAs.label} is planned again; ${cardName(real)} stays as in your save.`);
+      flashStatus(`${named(real.plannedAs.label)} is planned again; ${named(cardName(real))} stays as in your save.`);
     },
     [nodesCore, edges, pushUndo, pinCardsToCurrentPlaces, flashStatus],
   );
@@ -3517,7 +3530,7 @@ export function useWhiteboard() {
       const homes = gameHomes(nodes, householdMoves);
       const back = [...patches.keys()].filter((id) => homes.get(id) === dest.gid).length;
       const [only] = patches.keys();
-      pushUndo(`Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${theHousehold(dest.hh)}`);
+      pushUndo(`Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${theHousehold(dest.hh, named)}`);
       if (dest.isNew) {
         setGroups((gs) =>
           gs.some((g) => g.gid === dest.gid)
@@ -3561,7 +3574,7 @@ export function useWhiteboard() {
       const n = byid[nodeId];
       if (done.back && n) {
         flashStatus(
-          `${cardName(n)} moves back to the ${done.dest.hh} household: a new step in your plan. To drop their earlier move instead, use the bin on it in the Log.`,
+          `${named(cardName(n))} moves back to the ${named(done.dest.hh)} household: a new step in your plan. To drop their earlier move instead, use the bin on it in the Log.`,
         );
       }
     },
@@ -3602,7 +3615,7 @@ export function useWhiteboard() {
         flashStatus('No one in this household can age up.');
         return;
       }
-      pushUndo(`Age up ${theHousehold(members[0]!.hh)}`);
+      pushUndo(`Age up ${theHousehold(members[0]!.hh, named)}`);
       const nextCore = nodesCore.map((n) => {
         const patch = nextById.get(n.id);
         return patch ? { ...n, ...patch } : n;

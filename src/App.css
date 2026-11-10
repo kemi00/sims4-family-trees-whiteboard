@@ -14,7 +14,10 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
    Radius scale: 8px on anything you click, 12px on floating surfaces,
    full pill on badges. Nested containers use child radius + their padding.
    One accent (--accent) marks primary action and every "not the default"
-   state. Nothing else on the chrome introduces a colour.                    */
+   state. Nothing else on the chrome introduces a colour, except names: a
+   sim, household, world or dynasty named in a sentence (Undo's tip, the
+   status line) takes the accent's ink, --name on light surfaces and
+   --name-on-ink on dark ones, so who and where read at a glance.          */
 :root{
  --bar-h:52px;
  --r-control:8px;
@@ -24,6 +27,12 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  --accent-soft:#e9f1fd;
  --accent-soft-hi:#dbe8fb;
  --accent-ring:#1b6cd63d;
+ /* Names in a sentence: the accent, deep on light, light on dark (8:1 on --ink). */
+ --name:#155bb8;
+ --name-on-ink:#93c3ff;
+ /* Words around them on a dark tip, and its quiet parts (keys). */
+ --tip-text:#e6ecf3;
+ --tip-quiet:#a9b6c5;
  --ink:#1b2b3a;
  --ink-2:#5a6675;
  --ink-3:#697380;
@@ -96,6 +105,9 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 /* destructive: reads neutral until you reach for it */
 .tool[data-tone=danger]:hover:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 
+/* Rich tips show only where there is a pointer to hover with (below). */
+.tool__tip{display:none}
+
 /* Instant hover/focus tips (native title is too slow and easy to miss).
    Size to content — never inherit the 32px icon button width (that stacks
    one word per line). */
@@ -152,7 +164,47 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  .viewctl__zoom[data-tooltip]:hover::after{
   opacity:1;
  }
+ /* A tip with more to say (Undo, Redo): the action and its keys on one
+    line, then what it acts on in full, wrapping rather than cut short. */
+ .tool__tip{
+  position:absolute;
+  top:calc(100% + 8px);
+  left:50%;
+  transform:translateX(-50%);
+  z-index:40;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  width:max-content;
+  max-width:min(340px, calc(100vw - 24px));
+  padding:7px 11px 8px;
+  border-radius:8px;
+  background:var(--ink);
+  color:#fff;
+  font-size:11px;
+  font-weight:600;
+  line-height:1.4;
+  letter-spacing:.01em;
+  text-align:left;
+  white-space:normal;
+  box-shadow:var(--lift);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .12s ease;
+ }
+ .appbar__spacer ~ * .tool__tip{left:auto;right:0;transform:none}
+ .appbar > .tool:first-of-type .tool__tip{left:0;right:auto;transform:none}
+ .tool:hover .tool__tip,
+ .tool:focus-visible .tool__tip{opacity:1}
+ .tool__tip-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+ .tool__tip-keys{font:inherit;font-weight:500;color:var(--tip-quiet);white-space:nowrap}
+ .tool__tip-what{color:var(--tip-text);font-weight:500;overflow-wrap:anywhere}
+ .tool__tip-what .named{color:var(--name-on-ink);font-weight:650}
 }
+
+/* A name in a sentence (see the chrome tokens). */
+.named{color:var(--name)}
+#status .named{color:var(--name-on-ink)}
 
 /* ── segmented layer toggles ─────────────────────────────────────────────── */
 .segment{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:10px;background:var(--recess);border:1px solid var(--line);flex:0 0 auto}

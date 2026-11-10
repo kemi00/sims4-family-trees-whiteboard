@@ -36,7 +36,8 @@ import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
 import type { LinksView } from '../lib/family.ts';
 import { saveChipText } from '../lib/lifeClock.ts';
-import { redoTip, undoTip } from '../lib/undoNames.ts';
+import { REDO_KEYS, UNDO_KEYS, redoTip, undoTip } from '../lib/undoNames.ts';
+import { StepTip } from './StepText.tsx';
 import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
 import { SaveDetails } from './SaveStatus.tsx';
 import { ToolButton } from './ToolButton.tsx';
@@ -528,12 +529,14 @@ export function AppBar({
       <ToolButton
         icon={ArrowCounterClockwise}
         label={undoTip(wb.undoWhat)}
+        tip={<StepTip verb="Undo" keys={UNDO_KEYS} what={wb.undoWhat} none="Nothing to undo" />}
         disabled={!wb.canUndo}
         onClick={wb.undo}
       />
       <ToolButton
         icon={ArrowClockwise}
         label={redoTip(wb.redoWhat)}
+        tip={<StepTip verb="Redo" keys={REDO_KEYS} what={wb.redoWhat} none="Nothing to redo" />}
         className="appbar__wide-only"
         disabled={!wb.redoWhat}
         onClick={wb.redo}
