@@ -3,6 +3,7 @@
  * (the package root): that entry pulls every icon (~1500 files, a 6+ MB
  * Vite dep) and makes a refresh parse megabytes of unused SVG.
  */
+export { ArrowClockwise } from '@phosphor-icons/react/ArrowClockwise';
 export { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwise';
 export { ArrowsDownUp } from '@phosphor-icons/react/ArrowsDownUp';
 export { CalendarBlank } from '@phosphor-icons/react/CalendarBlank';

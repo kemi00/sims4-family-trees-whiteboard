@@ -60,10 +60,12 @@ export function ToolButton({
       aria-expanded={expanded}
       aria-label={children ? undefined : label}
       disabled={disabled}
-      onClick={() => {
-        setQuiet(true);
+      onClick={(e) => {
+        // A pointer's click (detail > 0), not a key's: no pointer to leave.
+        if (e.detail > 0) setQuiet(true);
         onClick?.();
       }}
+      onPointerEnter={() => setQuiet(false)}
       onPointerLeave={() => setQuiet(false)}
     >
       <Glyph aria-hidden="true" />

@@ -17,6 +17,7 @@ import {
   Skull,
   CaretDown,
   CaretUp,
+  ArrowClockwise,
   ArrowCounterClockwise,
   Scroll,
   Trash,
@@ -35,7 +36,7 @@ import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
 import type { LinksView } from '../lib/family.ts';
 import { saveChipText } from '../lib/lifeClock.ts';
-import { undoTip } from '../lib/undoNames.ts';
+import { redoTip, undoTip } from '../lib/undoNames.ts';
 import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
 import { SaveDetails } from './SaveStatus.tsx';
 import { ToolButton } from './ToolButton.tsx';
@@ -325,6 +326,19 @@ export function AppBar({
   // tooltip or pressed state gives on a wider screen.
   const folded: FoldedItem[] = compact
     ? [
+        // Redo has no room in the bar: it waits here while there is
+        // something to put back.
+        ...(wb.redoWhat
+          ? [
+              {
+                id: 'redo',
+                icon: ArrowClockwise,
+                label: 'Redo',
+                note: wb.redoWhat,
+                onSelect: wb.redo,
+              },
+            ]
+          : []),
         {
           id: 'organise',
           icon: MagicWand,
@@ -516,6 +530,13 @@ export function AppBar({
         label={undoTip(wb.undoWhat)}
         disabled={!wb.canUndo}
         onClick={wb.undo}
+      />
+      <ToolButton
+        icon={ArrowClockwise}
+        label={redoTip(wb.redoWhat)}
+        className="appbar__wide-only"
+        disabled={!wb.redoWhat}
+        onClick={wb.redo}
       />
       <ToolButton
         id="btnLog"
@@ -736,7 +757,7 @@ export function AppBar({
         }}
         onDevUpdates={onDevUpdates}
         devUpdatesUnseen={devUpdatesUnseen}
-        label={compact ? 'More: organise, log, links, save, load, and credits' : undefined}
+        label={compact ? `More: ${wb.redoWhat ? 'redo, ' : ''}organise, log, links, save, load, and credits` : undefined}
         folded={folded}
         wrapRef={moreRef}
       />

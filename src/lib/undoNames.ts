@@ -41,3 +41,8 @@ export function linkStep(
 export function undoTip(what: string | null, keys = 'Ctrl/⌘ Z'): string {
   return what ? `Undo: ${clipStep(what)} (${keys})` : 'Nothing to undo';
 }
+
+/** The Redo button's tip: what it puts back, or that there is nothing. */
+export function redoTip(what: string | null, keys = 'Ctrl/⌘ Shift Z'): string {
+  return what ? `Redo: ${clipStep(what)} (${keys})` : 'Nothing to redo';
+}

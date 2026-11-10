@@ -298,7 +298,8 @@ export function Hint({ introReady = false }: Props) {
         <ul className="hint__more-list">
           <li>
             <b>Undo</b> (Ctrl/⌘ Z) reverses the last add, link, move, age-up,
-            edit, or delete. Its tip names the change it will take back.
+            edit, or delete. Its tip names the change it will take back;
+            <b>Redo</b> (Ctrl/⌘ Shift Z) puts it back.
           </li>
           <li>
             <b>Organise</b> lays the whole board out like the starter one:

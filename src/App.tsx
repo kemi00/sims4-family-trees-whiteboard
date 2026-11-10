@@ -107,6 +107,14 @@ export default function App() {
         wb.undo();
       }
       if (
+        (((ev.key === 'z' || ev.key === 'Z') && ev.shiftKey) || ((ev.key === 'y' || ev.key === 'Y') && ev.ctrlKey)) &&
+        (ev.metaKey || ev.ctrlKey) &&
+        !typing
+      ) {
+        ev.preventDefault();
+        wb.redo();
+      }
+      if (
         (ev.key === 'Delete' || ev.key === 'Backspace') &&
         wb.sel &&
         !typing

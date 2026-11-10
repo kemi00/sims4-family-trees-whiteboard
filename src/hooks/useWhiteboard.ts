@@ -501,6 +501,10 @@ export function useWhiteboard() {
   /** What Undo would take back now, or null with nothing to undo. */
   const [undoWhat, setUndoWhat] = useState<string | null>(null);
   const canUndo = undoWhat !== null;
+  /** Steps Undo took back, latest last, for Redo; any new step clears them. */
+  const redoRef = useRef<BoardSnap[]>([]);
+  /** What Redo would put back now, or null with nothing to redo. */
+  const [redoWhat, setRedoWhat] = useState<string | null>(null);
   const statusFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectModeRef = useRef(connectMode);
   connectModeRef.current = connectMode;
@@ -786,12 +790,11 @@ export function useWhiteboard() {
   const reloadBoard = useCallback(() => window.location.reload(), []);
 
   /**
-   * Keeps the board as it is, to come back to with Undo. `what` names the
-   * step about to happen, as the person would say it ("Add a sim to
-   * Gooseman"): the Undo button's tip and the status line after an undo use it.
+   * The board as it is now, as one step of history named `what`; with its
+   * filters when the step changes them (a board file merged in).
    */
-  const pushUndo = useCallback((what: string, opts?: { filters?: boolean }) => {
-    undoRef.current.push({
+  const boardSnap = useCallback(
+    (what: string, filters: boolean): BoardSnap => ({
       what,
       nodesCore: nodesCore.map((n) => ({ ...n })),
       edges: edges.map((e) => ({ ...e })),
@@ -802,7 +805,7 @@ export function useWhiteboard() {
       simAgeUps: simAgeUps.map((a) => ({ ...a })),
       pairStatus,
       saveGame,
-      filters: opts?.filters
+      filters: filters
         ? {
             hiddenPacks: [...hiddenPacks],
             hiddenPlay: [...hiddenPlay],
@@ -812,37 +815,73 @@ export function useWhiteboard() {
             hideDeceased,
           }
         : undefined,
-    });
-    setUndoWhat(what);
-  }, [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased]);
+    }),
+    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
+  );
 
-  const undo = useCallback(() => {
-    const prev = undoRef.current.pop();
-    if (!prev) return;
-    setNodesCore(prev.nodesCore);
-    setEdges(prev.edges);
-    setGroups(prev.groups);
-    setHouseholdMoves(prev.householdMoves);
-    setHouseholdAgeUps(prev.householdAgeUps);
-    setDeceasedMarks(prev.deceasedMarks);
-    setSimAgeUps(prev.simAgeUps);
-    setPairStatus(prev.pairStatus);
-    setSaveGame(prev.saveGame);
-    if (prev.filters) {
-      setHiddenPacks(new Set(prev.filters.hiddenPacks));
-      setHiddenPlay(new Set(prev.filters.hiddenPlay));
-      setHiAges(new Set(prev.filters.hiAges));
-      setHiSingle(prev.filters.hiSingle);
-      setHideSecrets(!!prev.filters.hideSecrets);
-      setHideDeceased(!!prev.filters.hideDeceased);
+  /** The board as `snap` kept it; nothing stays picked or open over it. */
+  const restoreSnap = useCallback((snap: BoardSnap) => {
+    setNodesCore(snap.nodesCore);
+    setEdges(snap.edges);
+    setGroups(snap.groups);
+    setHouseholdMoves(snap.householdMoves);
+    setHouseholdAgeUps(snap.householdAgeUps);
+    setDeceasedMarks(snap.deceasedMarks);
+    setSimAgeUps(snap.simAgeUps);
+    setPairStatus(snap.pairStatus);
+    setSaveGame(snap.saveGame);
+    if (snap.filters) {
+      setHiddenPacks(new Set(snap.filters.hiddenPacks));
+      setHiddenPlay(new Set(snap.filters.hiddenPlay));
+      setHiAges(new Set(snap.filters.hiAges));
+      setHiSingle(snap.filters.hiSingle);
+      setHideSecrets(!!snap.filters.hideSecrets);
+      setHideDeceased(!!snap.filters.hideDeceased);
     }
-    setUndoWhat(undoRef.current.at(-1)?.what ?? null);
     setSel(null);
     setEditNodeId(null);
     setInfantHouseMenu(null);
+  }, []);
+
+  /**
+   * Keeps the board as it is, to come back to with Undo. `what` names the
+   * step about to happen, as the person would say it ("Add a sim to
+   * Gooseman"): the Undo button's tip and the status line after an undo use
+   * it. A new step leaves nothing to redo.
+   */
+  const pushUndo = useCallback(
+    (what: string, opts?: { filters?: boolean }) => {
+      undoRef.current.push(boardSnap(what, !!opts?.filters));
+      setUndoWhat(what);
+      redoRef.current = [];
+      setRedoWhat(null);
+    },
+    [boardSnap],
+  );
+
+  /** Takes back the last step; Redo can put it back. */
+  const undo = useCallback(() => {
+    const prev = undoRef.current.pop();
+    if (!prev) return;
+    redoRef.current.push(boardSnap(prev.what, !!prev.filters));
+    restoreSnap(prev);
+    setUndoWhat(undoRef.current.at(-1)?.what ?? null);
+    setRedoWhat(prev.what);
     trackAction('/action/undo');
     flashStatus(`Undone: ${prev.what}.`);
-  }, [flashStatus]);
+  }, [boardSnap, restoreSnap, flashStatus]);
+
+  /** Puts back the last step Undo took back. */
+  const redo = useCallback(() => {
+    const next = redoRef.current.pop();
+    if (!next) return;
+    undoRef.current.push(boardSnap(next.what, !!next.filters));
+    restoreSnap(next);
+    setUndoWhat(next.what);
+    setRedoWhat(redoRef.current.at(-1)?.what ?? null);
+    trackAction('/action/redo');
+    flashStatus(`Redone: ${next.what}.`);
+  }, [boardSnap, restoreSnap, flashStatus]);
 
   const toggleShow = useCallback(
     (key: keyof ShowToggles) => {
@@ -2723,7 +2762,9 @@ export function useWhiteboard() {
       setSourceFileName(null);
       setFromBrowserDraft(false);
       undoRef.current = [];
+      redoRef.current = [];
       setUndoWhat(null);
+      setRedoWhat(null);
       setSel(null);
       setEditNodeId(null);
       eidcRef.current = nextEidc(seedEdges, 100000);
@@ -2819,7 +2860,9 @@ export function useWhiteboard() {
           ],
         );
         undoRef.current = [];
+        redoRef.current = [];
         setUndoWhat(null);
+        setRedoWhat(null);
         if (d.groups) setGroups(fileGroups);
         setHiddenPacks(new Set(d.hiddenPacks || []));
         setHiddenPlay(new Set(d.hiddenPlay || []));
@@ -3095,7 +3138,9 @@ export function useWhiteboard() {
     ) => {
       if (mode === 'replace') {
         undoRef.current = [];
+        redoRef.current = [];
         setUndoWhat(null);
+        setRedoWhat(null);
         setHouseholdMoves([]);
         setHouseholdAgeUps([]);
         setDeceasedMarks([]);
@@ -3810,6 +3855,8 @@ export function useWhiteboard() {
     canUndo,
     undoWhat,
     undo,
+    redoWhat,
+    redo,
     ageUpHousehold,
     toggleBloodline,
     setBloodlineId,
