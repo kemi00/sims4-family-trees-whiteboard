@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "12e4c2b",
+   "date": "2026-11-10",
+   "text": "Planned sims with no name are numbered only when two or more share a last name, and the numbers are recounted on every change, so there are no gaps. A couple's new baby asks which last name it takes when the parents' differ."
+  },
+  {
    "sha": "195325d",
    "date": "2026-11-10",
    "text": "Adding a sim, moving in with a partner, a planned baby or joining a household no longer pushes other households or worlds: the household grows into free room, or moves whole to free room in its world when it has none, and the status line says so."
