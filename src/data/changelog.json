@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "15f35ad",
+   "date": "2026-11-10",
+   "text": "Undo and Redo now say the whole step, never cut short with …, and names of sims, households and worlds stand out in their own colour there and on the status line."
+  },
+  {
    "sha": "34506ea",
    "date": "2026-11-10",
    "text": "Your arrangement holds: any edit, whatever it is, now leaves every card it isn't about exactly where it is. Only Organise, loading a file, importing a save and Undo/Redo rearrange the board."
