@@ -39,9 +39,9 @@ export interface SimNode {
    */
   planLabel?: string;
   /**
-   * A planned sim's number among the planned sims sharing its last name,
-   * kept for good so naming or filling one never renumbers the rest:
-   * "Planned (2) Le Chien" until it has a name or a plan label.
+   * A planned sim's number among the unnamed planned sims sharing its last
+   * name, when two or more do: "Planned (2) Le Chien" until it has a name or
+   * a plan label. Counted afresh on every change (numberPlannedSims).
    */
   planNo?: number;
   /**

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { growHousehold, landMovedCards } from '../lib/landing.ts';
 import seedData from '../data/whiteboard.json';
-import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
+import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
@@ -39,6 +39,7 @@ import {
   numberPlannedSims,
   markHandSetRoles,
   resolvePlanConflict,
+  shortName,
   unlinkPlannedSim,
   type PlanChoice,
 } from '../lib/plan.ts';
@@ -83,7 +84,6 @@ import {
   householdAgeUpLine,
   householdPlace,
   partsToText,
-  simName,
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
 import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
@@ -216,6 +216,18 @@ function roomNote(hh: string, world: string, r: { moved: boolean; crowded: boole
   return '';
 }
 
+/**
+ * The last names a couple's baby can take: each parent's, once, in their
+ * order. One when they share it (or only one has one).
+ */
+function coupleSurnames(a: SimNode, b: SimNode): string[] {
+  const out: string[] = [];
+  for (const sur of [a.sur.trim(), b.sur.trim()]) {
+    if (sur && !out.some((s) => s.toLocaleLowerCase() === sur.toLocaleLowerCase())) out.push(sur);
+  }
+  return out;
+}
+
 function simCentroid(
   ids: string[],
   byid: Record<string, SimNode>,
@@ -260,6 +272,19 @@ type BoardSnap = {
   saveGame: SaveGameInfo | null;
   /** Set only by actions that change filters, so only their undo restores them. */
   filters?: BoardFilters;
+};
+
+/**
+ * What the new-baby menu asks a couple: where the baby lives when they live
+ * apart (`homes`, more than one), and which last name when theirs differ
+ * (`surnames`, more than one). `surFor` is the last name in each household
+ * when there is no last name to ask.
+ */
+export type InfantChoices = {
+  title: string;
+  homes: { gid: string; title: string; sub: string }[];
+  surnames: { sur: string; sub: string }[];
+  surFor: Record<string, string>;
 };
 
 export function useWhiteboard() {
@@ -1351,8 +1376,9 @@ export function useWhiteboard() {
   const planTally = useMemo(() => planTallies(planItems), [planItems]);
   // Households the game doesn't have yet: Up next and their brief say who moves in first.
   const notInGame = useMemo(() => householdsNotInGame(nodesCore, householdMoves), [nodesCore, householdMoves]);
-  // Every planned sim gets its number for good: "Planned (2) Le Chien"; a
-  // role set by hand before roles were plans becomes one.
+  // Planned sims sharing a last name are numbered afresh on every change:
+  // "Planned (2) Le Chien"; a role set by hand before roles were plans
+  // becomes one.
   useEffect(() => {
     const numbered = markHandSetRoles(numberPlannedSims(nodesCore));
     if (numbered !== nodesCore) setNodesCore(numbered);
@@ -1746,10 +1772,12 @@ export function useWhiteboard() {
       trackAction(parentIds.length > 1 ? '/action/add-infant' : '/action/add-infant-one-parent');
       const who = parents.map((p) => p.first || cardName(p)).join(' ＋ ');
       const room = roomNote(dest.hh, dest.world, r);
+      const name = sur || 'Sim';
+      const one = `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}`;
       flashStatus(
         parentIds.length > 1
-          ? `Planned a child of ${who}: a ${sur || 'Sim'}, not born yet.${room} Give them a plan label in the editor.`
-          : `Planned a child of ${who}: a ${sur || 'Sim'}, not born yet.${room} Link another parent with Connect if there is one.`,
+          ? `Planned a child of ${who}: ${one}, not born yet.${room} Give them a plan label in the editor.`
+          : `Planned a child of ${who}: ${one}, not born yet.${room} Link another parent with Connect if there is one.`,
       );
     },
     [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, lockViewToSims],
@@ -1788,10 +1816,11 @@ export function useWhiteboard() {
       const a = byid[pa];
       const b = byid[pb];
       if (!a || !b) return;
-      // One household and one last name: nothing to ask.
-      const surs = a.gid === b.gid ? babySurnames(a, b, a.gid) : [];
-      if (a.gid === b.gid && surs.length < 2) {
-        addInfantOfCouple(pa, pb, a.gid, surs[0] ?? a.sur, rx, ry);
+      // One household and one last name: nothing to ask. Parents with two
+      // last names are always asked which the baby takes: the board can't
+      // know, and it decides which family name goes on.
+      if (a.gid === b.gid && coupleSurnames(a, b).length < 2) {
+        addInfantOfCouple(pa, pb, a.gid, babySurnames(a, b, a.gid)[0] ?? a.sur, rx, ry);
         return;
       }
       setInfantHouseMenu({ pa, pb, rx, ry, x: menuX, y: menuY });
@@ -1815,35 +1844,35 @@ export function useWhiteboard() {
   );
 
   /**
-   * The baby menu's question and answers: which household when the parents
-   * live apart, each with the last name the baby takes there; which last
-   * name when they live together and the household can't settle it.
+   * The baby menu's questions and answers: which household when the parents
+   * live apart, and which last name when theirs differ; one, both or (with
+   * nothing to ask) neither. `surFor` is the last name in each household
+   * when there is no last name to ask.
    */
-  const infantHouseChoices = useMemo((): { question: string; options: { gid: string; sur: string; label: string }[] } => {
-    const none = { question: '', options: [] };
+  const infantHouseChoices = useMemo((): InfantChoices => {
+    const none: InfantChoices = { title: '', homes: [], surnames: [], surFor: {} };
     if (!infantHouseMenu) return none;
     const a = byid[infantHouseMenu.pa];
     const b = byid[infantHouseMenu.pb];
     if (!a || !b) return none;
-    const homes = a.gid === b.gid ? [a] : [a, b];
-    const options = homes.flatMap((n) => {
-      const surs = babySurnames(a, b, n.gid);
-      return (surs.length ? surs : [n.sur]).map((sur) => {
-        const like = [a, b].filter((p) => p.sur.trim() === sur).map((p) => p.first);
-        return {
-          gid: n.gid,
-          sur,
-          label:
-            homes.length > 1
-              ? `${simName(n)} — ${householdPlace(n.hh, n.nb, n.world)} · a ${sur}`
-              : `${sur}${like.length ? `, like ${like.join(' and ')}` : ''}`,
-        };
-      });
+    const parents = [a, b];
+    const homes = (a.gid === b.gid ? [a] : parents).map((n) => ({
+      gid: n.gid,
+      title: `With ${cardName(n)}`,
+      sub: householdPlace(n.hh, n.nb, n.world),
+    }));
+    const surnames = coupleSurnames(a, b).map((sur) => {
+      const like = parents.filter((p) => p.sur.trim().toLocaleLowerCase() === sur.toLocaleLowerCase());
+      const kin = like.find((p) => p.dynasty);
+      const role = kin?.dynastyRole ? DYNASTY_ROLES[kin.dynastyRole].noun.toLocaleLowerCase() : '';
+      const dyn = kin?.dynasty ? dynastyPhrase({ name: kin.dynasty }) : '';
+      return {
+        sur,
+        sub: `Like ${like.map(shortName).join(' and ')}${dyn ? `, ${role ? `${role} of` : 'in'} the ${dyn}` : ''}`,
+      };
     });
-    return {
-      question: homes.length > 1 ? 'Where will the baby live?' : 'Which last name will the baby have?',
-      options,
-    };
+    const surFor = Object.fromEntries(homes.map((h) => [h.gid, babySurnames(a, b, h.gid)[0] ?? a.sur]));
+    return { title: `New baby of ${shortName(a)} ＋ ${shortName(b)}`, homes, surnames, surFor };
   }, [infantHouseMenu, byid, babySurnames]);
 
   const handleConnectClick = useCallback(

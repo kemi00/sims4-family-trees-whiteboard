@@ -25,8 +25,9 @@ export const GENDER_NOT_KNOWN = '-';
 
 /**
  * The name a card shows: its name, or for a planned sim with no first name,
- * its plan label and surname ("Firstborn Dreamer"), else its number among the
- * planned sims of that surname ("Planned (2) Le Chien"), so no two read alike.
+ * its plan label and surname ("Firstborn Dreamer"), else "Planned" and its
+ * surname, numbered when others share it ("Planned (2) Le Chien"), so no two
+ * read alike (numberPlannedSims).
  */
 export function cardName(n: Pick<SimNode, 'first' | 'sur' | 'planLabel' | 'planNo' | 'added' | 'saveSimId'>): string {
   const name = `${n.first} ${n.sur}`.trim();
@@ -69,40 +70,39 @@ export function parentsLines(parents: SimNode[]): string[] {
 }
 
 /**
- * Numbers every planned sim that goes by its surname (no first name, no plan
- * label) and has no number yet, or one another planned sim of its surname
- * already has (after a rename): the next number for that surname, oldest
- * card first. Numbers stay once given: naming, filling or deleting one
- * leaves the others as they are. Returns the same array when nothing changes.
+ * Numbers the planned sims that go by their last name (no first name, no
+ * plan label) where two or more share it: 1, 2, 3 in the order they were
+ * planned, "Planned (2) Le Chien". One alone needs no number, "Planned
+ * Moody". Counted afresh on every change, so naming, filling, deleting or
+ * renaming one closes the gap it leaves. Returns the same array when
+ * nothing changes.
  */
 export function numberPlannedSims(nodes: SimNode[]): SimNode[] {
   const fold = (s: string) => s.trim().toLocaleLowerCase();
   const order = (id: string) => Number(id.replace(/\D+/g, '')) || 0;
-  const taken = new Map<string, Set<number>>();
-  const top = new Map<string, number>();
+  const bySurname = new Map<string, SimNode[]>();
   for (const n of nodes) {
-    if (!n.planNo) continue;
+    if (!isPlannedSim(n) || n.first.trim() || n.planLabel?.trim()) continue;
     const k = fold(n.sur);
-    top.set(k, Math.max(top.get(k) ?? 0, n.planNo));
+    bySurname.set(k, [...(bySurname.get(k) ?? []), n]);
   }
-  const need: SimNode[] = [];
-  for (const n of [...nodes].sort((a, b) => order(a.id) - order(b.id))) {
-    if (!isPlannedSim(n)) continue;
-    const k = fold(n.sur);
-    const used = taken.get(k) ?? new Set<number>();
-    taken.set(k, used);
-    if (n.planNo && !used.has(n.planNo)) used.add(n.planNo);
-    else if (!n.first.trim() && !n.planLabel?.trim()) need.push(n);
+  const want = new Map<string, number>();
+  for (const list of bySurname.values()) {
+    if (list.length < 2) continue;
+    list
+      .sort((a, b) => order(a.id) - order(b.id) || a.id.localeCompare(b.id))
+      .forEach((n, i) => want.set(n.id, i + 1));
   }
-  if (!need.length) return nodes;
-  const given = new Map<string, number>();
-  for (const n of need) {
-    const k = fold(n.sur);
-    const no = (top.get(k) ?? 0) + 1;
-    top.set(k, no);
-    given.set(n.id, no);
-  }
-  return nodes.map((n) => (given.has(n.id) ? { ...n, planNo: given.get(n.id)! } : n));
+  let changed = false;
+  const out = nodes.map((n) => {
+    const no = want.get(n.id);
+    if (n.planNo === no) return n;
+    changed = true;
+    if (no !== undefined) return { ...n, planNo: no };
+    const { planNo: _gone, ...rest } = n;
+    return rest as SimNode;
+  });
+  return changed ? out : nodes;
 }
 
 /** "Not born yet" for a planned child, "Not in the game yet" for anyone else planned. */

@@ -45,21 +45,27 @@ describe('telling planned sims apart', () => {
   const kid = (id: string, sur: string, extra: Partial<SimNode> = {}) =>
     planned(id, { first: '', sur, ...extra });
 
-  it('numbers unnamed planned sims per last name, oldest card first', () => {
+  it('numbers unnamed planned sims per last name, oldest card first, only where two share it', () => {
     const out = numberPlannedSims([kid('new3', 'Le Chien'), kid('new1', 'Le Chien'), kid('new2', 'Romeo'), sim('Bella')]);
-    assert.deepEqual(out.map(cardName), ['Planned (2) Le Chien', 'Planned (1) Le Chien', 'Planned (1) Romeo', 'Bella X']);
+    assert.deepEqual(out.map(cardName), ['Planned (2) Le Chien', 'Planned (1) Le Chien', 'Planned Romeo', 'Bella X']);
+    assert.equal(numberPlannedSims(out), out);
   });
 
-  it('keeps numbers once given, so naming or filling one renumbers nobody', () => {
-    const once = numberPlannedSims([kid('new1', 'Le Chien'), kid('new2', 'Le Chien')]);
-    assert.equal(numberPlannedSims(once), once);
-    const filled = [{ ...once[0]!, saveSimId: '7', first: 'Joaquin' }, once[1]!, kid('new3', 'Le Chien')];
-    assert.deepEqual(numberPlannedSims(filled).map(cardName), ['Joaquin Le Chien', 'Planned (2) Le Chien', 'Planned (3) Le Chien']);
+  it('counts afresh when one is named, filled or deleted, closing the gap', () => {
+    const three = numberPlannedSims([kid('new1', 'Le Chien'), kid('new2', 'Le Chien'), kid('new3', 'Le Chien')]);
+    const filled = [{ ...three[0]!, saveSimId: '7', first: 'Joaquin' }, three[1]!, three[2]!];
+    assert.deepEqual(numberPlannedSims(filled).map(cardName), ['Joaquin Le Chien', 'Planned (1) Le Chien', 'Planned (2) Le Chien']);
+    const labelled = [three[0]!, { ...three[1]!, planLabel: 'Firstborn' }];
+    assert.deepEqual(numberPlannedSims(labelled).map(cardName), ['Planned Le Chien', 'Firstborn Le Chien']);
   });
 
-  it('gives a fresh number to one whose number another of its new surname has', () => {
-    const out = numberPlannedSims([kid('new1', 'Romeo', { planNo: 1 }), kid('new2', 'Romeo', { planNo: 1 })]);
-    assert.deepEqual(out.map(cardName), ['Planned (1) Romeo', 'Planned (2) Romeo']);
+  it('follows a new last name: no number left behind on either', () => {
+    // Derek's planned McMillan, then Ian and Derek's baby, renamed Moody.
+    const both = numberPlannedSims([kid('new1', 'McMillan'), kid('new2', 'McMillan')]);
+    assert.deepEqual(both.map(cardName), ['Planned (1) McMillan', 'Planned (2) McMillan']);
+    const renamed = numberPlannedSims([both[0]!, { ...both[1]!, sur: 'Moody' }]);
+    assert.deepEqual(renamed.map(cardName), ['Planned McMillan', 'Planned Moody']);
+    assert.deepEqual(renamed.map((n) => n.planNo), [undefined, undefined]);
   });
 
   it('says whose child an unnamed planned sim is, in short names', () => {

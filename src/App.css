@@ -666,6 +666,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu .pmenu__move{justify-content:flex-start;margin:3px 0;padding:8px 10px;border-radius:var(--r-control);font-weight:600;color:var(--ink)}
 .menu .pmenu__move--first{background:var(--accent);color:#fff}
 .menu .pmenu__move--first:hover{background:var(--accent-strong)}
+.menu .pmenu__move--first:disabled{background:var(--rule);color:var(--ink-3);cursor:not-allowed}
 .menu .pmenu__keep{background:transparent;color:var(--ink-2)}
 .gpanel{position:fixed;z-index:60;background:#fff;border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:0 12px 34px #0003;padding:9px;font-size:12px;max-height:74vh;overflow:auto;width:256px;display:none}
 .gpanel__empty{margin:6px 2px 2px;color:var(--ink-2);font-size:12px}
@@ -894,6 +895,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu .cmenu__pick:disabled:hover{background:#fff}
 .cmenu__title{font-size:12.5px;font-weight:700;color:var(--ink)}
 .cmenu__sub{font-size:11px;font-weight:400;color:var(--ink-2)}
+.menu .cmenu__pick[aria-checked=true]{background:var(--accent-soft);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.menu .cmenu__pick[aria-checked=true]:hover{background:var(--accent-soft-hi)}
 .menu .pmenu__back{display:inline-flex;align-items:center;gap:4px;width:auto;margin:0;padding:2px 6px 2px 2px;background:transparent;color:var(--ink)}
 .menu .pmenu__back:hover{background:var(--hover)}
 .pmenu__back svg{width:13px;height:13px;color:var(--ink-3)}
