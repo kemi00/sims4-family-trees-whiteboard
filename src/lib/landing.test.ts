@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { CARD_H, CARD_MIN_W } from './constants.ts';
+import { CARD_H, CARD_MIN_W, TILE } from './constants.ts';
 import { hhBoxDraw, worldFrame } from './geometry.ts';
 import { householdMovePlan, moveDestination, NEW_HOUSEHOLD } from './householdMove.ts';
-import { freeHouseholdSpot, landMovedCards } from './landing.ts';
+import { freeHouseholdSpot, growHousehold, householdGrowth, landMovedCards } from './landing.ts';
 import { computeLayout } from './layout.ts';
-import { snapNodesToTiles } from './tiles.ts';
+import { householdChrome, snapNodesToTiles } from './tiles.ts';
 import { migrateWhiteboardData } from './utils.ts';
 import type { Group, HhBoxDraw, SimNode, WhiteboardData } from '../types/whiteboard.ts';
 import seedRoster from '../data/whiteboard.json' with { type: 'json' };
@@ -30,7 +30,7 @@ describe('a household moving to another world', () => {
     const newGroup: Group | null = dest.isNew
       ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
       : null;
-    const r = landMovedCards({ core, laid, worlds, edges: seed.edges, groups, patches, destGid: dest.gid, newGroup, snap: true });
+    const r = landMovedCards({ core, laid, worlds, edges: seed.edges, groups, patches, destGid: dest.gid, newGroup });
     return { laid, after: lay(r.core), ids: new Set(ids), dest, groups: newGroup ? [...groups, newGroup] : groups, joined: r.joined };
   };
 
@@ -59,6 +59,24 @@ describe('a household moving to another world', () => {
       assert.ok(!other || !overlaps(other, frame), `Willow Creek runs into ${w}`);
     }
   });
+
+  it('joins a household already there without moving any other card', () => {
+    const laid = lay(core);
+    const from = groups.find((g) => g.world === 'Oasis Springs' && laid.some((n) => n.gid === g.gid))!;
+    for (const to of groups.filter((g) => g.world === 'Willow Creek' && laid.some((n) => n.gid === g.gid))) {
+      const dest = moveDestination(groups, laid, worlds, 'Willow Creek', to.gid)!;
+      const ids = laid.filter((n) => n.gid === from.gid).map((n) => n.id);
+      const { patches } = householdMovePlan(laid, ids, dest);
+      const r = landMovedCards({ core, laid, worlds, edges: seed.edges, groups, patches, destGid: to.gid, newGroup: null });
+      assert.equal(r.joined, true);
+      const after = new Map(lay(r.core).map((n) => [n.id, n]));
+      for (const n of laid) {
+        if (ids.includes(n.id) || (r.moved && n.gid === to.gid)) continue;
+        const now = after.get(n.id)!;
+        assert.ok(now.x === n.x && now.y === n.y, `joining ${to.gid}: ${n.id} moved`);
+      }
+    }
+  });
 });
 
 describe('free room for a household', () => {
@@ -83,5 +101,79 @@ describe('free room for a household', () => {
     const full = [...others, card('a2', 'W||A', 'W', 1000, 1200)];
     const at = freeHouseholdSpot({ others: full, groups: [], world: 'W', block, near: { x: 9000, y: 9000 } });
     assert.deepEqual(at, { x: 1000, y: 1500 });
+  });
+});
+
+describe('a household growing', () => {
+  const card = (id: string, gid: string, x: number, y: number, world = 'W'): SimNode =>
+    ({ id, gid, world, hh: gid, first: id, sur: '', age: 'Adult', gender: 'Female', state: 'Sim', nb: '-', color: '#999', x, y, w: CARD_MIN_W, h: CARD_H }) as SimNode;
+  const baby = card('new', 'W||A', 0, 0);
+  // Household A: two cards in a row. Cards are 2 tiles by 1; a box has a
+  // tile of name tag above its cards, and boxes keep a tile apart.
+  const a = [card('a1', 'W||A', 1000, 1000), card('a2', 'W||A', 1300, 1000)];
+  const under = { x: 1000, y: 1200 };
+
+  it('takes the spot asked for when the household has room there', () => {
+    const others = [card('c', 'W||C', 2000, 1000)];
+    assert.deepEqual(householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under] }), { at: under, shift: null, crowded: false });
+  });
+
+  it('grows right when a new row would run it into the household below', () => {
+    const others = [card('b', 'W||B', 1000, 1400), card('c', 'W||C', 2200, 1000)];
+    const g = householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under] });
+    assert.equal(g.shift, null);
+    assert.deepEqual(g.at, { x: 1600, y: 1000 });
+  });
+
+  it('moves the household whole to free room in its world when it is boxed in', () => {
+    // B below, C right, D left and E above: no side has a tile to spare.
+    const others = [
+      card('b', 'W||B', 1000, 1400),
+      card('c', 'W||C', 1800, 1000),
+      card('d', 'W||D', 500, 1000),
+      card('e', 'W||E', 1000, 600),
+    ];
+    const g = householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under] });
+    assert.ok(g.shift, 'it had to move');
+    assert.equal(g.crowded, false);
+    // The baby keeps its place under the household.
+    assert.deepEqual(g.at, { x: under.x + g.shift.x, y: under.y + g.shift.y });
+    const moved = [...a.map((n) => ({ ...n, x: n.x + g.shift!.x, y: n.y + g.shift!.y })), { ...baby, ...g.at }];
+    const box = householdChrome(moved, null)!;
+    for (const o of others) {
+      const ob = householdChrome([o], null)!;
+      const clear =
+        box.boxR + TILE <= ob.boxL || ob.boxR + TILE <= box.boxL || box.boxB + TILE <= ob.boxT || ob.boxB + TILE <= box.boxT;
+      assert.ok(clear, `runs into ${o.gid}`);
+    }
+  });
+
+  describe('on the starter board', () => {
+    const seed = migrateWhiteboardData(seedRoster as unknown as WhiteboardData);
+    const worlds = seed.worlds!;
+    const groups = seed.groups!;
+    const lay = (core: SimNode[]) => snapNodesToTiles(computeLayout(core, worlds, seed.edges));
+    const core = seed.nodes;
+    const laid = lay(core);
+
+    it('adds a sim to every household without moving a card outside it', () => {
+      let checked = 0;
+      for (const g of groups) {
+        const home = laid.filter((n) => n.gid === g.gid);
+        if (!home.length || g.world === '—') continue;
+        const n = { ...home[0]!, id: 'added', first: 'New', ox: 0, oy: 0 };
+        const chrome = householdChrome(home, g)!;
+        const spot = { x: chrome.boxL, y: chrome.boxB + TILE };
+        const r = growHousehold({ core: [...core, n], laid, worlds, edges: seed.edges, groups, gid: g.gid, block: [{ ...n, ...spot }], spots: [spot] });
+        const after = new Map(lay(r.core).map((x) => [x.id, x]));
+        for (const o of laid) {
+          if (o.gid === g.gid) continue;
+          const now = after.get(o.id)!;
+          assert.ok(now.x === o.x && now.y === o.y, `${g.gid}: ${o.id} moved`);
+        }
+        checked++;
+      }
+      assert.ok(checked > 20, `checked ${checked}`);
+    });
   });
 });

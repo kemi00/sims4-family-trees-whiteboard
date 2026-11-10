@@ -1,8 +1,7 @@
 import { TILE } from './constants.ts';
 import { toCore } from './autosave.ts';
-import { coreOffsetsAfterImportSeparation } from './geometry.ts';
-import { LAYOUT, computeLayout, layoutBases } from './layout.ts';
-import { householdChrome, snapNodesToTiles, tileSnapOrigin } from './tiles.ts';
+import { LAYOUT, layoutBases } from './layout.ts';
+import { householdChrome, tileSnapOrigin } from './tiles.ts';
 import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 
 type Box = { l: number; t: number; r: number; b: number };
@@ -55,7 +54,8 @@ function boardBoxes(laid: SimNode[], groups: Group[]): { households: Box[]; fram
  * first such place in reading order. Nothing else has to move for it. With
  * no room at all, the place that overlaps other worlds least. A world with
  * nothing on the board yet is searched around `near`, where the layout would
- * put it.
+ * put it. With `keepNear`, of places that grow the world alike, the one
+ * nearest `near` (a household moving within its world, from there).
  */
 export function freeHouseholdSpot(opts: {
   /** Every other card on the board, laid out. */
@@ -67,8 +67,9 @@ export function freeHouseholdSpot(opts: {
   /** The household's own label, for the width of its name tag. */
   label?: Group | null;
   near: Point;
+  keepNear?: boolean;
 }): Point {
-  const { others, groups, world, block, label, near } = opts;
+  const { others, groups, world, block, label, near, keepNear } = opts;
   const x0 = Math.min(...block.map((n) => n.x));
   const y0 = Math.min(...block.map((n) => n.y));
   const boxAt = (at: Point): Box => {
@@ -80,7 +81,8 @@ export function freeHouseholdSpot(opts: {
   };
   const { households, frames } = boardBoxes(others, groups);
   const own = frames.get(world);
-  const elsewhere = [...frames].filter(([w]) => w !== world).map(([, f]) => grown(f, LAYOUT.worldGapY));
+  const beside = [...frames].filter(([w]) => w !== world).map(([, f]) => f);
+  const elsewhere = beside.map((f) => grown(f, LAYOUT.worldGapY));
   const clear = households.map((b) => grown(b, LAYOUT.householdGap));
   const probe = boxAt(tileSnapOrigin(near.x, near.y));
   const bw = probe.r - probe.l;
@@ -98,11 +100,14 @@ export function freeHouseholdSpot(opts: {
       const box = boxAt(at);
       if (clear.some((c) => overlapArea(c, box) > 0)) continue;
       const frame = own ? union(own, frameAround(box)) : frameAround(box);
+      // Running into another world is worse than into the room around it.
+      const hits = beside.reduce((s, f) => s + overlapArea(f, frame), 0);
       const intrudes = elsewhere.reduce((s, f) => s + overlapArea(f, frame), 0);
       const growth = own ? area(frame) - area(own) : 0;
+      const away = Math.abs(x - near.x) + Math.abs(y - near.y);
       const score = own
-        ? [intrudes, growthSide(own, frame), growth, y, x]
-        : [intrudes, Math.abs(x - near.x) + Math.abs(y - near.y), y, x];
+        ? [hits, intrudes, growthSide(own, frame), growth, keepNear ? away : 0, y, x]
+        : [hits, intrudes, away, y, x];
       if (!best || lessThan(score, best.score)) best = { at, score };
     }
   }
@@ -124,14 +129,195 @@ function lessThan(a: number[], b: number[]): boolean {
   return false;
 }
 
+type Rect = { x: number; y: number; w: number; h: number };
+const boxOfRect = (n: Rect): Box => ({ l: n.x, t: n.y, r: n.x + n.w, b: n.y + n.h });
+const topLeft = (cards: Rect[]): Point => ({
+  x: Math.min(...cards.map((n) => n.x)),
+  y: Math.min(...cards.map((n) => n.y)),
+});
+
+/**
+ * Where cards joining a household go, so that it grows without moving
+ * anything else: the first of `spots` (top-left places for them, best first)
+ * that keeps the household's box a tile clear of every other household and
+ * its world out of every other world. Else the best such place around the
+ * household, a tile from its cards: in free room inside its box first, then
+ * growing it down, right, then left or up, as little as it can, nearest the
+ * first spot. When there is no room at all where it is, the household goes
+ * whole, the newcomers placed as at the first spot, to free room in its world
+ * (freeHouseholdSpot), and `shift` says how far its own cards move. Either
+ * way, no other card moves. With no free room in its world either, it grows
+ * at the first spot after all, and `crowded` says when that runs it into
+ * another household or world.
+ */
+export function householdGrowth(opts: {
+  /** Every card outside the household and the newcomers, laid out. */
+  others: SimNode[];
+  groups: Group[];
+  /** The household's cards, laid out. */
+  home: SimNode[];
+  /** The household's label, for the width of its name tag. */
+  label?: Group | null;
+  /** The cards joining it, with their sizes: they keep their arrangement. */
+  block: SimNode[];
+  /** Top-left places for the newcomers to try first, best first. */
+  spots: Point[];
+}): { at: Point; shift: Point | null; crowded: boolean } {
+  const { others, groups, home, label, block, spots } = opts;
+  const from = topLeft(block);
+  const first = spots[0] ?? from;
+  const placed = (at: Point) => block.map((n) => ({ ...n, x: n.x - from.x + at.x, y: n.y - from.y + at.y }));
+  const boxOf = (cards: SimNode[]): Box => {
+    const c = householdChrome(cards, label)!;
+    return { l: c.boxL, t: c.boxT, r: c.boxR, b: c.boxB };
+  };
+  const world = home[0]!.world;
+  const { households, frames } = boardBoxes(others, groups);
+  const clear = households.map((b) => grown(b, LAYOUT.householdGap));
+  const rest = world === '—' ? undefined : frames.get(world);
+  const beside = [...frames].filter(([w]) => w !== world).map(([, f]) => f);
+  const elsewhere = beside.map((f) => grown(f, LAYOUT.worldGapY));
+  /**
+   * How far a box runs into other households and its world into other
+   * worlds, then into the tile of room kept round them; worst first.
+   */
+  const clash = (box: Box): number[] => {
+    const frame = rest ? union(rest, frameAround(box)) : frameAround(box);
+    return [
+      households.reduce((s, c) => s + overlapArea(c, box), 0),
+      beside.reduce((s, f) => s + overlapArea(f, frame), 0),
+      clear.reduce((s, c) => s + overlapArea(c, box), 0),
+      elsewhere.reduce((s, f) => s + overlapArea(f, frame), 0),
+    ];
+  };
+  const homeBox = boxOf(home);
+  // A board arranged by hand may have boxes closer than a tile already:
+  // growing is fine so long as it runs into nothing more.
+  const was = clash(homeBox);
+  const fits = (at: Point): Box | null => {
+    const box = boxOf([...home, ...placed(at)]);
+    return clash(box).every((v, i) => v <= was[i]!) ? box : null;
+  };
+  for (const at of spots) if (fits(at)) return { at, shift: null, crowded: false };
+
+  const bw = Math.max(...block.map((n) => n.x + n.w)) - from.x;
+  const bh = Math.max(...block.map((n) => n.y + n.h)) - from.y;
+  const cards = home.map((n) => grown(boxOfRect(n), TILE));
+  const start = tileSnapOrigin(homeBox.l - bw - TILE, homeBox.t - bh - TILE);
+  let best: { at: Point; score: number[] } | null = null;
+  for (let y = start.y; y <= homeBox.b + TILE; y += TILE) {
+    for (let x = start.x; x <= homeBox.r + TILE; x += TILE) {
+      const at = { x, y };
+      if (placed(at).some((n) => cards.some((c) => overlapArea(c, boxOfRect(n)) > 0))) continue;
+      const box = fits(at);
+      if (!box) continue;
+      const score = [
+        growthSide(homeBox, box),
+        area(box) - area(homeBox),
+        Math.abs(x - first.x) + Math.abs(y - first.y),
+        y,
+        x,
+      ];
+      if (!best || lessThan(score, best.score)) best = { at, score };
+    }
+  }
+  if (best) return { at: best.at, shift: null, crowded: false };
+
+  // No room where it is: the household goes whole to free room in its world.
+  const whole = [...home, ...placed(first)];
+  const was0 = topLeft(whole);
+  const to = freeHouseholdSpot({ others, groups, world, block: whole, label, near: was0, keepNear: true });
+  const shift = { x: to.x - was0.x, y: to.y - was0.y };
+  const crowds = (v: number[]) => v[0]! > was[0]! || v[1]! > was[1]!;
+  const stay = clash(boxOf(whole));
+  const there = clash(boxOf(whole.map((n) => ({ ...n, x: n.x + shift.x, y: n.y + shift.y }))));
+  if ((shift.x || shift.y) && !crowds(there) && lessThan(there, stay)) {
+    return { at: { x: first.x + shift.x, y: first.y + shift.y }, shift, crowded: false };
+  }
+  // Nowhere better, or nowhere free: it grows at the first spot after all,
+  // rather than go somewhere it runs into others as much.
+  return { at: first, shift: null, crowded: crowds(stay) };
+}
+
+/**
+ * The board's core with every card pinned where it is shown (`laid`), and
+ * those in `placed` put there instead: an edit moves only the cards it is
+ * about. Cards not laid out yet and not placed keep their offsets.
+ */
+export function pinCards(
+  core: SimNode[],
+  laid: SimNode[],
+  worlds: World[],
+  edges: Edge[],
+  placed: ReadonlyMap<string, Point>,
+): SimNode[] {
+  const bases = layoutBases(core, worlds, edges);
+  const byId = new Map(laid.map((n) => [n.id, n]));
+  return core.map((node) => {
+    const base = bases.get(node.id);
+    const to = placed.get(node.id) ?? byId.get(node.id);
+    if (!base || !to) return node;
+    const ox = to.x - base.x;
+    const oy = to.y - base.y;
+    if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
+    return { ...node, ox, oy };
+  });
+}
+
+/**
+ * Cards joining household `gid` (`block`, already in `core` as its members,
+ * with their sizes and places among themselves) land where householdGrowth
+ * finds room, trying `spots` first; every other card stays where it is
+ * shown. `moved` when the household had to go whole to free room in its
+ * world; `crowded` when there was none, and it runs into its neighbours.
+ */
+export function growHousehold(opts: {
+  core: SimNode[];
+  /** The board laid out as it is shown now. */
+  laid: SimNode[];
+  worlds: World[];
+  edges: Edge[];
+  groups: Group[];
+  gid: string;
+  block: SimNode[];
+  spots: Point[];
+}): { core: SimNode[]; moved: boolean; crowded: boolean } {
+  const { core, laid, worlds, edges, groups, gid, block, spots } = opts;
+  const ids = new Set(block.map((n) => n.id));
+  const home = laid.filter((n) => n.gid === gid && !ids.has(n.id));
+  const from = topLeft(block);
+  const placed = new Map<string, Point>();
+  let shift: Point | null = null;
+  let crowded = false;
+  let at = spots[0] ?? from;
+  if (home.length) {
+    const g = householdGrowth({
+      others: laid.filter((n) => n.gid !== gid && !ids.has(n.id)),
+      groups,
+      home,
+      label: groups.find((x) => x.gid === gid) ?? null,
+      block,
+      spots,
+    });
+    at = g.at;
+    shift = g.shift;
+    crowded = g.crowded;
+  }
+  for (const n of block) placed.set(n.id, { x: n.x - from.x + at.x, y: n.y - from.y + at.y });
+  if (shift) for (const n of home) placed.set(n.id, { x: n.x + shift.x, y: n.y + shift.y });
+  return { core: pinCards(core, laid, worlds, edges, placed), moved: !!shift, crowded };
+}
+
 /**
  * Cards a move sends to household `destGid` (their `patches`) land there as
  * a block, keeping their places among themselves. Joining cards already
- * there, they go in rows under that household, which may push what sits
- * under it down. As a household of their own, they go in free room beside
- * the world's households (freeHouseholdSpot), and no other card moves:
- * a hand-arranged board stays as it was. Returns the cards' new core, and
- * whether they joined cards already there.
+ * there, they go in rows under that household where it has room
+ * (growHousehold). As a household of their own, they go in free room beside
+ * the world's households (freeHouseholdSpot). Either way no other card
+ * moves: a hand-arranged board stays as it was. Returns the cards' new
+ * core, whether they joined cards already there, and whether that
+ * household had to go whole to free room in its world (`moved`) or found
+ * none (`crowded`).
  */
 export function landMovedCards(opts: {
   core: SimNode[];
@@ -143,9 +329,8 @@ export function landMovedCards(opts: {
   patches: Map<string, Partial<SimNode>>;
   destGid: string;
   newGroup: Group | null;
-  snap: boolean;
-}): { core: SimNode[]; joined: boolean } {
-  const { core, laid, worlds, edges, groups, patches, destGid, newGroup, snap } = opts;
+}): { core: SimNode[]; joined: boolean; moved: boolean; crowded: boolean } {
+  const { core, laid, worlds, edges, groups, patches, destGid, newGroup } = opts;
   const ids = new Set(patches.keys());
   const byId = new Map(laid.map((n) => [n.id, n]));
   const moved = [...ids].map((id) => byId.get(id)).filter((n): n is SimNode => !!n);
@@ -154,47 +339,38 @@ export function landMovedCards(opts: {
     return patch ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x;
   });
   const joined = laid.filter((n) => n.gid === destGid && !ids.has(n.id));
-  if (!moved.length) return { core: nextCore, joined: joined.length > 0 };
+  if (!moved.length) return { core: nextCore, joined: joined.length > 0, moved: false, crowded: false };
   const allGroups = newGroup ? [...groups, newGroup] : groups;
-  const bases = layoutBases(nextCore, worlds, edges);
-  const x0 = Math.min(...moved.map((n) => n.x));
-  const y0 = Math.min(...moved.map((n) => n.y));
-  let anchor: Point;
   if (joined.length) {
-    anchor = tileSnapOrigin(
+    const under = tileSnapOrigin(
       Math.min(...joined.map((n) => n.x)),
       Math.max(...joined.map((n) => n.y + n.h)) + LAYOUT.gapYExtra,
     );
-  } else {
-    const own = [...ids].map((id) => bases.get(id)).filter((b) => b !== undefined);
-    const near = { x: Math.min(...own.map((b) => b!.x)), y: Math.min(...own.map((b) => b!.y)) };
-    const world = patches.get(moved[0]!.id)?.world ?? moved[0]!.world;
-    anchor = freeHouseholdSpot({
-      others: laid.filter((n) => !ids.has(n.id)),
+    const r = growHousehold({
+      core: nextCore,
+      laid,
+      worlds,
+      edges,
       groups: allGroups,
-      world,
-      block: moved,
-      label: allGroups.find((g) => g.gid === destGid) ?? null,
-      near,
+      gid: destGid,
+      block: moved.map((n) => ({ ...n, gid: destGid })),
+      spots: [under],
     });
+    return { core: r.core, joined: true, moved: r.moved, crowded: r.crowded };
   }
-  const pinned = nextCore.map((node) => {
-    const base = bases.get(node.id);
-    const vis = byId.get(node.id);
-    if (!vis || !base) return node;
-    if (ids.has(node.id)) {
-      return { ...node, ox: vis.x - x0 + anchor.x - base.x, oy: vis.y - y0 + anchor.y - base.y };
-    }
-    const ox = vis.x - base.x;
-    const oy = vis.y - base.y;
-    if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
-    return { ...node, ox, oy };
+  const bases = layoutBases(nextCore, worlds, edges);
+  const own = [...ids].map((id) => bases.get(id)).filter((b) => b !== undefined);
+  const near = { x: Math.min(...own.map((b) => b!.x)), y: Math.min(...own.map((b) => b!.y)) };
+  const world = patches.get(moved[0]!.id)?.world ?? moved[0]!.world;
+  const anchor = freeHouseholdSpot({
+    others: laid.filter((n) => !ids.has(n.id)),
+    groups: allGroups,
+    world,
+    block: moved,
+    label: allGroups.find((g) => g.gid === destGid) ?? null,
+    near,
   });
-  // In free room, nothing overlaps: every other card stays exactly where it is.
-  if (!joined.length) return { core: pinned, joined: false };
-  const next = computeLayout(pinned, worlds, edges);
-  return {
-    core: coreOffsetsAfterImportSeparation(pinned, snap ? snapNodesToTiles(next) : next, allGroups, laid),
-    joined: true,
-  };
+  const from = topLeft(moved);
+  const placed = new Map(moved.map((n) => [n.id, { x: n.x - from.x + anchor.x, y: n.y - from.y + anchor.y }]));
+  return { core: pinCards(nextCore, laid, worlds, edges, placed), joined: false, moved: false, crowded: false };
 }

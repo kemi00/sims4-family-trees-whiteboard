@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { landMovedCards } from '../lib/landing.ts';
+import { growHousehold, landMovedCards } from '../lib/landing.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import {
@@ -46,7 +46,6 @@ import { planNote, planReview, type PlanChoices, type SavePlanReview } from '../
 import {
   bbox,
   cardOriginAtViewportCenter,
-  coreOffsetsAfterImportSeparation,
   coreOffsetsAfterWorldSeparation,
   introducedWorldNames,
   dominantWorldInViewport,
@@ -203,6 +202,19 @@ const CONNECT_LINKS: Record<
   sibling: { type: 'sibling' },
   custom: { type: 'custom' },
 };
+
+/**
+ * The status line's note when a household had no room to grow where it was:
+ * it went whole to free room in its world, or found none and runs into its
+ * neighbours. Empty when it grew in place.
+ */
+function roomNote(hh: string, world: string, r: { moved: boolean; crowded: boolean }): string {
+  const name = theHousehold(hh);
+  const The = `${name[0]!.toUpperCase()}${name.slice(1)}`;
+  if (r.crowded) return ` There was no free room for ${name} in ${world}, so it now runs into what is beside it: drag things apart to make room.`;
+  if (r.moved) return ` ${The} had no room to grow where it was, so it moved to free room in ${world}.`;
+  return '';
+}
 
 function simCentroid(
   ids: string[],
@@ -1168,9 +1180,10 @@ export function useWhiteboard() {
 
   /**
    * The household tag's +: a new sim in that household, beside its last card
-   * or in a row under its cards (householdAddSpot). Every other card keeps its
-   * place, unless a new row runs the box into the one below; that one moves
-   * down, as after a save merge. Returns the new sim's id.
+   * or in a row under its cards (householdAddSpot), or wherever the
+   * household has room (growHousehold). Every other card keeps its place;
+   * with no room where it is, the household moves whole to free room in its
+   * world. Returns the new sim's id.
    */
   const addSimToHousehold = useCallback(
     (gid: string): string | null => {
@@ -1208,36 +1221,25 @@ export function useWhiteboard() {
         h: 0,
         added: true,
       };
-      const { x, y } = householdAddSpot(home, nodes, chrome.boxR);
-      const nextCore = [...nodesCore, toCore(n)];
-      const bases = layoutBases(nextCore, worlds, edges);
-      const pinned = nextCore.map((node) => {
-        const base = bases.get(node.id);
-        if (node.id === id) {
-          return base ? { ...node, ox: x - base.x, oy: y - base.y } : node;
-        }
-        const vis = byid[node.id];
-        if (!vis || !base) return node;
-        const ox = vis.x - base.x;
-        const oy = vis.y - base.y;
-        if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
-        return { ...node, ox, oy };
+      const spot = householdAddSpot(home, nodes, chrome.boxR);
+      const r = growHousehold({
+        core: [...nodesCore, toCore(n)],
+        laid: nodes,
+        worlds,
+        edges,
+        groups,
+        gid,
+        block: [{ ...n, ...spot, ...measureCard(n) }],
+        spots: [spot],
       });
-      const laid = computeLayout(pinned, worlds, edges);
-      setNodesCore(
-        coreOffsetsAfterImportSeparation(
-          pinned,
-          snap ? snapNodesToTiles(laid) : laid,
-          groups,
-          nodes,
-        ),
-      );
+      setNodesCore(r.core);
+      if (r.moved) lockViewToSims(home.map((x) => x.id));
       setSel({ type: 'node', id });
       setEditNodeId(id);
-      flashStatus(`Added a sim to ${g.hh}: name them, then press Enter`);
+      flashStatus(`Added a sim to ${g.hh}: name them, then press Enter.${roomNote(g.hh, g.world, r)}`);
       return id;
     },
-    [groups, nodes, nodesCore, worlds, edges, byid, snap, pushUndo, flashStatus],
+    [groups, nodes, nodesCore, worlds, edges, pushUndo, lockViewToSims, flashStatus],
   );
 
   /**
@@ -1724,35 +1726,33 @@ export function useWhiteboard() {
           bundleId,
         });
       });
-      const nextCore = [...nodesCore, toCore(infant)];
-      const bases = layoutBases(nextCore, worlds, nextEdges);
-      const newBase = bases.get(id);
-      const newOx = newBase ? x - newBase.x : x;
-      const newOy = newBase ? y - newBase.y : y;
-      setNodesCore(
-        nextCore.map((node) => {
-          if (node.id === id) return { ...node, ox: newOx, oy: newOy };
-          const vis = byid[node.id];
-          const base = bases.get(node.id);
-          if (!vis || !base) return node;
-          const ox = vis.x - base.x;
-          const oy = vis.y - base.y;
-          if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
-          return { ...node, ox, oy };
-        }),
-      );
+      // Under the parents, beside full siblings, when the household has room
+      // there; else wherever it does, nothing else moving.
+      const r = growHousehold({
+        core: [...nodesCore, toCore(infant)],
+        laid: nodes,
+        worlds,
+        edges: nextEdges,
+        groups,
+        gid: dest.gid,
+        block: [{ ...infant, x, y, ...size }],
+        spots: [{ x, y }],
+      });
+      setNodesCore(r.core);
+      if (r.moved) lockViewToSims(nodes.filter((n) => n.gid === dest.gid).map((n) => n.id));
       setEdges(nextEdges);
       setSel({ type: 'node', id });
       setInfantHouseMenu(null);
       trackAction(parentIds.length > 1 ? '/action/add-infant' : '/action/add-infant-one-parent');
       const who = parents.map((p) => p.first || cardName(p)).join(' ＋ ');
+      const room = roomNote(dest.hh, dest.world, r);
       flashStatus(
         parentIds.length > 1
-          ? `Planned a child of ${who}: a ${sur || 'Sim'}, not born yet. Give them a plan label in the editor.`
-          : `Planned a child of ${who}: a ${sur || 'Sim'}, not born yet. Link another parent with Connect if there is one.`,
+          ? `Planned a child of ${who}: a ${sur || 'Sim'}, not born yet.${room} Give them a plan label in the editor.`
+          : `Planned a child of ${who}: a ${sur || 'Sim'}, not born yet.${room} Link another parent with Connect if there is one.`,
       );
     },
-    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap],
+    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, lockViewToSims],
   );
 
   const addInfantOfCouple = useCallback(
@@ -1971,7 +1971,8 @@ export function useWhiteboard() {
   /**
    * One partner moves into the other's household, as a plan (a household
    * move, done once a save shows it), and their card lands beside the
-   * other's on `side`, or wherever the household has room.
+   * other's on `side`, or wherever the household has room (growHousehold).
+   * No other household moves.
    */
   const moveInWith = useCallback(
     (mover: string, host: string, side: 'left' | 'right' | null = 'right'): boolean => {
@@ -1991,30 +1992,33 @@ export function useWhiteboard() {
       const others = nodes.filter((x) => x.id !== mover);
       const home = others.filter((x) => x.gid === h.gid);
       const chrome = householdChrome(home, g);
-      const spot =
-        (side ? partnerSpot(h, others, side) : null) ??
-        (chrome ? householdAddSpot(home, others, chrome.boxR) : null);
-      const nextCore = nodesCore.map((x) => (x.id === mover ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x));
-      const bases = layoutBases(nextCore, worlds, edges);
-      const pinned = nextCore.map((node) => {
-        const base = bases.get(node.id);
-        if (node.id === mover) return spot && base ? { ...node, ox: spot.x - base.x, oy: spot.y - base.y } : node;
-        const vis = byid[node.id];
-        if (!vis || !base) return node;
-        const ox = vis.x - base.x;
-        const oy = vis.y - base.y;
-        if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
-        return { ...node, ox, oy };
+      // Beside the host on the side picked, then the other, then wherever
+      // the household has room; growHousehold takes the first that runs
+      // the household into nothing.
+      const other = side === 'left' ? 'right' : 'left';
+      const spots = [
+        side ? partnerSpot(h, others, side) : null,
+        side ? partnerSpot(h, others, other) : null,
+        chrome ? householdAddSpot(home, others, chrome.boxR) : null,
+      ].filter((p): p is { x: number; y: number } => !!p);
+      const r = growHousehold({
+        core: nodesCore.map((x) => (x.id === mover ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x)),
+        laid: nodes,
+        worlds,
+        edges,
+        groups,
+        gid: h.gid,
+        block: [{ ...m, ...patch }],
+        spots: spots.length ? spots : [{ x: m.x, y: m.y }],
       });
-      const laid = computeLayout(pinned, worlds, edges);
-      setNodesCore(coreOffsetsAfterImportSeparation(pinned, snap ? snapNodesToTiles(laid) : laid, groups, nodes));
+      setNodesCore(r.core);
       lockViewToSims([host]);
       flashStatus(
-        `${cardName(m)} moves in with ${cardName(h)}, in ${theHousehold(dest.hh)}: a plan until a save shows it. Undo takes it back.`,
+        `${cardName(m)} moves in with ${cardName(h)}, in ${theHousehold(dest.hh)}: a plan until a save shows it.${roomNote(dest.hh, dest.world, r)} Undo takes it back.`,
       );
       return true;
     },
-    [nodes, nodesCore, groups, worlds, edges, byid, snap, pushUndo, lockViewToSims, flashStatus],
+    [nodes, nodesCore, groups, worlds, edges, pushUndo, lockViewToSims, flashStatus],
   );
 
   /**
@@ -2031,12 +2035,16 @@ export function useWhiteboard() {
    * it is. True when they joined cards already there.
    */
   const landCards = useCallback(
-    (patches: Map<string, Partial<SimNode>>, destGid: string, newGroup: Group | null): boolean => {
-      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup, snap });
+    (
+      patches: Map<string, Partial<SimNode>>,
+      destGid: string,
+      newGroup: Group | null,
+    ): { joined: boolean; moved: boolean; crowded: boolean } => {
+      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup });
       setNodesCore(r.core);
-      return r.joined;
+      return r;
     },
-    [nodes, nodesCore, groups, worlds, edges, snap],
+    [nodes, nodesCore, groups, worlds, edges],
   );
 
   /**
@@ -2075,7 +2083,8 @@ export function useWhiteboard() {
       }
       // Where the block lands: the household's own place in the world, or
       // under the one it joins.
-      const joined = landCards(patches, dest.gid, newGroup);
+      const landed = landCards(patches, dest.gid, newGroup);
+      const joined = landed.joined;
       const moved = members;
       lockViewToSims([...ids]);
       if (briefGid === gid) setBriefGid(dest.gid);
@@ -2084,7 +2093,7 @@ export function useWhiteboard() {
         back
           ? `The ${g.hh} household moves back to ${world}: a new step in your plan. To drop its move instead, use the bin on it in the Log.`
           : joined
-          ? `${moved.length === 1 ? `${cardName(moved[0]!)} of the ${g.hh} household joins` : `All ${moved.length} sims of the ${g.hh} household join`} the one in ${world}${plan}. Undo takes it back.`
+          ? `${moved.length === 1 ? `${cardName(moved[0]!)} of the ${g.hh} household joins` : `All ${moved.length} sims of the ${g.hh} household join`} the one in ${world}${plan}.${roomNote(dest.hh, world, landed)} Undo takes it back.`
           : `The ${g.hh} household moves to ${world} with ${moved.length === 1 ? cardName(moved[0]!) : `its ${moved.length} sims`}${plan}. Undo takes it back.`,
       );
       return dest;
@@ -3200,30 +3209,35 @@ export function useWhiteboard() {
       let n = eidcRef.current;
       const r = resolvePlanConflict(nodesCore, edges, c, choice, () => 'u' + n++, new Date().toISOString());
       eidcRef.current = n;
-      let nextCore = r.nodes;
-      const free = new Set<string>();
       const back = choice === 'follow' ? moveToUndo(c, nodesCore, householdMoves) : null;
       const home = back ? groups.find((g) => g.gid === back.fromGid) : undefined;
+      let room = '';
       if (back && home) {
-        nextCore = nextCore.map((x) =>
-          x.id === back.simId
-            ? toCore({ ...x, gid: home.gid, hh: home.hh, world: home.world, nb: home.nb, color: home.color, ox: 0, oy: 0 })
-            : x,
-        );
-        free.add(back.simId);
+        // Back in their household as the board shows it, nothing else moving.
+        const landed = landMovedCards({
+          core: r.nodes,
+          laid: nodes,
+          worlds,
+          edges: r.edges,
+          groups,
+          patches: new Map([[back.simId, { gid: home.gid, hh: home.hh, world: home.world, nb: home.nb, color: home.color }]]),
+          destGid: home.gid,
+          newGroup: null,
+        });
+        setNodesCore(landed.core);
+        room = roomNote(home.hh, home.world, landed);
         setHouseholdMoves((ms) => ms.filter((m) => m.id !== back.id));
-      }
+      } else pinCardsToCurrentPlaces(r.edges, r.nodes);
       setEdges(r.edges);
-      pinCardsToCurrentPlaces(r.edges, nextCore, free);
       flashStatus(
         choice === 'keep'
           ? 'Plan kept: it stays violet.'
           : choice === 'drop'
             ? 'Plan dropped.'
-            : `Following your game${back && home ? `: ${nameOfCore(back.simId)} is back in ${home.hh}` : ''}.`,
+            : `Following your game${back && home ? `: ${nameOfCore(back.simId)} is back in ${home.hh}` : ''}.${room}`,
       );
     },
-    [planIssues, pushUndo, nodesCore, edges, householdMoves, groups, pinCardsToCurrentPlaces, flashStatus, nameOfCore],
+    [planIssues, pushUndo, nodesCore, nodes, worlds, edges, householdMoves, groups, pinCardsToCurrentPlaces, flashStatus, nameOfCore],
   );
 
   /** "This is …": a sim from the save fills a planned sim by hand. */
