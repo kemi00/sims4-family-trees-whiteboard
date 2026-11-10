@@ -57,11 +57,16 @@ type Props = {
   dynastyTag?: string;
   /** Why their dynasty could die out ("no heir"): "at risk" follows the dynasty on the last line. */
   dynastyRisk?: string;
+  /**
+   * The sim they are planned as heir after (SimNode.heirAfter), for "Lewis
+   * heir after Eric" in place of the dynasty on the last line.
+   */
+  heirAfter?: { first: string; full: string };
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
 /** A piece of a card's last line; `dyn` marks the dynasty, styled by its plan, and `risk` its warning. */
-type Part = { text: string; dyn?: true; risk?: true };
+type Part = { text: string; dyn?: true; risk?: true; later?: true };
 
 /**
  * The first line (of parts) that fits `room`, else the last with its end
@@ -101,6 +106,7 @@ export const SimNodeView = memo(function SimNodeView({
   partnerPlus = false,
   dynastyTag,
   dynastyRisk,
+  heirAfter,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -157,6 +163,11 @@ export const SimNodeView = memo(function SimNodeView({
    */
   const dyn: Part | null = phrase && !n.species ? { text: phrase, dyn: true } : null;
   const dynShort: Part | null = dyn && dynastyTag ? { text: `${n.dynasty} (${dynastyTag})`, dyn: true } : null;
+  /** Heir once another sim is head: said in place of the dynasty, and kept over "Resident". */
+  const later: Part | null =
+    dyn && heirAfter && n.heirAfter && n.dynastyPlan !== 'none'
+      ? { text: `${n.dynasty} heir after ${heirAfter.first || heirAfter.full}`, dyn: true, later: true }
+      : null;
   const dynTitle = !dyn
     ? ''
     : `${
@@ -165,7 +176,7 @@ export const SimNodeView = memo(function SimNodeView({
           : n.dynastyPlan === 'none'
             ? `Planned to leave the ${phrase}: your save still has them in it`
             : `In the ${phrase}`
-      }${dynastyRisk ? `\nThe ${phrase} is at risk: ${dynastyRisk}` : ''}`;
+      }${later ? `\nPlanned heir once ${heirAfter!.full} is head` : ''}${dynastyRisk ? `\nThe ${phrase} is at risk: ${dynastyRisk}` : ''}`;
   const sep: Part = { text: ' · ' };
   const dyns = [dyn, dynShort].filter((p): p is Part => !!p);
   /**
@@ -183,6 +194,10 @@ export const SimNodeView = memo(function SimNodeView({
         ? [...dyns.map((d) => [{ text: detail }, sep, d]), ...dyns.map((d) => [d])]
         : [[{ text: detail }]]
       : dyns.map((d) => [d]);
+  if (later) {
+    const lead = parents ? parents.lines : detail ? [detail] : [];
+    lines.unshift(...lead.map((l) => [{ text: l }, sep, later]), [later]);
+  }
   const lastLines: Part[][] = risk.length
     ? [...lines.filter((l) => l.some((p) => p.dyn)).map((l) => [...l, ...risk]), ...lines]
     : lines;
@@ -247,7 +262,7 @@ export const SimNodeView = memo(function SimNodeView({
                   <tspan
                     key={i}
                     fill="#3b4757"
-                    fillOpacity={n.dynastyPlan === 'member' || n.dynastyPlan === 'none' ? 0.5 : undefined}
+                    fillOpacity={p.later || n.dynastyPlan === 'member' || n.dynastyPlan === 'none' ? 0.5 : undefined}
                     textDecoration={n.dynastyPlan === 'none' ? 'line-through' : undefined}
                   >
                     {p.text}

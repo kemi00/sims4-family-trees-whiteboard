@@ -57,6 +57,7 @@ import { WorldMoveForm } from './WorldMoveForm.tsx';
 import { PartnerRow } from './PartnerRow.tsx';
 import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
 import { fold } from '../lib/utils.ts';
+import { heirAfterChoices, heirAfterHolder, successionLine, withSuccessionChoice, type LinePlace } from '../lib/succession.ts';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
@@ -279,6 +280,8 @@ type Props = {
     dynastyPlan?: 'role' | 'member' | 'none';
     dynasty?: string;
     dynastyId?: string;
+    /** Heir once this sim is head (SimNode.heirAfter); undefined clears. */
+    heirAfter: string | undefined;
     /** Count this dynasty's generations from another Gen 1 (null: the oldest known ancestor). */
     genRoot?: { key: string; id: string | null };
     /** A planned sim's role in the plan; undefined clears it. */
@@ -375,6 +378,8 @@ export function SimEditor({
   const [state, setState] = useState(n.state || 'Sim');
   const [oplay, setOplay] = useState(n.oplay || 'Resident');
   const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
+  /** Heir after whom, for an heir planned generations ahead; '' for none. */
+  const [heirAfter, setHeirAfter] = useState(n.heirAfter ?? '');
   /** In a dynasty as the game has it, not one the board planned them into. */
   const inGameDynasty = !!n.dynasty && n.dynastyPlan !== 'member';
   /** The new dynasty's name, when "Create a new dynasty…" is picked. */
@@ -604,6 +609,11 @@ export function SimEditor({
     const x = id ? byId[id] : undefined;
     return x ? `${x.first} ${x.sur}`.trim() : 'someone not on the board';
   };
+  /** A sim in the line of succession, a planned one with no name yet by its card's name. */
+  const lineName = (id: string) => {
+    const x = byId[id];
+    return x ? cardName(x) : 'someone not on the board';
+  };
   /**
    * Who loses the role on Save: a dynasty has one head and one heir, so
    * naming one here takes it from whoever has it (as updateNode does).
@@ -620,6 +630,21 @@ export function SimEditor({
       ) ?? null
     );
   }, [n, dynastyRole, nodes, target]);
+  /** Who they can be planned as heir after: the heir and each heir planned after them. */
+  const afterChoices = useMemo(
+    () => (target ? heirAfterChoices(nodes, n.id, target.key) : []),
+    [nodes, n.id, target],
+  );
+  /** The heir-after pick that Save writes: one still in line, or the one they had. */
+  const after =
+    target && heirAfter && (afterChoices.includes(heirAfter) || (heirAfter === n.heirAfter && target.key === dynastyKey(n)))
+      ? heirAfter
+      : '';
+  /** Who loses that place in line on Save. */
+  const afterHolder = useMemo(
+    () => (target && after && after !== n.heirAfter ? heirAfterHolder(nodes, after, target.key, n.id) : null),
+    [nodes, after, target, n.id, n.heirAfter],
+  );
   const [partnerGender, setPartnerGender] = useState('');
   /** The life stage picked in the partner list's Age menu; none yet picked. */
   const [stagePick, setStagePick] = useState<string | null>(null);
@@ -725,6 +750,7 @@ export function SimEditor({
       oplay,
       dynastyRole: 'dynastyRole' in plan ? plan.dynastyRole : n.dynastyRole,
       ...plan,
+      heirAfter: after || undefined,
       ...(gen && (genRoot === AUTO_ROOT ? null : genRoot) !== (gen.rootPicked ? gen.rootId : null)
         ? { genRoot: { key: gen.key, id: genRoot === AUTO_ROOT ? null : genRoot } }
         : {}),
@@ -775,21 +801,44 @@ export function SimEditor({
         : ` ${holder} stays ${role} until your game changes it.`
       : '';
     const faded = role ? ' Their mark shows faded until a save has it.' : '';
+    const replaced = afterHolder ? cardName(afterHolder) : '';
+    const later = after
+      ? ` ${who} becomes heir once ${lineName(after)} is head.${replaced ? ` Saving plans ${who} in that place instead of ${replaced}.` : ''}`
+      : '';
     if (suggestedDynasty && dynastyChoice === suggestedDynasty) {
-      return `Suggested from their family: saving plans them into it. Pick No dynasty if they won’t join.${faded}`;
+      return `Suggested from their family: saving plans them into it. Pick No dynasty if they won’t join.${faded}${later}`;
     }
-    if (!kind) return target ? `In the ${targetPhrase} in your save.` : '';
+    if (!kind) return target ? `In the ${targetPhrase} in your save.${later ? ` A plan:${later}` : ''}` : '';
     if (kind === 'none') {
       const theirs = dynastyPhrase(names.get(dynastyKey(n) ?? '') ?? { name: n.dynasty ?? '' });
       return `A plan: ${who} leaves the ${theirs}. Your save still has them in it.`;
     }
-    if (kind === 'role') return `A plan: ${who} is in the ${targetPhrase} in your save.${swap}${faded}`;
+    if (kind === 'role') return `A plan: ${who} is in the ${targetPhrase} in your save.${swap}${faded}${later}`;
     const isNew = dynastyChoice === NEW_DYNASTY || !dynasties.find((d) => d.key === target?.key)?.inGame;
     const where = isNew
       ? `the ${targetPhrase} isn’t in your game yet.`
       : `${who} isn’t in the ${targetPhrase} in your save yet.`;
-    return `A plan: ${where}${swap}${faded}`;
+    return `A plan: ${where}${swap}${faded}${later}`;
   }
+
+  /**
+   * The dynasty's line of succession as Save would leave it, this sim's
+   * pick included: shown once it holds more than a head.
+   */
+  const succession = useMemo((): LinePlace[] => {
+    if (!target) return [];
+    const plan = dynastyPatch();
+    const me: SimNode = {
+      ...n,
+      dynastyRole: 'dynastyRole' in plan ? plan.dynastyRole : n.dynastyRole,
+      ...plan,
+      heirAfter: after || undefined,
+    };
+    const line = successionLine(withSuccessionChoice(nodes, me), target.key);
+    return line.length > 1 ? line : [];
+    // dynastyPatch reads the editor's dynasty and role picks, listed here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, n, target, dynastyRole, after, inGameDynasty]);
 
   /**
    * Enter saves and closes, as in any form; in the move section it moves the
@@ -1359,23 +1408,80 @@ export function SimEditor({
                 <label htmlFor="edDynasty">Role in the dynasty</label>
                 <select
                   id="edDynasty"
-                  value={dynastyRole}
+                  value={after ? `after:${after}` : dynastyRole}
                   aria-describedby="edDynastyHint"
-                  onChange={(e) => setDynastyRole(e.target.value as DynastyRole | '')}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // "after:<id>": heir once that sim is head, with no role till then.
+                    if (v.startsWith('after:')) {
+                      setDynastyRole('');
+                      setHeirAfter(v.slice('after:'.length));
+                    } else {
+                      setDynastyRole(v as DynastyRole | '');
+                      setHeirAfter('');
+                    }
+                  }}
                 >
                   <option value="">Member, no role</option>
-                  {(Object.keys(DYNASTY_ROLES) as DynastyRole[]).map((r) => (
+                  {(['head', 'heir'] as const).map((r) => (
                     <option key={r} value={r}>
                       {DYNASTY_ROLES[r].mark} {DYNASTY_ROLES[r].noun}
                     </option>
                   ))}
+                  {[...afterChoices, ...(after && !afterChoices.includes(after) ? [after] : [])].map((id) => (
+                    <option key={id} value={`after:${id}`}>
+                      {DYNASTY_ROLES.heir.mark} Heir after {lineName(id)}
+                    </option>
+                  ))}
+                  <option value="outcast">
+                    {DYNASTY_ROLES.outcast.mark} {DYNASTY_ROLES.outcast.noun}
+                  </option>
                 </select>
               </>
             )}
             {dynastyHint() && (
-              <div id="edDynastyHint" className={roleHolder?.dynastyPlan ? 'edhint edhint--warn' : 'edhint'}>
+              <div id="edDynastyHint" className={roleHolder?.dynastyPlan || afterHolder ? 'edhint edhint--warn' : 'edhint'}>
                 {dynastyHint()}
               </div>
+            )}
+            {succession.length > 0 && (
+              <>
+                <div className="edlabel">
+                  <span className="edlabel__text" id="edLineLabel">
+                    Line of succession
+                  </span>
+                </div>
+                <ol className="ro edline" aria-labelledby="edLineLabel">
+                  {succession.map((p, i) => {
+                    const prev = succession[i - 1];
+                    const what =
+                      p.place === 'head'
+                        ? 'Head'
+                        : p.place === 'heir'
+                          ? 'Heir'
+                          : `Heir after ${prev ? byId[prev.id]?.first.trim() || lineName(prev.id) : ''}`;
+                    return (
+                      <li
+                        key={p.id}
+                        className={p.id === n.id ? 'edline__row edline__row--me' : 'edline__row'}
+                        aria-current={p.id === n.id ? 'true' : undefined}
+                        title={p.planned ? 'Planned: not in your save yet' : undefined}
+                      >
+                        <span className={p.planned ? 'edline__mark edline__mark--planned' : 'edline__mark'} aria-hidden>
+                          {DYNASTY_ROLES[p.place === 'head' ? 'head' : 'heir'].mark}
+                        </span>
+                        <span className="edline__name">
+                          {p.id !== n.id ? lineName(p.id) : first.trim() ? `${first.trim()} ${sur.trim()}` : cardName(n)}
+                        </span>
+                        <span className="edline__what">
+                          {what}
+                          {p.planned && <span className="sr-only"> (planned)</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </>
             )}
             {gen && (
               <>

@@ -1,4 +1,5 @@
 import { DECEASED_STATE, UNHOUSED_HH } from '../constants.ts';
+import { advanceSuccession } from '../succession.ts';
 import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
 import { dynastyKey, rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
@@ -1547,6 +1548,9 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     if (followed !== nodes) nodes.splice(0, nodes.length, ...followed);
     const remembered = rememberFirstHeads(nodes);
     if (remembered !== nodes) nodes.splice(0, nodes.length, ...remembered);
+    // A new head: the heir planned after them is the planned heir now.
+    const advanced = advanceSuccession(nodes);
+    if (advanced !== nodes) nodes.splice(0, nodes.length, ...advanced);
   }
   const saveGame = parsed.game
     ? saveGameFrom(parsed.game, sims, input.game ?? null, input.fileName, input.now)

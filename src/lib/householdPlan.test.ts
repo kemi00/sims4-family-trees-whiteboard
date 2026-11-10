@@ -291,6 +291,30 @@ describe('planned dynasty roles', () => {
     assert.equal(one(items, 'role:Abe').state, 'ready');
   });
 
+  it('plan an heir after another, waiting until that sim is head', () => {
+    const nodes = [
+      sim('Vivian', 'Lewis', { age: 'Elder', dynasty: 'Lewis', dynastyRole: 'head' }),
+      sim('Eric', 'Lewis', { dynasty: 'Lewis', dynastyRole: 'heir' }),
+      sim('Olivia', 'Lewis', { age: 'Child', dynasty: 'Lewis', heirAfter: 'Eric' }),
+      planned('Rose', 'Lewis', { first: 'Rose', dynasty: 'Lewis', dynastyPlan: 'member', heirAfter: 'Olivia' }),
+    ];
+    const items = plans(nodes, [link('p1', 'Olivia', 'Rose', 'parent')]);
+    const olivia = one(items, 'heir:Olivia');
+    assert.deepEqual(
+      [olivia.state, olivia.text, olivia.waits.map((w) => [w.sim, w.why])],
+      ['waiting', 'Make Olivia Lewis heir of the Lewis dynasty', [['Eric', 'notHead']]],
+    );
+    assert.equal(waitText(olivia.waits[0]!, (id) => `${id} Lewis`, () => 'the Lewis household'), 'Eric Lewis isn’t head yet');
+    // Rose waits on her mother too, and on being born.
+    assert.deepEqual(one(items, 'heir:Rose').waits.map((w) => w.why), ['notHead', 'notBorn']);
+    // Once the save has Eric as head, making Olivia heir is ready.
+    const later = plans(
+      nodes.map((n) => (n.id === 'Vivian' ? { ...n, dynastyRole: undefined } : n.id === 'Eric' ? { ...n, dynastyRole: 'head' as const } : n)),
+      [],
+    );
+    assert.equal(one(later, 'heir:Olivia').state, 'ready');
+  });
+
   it('wait on a planned heir not born yet', () => {
     const nodes = [
       sim('Dirk', 'Dreamer'),

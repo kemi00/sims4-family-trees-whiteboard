@@ -1550,6 +1550,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     const risk = wb.dynastyRisks.get(dynastyKey(n) ?? '');
     return risk ? riskText(risk) : undefined;
   };
+  /** The sim a card is planned as heir after, named; none when they are gone from the board. */
+  const heirAfterOf = (n: SimNode) => {
+    const before = n.heirAfter ? wb.byid[n.heirAfter] : undefined;
+    return before ? { first: before.first.trim(), full: cardName(before) } : undefined;
+  };
   const oneHousehold = wb.multiSel?.kind === 'households' && wb.multiSel.gids.length === 1 ? wb.multiSel.gids[0] : undefined;
   const menu = wb.connectMenu;
   const connHighlight =
@@ -1805,6 +1810,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 parents={n.first.trim() ? undefined : plannedParentsOf(n.id)}
                 dynastyTag={n.dynasty ? wb.dynastyNames.get(dynastyKey(n) ?? '')?.tag : undefined}
                 dynastyRisk={dynastyRiskOf(n)}
+                heirAfter={heirAfterOf(n)}
                 babyPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partnerPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}

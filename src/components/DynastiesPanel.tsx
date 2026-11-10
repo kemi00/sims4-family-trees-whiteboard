@@ -388,6 +388,15 @@ export function DynastiesPanel({
                       <span className="dynp__holders">
                         {holder(r.head, 'head')}
                         {holder(r.heir, 'heir')}
+                        {r.later?.map((id, i) => (
+                          <span
+                            key={id}
+                            className="dynp__who dynp__who--planned"
+                            title={`Planned heir once ${nameOf(i ? r.later![i - 1]! : (r.heir?.id ?? ''))} is head`}
+                          >
+                            then {nameOf(id)}
+                          </span>
+                        ))}
                       </span>
                       {parts && <span className="dynp__parts">{parts}</span>}
                       {r.risk && (

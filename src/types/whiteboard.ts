@@ -80,6 +80,13 @@ export interface SimNode {
    */
   dynastyPlan?: 'role' | 'member' | 'none';
   /**
+   * A plan generations ahead: this sim becomes heir once the sim with this
+   * id (their dynasty's heir, or one planned after them) is head. Always a
+   * plan; one sim per place in line. A save that makes that sim head turns
+   * it into a planned heir (see advanceSuccession).
+   */
+  heirAfter?: string;
+  /**
    * The dynasty (its `dynastyKey`) this sim was the first head of. Its
    * generations count from them, so a new head does not renumber anyone,
    * and it stays when they die or leave the dynasty.

@@ -6,6 +6,7 @@ import { edgeSourceOf, joinNotes, theHousehold, uKey } from './utils.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE } from './constants.ts';
 import { dynastyKey, dynastyNames, dynastyPhrase } from './generations.ts';
 import type { Edge, Group, HouseholdMove, PairStatus, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
+import { heirAfterReady } from './succession.ts';
 
 /**
  * Your plan, household by household: what you can do today, what waits
@@ -32,7 +33,8 @@ export type WaitMove = 'play' | 'time' | 'ageUp' | 'find';
 export type PlanWait = {
   /** The sim it waits on. */
   sim: string;
-  why: 'notBorn' | 'tooYoung' | 'notInGame';
+  /** notHead: an heir planned after them waits for them to be head. */
+  why: 'notBorn' | 'tooYoung' | 'notInGame' | 'notHead';
   /** Their life stage now, for one too young. */
   now?: string;
   /** The stage the plan needs them at. */
@@ -48,7 +50,7 @@ export type PlanWait = {
 };
 
 export type PlanItem = {
-  /** Stable key: `couple:<edge>`, `end:<edge>`, `baby:<parents>`, `find:<sim>`, `role:<sim>`, `move:<move>`, `off:<edge>`. */
+  /** Stable key: `couple:<edge>`, `end:<edge>`, `baby:<parents>`, `find:<sim>`, `role:<sim>`, `heir:<sim>`, `move:<move>`, `off:<edge>`. */
   id: string;
   kind: 'couple' | 'baby' | 'find' | 'role' | 'move' | 'offPlan';
   state: PlanState;
@@ -333,6 +335,36 @@ export function householdPlans(opts: {
     });
   }
 
+  // An heir planned after another: made heir in the game once that sim is
+  // head. A save that shows them head turns it into a planned heir, above.
+  for (const n of nodes) {
+    if (!n.heirAfter || n.species || !living(n) || n.dynastyPlan === 'none') continue;
+    const before = byId.get(n.heirAfter);
+    if (!before) continue;
+    const known = dynastyName.get(dynastyKey(n) ?? '');
+    const the = known ? `the ${dynastyPhrase(known)}` : n.dynasty ? `the ${n.dynasty} dynasty` : 'their dynasty';
+    const waits: PlanWait[] = [];
+    if (!heirAfterReady(n, before)) {
+      waits.push({ sim: before.id, why: 'notHead', stage: '', gid: before.gid, move: 'play', days: null });
+    }
+    if (isPlannedSim(n)) {
+      waits.push(
+        plannedChild(n)
+          ? { sim: n.id, why: 'notBorn', stage: '', gid: birthGid(n), move: 'play', days: null }
+          : { sim: n.id, why: 'notInGame', stage: '', gid: n.gid, move: 'find', days: null },
+      );
+    }
+    items.push({
+      id: `heir:${n.id}`,
+      kind: 'role',
+      state: waits.length ? 'waiting' : 'ready',
+      text: `Make ${cardName(n)} heir of ${the}`,
+      sims: [n.id],
+      gids: [n.gid],
+      waits,
+    });
+  }
+
   // A sim moved to another household on the board, which no save shows yet.
   // Their moves are a story (into the Dreamer household, then back to
   // Darong), so what's to do is its next step, from where the game has them;
@@ -499,6 +531,7 @@ export function waitText(w: PlanWait, nameOf: (id: string) => string, hhOf: (gid
   const who = nameOf(w.sim);
   const hh = hhOf(w.gid);
   if (w.why === 'notInGame') return `${who} isn’t in your game yet: find or create them`;
+  if (w.why === 'notHead') return `${who} isn’t head yet`;
   if (w.why === 'notBorn') {
     const then = w.days === null ? '' : `, then about ${wholeDaysText(w.days)} to ${w.stage}`;
     return `${who} isn’t born yet: play ${hh} for the birth${then}`;

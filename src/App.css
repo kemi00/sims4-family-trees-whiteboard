@@ -1267,6 +1267,14 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edgen{margin-bottom:5px;font-weight:600}
 .editor .edgen__planned{font-weight:400;color:#6b5bd6}
 .editor .edgen__also{margin-top:2px;font-weight:400;color:#5a6673}
+/* The line of succession: head, heir, then each heir planned after the one before. */
+.editor .edline{list-style:none;margin:0 0 5px;padding:3px 8px;display:flex;flex-direction:column}
+.editor .edline__row{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:baseline;gap:4px;padding:3px 0}
+.editor .edline__row + .edline__row{border-top:1px solid var(--line)}
+.editor .edline__mark--planned{opacity:.4}
+.editor .edline__name{font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.editor .edline__what{color:var(--ink-3);font-size:10.5px;white-space:nowrap}
+.editor .edline__row--me .edline__name{color:var(--accent-strong)}
 /* Possible partners (PartnerRow): the editor's list and the ♥ menu's, alike. */
 .editor .partners,.pmenu .partners{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
 .editor .partners button,.pmenu .partners button{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:1px;width:100%;min-width:0;margin:0;padding:5px 7px;border:1px solid var(--partner-line);border-radius:7px;background:#fff;text-align:left;cursor:pointer;font:inherit;white-space:normal;overflow-wrap:anywhere}

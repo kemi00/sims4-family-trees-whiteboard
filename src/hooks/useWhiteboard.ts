@@ -1418,9 +1418,16 @@ export function useWhiteboard() {
     const sameDynasty = (n: SimNode) => !!after && dynastyKey(n) === dynastyKey(after);
     const loses = (n: SimNode) =>
       !!sole && n.dynastyRole === sole && sameDynasty(n) && (!after?.dynastyPlan || !!n.dynastyPlan);
+    // One sim per place in line: an heir after someone takes that place.
+    const place = after?.heirAfter && after.heirAfter !== prev?.heirAfter ? after.heirAfter : null;
+    const losesPlace = (n: SimNode) => !!place && n.heirAfter === place && sameDynasty(n);
     const apply = (ns: SimNode[]) =>
       ns.map((n) => {
         if (n.id !== id) {
+          if (losesPlace(n) && !loses(n)) {
+            const { heirAfter: _gone, ...rest } = n;
+            return toCore(rest);
+          }
           if (!loses(n)) return n;
           // A sim only planned into the dynasty leaves it with the role.
           const out = n.dynastyPlan === 'member' ? { dynasty: undefined, dynastyId: undefined, dynastyRef: undefined } : {};

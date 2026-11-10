@@ -2,6 +2,7 @@ import { DECEASED_STATE } from './constants.ts';
 import { dynastyKey, newDynastyRef } from './generations.ts';
 import { fold } from './utils.ts';
 import { cardName } from './plan.ts';
+import { successionLine } from './succession.ts';
 import type { DynastyRole, Edge, SimNode } from '../types/whiteboard.ts';
 
 export type FamilyDynasty = {
@@ -129,6 +130,8 @@ export type DynastyRow = {
   members: DynastyMember[];
   head?: DynastyMember;
   heir?: DynastyMember;
+  /** Heirs planned generations ahead, in line after the heir (successionLine). */
+  later?: string[];
   /** Of a dynasty in the game: members only planned into it. */
   joining: number;
   leaving: number;
@@ -199,6 +202,9 @@ export function dynastyIndex(nodes: SimNode[]): DynastyRow[] {
     const head = holder('head');
     const heir = holder('heir');
     const risk = dynastyRisk(members);
+    const later = successionLine(list, key)
+      .filter((p) => p.place === 'later')
+      .map((p) => p.id);
     rows.push({
       key,
       name: list[0]!.dynasty!,
@@ -206,6 +212,7 @@ export function dynastyIndex(nodes: SimNode[]): DynastyRow[] {
       members,
       ...(head ? { head } : {}),
       ...(heir ? { heir } : {}),
+      ...(later.length ? { later } : {}),
       joining: inGame ? list.filter((n) => n.dynastyPlan === 'member').length : 0,
       leaving: members.filter((m) => m.leaving).length,
       deceased: members.filter((m) => m.deceased).length,
@@ -233,6 +240,7 @@ export function removePlannedDynasty(nodes: SimNode[], key: string): SimNode[] {
       delete out.dynastyRef;
       delete out.dynastyRole;
       delete out.dynastyPlan;
+      delete out.heirAfter;
     }
     if (out.firstHeadOf === key) delete out.firstHeadOf;
     if (out.genRootOf === key) delete out.genRootOf;

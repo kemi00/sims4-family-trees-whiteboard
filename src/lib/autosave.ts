@@ -138,6 +138,7 @@ function nodeIdentity(n: SimNode) {
     dynastyRef: n.dynastyRef ?? null,
     dynastyRole: n.dynastyRole ?? null,
     dynastyPlan: n.dynastyPlan ?? null,
+    heirAfter: n.heirAfter ?? null,
     treeId: n.treeId ?? null,
     firstHeadOf: n.firstHeadOf ?? null,
     genRootOf: n.genRootOf ?? null,

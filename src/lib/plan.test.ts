@@ -236,6 +236,15 @@ describe('planned sims a save can fill', () => {
     assert.equal(done.dynastyPlan, undefined);
   });
 
+  it('hands a planned sim’s place in line to the real sim, and so do the heirs planned after it', () => {
+    const slot = planned('Heir', { dynasty: 'Dreamer', dynastyId: '7', dynastyPlan: 'member', heirAfter: 'Dirk' });
+    const grandchild = planned('Next', { dynasty: 'Dreamer', dynastyId: '7', dynastyPlan: 'member', heirAfter: 'Heir' });
+    const real = sim('Ana', { age: 'Infant', dynasty: 'Dreamer', dynastyId: '7' });
+    const out = linkPlannedSim([slot, grandchild, real], [], 'Heir', 'Ana', 'now').nodes;
+    assert.equal(out.find((x) => x.id === 'Ana')!.heirAfter, 'Dirk');
+    assert.equal(out.find((x) => x.id === 'Next')!.heirAfter, 'Ana');
+  });
+
   it('links a planned sim to the real one by hand, and unlinks back', () => {
     const real = sim('Ana', { age: 'Infant', hh: 'Capp', gid: 'W||Capp' });
     const all = [...nodes, real];

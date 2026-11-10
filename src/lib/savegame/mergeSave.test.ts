@@ -1744,6 +1744,28 @@ describe('dynasty marks from the save', () => {
     const r = merge({ sims: [saveSim('2', 'Cassandra')], rels: [] }, board);
     assert.deepEqual(marks(r), { Cassandra: ['Goth', 'heir'] });
   });
+
+  it('moves the line up: the heir planned after the new head is the planned heir', () => {
+    const board = [
+      goth('m', 'Mortimer', { saveSimId: '1', dynasty: 'Goth', dynastyRole: 'head' }),
+      goth('c', 'Cassandra', { saveSimId: '2', dynasty: 'Goth', dynastyRole: 'heir' }),
+      goth('a', 'Alexander', { saveSimId: '4', dynasty: 'Goth', heirAfter: 'c' }),
+    ];
+    const r = merge(
+      {
+        sims: [
+          saveSim('1', 'Mortimer'),
+          saveSim('2', 'Cassandra', { dynasty: 'Goth', dynastyRole: 'head' }),
+          saveSim('4', 'Alexander', { dynasty: 'Goth' }),
+        ],
+        rels: [],
+        dynasties: true,
+      },
+      board,
+    );
+    const alexander = r.nodes.find((n) => n.first === 'Alexander')!;
+    assert.deepEqual([alexander.dynastyRole, alexander.dynastyPlan, alexander.heirAfter], ['heir', 'role', undefined]);
+  });
 });
 
 describe('ages, game options and first heads from the save', () => {
