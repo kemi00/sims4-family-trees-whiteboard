@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { landMovedCards } from '../lib/landing.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import {
@@ -66,7 +67,6 @@ import {
 import {
   computeLayout,
   householdAddSpot,
-  LAYOUT,
   partnerSpot,
   layoutBases,
   measureCard,
@@ -2026,54 +2026,17 @@ export function useWhiteboard() {
   /**
    * Cards a move sends to household `destGid` (their `patches`) land there
    * as a block, keeping their places among themselves: under the
-   * household's other cards, or where the layout puts the household when
-   * they are all of it. Every other card stays where it is. True when they
-   * joined cards already there.
+   * household's other cards, or in free room beside the world's households
+   * when they are all of it (landMovedCards). Every other card stays where
+   * it is. True when they joined cards already there.
    */
   const landCards = useCallback(
     (patches: Map<string, Partial<SimNode>>, destGid: string, newGroup: Group | null): boolean => {
-      const ids = new Set(patches.keys());
-      const moved = [...ids].map((id) => byid[id]).filter((n): n is SimNode => !!n);
-      const nextCore = nodesCore.map((x) => {
-        const patch = patches.get(x.id);
-        return patch ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x;
-      });
-      const joined = nodes.filter((n) => n.gid === destGid && !ids.has(n.id));
-      if (!moved.length) {
-        setNodesCore(nextCore);
-        return joined.length > 0;
-      }
-      const bases = layoutBases(nextCore, worlds, edges);
-      const x0 = Math.min(...moved.map((n) => n.x));
-      const y0 = Math.min(...moved.map((n) => n.y));
-      const anchor = joined.length
-        ? tileSnapOrigin(
-            Math.min(...joined.map((n) => n.x)),
-            Math.max(...joined.map((n) => n.y + n.h)) + LAYOUT.gapYExtra,
-          )
-        : (() => {
-            const own = [...ids].map((id) => bases.get(id)).filter((b) => b !== undefined);
-            return { x: Math.min(...own.map((b) => b!.x)), y: Math.min(...own.map((b) => b!.y)) };
-          })();
-      const pinned = nextCore.map((node) => {
-        const base = bases.get(node.id);
-        const vis = byid[node.id];
-        if (!vis || !base) return node;
-        if (ids.has(node.id)) {
-          return { ...node, ox: vis.x - x0 + anchor.x - base.x, oy: vis.y - y0 + anchor.y - base.y };
-        }
-        const ox = vis.x - base.x;
-        const oy = vis.y - base.y;
-        if (ox === (node.ox ?? 0) && oy === (node.oy ?? 0)) return node;
-        return { ...node, ox, oy };
-      });
-      const laid = computeLayout(pinned, worlds, edges);
-      setNodesCore(
-        coreOffsetsAfterImportSeparation(pinned, snap ? snapNodesToTiles(laid) : laid, newGroup ? [...groups, newGroup] : groups, nodes),
-      );
-      return joined.length > 0;
+      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup, snap });
+      setNodesCore(r.core);
+      return r.joined;
     },
-    [nodes, nodesCore, groups, worlds, edges, byid, snap],
+    [nodes, nodesCore, groups, worlds, edges, snap],
   );
 
   /**
