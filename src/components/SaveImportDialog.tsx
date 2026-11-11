@@ -19,6 +19,8 @@ type Props = {
   game?: SaveGameInfo | null;
   /** The board is still the starter roster (see isStarterBoard): Replace is picked. */
   starter: boolean;
+  /** Nothing on it is arranged yet (isUntouchedStarter): Merge lays it out afresh. */
+  fresh?: boolean;
   /** Your plan against this save: Merge reviews it first when there is anything to. */
   plan: SavePlanReview;
   /** The board's planned links and planned sims, which Replace drops. */
@@ -48,6 +50,7 @@ export function SaveImportDialog({
   summary,
   game,
   starter,
+  fresh,
   plan,
   planned,
   onMerge,
@@ -176,6 +179,7 @@ export function SaveImportDialog({
                 <b>Merge into this board</b>
                 <span className="save-import__choice-note">
                   Updates matching sims and keeps planned violet links.
+                  {fresh && ' Nothing here is arranged yet, so the board is laid out afresh.'}
                 </span>
                 <ul className="save-import__stats">
                   <li>

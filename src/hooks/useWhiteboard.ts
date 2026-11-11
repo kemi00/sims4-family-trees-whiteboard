@@ -94,6 +94,7 @@ import {
   fillMissingSavePacks,
   hiddenPacksAfterImport,
   isStarterBoard,
+  isUntouchedStarter,
   mergeSaveIntoBoard,
   seedNameKeysFromNodes,
   type SaveMergeResult,
@@ -467,6 +468,8 @@ export function useWhiteboard() {
     parsed: ParsedSave;
     /** The board is still the starter roster, so Replace is picked. */
     starter: boolean;
+    /** Nothing on it is arranged yet, so a Merge lays it out afresh too. */
+    fresh: boolean;
     /** Your plan against this save, for the import's review step. */
     plan: SavePlanReview;
   } | null>(null);
@@ -3213,12 +3216,15 @@ export function useWhiteboard() {
       setGroups(result.groups);
       setPairStatus(result.pairStatus);
       setSaveGame(result.saveGame);
+      // Nothing on an untouched starter roster is the player's arrangement,
+      // so a merge into it is laid out afresh, as Replace is.
+      const fresh = mode === 'merge' && isUntouchedStarter(nodesCore, seed.nodes);
       releaseLayout();
       setNodesCore(
         saveImportCore({
-          mode,
+          mode: fresh ? 'replace' : mode,
           boardById: byid,
-          nodes: result.nodes,
+          nodes: fresh ? result.nodes.map((n) => (n.ox || n.oy ? { ...n, ox: 0, oy: 0 } : n)) : result.nodes,
           edges: result.edges,
           groups: result.groups,
           worlds,
@@ -3249,11 +3255,11 @@ export function useWhiteboard() {
       flashStatus(
         mode === 'replace'
           ? `Board replaced from save — ${result.nodes.length} cards.${games} Download JSON to keep it.`
-          : `Save merged — ${s.matched} updated, ${s.added} added.${planNote(s.slotsFilled.length, planConflicts(result.nodes, result.edges).length)}${games} Download JSON to keep this merge.`,
+          : `Save merged — ${s.matched} updated, ${s.added} added.${fresh ? ' The board was still the starter roster, so it is laid out afresh.' : ''}${planNote(s.slotsFilled.length, planConflicts(result.nodes, result.edges).length)}${games} Download JSON to keep this merge.`,
       );
       fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, releaseLayout],
+    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, releaseLayout, seed.nodes],
   );
 
   const previewSave = useCallback((file: File) => {
@@ -3283,6 +3289,7 @@ export function useWhiteboard() {
           merge,
           parsed,
           starter: isStarterBoard(nodesCore, seed.nodes),
+          fresh: isUntouchedStarter(nodesCore, seed.nodes),
           plan: planReview(merge, parsed, nodesCore, edges, householdMoves),
         });
       } catch (err) {

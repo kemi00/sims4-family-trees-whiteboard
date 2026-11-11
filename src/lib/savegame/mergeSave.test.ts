@@ -5,6 +5,7 @@ import {
   fillMissingSavePacks,
   hiddenPacksAfterImport,
   isStarterBoard,
+  isUntouchedStarter,
   mergeSaveIntoBoard,
   nameKey,
   seedNameKeysFromNodes,
@@ -2049,5 +2050,27 @@ describe('a sim\u2019s gender on import', () => {
     assert.equal(gameGender('Non-Binary', { gender: 'Female', pronouns: { ...they, subject: 'she' } }), 'Female');
     assert.equal(gameGender('Female', { gender: 'Male' }), 'Male');
     assert.equal(gameGender('Female', { gender: '' }), 'Female');
+  });
+});
+
+describe('an untouched starter roster', () => {
+  const roster = [
+    sim({ id: 'bob', first: 'Bob', sur: 'Pancakes' }),
+    sim({ id: 'eliza', first: 'Eliza', sur: 'Pancakes', gender: 'Female' }),
+    sim({ id: 'iggy', first: 'Iggy', sur: 'Pancakes', age: 'Child' }),
+  ];
+
+  it('is the roster as it shipped, laid out afresh on a merge', () => {
+    assert.equal(isUntouchedStarter(roster.map((n) => ({ ...n })), roster), true);
+  });
+
+  it('is not once a card was moved or added by hand, or a save came in', () => {
+    const moved = roster.map((n) => (n.id === 'iggy' ? { ...n, ox: 300 } : n));
+    assert.equal(isStarterBoard(moved, roster), true);
+    assert.equal(isUntouchedStarter(moved, roster), false);
+    const added = [...roster, sim({ id: 'new1', first: 'Heir', sur: 'Pancakes', added: true })];
+    assert.equal(isUntouchedStarter(added, roster), false);
+    const loaded = roster.map((n) => (n.id === 'bob' ? { ...n, saveSimId: '1' } : n));
+    assert.equal(isUntouchedStarter(loaded, roster), false);
   });
 });

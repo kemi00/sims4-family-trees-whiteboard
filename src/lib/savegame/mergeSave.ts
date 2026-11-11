@@ -166,6 +166,21 @@ export function isStarterBoard(nodes: SimNode[], roster: SimNode[]): boolean {
   return roster.filter((r) => ids.has(r.id)).length * 2 >= roster.length;
 }
 
+/**
+ * The starter roster as it shipped: a starter board (isStarterBoard) with no
+ * card added or moved by hand. Nothing on it is the player's arrangement, so
+ * a save merged into it is laid out afresh, as Replace is, rather than
+ * fitted around where the starter's cards happened to be.
+ */
+export function isUntouchedStarter(nodes: SimNode[], roster: SimNode[]): boolean {
+  if (!isStarterBoard(nodes, roster)) return false;
+  const shipped = new Map(roster.map((r) => [r.id, r]));
+  return nodes.every((n) => {
+    const r = shipped.get(n.id);
+    return !!r && (n.ox ?? 0) === (r.ox ?? 0) && (n.oy ?? 0) === (r.oy ?? 0);
+  });
+}
+
 export function seedNameKeysFromNodes(nodes: SimNode[]): Set<string> {
   return new Set(nodes.map((n) => nameKey(n.first, n.sur)));
 }

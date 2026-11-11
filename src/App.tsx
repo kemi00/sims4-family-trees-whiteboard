@@ -419,6 +419,7 @@ export default function App() {
             summary={wb.saveImport.merge.summary}
             game={wb.saveImport.merge.saveGame}
             starter={wb.saveImport.starter}
+            fresh={wb.saveImport.fresh}
             plan={wb.saveImport.plan}
             planned={wb.plannedCounts}
             onCancel={wb.cancelSaveImport}
