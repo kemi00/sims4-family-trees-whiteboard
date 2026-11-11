@@ -59,7 +59,7 @@ function label(opt: ConnectOption, a: string, b: string): ReactNode {
     case 'sibling':
       return '⊓ Siblings';
     case 'custom':
-      return '➖ Other link';
+      return '⋯ Other link';
   }
 }
 

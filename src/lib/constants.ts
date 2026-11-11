@@ -12,7 +12,8 @@ export const LINK_MARK = {
   divorced: '\u26AE',
   parent: '┳',
   sibling: '⊓',
-  custom: '➖',
+  // Dots, as the board draws an other link (OTHER_LINK_WIDTH).
+  custom: '⋯',
 } as const;
 
 export const LINK_LABEL = {
@@ -234,6 +235,18 @@ export const OFF_PLAN = '#b45309';
  */
 export const LINK_STROKE = 2.3;
 export const LINK_STROKE_ACROSS = 1.3;
+
+/**
+ * An other link (one you drew with Connect, not family) is round dots, so
+ * a dash only ever means two households: violet dashes were both a planned
+ * family link between households and an other link. The legend draws its
+ * sample with the same width.
+ */
+export const OTHER_LINK_WIDTH = 2.8;
+/** Dots in proportion to the stroke, as linkDash keeps dashes. */
+export function otherLinkDots(width: number): string {
+  return `0.1 ${(width * 2.4).toFixed(2)}`;
+}
 
 /**
  * Dashes in proportion to the stroke. A selected link is drawn a fixed

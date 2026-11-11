@@ -614,23 +614,26 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .bloodline-banner .banner__alt{background:transparent;color:var(--accent-strong);border-color:var(--line)}
 .bloodline-banner .banner__alt:hover{background:var(--hover)}
 .bloodline-banner .banner__alt + button{margin-left:0}
-/* Legend column on the right: two cards (worlds scroll; links stay put). */
-#legend{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:8px;width:172px;max-height:calc(100% - 24px);padding:0;border:none;background:transparent;box-shadow:none;overflow:hidden;font-size:10px}
+/*
+ * Legend column on the right: two cards sharing its height. The world list
+ * is how you get about, so it gives way first but always keeps room for six
+ * worlds; the key, read while you learn the marks, takes what is left and
+ * scrolls inside its own card when the window is short.
+ */
+#legend{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:8px;width:184px;max-height:calc(100% - 24px);padding:0;border:none;background:transparent;box-shadow:none;overflow:hidden;font-size:10px}
 .legend-card{background:var(--chrome-glass);border:1px solid var(--line);border-radius:var(--r-surface);padding:8px 10px;box-shadow:var(--lift);min-width:0}
-.legend-card--worlds{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.legend-card--worlds{flex:1 1000 auto;min-height:var(--lg-worlds-min,172px);display:flex;flex-direction:column;overflow:hidden}
 .legend-card__body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain}
-.legend-card--links{flex:0 0 auto}
+.legend-card--links{flex:0 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 #legend h3{margin:0 0 4px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-3)}
 .lg{display:flex;align-items:center;gap:5px;margin:1.5px 0}
 .lg i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
-.lg-key{margin:0 0 5px;color:var(--ink-3);line-height:1.4}
 /* The board's totals: figures first, their words under them. */
 .lg-totals{display:flex;gap:6px;margin:2px 0 7px;padding:0 0 7px;border-bottom:1px solid var(--line)}
 .lg-totals>div{display:flex;flex-direction:column;flex:1 1 0;min-width:0}
 .lg-totals dd{order:-1;margin:0;font-size:15px;font-weight:700;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
 .lg-totals dt{color:var(--ink-2)}
 .lg-totals .lg-totals__note{order:0;font-size:9px;font-weight:400;line-height:1.3;color:var(--ink-3)}
-.lg-key svg{display:inline-block;width:10px;height:10px;vertical-align:-1px;color:var(--ink-3)}
 /*
  * The key: what each board mark means, in four groups (family lines,
  * couples, cards, plans). Every sample is drawn the same size, so the
@@ -642,11 +645,11 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .legend-toggle__caret{width:9px;height:9px;margin-left:auto;transition:transform .15s ease}
 .legend-toggle[aria-expanded=false] .legend-toggle__caret{transform:rotate(-90deg)}
 #legend .legend-card--links h3{margin-bottom:0}
-.lgk-groups{margin-top:4px}
+.lgk-groups{margin-top:4px;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-gutter:stable}
 .lgk-groups h4{margin:8px 0 2px;font-size:10px;font-weight:700;color:#3b4757}
 .lgk-groups h4:first-child{margin-top:2px}
 .lgk-groups ul{list-style:none;margin:0;padding:0}
-.lgk{display:flex;align-items:flex-start;gap:6px;padding:1px 0;line-height:15px;color:#3f4756}
+.lgk{position:relative;display:flex;align-items:flex-start;gap:6px;padding:1px 0;line-height:15px;color:#3f4756}
 .lgk--marks{flex-wrap:wrap;gap:1px 10px}
 .lgk__mark{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
 .lgk__sample{flex:0 0 26px;display:flex;justify-content:center;align-items:center;height:15px}
@@ -654,7 +657,21 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lgk__emoji{font-size:11px;line-height:1}
 .lgk__emoji--planned{opacity:.4}
 .lgk__text{min-width:0}
-.lgk__note{display:block;margin-top:-1px;font-size:9.5px;line-height:1.3;color:#7a8491}
+/* On the desktop corner a note is the row's hover tip, still read out; the phone sheet shows it. */
+.lgk__note{position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+/* Family lines: where (style) down the side, whether in your save (colour) across the top. */
+.lgk-lines{width:100%;table-layout:fixed;border-collapse:collapse;margin:0 0 2px;color:#3f4756}
+.lgk-lines th,.lgk-lines td{padding:1px 0;line-height:15px}
+.lgk-lines__col{width:34px}
+.lgk-lines thead th{font-size:9px;font-weight:600;color:var(--ink-3);text-align:center;white-space:nowrap}
+.lgk-lines thead .lgk-lines__plan{color:#7c3aed}
+.lgk-lines tbody th{font-weight:400;text-align:left;white-space:nowrap}
+.lgk-lines td{text-align:center}
+.lgk-lines td svg{display:inline-block;vertical-align:middle;overflow:visible}
+/* Shapes and couples in pairs: one word each, the full meaning as the tip. */
+.lgk-groups ul.lgk-pairs{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,max-content);justify-content:space-between;column-gap:4px}
+.lgk-pairs .lgk{gap:4px}
+.lgk__counts svg{display:inline-block;width:10px;height:10px;vertical-align:-1px;color:var(--ink-3)}
 .lgk-groups h4.lgk__plans{color:#7c3aed}
 .lgk__lead{margin:0 0 3px;font-size:9.5px;line-height:1.35;color:#7a8491}
 @media (prefers-reduced-motion:reduce){ .legend-toggle__caret{transition:none} }
@@ -1285,7 +1302,12 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  #legend.legend--sheet .lgk-groups h4{margin-top:10px;font-size:12px}
  #legend.legend--sheet .lgk{padding:2.5px 0;line-height:18px}
  #legend.legend--sheet .lgk__sample{height:18px}
+ #legend.legend--sheet .lgk__note{position:static;display:block;width:auto;height:auto;overflow:visible;clip-path:none;white-space:normal;margin-top:-1px;line-height:1.3;color:#7a8491}
  #legend.legend--sheet .lgk__note,#legend.legend--sheet .lgk__lead{font-size:11px}
+ /* The sheet scrolls as a whole, so the key need not scroll on its own. */
+ #legend.legend--sheet .legend-card--worlds{min-height:0}
+ #legend.legend--sheet .legend-card--links,#legend.legend--sheet .lgk-groups{overflow:visible}
+ #legend.legend--sheet .lgk-lines th,#legend.legend--sheet .lgk-lines td{line-height:18px}
  #legend.legend--sheet .lgk__emoji{font-size:13px}
  .tool[data-tone=danger]:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 }

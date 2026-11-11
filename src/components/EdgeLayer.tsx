@@ -6,11 +6,13 @@ import {
   LINK_STROKE,
   LINK_STROKE_ACROSS,
   OFF_PLAN,
+  OTHER_LINK_WIDTH,
   PILL_H,
   PILL_HALF_W,
   PILL_W,
   UEDIT,
   linkDash,
+  otherLinkDots,
 } from '../lib/constants.ts';
 import { sharedChromeValue } from '../lib/liveScene.ts';
 import { ptsStr } from '../lib/utils.ts';
@@ -488,8 +490,8 @@ export const EdgeLayer = memo(function EdgeLayer({
               points={pts}
               fill="none"
               stroke={col}
-              strokeWidth={sq ? selStroke : 2.3}
-              strokeDasharray="7 5"
+              strokeWidth={sq ? selStroke : OTHER_LINK_WIDTH}
+              strokeDasharray={otherLinkDots(sq ? selStroke : OTHER_LINK_WIDTH)}
               strokeLinejoin="round"
               strokeLinecap="round"
             />

@@ -17,7 +17,7 @@ const CHIP_LABEL: Record<EdgeType, string> = {
   divorced: 'Divorced',
   parent: 'Parent → child',
   sibling: 'Siblings',
-  custom: 'Custom link',
+  custom: 'Other link',
 };
 
 /**

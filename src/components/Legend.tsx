@@ -9,8 +9,10 @@ import {
   LINK_STROKE,
   LINK_STROKE_ACROSS,
   NOT_IN_WORLD,
+  OTHER_LINK_WIDTH,
   UEDIT,
   linkDash,
+  otherLinkDots,
 } from '../lib/constants.ts';
 import type { WorldTotals } from '../lib/worldTag.ts';
 import { DivorcePill, HeartPill, OffPlanMark, RingPill, SecretLoversPill } from './EdgeLayer.tsx';
@@ -43,26 +45,26 @@ function LineSample({
   label,
   color = COL.blood,
   across = false,
-  dash,
+  dotted = false,
 }: {
   label: string;
   color?: string;
   across?: boolean;
-  /** Its own dash, for the dashed "other link". */
-  dash?: string;
+  /** Round dots, as the board draws an other link (OTHER_LINK_DOTS). */
+  dotted?: boolean;
 }) {
-  const width = across ? LINK_STROKE_ACROSS : LINK_STROKE;
+  const width = dotted ? OTHER_LINK_WIDTH : across ? LINK_STROKE_ACROSS : LINK_STROKE;
   return (
     <Sample label={label}>
       <line
-        x1={3}
+        x1={dotted ? 4 : 3}
         y1={SH / 2}
-        x2={SW - 3}
+        x2={SW - (dotted ? 4 : 3)}
         y2={SH / 2}
         stroke={color}
         strokeWidth={width}
-        strokeDasharray={dash ?? (across ? linkDash(width) : undefined)}
-        strokeLinecap={across || dash ? 'butt' : 'round'}
+        strokeDasharray={dotted ? otherLinkDots(width) : across ? linkDash(width) : undefined}
+        strokeLinecap={across ? 'butt' : 'round'}
       />
     </Sample>
   );
@@ -135,16 +137,43 @@ function CardSample({ label, kind }: { label: string; kind: 'dead' | 'added' }) 
   );
 }
 
-/** One row: the sample, then what it means, with an optional note under it. */
-function KeyRow({ sample, label, note }: { sample: ReactNode; label: ReactNode; note?: string }) {
+/**
+ * One row: the sample, then what it means. A note says more: on the
+ * desktop corner it is the row's hover tip (and still read out), on the
+ * phone sheet, which has room, a quieter line under the meaning.
+ */
+function KeyRow({
+  sample,
+  label,
+  note,
+  tip,
+}: {
+  sample: ReactNode;
+  label: ReactNode;
+  note?: string;
+  /** The hover tip when a short label stands for a longer meaning. */
+  tip?: string;
+}) {
+  const title = [tip, note].filter(Boolean).join(': ');
   return (
-    <li className="lgk">
+    <li className="lgk" title={title || undefined}>
       <span className="lgk__sample">{sample}</span>
       <span className="lgk__text">
         {label}
         {note && <span className="lgk__note">{note}</span>}
       </span>
     </li>
+  );
+}
+
+/** A household or world tag as the board draws it, for the tag counts. */
+function TagSample() {
+  return (
+    <Sample label="Tag">
+      <rect x={1.5} y={3} width={23} height={9} rx={4.5} fill="#e9eef4" stroke="#b9c3cf" strokeWidth={1} />
+      <circle cx={6.5} cy={7.5} r={1.6} fill="#8a94a0" />
+      <rect x={10} y={6.5} width={11} height={2} rx={1} fill="#8a94a0" />
+    </Sample>
   );
 }
 
@@ -256,17 +285,6 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
       >
         <h3 id="legend-worlds-h">Worlds</h3>
         <WorldTotalsRow totals={totals} hidden={worlds.filter((w) => w.name !== NOT_IN_WORLD && !liveWorlds.has(w.name))} />
-        <p className="lg-key">
-          Tags count <User weight="fill" aria-hidden="true" /> sims,{' '}
-          <House weight="fill" aria-hidden="true" /> households and{' '}
-          <Crown weight="fill" aria-hidden="true" /> dynasties
-        </p>
-        <p className="lg-key">
-          <svg viewBox="-7 -7 14 14" aria-hidden="true">
-            <UnhousedGlyph x={0} y={0} color="#697380" />
-          </svg>{' '}
-          Unhoused sims: townies the game made as you played
-        </p>
         <div className="legend-card__body">
           {worlds.map((w) => {
             const live = liveWorlds.has(w.name);
@@ -318,16 +336,56 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
         </h3>
         <div id="legend-key" className="lgk-groups" hidden={!keyOpen}>
           <h4>Family lines</h4>
-          <ul>
-            <KeyRow sample={<LineSample label="Solid line" />} label="Same household" />
-            <KeyRow sample={<LineSample label="Thin dashed line" across />} label="Different households" />
+          {/*
+           * Two rules, each shown once: the line's style says where the two
+           * live, its colour whether your save has the link yet.
+           */}
+          <table className="lgk-lines">
+            <colgroup>
+              <col />
+              <col className="lgk-lines__col" />
+              <col className="lgk-lines__col" />
+            </colgroup>
+            <thead>
+              <tr>
+                <td />
+                <th scope="col">Save</th>
+                <th scope="col" className="lgk-lines__plan">
+                  Planned
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr title="Both sims live in one household">
+                <th scope="row">Same household</th>
+                <td>
+                  <LineSample label="Solid line, from your save" />
+                </td>
+                <td>
+                  <LineSample label="Solid violet line, planned" color={UEDIT} />
+                </td>
+              </tr>
+              <tr title="The two sims live in different households">
+                <th scope="row">Other household</th>
+                <td>
+                  <LineSample label="Thin dashed line, from your save" across />
+                </td>
+                <td>
+                  <LineSample label="Thin dashed violet line, planned" color={UEDIT} across />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <ul className="lgk-pairs">
             <KeyRow
               sample={<ShapeSample label="Fork, arrows to the children" d="M13 1.5 V6 M5 12 V6 H21 V12" into={[5, 21]} />}
-              label="Parents to children"
+              label="Children"
+              tip="Parents to children"
             />
             <KeyRow
               sample={<ShapeSample label="U shape, arrow to the child" d="M5 1.5 V6 H21 V1.5 M13 6 V12" into={[13]} />}
-              label="Parents, not a couple"
+              label="Co-parents"
+              tip="Parents, not a couple"
             />
             <KeyRow
               sample={<ShapeSample label="Bracket" d="M5 13.5 V3 H21 V13.5" />}
@@ -341,11 +399,12 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
                   <LockGlyph x={13} y={SH / 2} color={COL.blood} size={7} />
                 </Sample>
               }
-              label="Secret parent"
+              label="Secret"
+              tip="Secret parent"
             />
           </ul>
           <h4>Couples</h4>
-          <ul>
+          <ul className="lgk-pairs">
             <KeyRow
               sample={
                 <PillSample label="Rings">
@@ -369,7 +428,8 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
                   <SecretLoversPill x={0} y={0} color={COL.romance} />
                 </PillSample>
               }
-              label="Secret lovers"
+              label="Secret"
+              tip="Secret lovers"
             />
             <KeyRow
               sample={
@@ -380,7 +440,7 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
               label="Divorced"
             />
           </ul>
-          <h4>On cards</h4>
+          <h4>On the board</h4>
           <ul>
             {/* The three dynasty marks share a line: one idea, three values. */}
             <li className="lgk lgk--marks" aria-label="Dynasty marks: crown head, fleur-de-lis heir, wilted rose outcast">
@@ -415,11 +475,29 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
               label="Pets and horses"
               note="in a lane of their own, right of the dashed line"
             />
+            <KeyRow
+              sample={<TagSample />}
+              label={
+                <span className="lgk__counts">
+                  Tags count <User weight="fill" aria-label="sims" /> <House weight="fill" aria-label="households" />{' '}
+                  <Crown weight="fill" aria-label="dynasties" />
+                </span>
+              }
+              note="sims, households and dynasties"
+            />
+            <KeyRow
+              sample={
+                <Sample label="Unhoused mark" viewBox="-13 -7.5 26 15">
+                  <UnhousedGlyph x={0} y={0} color="#697380" />
+                </Sample>
+              }
+              label="Unhoused sims"
+              note="townies the game made as you played"
+            />
           </ul>
           <h4 className="lgk__plans">Your plans</h4>
           <p className="lgk__lead">Violet: not in your save yet</p>
           <ul>
-            <KeyRow sample={<LineSample label="Violet line" color={UEDIT} />} label="A link you planned" />
             <KeyRow sample={<CardSample label="Violet dashed card" kind="added" />} label="A sim you added" />
             <KeyRow
               sample={
@@ -427,12 +505,9 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
                   {DYNASTY_ROLES.head.mark}
                 </span>
               }
-              label="A dynasty role you set"
+              label="A role you set"
+              tip="A dynasty role you set"
               note="faded until your save has it"
-            />
-            <KeyRow
-              sample={<LineSample label="Violet dashed line" color={UEDIT} dash="4 2.6" />}
-              label="Other link"
             />
             <KeyRow
               sample={
@@ -443,6 +518,11 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
               }
               label="⚠ Off plan"
               note="your game went another way"
+            />
+            <KeyRow
+              sample={<LineSample label="Violet dotted line" color={UEDIT} dotted />}
+              label="Other link, not family"
+              note="one you drew with Connect"
             />
           </ul>
         </div>
