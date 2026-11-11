@@ -280,8 +280,10 @@ for (const l of lots) worlds.set(l.world, (worlds.get(l.world) ?? new Set()).add
 // from the Sims Wiki (the in-game world picture and the neighbourhood disc),
 // 64px wide, named by slug ("willow-creek.webp", "willow-creek--foundry-cove.webp").
 // The wiki's image server turns scripts away, so they are saved through a
-// browser; this only lists what is there. A world of one neighbourhood uses
-// the world's picture for it.
+// browser; this only lists what is there. The wiki has none for Ondarion's
+// and Gibbi Point's neighbourhoods: those six were made for the board, and
+// trimmed to their disc. A world of one neighbourhood uses the world's
+// picture for it.
 const outDir = path.join(ROOT, 'public/places');
 const have = (dir: string, name: string) => fs.readdirSync(path.join(outDir, dir)).find((f) => f.replace(/\.[^.]+$/, '') === name);
 const worldIcon: Record<string, string> = {};

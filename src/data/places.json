@@ -88,7 +88,7 @@
    {"nb":"Forgotten Hollow","name":"Widowshild Townhome","hash":75300865,"w":30,"d":20,"beds":1,"baths":1,"kind":"house","venue":"house"},
    {"nb":"Forgotten Hollow","name":"Wolfsbane Manor","hash":779616260,"w":30,"d":30,"beds":3,"baths":2,"kind":"house","venue":"house","household":"Vatore"}
   ]},
-  "Gibbi Point": {"icon":"worlds/gibbi-point.webp","neighbourhoods":{"Crystal Valley":{},"Jellyfish Junction":{},"Wanderwood Wilds":{}},
+  "Gibbi Point": {"icon":"worlds/gibbi-point.webp","neighbourhoods":{"Crystal Valley":{"icon":"neighbourhoods/gibbi-point--crystal-valley.webp"},"Jellyfish Junction":{"icon":"neighbourhoods/gibbi-point--jellyfish-junction.webp"},"Wanderwood Wilds":{"icon":"neighbourhoods/gibbi-point--wanderwood-wilds.webp"}},
    "lots": [
    {"nb":"Crystal Valley","name":"Crystal Cottage","hash":1874133136,"w":30,"d":20,"beds":2,"baths":2,"kind":"house","venue":"house"},
    {"nb":"Crystal Valley","name":"Love Highland","hash":2090008698,"w":50,"d":50,"beds":8,"baths":3,"kind":"house","venue":"house","household":"Addam Commune"},
@@ -200,7 +200,7 @@
    {"nb":"Skyward Palms","name":"Rio Verde","hash":922555440,"w":40,"d":30,"beds":5,"baths":4,"kind":"house","venue":"house"},
    {"nb":"Skyward Palms","name":"Sultry Springside","hash":4259263200,"w":30,"d":20,"beds":4,"baths":3,"kind":"house","venue":"house","household":"Caliente"}
   ]},
-  "Ondarion": {"icon":"worlds/ondarion.webp","neighbourhoods":{"Bellacorde":{},"Dambele":{"icon":"neighbourhoods/ondarion--dambele.webp"},"Verdemar":{}},
+  "Ondarion": {"icon":"worlds/ondarion.webp","neighbourhoods":{"Bellacorde":{"icon":"neighbourhoods/ondarion--bellacorde.webp"},"Dambele":{"icon":"neighbourhoods/ondarion--dambele.webp"},"Verdemar":{"icon":"neighbourhoods/ondarion--verdemar.webp"}},
    "lots": [
    {"nb":"Bellacorde","name":"12 Lakeview Apartments","hash":2361852049,"w":40,"d":30,"beds":1,"baths":1,"kind":"house","venue":"house","household":"Alto"},
    {"nb":"Bellacorde","name":"13 Lakeview Apartments","hash":2361852049,"w":40,"d":30,"beds":1,"baths":1,"kind":"house","venue":"house"},
