@@ -221,7 +221,8 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
 .search input::-webkit-search-cancel-button{cursor:pointer}
 .search__nav{position:absolute;right:4px;display:flex;align-items:center;gap:1px}
-.search__count{font-size:10px;font-weight:700;color:var(--ink-3);padding:0 4px;font-variant-numeric:tabular-nums}
+.search__count{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--ink-3);padding:0 4px;font-variant-numeric:tabular-nums}
+.search__kind{width:11px;height:11px;flex:0 0 auto}
 .search__step{display:flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:none;background:transparent;color:var(--ink-2);cursor:pointer;border-radius:4px}
 .search__step:hover{background:var(--accent-soft);color:var(--accent-strong)}
 
@@ -1096,7 +1097,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .search-overlay .search__icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--ink-3);pointer-events:none}
  .search-overlay .search__nav{right:8px;top:50%;transform:translateY(-50%)}
  /* Room for the match counter, so the field's clear ✕ sits beside it, not under it. */
- .search-overlay:has(.search__nav) input{padding-right:84px}
+ .search-overlay:has(.search__nav) input{padding-right:98px}
 }
 
 .legend-chip{position:absolute;right:12px;top:12px;z-index:6;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--chrome);color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;box-shadow:var(--lift);cursor:pointer}

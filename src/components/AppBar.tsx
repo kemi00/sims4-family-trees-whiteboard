@@ -22,6 +22,7 @@ import {
   Scroll,
   Trash,
   TreeStructure,
+  User,
   UserPlus,
   UsersFour,
   UsersThree,
@@ -31,6 +32,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
+import { useFittingPlaceholder } from '../hooks/useFittingPlaceholder.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
@@ -55,6 +57,18 @@ function bloodlineToolLabel(wb: WhiteboardApi): string {
 }
 
 /** The family-links views, in the menu's order: most shown to least. */
+/** What Find looks through, as its box and button say it. */
+const FIND_LABEL = 'Find a sim, household or world';
+/** The box's placeholder, longest first: a narrow box says less, never half. */
+const FIND_PLACEHOLDERS = [FIND_LABEL, 'Sims, households, worlds', 'Find'] as const;
+
+/** Each kind of Find match, as its mark beside the count says it. */
+const SEARCH_KIND = {
+  world: { icon: Globe, noun: 'World' },
+  household: { icon: House, noun: 'Household' },
+  sim: { icon: User, noun: 'Sim' },
+} as const satisfies Record<string, { icon: Icon; noun: string }>;
+
 const LINK_VIEWS: { view: LinksView; icon: Icon; label: string; note?: string }[] = [
   { view: 'all', icon: TreeStructure, label: 'All' },
   {
@@ -212,11 +226,43 @@ export function AppBar({
     wb.addSim(r.width, r.height);
   };
 
+  const findHint = useFittingPlaceholder(FIND_PLACEHOLDERS);
   const search = (value: string, cycle: 0 | 1 | -1 = 0) => {
     queryRef.current = value;
     const { w, h } = svgSize();
     wb.searchSim(value, w, h, cycle);
   };
+
+  /**
+   * Which match is framed, out of how many, and what it is: a world, a
+   * household or a sim, so a step that zooms right out reads as meant.
+   */
+  const hit = wb.searchHits[wb.searchHitIndex];
+  const HitIcon = hit ? SEARCH_KIND[hit.kind].icon : null;
+  const searchNav = hit && HitIcon && (
+    <span className="search__nav">
+      <span className="search__count" title={`${SEARCH_KIND[hit.kind].noun}: ${hit.label}`}>
+        <HitIcon className="search__kind" weight="fill" aria-label={SEARCH_KIND[hit.kind].noun} />
+        {wb.searchHitIndex + 1}/{wb.searchHits.length}
+      </span>
+      <button
+        type="button"
+        className="search__step"
+        aria-label="Previous match"
+        onClick={() => search(queryRef.current, -1)}
+      >
+        <CaretUp aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="search__step"
+        aria-label="Next match"
+        onClick={() => search(queryRef.current, 1)}
+      >
+        <CaretDown aria-hidden="true" />
+      </button>
+    </span>
+  );
 
   useEffect(() => {
     if (!searchOpen || !searchCollapsed) return;
@@ -700,10 +746,11 @@ export function AppBar({
       <span className="search search--bar">
         <MagnifyingGlass className="search__icon" aria-hidden="true" />
         <input
+          ref={findHint.ref}
           id="search"
           type="search"
-          aria-label="Find a sim"
-          placeholder="Find a sim"
+          aria-label={FIND_LABEL}
+          placeholder={findHint.text}
           onInput={(e) => search(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -712,35 +759,13 @@ export function AppBar({
             }
           }}
         />
-        {wb.searchHits.length > 0 && (
-          <span className="search__nav">
-            <span className="search__count">
-              {wb.searchHitIndex + 1}/{wb.searchHits.length}
-            </span>
-            <button
-              type="button"
-              className="search__step"
-              aria-label="Previous match"
-              onClick={() => search(queryRef.current, -1)}
-            >
-              <CaretUp aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="search__step"
-              aria-label="Next match"
-              onClick={() => search(queryRef.current, 1)}
-            >
-              <CaretDown aria-hidden="true" />
-            </button>
-          </span>
-        )}
+        {searchNav}
       </span>
 
       <span className="appbar__compact-only appbar__compact-tools">
         <ToolButton
           icon={MagnifyingGlass}
-          label="Find a sim"
+          label={FIND_LABEL}
           pressed={searchOpen}
           onClick={() => setSearchOpen((o) => !o)}
         />
@@ -783,8 +808,8 @@ export function AppBar({
           <input
             ref={compactSearchRef}
             type="search"
-            aria-label="Find a sim"
-            placeholder="Find a sim"
+            aria-label={FIND_LABEL}
+            placeholder={FIND_LABEL}
             onInput={(e) => search(e.currentTarget.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -793,29 +818,7 @@ export function AppBar({
               }
             }}
           />
-          {wb.searchHits.length > 0 && (
-            <span className="search__nav">
-              <span className="search__count">
-                {wb.searchHitIndex + 1}/{wb.searchHits.length}
-              </span>
-              <button
-                type="button"
-                className="search__step"
-                aria-label="Previous match"
-                onClick={() => search(queryRef.current, -1)}
-              >
-                <CaretUp aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className="search__step"
-                aria-label="Next match"
-                onClick={() => search(queryRef.current, 1)}
-              >
-                <CaretDown aria-hidden="true" />
-              </button>
-            </span>
-          )}
+          {searchNav}
         </div>
       )}
     </header>

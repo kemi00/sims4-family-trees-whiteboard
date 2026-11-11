@@ -140,7 +140,7 @@ export function Minimap({ wb, svgRef, camera }: Props) {
   }, [wb.viewport, stageSize.w, stageSize.h, fit]);
 
   const selectedId = wb.sel?.type === 'node' ? wb.sel.id : null;
-  const searchId = wb.searchHits[wb.searchHitIndex] ?? null;
+  const searchId = wb.searchCurrentSim;
 
   const panFromEvent = useCallback(
     (ev: { clientX: number; clientY: number }) => {

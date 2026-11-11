@@ -89,6 +89,7 @@ import {
   partsToText,
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
+import { findMatches, type SearchHit } from '../lib/findMatches.ts';
 import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
@@ -486,7 +487,7 @@ export function useWhiteboard() {
     /** How merging would change the filters on screen; null when it would not. */
     filtersNote: string | null;
   } | null>(null);
-  const [searchHits, setSearchHits] = useState<string[]>([]);
+  const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
   const [searchHitIndex, setSearchHitIndex] = useState(0);
   const [infantHouseMenu, setInfantHouseMenu] = useState<{
     pa: string;
@@ -2731,6 +2732,13 @@ export function useWhiteboard() {
     [byid, frameSim],
   );
 
+  /**
+   * Find a sim, household or world by name. Worlds come first, then
+   * households, then sims, the biggest first: "Goth" finds the Goth
+   * household before Bella and Mortimer, "Willow" Willow Creek. Each match
+   * is framed as the board frames it: a world as its name in the Worlds list
+   * does, a household's cards together, a sim close up and selected.
+   */
   const searchSim = useCallback(
     (
       q: string,
@@ -2738,24 +2746,7 @@ export function useWhiteboard() {
       svgHeight: number,
       cycle: 0 | 1 | -1 = 0,
     ) => {
-      const query = q.toLowerCase().trim();
-      if (!query) {
-        setSearchHits([]);
-        setSearchHitIndex(0);
-        return;
-      }
-      const hits = nodes
-        .filter(
-          (n) =>
-            nodeVis(n) &&
-            // The game's married name finds the sim too (Cassandra Vatore),
-            // and a planned sim's plan label ("Heir 1").
-            ([n.sur, n.marriedSur].some(
-              (sur) => sur !== undefined && `${n.first} ${sur}`.toLowerCase().includes(query),
-            ) ||
-              (isPlannedSim(n) && cardName(n).toLowerCase().includes(query))),
-        )
-        .map((n) => n.id);
+      const hits = findMatches(q, { worlds, groups, visibleNodes });
       if (!hits.length) {
         setSearchHits([]);
         setSearchHitIndex(0);
@@ -2768,15 +2759,24 @@ export function useWhiteboard() {
             hits.length;
       setSearchHits(hits);
       setSearchHitIndex(next);
-      const n = byid[hits[next]!];
-      if (n) {
+      const hit = hits[next]!;
+      // Only on Enter / next / prev — not every keystroke (cycle === 0).
+      if (cycle !== 0) trackAction(`/action/find-${hit.kind}`);
+      if (hit.kind === 'world') {
+        setSel(null);
+        // Clear of the Worlds list and key down the right, on a wide screen.
+        zoomToWorld(hit.key, svgWidth, svgHeight, svgWidth > 700 ? 210 : 0);
+      } else if (hit.kind === 'household') {
+        setSel(null);
+        frameSims(visibleNodes.filter((n) => n.gid === hit.key).map((n) => n.id), svgWidth, svgHeight);
+      } else {
+        const n = byid[hit.key];
+        if (!n) return;
         frameSim(n, svgWidth, svgHeight);
-        // Only on Enter / next / prev — not every keystroke (cycle === 0).
-        if (cycle !== 0) trackAction('/action/find-sim');
         setSel({ type: 'node', id: n.id });
       }
     },
-    [nodes, nodeVis, byid, frameSim, searchHitIndex],
+    [visibleNodes, worlds, groups, byid, frameSim, frameSims, zoomToWorld, searchHitIndex],
   );
 
   const boardSourceLabel = sourceFileName
@@ -3778,7 +3778,19 @@ export function useWhiteboard() {
     [sel],
   );
 
-  const searchHitSet = useMemo(() => new Set(searchHits), [searchHits]);
+  /** The sim Find has framed now, when its match is a sim. */
+  const searchCurrentSim = useMemo(() => {
+    const h = searchHits[searchHitIndex];
+    return h?.kind === 'sim' ? h.key : null;
+  }, [searchHits, searchHitIndex]);
+  /** Cards that light up for the search: its sims, and the sims of its households. */
+  const searchHitSet = useMemo(() => {
+    const out = new Set<string>();
+    const households = new Set(searchHits.filter((h) => h.kind === 'household').map((h) => h.key));
+    for (const h of searchHits) if (h.kind === 'sim') out.add(h.key);
+    if (households.size) for (const n of nodes) if (households.has(n.gid)) out.add(n.id);
+    return out;
+  }, [searchHits, nodes]);
 
   return {
     nodes,
@@ -3945,6 +3957,7 @@ export function useWhiteboard() {
     searchHits,
     searchHitIndex,
     searchHitSet,
+    searchCurrentSim,
     sourceFileName,
     boardSourceLabel,
     canResetBoard,
