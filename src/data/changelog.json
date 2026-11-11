@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "16754ea",
+   "date": "2026-11-11",
+   "text": "Fixed: sims you gave they/them or other pronouns in Create a Sim are Non-Binary on the board again, after a save import made them Female or Male. Their pronouns show in the sim editor."
+  },
+  {
    "sha": "15f35ad",
    "date": "2026-11-10",
    "text": "Undo and Redo now say the whole step, never cut short with …, and names of sims, households and worlds stand out in their own colour there and on the status line."
