@@ -68,6 +68,7 @@ import {
 import {
   computeLayout,
   householdAddSpot,
+  laneStrip,
   partnerSpot,
   layoutBases,
   measureCard,
@@ -2142,9 +2143,12 @@ export function useWhiteboard() {
       // the household has room; growHousehold takes the first that runs
       // the household into nothing.
       const other = side === 'left' ? 'right' : 'left';
+      // A partner never takes the empty column before the animal lane.
+      const strip = laneStrip(home);
+      const beside = strip ? [...others, strip] : others;
       const spots = [
-        side ? partnerSpot(h, others, side) : null,
-        side ? partnerSpot(h, others, other) : null,
+        side ? partnerSpot(h, beside, side) : null,
+        side ? partnerSpot(h, beside, other) : null,
         chrome ? householdAddSpot(home, others, chrome.boxR) : null,
       ].filter((p): p is { x: number; y: number } => !!p);
       const r = growHousehold({

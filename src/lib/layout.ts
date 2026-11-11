@@ -12,6 +12,7 @@ import {
 } from './constants.ts';
 import { householdTagWidth, tileSnapOrigin } from './tiles.ts';
 import { isUnhousedGid } from './unhoused.ts';
+import { isPet } from './utils.ts';
 import { worldCounts, worldTagReserve } from './worldTag.ts';
 import type { Edge, SimNode, World } from '../types/whiteboard.ts';
 
@@ -190,6 +191,44 @@ function parentEdgesInto(edges: Edge[], ids: Set<string>): Edge[] {
  * a board saved under them is pinned to where it was (see prepareLoadedNodes).
  */
 export const HOUSEHOLD_ROWS_EPOCH = 7;
+
+/**
+ * First layout epoch that gives a household's animals a lane of their own
+ * (animalLane), and lays a row of children out in the order of their parents
+ * above (layoutCardsRow). Rows stand for a family's generations, which an
+ * animal doesn't have: a mare in the family's top row read as the mother of
+ * the sim under her, and her foal in the sims' row as their sibling.
+ */
+export const ANIMAL_LANE_EPOCH = 8;
+
+/** Room between a household's sims and its animal lane: one empty column. */
+const LANE_GAP = LAYOUT.gapX + CARD_MIN_W + LAYOUT.gapX;
+
+/**
+ * A household's sims and its animals, laid out apart (ANIMAL_LANE_EPOCH on).
+ * Null when there is nothing to part: no animals, or nothing but animals.
+ */
+function animalLane(
+  mem: SimNode[],
+  epoch: number,
+): { sims: SimNode[]; animals: SimNode[] } | null {
+  if (epoch < ANIMAL_LANE_EPOCH) return null;
+  const animals = mem.filter(isPet);
+  if (!animals.length || animals.length === mem.length) return null;
+  return { sims: mem.filter((n) => !isPet(n)), animals };
+}
+
+/**
+ * The animals' block to the right of the sims' block, one empty column
+ * between, top rows level. The animals keep their own rows: a mother above
+ * her young, animals with no family here side by side along the top.
+ */
+function besideLane(sims: PlacedCard[], animals: PlacedCard[]): PlacedCard[] {
+  if (!sims.length || !animals.length) return [...sims, ...animals];
+  const dx = Math.max(...sims.map((p) => p.x + p.w)) + LANE_GAP - Math.min(...animals.map((p) => p.x));
+  const dy = Math.min(...sims.map((p) => p.y)) - Math.min(...animals.map((p) => p.y));
+  return [...sims, ...animals.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }))];
+}
 
 function buildHHGraph(mem: SimNode[], edges: Edge[], epoch: number = LAYOUT_EPOCH): HHGraph {
   const ids = new Set(mem.map((n) => n.id));
@@ -622,9 +661,18 @@ function layoutGenerationRow(
   originY: number,
   genIndex: number,
   clusterCtx?: ClusterRowCtx,
+  epoch: number = LAYOUT_EPOCH,
 ): { placed: PlacedCard[]; w: number } {
+  /** Where a parent stands, so a row of children follows its parents (ANIMAL_LANE_EPOCH on). */
+  const parentX =
+    epoch >= ANIMAL_LANE_EPOCH
+      ? (id: string) => {
+          const p = placedById.get(id);
+          return p ? p.x + p.w / 2 : undefined;
+        }
+      : undefined;
   if (genIndex === 0) {
-    return layoutCardsRow(rowMem, g, hhIds, originX, originY, clusterCtx);
+    return layoutCardsRow(rowMem, g, hhIds, originX, originY, clusterCtx, parentX);
   }
 
   const keys = rowMem.map((n) => sharedParentKey(n, g, hhIds));
@@ -646,7 +694,7 @@ function layoutGenerationRow(
     return { placed, w: maxX - originX + LAYOUT.hhPad };
   }
 
-  const row = layoutCardsRow(rowMem, g, hhIds, originX, originY, clusterCtx);
+  const row = layoutCardsRow(rowMem, g, hhIds, originX, originY, clusterCtx, parentX);
   return centerRowUnderParents(row, rowMem, g, placedById, hhIds, originX);
 }
 
@@ -771,6 +819,8 @@ function sortUnitsByConnectionBias(
   units: string[][],
   g: HHGraph,
   ctx: ClusterRowCtx,
+  /** Orders units the bias leaves level, before their ids do. */
+  then: (a: string[], b: string[]) => number = () => 0,
 ): string[][] {
   const bias = (unit: string[]) => {
     let sum = 0;
@@ -793,7 +843,7 @@ function sortUnitsByConnectionBias(
   return [...units].sort((a, b) => {
     const d = bias(a) - bias(b);
     if (Math.abs(d) > 0.01) return d;
-    return a[0]!.localeCompare(b[0]!);
+    return then(a, b) || a[0]!.localeCompare(b[0]!);
   });
 }
 
@@ -805,6 +855,13 @@ function layoutCardsRow(
   originX: number,
   originY: number,
   clusterCtx?: ClusterRowCtx,
+  /**
+   * Where each sim already placed stands (its centre). Given, units with
+   * parents here go in the order of those parents, so each child's line
+   * comes straight down instead of crossing a cousin's; units with none
+   * follow them.
+   */
+  parentX?: (id: string) => number | undefined,
 ): { placed: PlacedCard[]; w: number } {
   const ids = new Set(rowMembers.map((n) => n.id));
   const placed = new Set<string>();
@@ -846,9 +903,25 @@ function layoutCardsRow(
   }
 
   const merged = attachSiblingsToPartnerUnits(units, g, hhIds);
+  const under = (unit: string[]): number | null => {
+    if (!parentX) return null;
+    const xs = unit.flatMap((id) =>
+      [...(g.parents.get(id) ?? [])]
+        .filter((p) => hhIds.has(p))
+        .map(parentX)
+        .filter((x): x is number => x !== undefined),
+    );
+    return xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null;
+  };
+  const byParents = (a: string[], b: string[]): number => {
+    const pa = under(a);
+    const pb = under(b);
+    if (pa === null || pb === null) return pa === pb ? 0 : pa === null ? 1 : -1;
+    return Math.abs(pa - pb) > 0.5 ? pa - pb : 0;
+  };
   const ordered = clusterCtx
-    ? sortUnitsByConnectionBias(merged, g, clusterCtx)
-    : [...merged].sort((a, b) => a[0]!.localeCompare(b[0]!));
+    ? sortUnitsByConnectionBias(merged, g, clusterCtx, byParents)
+    : [...merged].sort((a, b) => byParents(a, b) || a[0]!.localeCompare(b[0]!));
 
   const byId = new Map(rowMembers.map((n) => [n.id, n]));
   let x = originX;
@@ -1375,7 +1448,19 @@ function pedigreeTile(
   mem: SimNode[],
   edges: Edge[],
   epoch: number = LAYOUT_EPOCH,
+  /**
+   * A household's animal lane: rows from their own family only, so animals
+   * with none stand side by side, not stacked by life stage.
+   */
+  animalsOnly = false,
 ): { placed: PlacedCard[]; w: number; h: number; colSpan: number } {
+  const lane = animalsOnly ? null : animalLane(mem, epoch);
+  if (lane) {
+    const sims = pedigreeTile(lane.sims, edges, epoch);
+    const animals = pedigreeTile(lane.animals, edges, epoch, true);
+    const { placed, w, h } = finalizeHouseholdBlock(besideLane(sims.placed, animals.placed), 0, 0, epoch);
+    return { placed, w, h, colSpan: otherTileColSpan(placed, w) };
+  }
   const g = buildHHGraph(mem, edges, epoch);
   const hhIds = new Set(mem.map((n) => n.id));
   for (const e of parentEdgesInto(edges, hhIds)) {
@@ -1385,7 +1470,7 @@ function pedigreeTile(
 
   let gen: Map<string, number>;
   if (epoch >= HOUSEHOLD_ROWS_EPOCH) {
-    gen = householdRows(mem, edges, g, true);
+    gen = householdRows(mem, edges, g, !animalsOnly);
   } else {
     gen = generationRows(mem, g.parents);
     alignPartnerGenerationsFromGraph(mem, gen, g.partner);
@@ -1394,7 +1479,7 @@ function pedigreeTile(
     alignPartnerGenerationsFromGraph(mem, gen, g.partner);
     propagateGenerationsFromParents(mem, gen, g.parents);
   }
-  gen = splitQuadOtherHouseholds(mem, gen, g);
+  if (!animalsOnly) gen = splitQuadOtherHouseholds(mem, gen, g);
 
   const minGen = Math.min(...mem.map((n) => gen.get(n.id) ?? 0));
   const maxGen = Math.max(...mem.map((n) => gen.get(n.id) ?? 0));
@@ -1416,6 +1501,8 @@ function pedigreeTile(
       rowX,
       cardY,
       gi,
+      undefined,
+      epoch,
     );
     for (const p of row.placed) placedById.set(p.id, p);
     placed.push(...row.placed);
@@ -1606,7 +1693,16 @@ function layoutClusterTile(
   epoch: number = LAYOUT_EPOCH,
 ): HHTile {
   const minGenFn = (hhMem: SimNode[]) => householdMinGen(hhMem, edges, epoch);
-  const ordered = orderHouseholdsByLinks(component, hhLinks, minGenFn);
+  const households = orderHouseholdsByLinks(component, hhLinks, minGenFn);
+  // Animals stand in their household's lane, placed once the sims' rows are
+  // laid out; only the sims take part in the rows (ANIMAL_LANE_EPOCH on).
+  const lanes = new Map<string, SimNode[]>();
+  const ordered: [string, SimNode[]][] = households.map(([gid, mem]) => {
+    const lane = animalLane(mem, epoch);
+    if (!lane) return [gid, mem];
+    lanes.set(gid, lane.animals);
+    return [gid, lane.sims];
+  });
   const allMem = ordered.flatMap(([, mem]) => mem);
   const allIds = new Set(allMem.map((n) => n.id));
 
@@ -1641,12 +1737,20 @@ function layoutClusterTile(
   const colStart = new Map<string, number>();
   const colSpan = new Map<string, number>();
   let colX = LAYOUT.hhPad;
+  /** Each animal lane's own block, laid out like a household of its own. */
+  const laneBlock = new Map<string, PlacedCard[]>();
   for (const [gid, hhMem] of ordered) {
     colStart.set(gid, colX);
     const block = layoutHousehold(hhMem, edges, 0, 0, epoch);
     const span = colSpanFromPlaced(block.placed);
     colSpan.set(gid, span);
     colX += gridColumnWidth(span) + LAYOUT.householdGap;
+    const animals = lanes.get(gid);
+    if (animals) {
+      const lane = layoutHousehold(animals, edges, 0, 0, epoch).placed;
+      laneBlock.set(gid, lane);
+      colX += LANE_GAP + Math.max(...lane.map((p) => p.x + p.w)) - Math.min(...lane.map((p) => p.x));
+    }
   }
   let cardY = LAYOUT.hhHeader + LAYOUT.hhPad + minGen * pitchY;
 
@@ -1667,12 +1771,17 @@ function layoutClusterTile(
         cardY,
         gi,
         { colIndex, orderedGids, idToGid },
+        epoch,
       );
       const pinned = pinRowToColumn(row.placed, rowX, span);
       for (const p of pinned) placedById.set(p.id, p);
       placed.push(...pinned);
     }
     cardY += pitchY;
+  }
+  for (const [gid, lane] of laneBlock) {
+    const sims = placed.filter((p) => idToGid.get(p.id) === gid);
+    placed.push(...besideLane(sims, lane).slice(sims.length));
   }
 
   const { placed: normalized, w, h } = finalizeHouseholdBlock(placed, 0, 0, epoch);
@@ -1897,6 +2006,18 @@ function layoutHousehold(
     );
     return { gid: mem[0]!.gid, w, h, placed };
   }
+  const lane = animalLane(mem, epoch);
+  if (lane) {
+    const sims = layoutHousehold(lane.sims, edges, originX, originY, epoch);
+    const animals = layoutHousehold(lane.animals, edges, originX, originY, epoch);
+    const { placed, w, h } = finalizeHouseholdBlock(
+      besideLane(sims.placed, animals.placed),
+      originX,
+      originY,
+      epoch,
+    );
+    return { gid: mem[0]!.gid, w, h, placed };
+  }
   const g = buildHHGraph(mem, edges, epoch);
   const hhIds = new Set(mem.map((n) => n.id));
   /** Parents in linked households still set generation rows for children here (before HOUSEHOLD_ROWS_EPOCH). */
@@ -1933,6 +2054,8 @@ function layoutHousehold(
       originX + LAYOUT.hhPad,
       cardY,
       gi,
+      undefined,
+      epoch,
     );
     for (const p of row.placed) placedById.set(p.id, p);
     placed.push(...row.placed);
@@ -2660,16 +2783,48 @@ export function computeLayout(
   });
 }
 
+type HomeCard = { x: number; y: number; w?: number; h?: number; species?: string; state?: string };
+
+const animalCard = (n: { species?: string; state?: string }): boolean => !!n.species || n.state === 'Pet';
+
 /**
- * Spots for sims joining a household, in rows under its current cards and no
- * wider than they are, so the household box grows straight down.
+ * A household's sims and its animal lane as they stand on the board: when
+ * every animal is right of every sim, past more than the usual gap. Null
+ * otherwise, as on a board laid out before lanes or rearranged by hand.
  */
-export function rowsUnderHousehold(
-  home: { x: number; y: number; w?: number; h?: number }[],
+function standingLane<T extends HomeCard>(home: T[]): { sims: T[]; animals: T[] } | null {
+  const sims = home.filter((n) => !animalCard(n));
+  const animals = home.filter(animalCard);
+  if (!sims.length || !animals.length) return null;
+  const simsR = Math.max(...sims.map((n) => n.x + (n.w || CARD_MIN_W)));
+  if (Math.min(...animals.map((n) => n.x)) - simsR <= LAYOUT.gapX) return null;
+  return { sims, animals };
+}
+
+/**
+ * The empty column between a household's sims and its animal lane, for
+ * spots that must leave it empty (a partner moving in beside the last sim).
+ */
+export function laneStrip(home: HomeCard[]): SpawnRect | null {
+  const lane = standingLane(home);
+  if (!lane) return null;
+  const x = Math.max(...lane.sims.map((n) => n.x + (n.w || CARD_MIN_W)));
+  const y = Math.min(...home.map((n) => n.y));
+  return {
+    x,
+    y,
+    w: Math.min(...lane.animals.map((n) => n.x)) - x,
+    h: Math.max(...home.map((n) => n.y + (n.h || CARD_H))) - y,
+  };
+}
+
+/** Rows of joiners under `home`, no wider than it, from its left. */
+function rowsUnder(
+  home: HomeCard[],
   joiners: SimNode[],
-): Map<string, { x: number; y: number }> {
-  const out = new Map<string, { x: number; y: number }>();
-  if (!home.length) return out;
+  out: Map<string, { x: number; y: number }>,
+): void {
+  if (!home.length || !joiners.length) return;
   const left = Math.min(...home.map((n) => n.x));
   const right = Math.max(...home.map((n) => n.x + (n.w || CARD_MIN_W)));
   const bottom = Math.max(...home.map((n) => n.y + (n.h || CARD_H)));
@@ -2685,6 +2840,26 @@ export function rowsUnderHousehold(
     out.set(n.id, tileSnapOrigin(x, y));
     x += size.w + LAYOUT.partnerGap;
   }
+}
+
+/**
+ * Spots for sims joining a household, in rows under its current cards and no
+ * wider than they are, so the household box grows straight down. In a
+ * household with an animal lane, sims join under its sims and animals under
+ * its lane.
+ */
+export function rowsUnderHousehold(
+  home: HomeCard[],
+  joiners: SimNode[],
+): Map<string, { x: number; y: number }> {
+  const out = new Map<string, { x: number; y: number }>();
+  const lane = standingLane(home);
+  if (!lane) {
+    rowsUnder(home, joiners, out);
+    return out;
+  }
+  rowsUnder(lane.sims, joiners.filter((n) => !animalCard(n)), out);
+  rowsUnder(lane.animals, joiners.filter(animalCard), out);
   return out;
 }
 
@@ -2695,13 +2870,18 @@ export function rowsUnderHousehold(
  * under the cards, from the left, a row further down past any card there.
  */
 export function householdAddSpot(
-  home: SpawnRect[],
+  household: (SpawnRect & { species?: string; state?: string })[],
   occupied: SpawnRect[],
   boxRight: number,
 ): { x: number; y: number } {
   const size = { w: CARD_MIN_W, h: CARD_H };
+  // With an animal lane, a sim joins among the sims and leaves the lane's
+  // empty column empty.
+  const strip = laneStrip(household);
+  const home = standingLane(household)?.sims ?? household;
+  const taken = strip ? [...occupied, strip] : occupied;
   const free = (x: number, y: number) =>
-    !occupied.some((o) => rectsOverlap({ x, y, ...size }, o));
+    !taken.some((o) => rectsOverlap({ x, y, ...size }, o));
   const rowY = Math.max(...home.map((n) => n.y));
   const rowRight = Math.max(...home.filter((n) => n.y === rowY).map((n) => n.x + n.w));
   const besideX = rowRight + LAYOUT.partnerGap;

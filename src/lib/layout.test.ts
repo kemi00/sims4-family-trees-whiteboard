@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { CARD_H, CARD_MIN_W, HH_TAG_BAND, HH_TAG_INSET, HH_TAG_PILL_H, HH_TAG_STACK_GAP, TILE } from './constants.ts';
 import {
+  ANIMAL_LANE_EPOCH,
   computeLayout,
   HOUSEHOLD_ROWS_EPOCH,
   householdAddSpot,
+  laneStrip,
   partnerSpot,
+  rowsUnderHousehold,
   layoutBases,
   packingKey,
   packingSignature,
@@ -768,5 +771,135 @@ describe('rows built household first', () => {
     assert.equal(repacked, false);
     const now = new Map(snapNodesToTiles(computeLayout(pinned, worlds, edges)).map((n) => [n.id, n]));
     for (const n of was) assert.deepEqual([now.get(n.id)!.x, now.get(n.id)!.y], [n.x, n.y], n.first);
+  });
+});
+
+describe('a household’s animals in a lane of their own', () => {
+  // The Groves of Chestnut Ridge as a save brings them: Tallulah is Umber's
+  // late mother, Luna the mare is Starbrite's.
+  const H = 'Willow Creek||Grove';
+  const horse = { state: 'Pet', species: 'Horse' };
+  const nodes = [
+    sim({ id: 'tallulah', first: 'Tallulah', hh: 'Grove', gid: H, age: 'Unknown', state: 'Deceased' }),
+    sim({ id: 'umber', first: 'Umber', hh: 'Grove', gid: H, gender: 'Male' }),
+    sim({ id: 'juniper', first: 'Juniper', hh: 'Grove', gid: H }),
+    sim({ id: 'wren', first: 'Wren', hh: 'Grove', gid: H, age: 'Child', gender: 'Male' }),
+    sim({ id: 'luna', first: 'Luna', sur: '', hh: 'Grove', gid: H, ...horse }),
+    sim({ id: 'starbrite', first: 'Starbrite', sur: '', hh: 'Grove', gid: H, age: 'Child', ...horse }),
+  ];
+  const edges = [
+    edge('tallulah', 'umber', 'parent'),
+    edge('umber', 'juniper', 'marriage'),
+    edge('umber', 'wren', 'parent'),
+    edge('juniper', 'wren', 'parent'),
+    edge('luna', 'starbrite', 'parent'),
+  ];
+  const at = (laid: SimNode[]) => new Map(laid.map((n) => [n.id, n]));
+  const pitch = rowPitch();
+  const animals = new Set(['luna', 'starbrite']);
+
+  it('stands the animals right of every sim, one empty column between', () => {
+    const laid = snapNodesToTiles(computeLayout(nodes, worlds, edges));
+    const simsRight = Math.max(...laid.filter((n) => !animals.has(n.id)).map((n) => n.x + n.w));
+    for (const n of laid.filter((x) => animals.has(x.id))) {
+      assert.equal(n.x - simsRight, CARD_MIN_W + 2 * LAYOUT.gapX, n.first);
+    }
+  });
+
+  it('keeps the animals’ own family in the lane: the mare above her foal', () => {
+    const c = at(snapNodesToTiles(computeLayout(nodes, worlds, edges)));
+    assert.equal(c.get('luna')!.y, c.get('tallulah')!.y, 'the lane starts at the top row');
+    assert.equal(c.get('starbrite')!.x, c.get('luna')!.x, 'Starbrite straight under Luna');
+    assert.equal(c.get('starbrite')!.y - c.get('luna')!.y, pitch);
+  });
+
+  it('leaves the family tree to the sims: Tallulah right above her son', () => {
+    const c = at(snapNodesToTiles(computeLayout(nodes, worlds, edges)));
+    assert.equal(c.get('tallulah')!.x, c.get('umber')!.x);
+    assert.equal(c.get('umber')!.y - c.get('tallulah')!.y, pitch);
+    assert.equal(c.get('juniper')!.y, c.get('umber')!.y);
+    assert.equal(c.get('wren')!.y - c.get('umber')!.y, pitch);
+  });
+
+  it('mixed them into the rows before, and keeps a board saved then where it was', () => {
+    const old = ANIMAL_LANE_EPOCH - 1;
+    const was = snapNodesToTiles(computeLayout(nodes, worlds, edges, old));
+    const c = at(was);
+    assert.equal(c.get('starbrite')!.y, c.get('umber')!.y, 'Starbrite stood in Umber’s row');
+    const { nodes: pinned, repacked } = prepareLoadedNodes(nodes, old, worlds, edges);
+    assert.equal(repacked, false);
+    const now = at(snapNodesToTiles(computeLayout(pinned, worlds, edges)));
+    for (const n of was) assert.deepEqual([now.get(n.id)!.x, now.get(n.id)!.y], [n.x, n.y], n.first);
+  });
+
+  it('gives a household of only animals no lane', () => {
+    const pets = nodes.filter((n) => animals.has(n.id)).map((n) => ({ ...n, gid: 'Willow Creek||Stable', hh: 'Stable' }));
+    const c = at(snapNodesToTiles(computeLayout(pets, worlds, edges)));
+    assert.equal(c.get('starbrite')!.x, c.get('luna')!.x);
+    assert.equal(c.get('starbrite')!.y - c.get('luna')!.y, pitch);
+  });
+
+  // The Lynxes of Brindleton Bay: one sim, three cats and Josie's kitten, so
+  // the lane runs a row below the sims.
+  const L = 'Willow Creek||Lynx';
+  const cat = { state: 'Pet', species: 'Cat' };
+  const lynx = [
+    sim({ id: 'catarina', first: 'Catarina', hh: 'Lynx', gid: L }),
+    sim({ id: 'doc', first: 'Doc', sur: '', hh: 'Lynx', gid: L, ...cat }),
+    sim({ id: 'josie', first: 'Josie', sur: '', hh: 'Lynx', gid: L, ...cat }),
+    sim({ id: 'cleo', first: 'Cleo', sur: '', hh: 'Lynx', gid: L, ...cat }),
+    sim({ id: 'bart', first: 'Bartholomew', sur: '', hh: 'Lynx', gid: L, age: 'Child', ...cat }),
+  ];
+  const lynxEdges = [edge('josie', 'bart', 'parent')];
+
+  it('adds a sim among the sims, never in the lane or its empty column', () => {
+    const home = snapNodesToTiles(computeLayout(lynx, worlds, lynxEdges));
+    const c = at(home);
+    const boxRight = Math.max(...home.map((n) => n.x + n.w));
+    const spot = householdAddSpot(home, home, boxRight);
+    assert.equal(spot.x, c.get('catarina')!.x, 'under Catarina, from the left');
+    assert.ok(spot.y > c.get('catarina')!.y);
+    const strip = laneStrip(home)!;
+    assert.equal(strip.x, c.get('catarina')!.x + CARD_MIN_W);
+    assert.equal(strip.w, CARD_MIN_W + 2 * LAYOUT.gapX);
+  });
+
+  it('puts newcomers from a save under the sims or under the lane', () => {
+    const home = snapNodesToTiles(computeLayout(lynx, worlds, lynxEdges));
+    const c = at(home);
+    const joiners = [
+      sim({ id: 'kit', first: 'Kit', hh: 'Lynx', gid: L, age: 'Child' }),
+      sim({ id: 'tom', first: 'Tom', sur: '', hh: 'Lynx', gid: L, ...cat }),
+    ];
+    const spots = rowsUnderHousehold(home, joiners);
+    assert.equal(spots.get('kit')!.x, c.get('catarina')!.x);
+    assert.equal(spots.get('kit')!.y, c.get('catarina')!.y + pitch);
+    assert.equal(spots.get('tom')!.x, Math.min(...['doc', 'josie', 'cleo'].map((id) => c.get(id)!.x)), 'from the lane’s left');
+    assert.equal(spots.get('tom')!.y, c.get('bart')!.y + pitch);
+  });
+});
+
+describe('a row of children in the order of their parents', () => {
+  // Two single parents in one household; by name alone Ash would stand
+  // under Ava and Noah under Lucha, and their lines would cross.
+  const H = 'Willow Creek||Harjo';
+  const nodes = [
+    sim({ id: 'ava', first: 'Ava', hh: 'Harjo', gid: H }),
+    sim({ id: 'lucha', first: 'Lucha', hh: 'Harjo', gid: H }),
+    sim({ id: 'ash', first: 'Ash', hh: 'Harjo', gid: H, age: 'Child' }),
+    sim({ id: 'noah', first: 'Noah', sur: 'Kane', hh: 'Harjo', gid: H, age: 'Child' }),
+  ];
+  const edges = [edge('ava', 'noah', 'parent'), edge('lucha', 'ash', 'parent')];
+  const x = (laid: SimNode[]) => new Map(laid.map((n) => [n.id, n.x]));
+
+  it('stands each child under their own parent', () => {
+    const c = x(snapNodesToTiles(computeLayout(nodes, worlds, edges)));
+    assert.equal(c.get('noah'), c.get('ava'));
+    assert.equal(c.get('ash'), c.get('lucha'));
+  });
+
+  it('went by name before', () => {
+    const c = x(snapNodesToTiles(computeLayout(nodes, worlds, edges, ANIMAL_LANE_EPOCH - 1)));
+    assert.equal(c.get('ash'), c.get('ava'));
   });
 });

@@ -10,6 +10,7 @@ import {
   TILE,
 } from './constants.ts';
 import {
+  animalLaneDivider,
   householdChrome,
   snapGroupDelta,
   snapNodesToTiles,
@@ -104,5 +105,25 @@ describe('tile grid', () => {
     assert.equal(chrome.boxT, tileFloor(190) - HH_TAG_BAND);
     assert.ok(chrome.ageY + HH_TAG_PILL_H <= 190);
     assert.ok(chrome.headerY > chrome.boxT);
+  });
+});
+
+describe('animal lane divider', () => {
+  const at = (id: string, x: number, y: number, pet = false): SimNode =>
+    ({ id, x, y, w: CARD_MIN_W, h: CARD_H, ...(pet ? { species: 'Horse', state: 'Pet' } : { state: 'Sim' }) }) as SimNode;
+
+  it('runs midway through the empty column, top of the cards to the bottom', () => {
+    const lane = animalLaneDivider([at('tallulah', 0, 0), at('umber', 0, 200), at('juniper', 300, 200), at('wren', 0, 400), at('luna', 900, 0, true), at('starbrite', 900, 200, true)]);
+    assert.deepEqual(lane, { x: 700, t: 0, b: 400 + CARD_H });
+  });
+
+  it('draws none for animals in the sims’ rows, as laid out before lanes', () => {
+    assert.equal(animalLaneDivider([at('umber', 0, 0), at('juniper', 300, 0), at('luna', 600, 0, true)]), null);
+  });
+
+  it('draws none once a card stands across it, and none without both kinds', () => {
+    assert.equal(animalLaneDivider([at('umber', 0, 0), at('luna', 900, 0, true), at('wren', 1200, 200)]), null);
+    assert.equal(animalLaneDivider([at('luna', 0, 0, true), at('starbrite', 0, 200, true)]), null);
+    assert.equal(animalLaneDivider([at('umber', 0, 0)]), null);
   });
 });

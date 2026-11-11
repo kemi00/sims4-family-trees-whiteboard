@@ -1160,6 +1160,181 @@ function drawSiblingFork(
   return out;
 }
 
+/**
+ * One family's lines among the blood paths (`from` to `to`), for
+ * separateTracks: `cards` are its parents and children, whose edges hold its
+ * lines' fixed ends along with `anchors`; `ex` the obstacles its lines may
+ * touch; `floor` the highest a run may sit, clear of the parents' cards.
+ */
+export type TrackUnit = {
+  from: number;
+  to: number;
+  cards: SimNode[];
+  anchors: Point[];
+  ex: Set<string>;
+  floor: number;
+};
+
+/** Flat runs closer than this read as one line. */
+const TRACK_SEP = 10;
+/**
+ * Upright stretches in one column with less than this between them read as
+ * one line: a parent's line seems to run on into another family's child.
+ */
+const COLUMN_GAP = 20;
+/** Where a run that would share a track tries to go instead, nearest first. */
+const TRACK_STEPS = [-12, 12, -24, 24, -36, 36];
+
+type Run = { y: number; l: number; r: number };
+type Upright = { x: number; t: number; b: number };
+
+function flatRuns(paths: BloodPath[]): Run[] {
+  const runs: Run[] = [];
+  for (const p of paths) {
+    for (let i = 1; i < p.pts.length; i++) {
+      const [a, b] = [p.pts[i - 1]!, p.pts[i]!];
+      if (Math.abs(a[1] - b[1]) < 0.5 && Math.abs(a[0] - b[0]) > 0.5) {
+        runs.push({ y: a[1], l: Math.min(a[0], b[0]), r: Math.max(a[0], b[0]) });
+      }
+    }
+  }
+  return runs;
+}
+
+function uprights(paths: BloodPath[]): Upright[] {
+  const out: Upright[] = [];
+  for (const p of paths) {
+    for (let i = 1; i < p.pts.length; i++) {
+      const [a, b] = [p.pts[i - 1]!, p.pts[i]!];
+      if (Math.abs(a[0] - b[0]) < 0.5 && Math.abs(a[1] - b[1]) > 0.5) {
+        out.push({ x: a[0], t: Math.min(a[1], b[1]), b: Math.max(a[1], b[1]) });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Two families' lines never share a track. Where a flat run of one family's
+ * lines lies on another's (same height, overlapping or nearly meeting), it
+ * would read as one line, its children as the other family's: Jawara's line
+ * to Amarachi along Darren and Darleen's line to Dirk. Families settle in
+ * order; a later family's run moves to the nearest free height that keeps its
+ * stems their length, leaves its fixed ends where they are and stays clear of
+ * every card, without its stems running on into another family's line in
+ * the same column. When it has no such height, the family already on the
+ * track moves instead if it has one; else both stay. New paths replace moved
+ * ones, so cached routes are never changed in place.
+ */
+export function separateTracks(blood: BloodPath[], units: TrackUnit[], ctx: RoutingContext): void {
+  type Index = { runs: Map<number, Run[]>; cols: Map<number, Upright[]> };
+  const bucket = (y: number) => Math.floor(y / TRACK_SEP);
+  const own = (u: TrackUnit) => blood.slice(u.from, u.to);
+  const add = (ix: Index, u: TrackUnit): void => {
+    for (const run of flatRuns(own(u))) {
+      const b = bucket(run.y);
+      ix.runs.set(b, [...(ix.runs.get(b) ?? []), run]);
+    }
+    for (const c of uprights(own(u))) {
+      const k = Math.round(c.x);
+      ix.cols.set(k, [...(ix.cols.get(k) ?? []), c]);
+    }
+  };
+  const indexOf = (us: TrackUnit[]): Index => {
+    const ix: Index = { runs: new Map(), cols: new Map() };
+    for (const u of us) add(ix, u);
+    return ix;
+  };
+  const meets = (run: Run, t: Run, y: number): boolean =>
+    Math.abs(t.y - y) < TRACK_SEP && Math.min(run.r, t.r) - Math.max(run.l, t.l) > -TRACK_SEP;
+  const clashes = (ix: Index, runs: Run[], y: number): boolean =>
+    runs.some((run) => {
+      for (let b = bucket(y) - 1; b <= bucket(y) + 1; b++) {
+        if ((ix.runs.get(b) ?? []).some((t) => meets(run, t, y))) return true;
+      }
+      return false;
+    });
+  const inColumn = (ix: Index, x: number, t: number, b: number): boolean =>
+    (ix.cols.get(Math.round(x)) ?? []).some((c) => Math.min(b, c.b) - Math.max(t, c.t) > -COLUMN_GAP);
+  const runsAt = (u: TrackUnit, y0: number) => flatRuns(own(u)).filter((r) => Math.abs(r.y - y0) < 0.5);
+
+  /** Moves u's run at y0 to the nearest height clear of `ix`; false when none will do. */
+  const move = (u: TrackUnit, y0: number, ix: Index): boolean => {
+    const fixed = (p: Point): boolean =>
+      u.anchors.some((a) => Math.abs(a[0] - p[0]) < 0.5 && Math.abs(a[1] - p[1]) < 0.5) ||
+      u.cards.some(
+        (n) =>
+          p[0] >= n.x - 0.5 &&
+          p[0] <= n.x + n.w + 0.5 &&
+          (Math.abs(p[1] - n.y) < 0.5 || Math.abs(p[1] - (n.y + n.h)) < 0.5),
+      );
+    const at = (p: Point) => Math.abs(p[1] - y0) < 0.5;
+    const base = own(u);
+    if (base.some((p) => p.pts.some((q) => at(q) && fixed(q)))) return false;
+    const runs = runsAt(u, y0);
+    for (const dy of TRACK_STEPS) {
+      const y1 = y0 + dy;
+      if (y1 < u.floor || clashes(ix, runs, y1)) continue;
+      const moved = base.map((p): BloodPath => {
+        if (!p.pts.some(at)) return p;
+        const pts = p.pts.map((q): Point => (at(q) ? [q[0], y1] : q));
+        const arrows = p.arrows?.map((a) =>
+          a.dir[1] === 0 && Math.abs(a.tip[1] - y0) < 0.5 ? { ...a, tip: [a.tip[0], y1] as Point } : a,
+        );
+        return { ...p, pts, ...(arrows ? { arrows } : {}) };
+      });
+      const ok = moved.every((p, k) => {
+        const before = base[k]!;
+        if (p === before) return true;
+        for (let i = 1; i < p.pts.length; i++) {
+          const [a, b] = [p.pts[i - 1]!, p.pts[i]!];
+          if (!at(before.pts[i - 1]!) && !at(before.pts[i]!)) continue;
+          if (Math.abs(a[0] - b[0]) < 0.5) {
+            // An upright stretch keeps its way, a stem into a card or out of
+            // the parents keeps its full length, and none runs on into
+            // another family's line in the same column.
+            const was = before.pts[i]![1] - before.pts[i - 1]![1];
+            const now = b[1] - a[1];
+            const far = at(before.pts[i - 1]!) ? b : a;
+            if (Math.sign(now) !== Math.sign(was) || Math.abs(now) < (fixed(far) ? STUB : 8)) return false;
+            if (inColumn(ix, a[0], Math.min(a[1], b[1]), Math.max(a[1], b[1]))) return false;
+          }
+          if (!clearSeg(ctx, a[0], a[1], b[0], b[1], u.ex)) return false;
+        }
+        return true;
+      });
+      if (!ok) continue;
+      moved.forEach((p, k) => {
+        blood[u.from + k] = p;
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const done: TrackUnit[] = [];
+  let ix = indexOf(done);
+  for (const u of units) {
+    for (const y0 of [...new Set(flatRuns(own(u)).map((r) => r.y))]) {
+      const runs = runsAt(u, y0);
+      if (!runs.length || !clashes(ix, runs, y0)) continue;
+      if (move(u, y0, ix)) continue;
+      // No room for this run: the family already on the track may have some.
+      for (const v of done) {
+        const theirs = flatRuns(own(v)).find((t) => runs.some((run) => meets(run, t, y0)));
+        if (!theirs) continue;
+        const rest = indexOf([...done.filter((w) => w !== v), u]);
+        if (move(v, theirs.y, rest)) {
+          ix = indexOf(done);
+          break;
+        }
+      }
+    }
+    done.push(u);
+    add(ix, u);
+  }
+}
+
 export const EMPTY_EDGE_DATA: EdgeRenderData = {
   blood: [],
   unions: [],
@@ -1432,6 +1607,9 @@ export function computeEdgeRenderData(
 
   const BLOOD: BloodPath[] = [];
   const parentBusKids = new Set<string>();
+  /** Each family's share of BLOOD, for separateTracks. */
+  const tracks: TrackUnit[] = [];
+  const kidEx = (kids: SimNode[]) => kids.flatMap((n) => [n.id, ownTag(n)]);
 
   Object.values(fam).forEach((f) => {
     const kids = f.kids.filter((c) => byid[c]);
@@ -1451,6 +1629,8 @@ export function computeEdgeRenderData(
     const key = `f:${ps.join('|')}`;
 
     if (ps.length > 2) {
+      const pCards = ps.flatMap((pid) => (byid[pid] ? [byid[pid]!] : []));
+      const from = BLOOD.length;
       BLOOD.push(
         ...routed(key, sig, () =>
           ps.flatMap((pid) => {
@@ -1465,6 +1645,14 @@ export function computeEdgeRenderData(
           }),
         ),
       );
+      tracks.push({
+        from,
+        to: BLOOD.length,
+        cards: [...pCards, ...kn],
+        anchors: pCards.map((p) => [p.x + p.w / 2, p.y + p.h] as Point),
+        ex: new Set([...ps, ...kidEx(kn)]),
+        floor: Math.min(...pCards.map((p) => p.y + p.h)) + STUB,
+      });
       return;
     }
 
@@ -1503,6 +1691,7 @@ export function computeEdgeRenderData(
     const sideK = kn.filter((n) => !childBelowFork(ay, n, tagsBottom));
     for (const n of belowK) parentBusKids.add(n.id);
 
+    const from = BLOOD.length;
     BLOOD.push(
       ...routed(key, sig, () => {
         const out: BloodPath[] = [];
@@ -1527,6 +1716,14 @@ export function computeEdgeRenderData(
         return familyArrows(out, ax, ay, kn, isCouple);
       }),
     );
+    tracks.push({
+      from,
+      to: BLOOD.length,
+      cards: [...parentCards, ...kn],
+      anchors: [[ax, ay]],
+      ex: new Set([...exBase, ...kidEx(kn)]),
+      floor: unionStemJunctionY(ay, tagsBottom),
+    });
   });
 
   const sibEdges = edges.filter((e) => e.type === 'sibling' && vis(e));
@@ -1569,13 +1766,16 @@ export function computeEdgeRenderData(
       const mn = ms.map((m) => byid[m]!);
       const sig = [...mn.map(nodeSig), ids.join(',')].join(';');
       const cross = across(new Set(mn.map((n) => n.gid)).size > 1);
+      const from = BLOOD.length;
       BLOOD.push(
         ...routed(`s:${ms.slice().sort().join('|')}`, sig, () =>
           drawSiblingFork(mn, ids, ctx).map((p) => ({ ...p, ...cross })),
         ),
       );
+      tracks.push({ from, to: BLOOD.length, cards: mn, anchors: [], ex: new Set(kidEx(mn)), floor: -Infinity });
     });
   }
+  separateTracks(BLOOD, tracks, ctx);
 
   const unionRenders: UnionRender[] = unions.map((e) => {
     const g0 = uPath.get(e.id)!;

@@ -304,7 +304,8 @@ export function Hint({ introReady = false }: Props) {
           <li>
             <b>Organise</b> lays the whole board out like the starter one:
             worlds in columns by how many households and sims they have, each
-            household packed tight. Undo puts everything back.
+            household packed tight, with its pets and horses in a lane of their
+            own at its right. Undo puts everything back.
           </li>
           <li>
             The corner <b>map</b> shows the whole board. Click or drag it to

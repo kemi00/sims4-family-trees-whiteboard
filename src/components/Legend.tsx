@@ -404,6 +404,17 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
               label="From your save"
               note="not on the original roster"
             />
+            <KeyRow
+              sample={
+                <Sample label="Two cards with a dashed line between">
+                  <rect x={1} y={1.5} width={8} height={12} rx={2} fill="#fff" stroke="#8a94a0" strokeWidth={1.1} />
+                  <line x1={13} y1={0.5} x2={13} y2={SH - 0.5} stroke={SAMPLE_HH} strokeWidth={1.3} strokeDasharray="1.5 2" />
+                  <rect x={17} y={1.5} width={8} height={12} rx={2} fill="#fff" stroke="#8a94a0" strokeWidth={1.1} />
+                </Sample>
+              }
+              label="Pets and horses"
+              note="in a lane of their own, right of the dashed line"
+            />
           </ul>
           <h4 className="lgk__plans">Your plans</h4>
           <p className="lgk__lead">Violet: not in your save yet</p>

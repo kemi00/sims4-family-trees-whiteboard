@@ -4,7 +4,7 @@ import { rectsIntersect, type WorldRect } from '../lib/marquee.ts';
 import { nodesForGid, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { HH_TAG_STACK_GAP } from '../lib/constants.ts';
 import { planBadge, type PlanTally } from '../lib/householdPlan.ts';
-import { householdChrome, tagPillWidth, UNHOUSED_MARK_W } from '../lib/tiles.ts';
+import { animalLaneDivider, householdChrome, tagPillWidth, UNHOUSED_MARK_W } from '../lib/tiles.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
@@ -102,6 +102,7 @@ export const GroupLayer = memo(function GroupLayer({
         }
 
         if (mode === 'frames') {
+          const lane = animalLaneDivider(mem);
           return (
             <g key={g0.gid} data-gid={g0.gid}>
               <rect
@@ -118,6 +119,22 @@ export const GroupLayer = memo(function GroupLayer({
                 vectorEffect={selected ? 'non-scaling-stroke' : undefined}
                 style={{ pointerEvents: 'none' }}
               />
+              {lane && (
+                // Midway through the empty column, which puts it on a grid
+                // line: bolder than the box's own dashes so it still shows.
+                <line
+                  className="hh-lane"
+                  x1={lane.x}
+                  y1={lane.t}
+                  x2={lane.x}
+                  y2={lane.b}
+                  stroke={g0.color + 'aa'}
+                  strokeWidth={2.5}
+                  strokeDasharray="8 7"
+                  strokeLinecap="round"
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
               {selected && (
                 <rect
                   x={boxL}

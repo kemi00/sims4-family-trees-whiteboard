@@ -131,7 +131,7 @@ export const WORLD_TAG_HIT_PAD_SCREEN_PX = 10;
  * older epoch back to {@link OLDEST_PINNABLE_EPOCH} are pinned in place on
  * load; unstamped ones are re-packed.
  */
-export const LAYOUT_EPOCH = 7;
+export const LAYOUT_EPOCH = 8;
 /**
  * Oldest epoch whose packing rules are still implemented. Boards saved under
  * it or later are pinned to where they were on screen, not re-packed.
@@ -141,6 +141,8 @@ export const LAYOUT_EPOCH = 7;
  * start at the top of their slot, so the one under them never overlaps.
  * 7: rows built household first: couples level, children right under their
  * parents, no empty rows, and linked households lined up by moving whole.
+ * 8: a household's animals in a lane of their own at its right, and a row of
+ * children in the order of their parents above.
  */
 export const OLDEST_PINNABLE_EPOCH = 1;
 export const ALIGN_TH = 13;

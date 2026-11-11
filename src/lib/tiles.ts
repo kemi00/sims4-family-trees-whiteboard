@@ -124,6 +124,28 @@ export type HouseholdChrome = {
 };
 
 /**
+ * Where a household's animal lane begins: a faint line midway between its
+ * sims and its animals, from the top of its cards to the bottom. Only while
+ * every animal stands right of every sim with more than the usual gap
+ * between, as the layout leaves them, so a card moved by hand never leaves
+ * the line through a card, and a board laid out before lanes gets none.
+ */
+export function animalLaneDivider(mem: SimNode[]): { x: number; t: number; b: number } | null {
+  const animal = (n: SimNode) => !!n.species || n.state === 'Pet';
+  const sims = mem.filter((n) => !animal(n));
+  const animals = mem.filter(animal);
+  if (!sims.length || !animals.length) return null;
+  const simsR = Math.max(...sims.map((n) => n.x + n.w));
+  const animalsL = Math.min(...animals.map((n) => n.x));
+  if (animalsL - simsR <= TILE) return null;
+  return {
+    x: Math.round((simsR + animalsL) / 2),
+    t: Math.min(...mem.map((n) => n.y)),
+    b: Math.max(...mem.map((n) => n.y + n.h)),
+  };
+}
+
+/**
  * Household box + tag origins from card positions.
  * Name and Age up stack in the tile above the cards, Age up tight under
  * the title. Packing must reserve `HH_TAG_BAND`.
