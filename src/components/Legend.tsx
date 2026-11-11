@@ -310,7 +310,9 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
                     <img src={worldIconUrl(w.name)} alt="" width={16} height={16} />
                   </span>
                 ) : (
-                  <i style={{ background: w.color }} />
+                  // No picture (Batuu, The Magic Realm, Not in any world): the
+                  // same ring, left blank inside.
+                  <span className="lg__world lg__world--blank" style={{ borderColor: w.color }} aria-hidden="true" />
                 )}
                 {w.name}
               </button>

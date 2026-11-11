@@ -632,6 +632,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 /* A world's picture in a ring of its colour: the ring keys its frame. */
 .lg__world{display:inline-flex;flex:0 0 auto;width:20px;height:20px;border:2px solid;border-radius:50%;background:var(--chrome);overflow:hidden;box-sizing:border-box}
 .lg__world img{display:block;width:100%;height:100%;object-fit:cover}
+.lg__world--blank{background:repeating-linear-gradient(135deg,var(--rule) 0 1px,var(--chrome) 1px 4px)}
 /* The board's totals: figures first, their words under them. */
 .lg-totals{display:flex;gap:6px;margin:2px 0 7px;padding:0 0 7px;border-bottom:1px solid var(--line)}
 .lg-totals>div{display:flex;flex-direction:column;flex:1 1 0;min-width:0}
