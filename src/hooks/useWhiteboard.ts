@@ -213,15 +213,16 @@ const CONNECT_LINKS: Record<
 };
 
 /**
- * The status line's note when a household had no room to grow where it was:
- * it went whole to free room in its world, or found none and runs into its
- * neighbours. Empty when it grew in place.
+ * The status line's note on where new cards went, when not where the family
+ * puts them: the nearest free spot, which the view glides to when it is off
+ * screen, or, with none near, over other cards. Nothing else ever moves for
+ * them. Empty when they took the family's spot.
  */
-function roomNote(hh: string, world: string, r: { moved: boolean; crowded: boolean }): string {
-  const name = theHousehold(hh, named);
-  const The = `${name[0]!.toUpperCase()}${name.slice(1)}`;
-  if (r.crowded) return ` There was no free room for ${name} in ${named(world)}, so it now runs into what is beside it: drag things apart to make room.`;
-  if (r.moved) return ` ${The} had no room to grow where it was, so it moved to free room in ${named(world)}.`;
+function placeNote(r: { outOfView: boolean; crowded: boolean; atSpot?: boolean }, many = false): string {
+  const it = many ? 'them' : 'it';
+  if (r.crowded) return ` There was no free spot near, so ${many ? 'they sit' : 'it sits'} over other cards: drag ${it} where you like.`;
+  if (r.outOfView) return ` There was no free spot on screen, so the view moved to the nearest one: drag ${it} where you like.`;
+  if (r.atSpot === false) return ` ${many ? 'They went' : 'It went'} to the nearest free spot, nothing else moving: drag ${it} where you like.`;
   return '';
 }
 
@@ -551,6 +552,28 @@ export function useWhiteboard() {
     x: number;
     y: number;
   } | null>(null);
+  /** The stage's size on screen, less the legend column: the stage sets it. */
+  const visibleAreaRef = useRef<(() => { w: number; h: number } | null) | null>(null);
+  /** The part of the board on screen, in board units, clear of its edges and the controls along its foot. */
+  const viewRect = useCallback(() => {
+    const area = visibleAreaRef.current?.();
+    if (!area) return null;
+    const { k, tx, ty } = viewportRef.current;
+    return { l: (40 - tx) / k, t: (40 - ty) / k, r: (area.w - 40 - tx) / k, b: (area.h - 96 - ty) / k };
+  }, []);
+  /** Glide the view just far enough to show `box` (board units) when it is off screen. */
+  const revealBox = useCallback(
+    (box: { l: number; t: number; r: number; b: number } | null) => {
+      const v = viewRect();
+      if (!box || !v) return;
+      const dx = box.l < v.l ? v.l - box.l : box.r > v.r ? v.r - box.r : 0;
+      const dy = box.t < v.t ? v.t - box.t : box.b > v.b ? v.b - box.b : 0;
+      if (!dx && !dy) return;
+      const k = viewportRef.current.k;
+      setViewShift((s) => ({ dx: dx * k, dy: dy * k, n: (s?.n ?? 0) + 1 }));
+    },
+    [viewRect],
+  );
 
   /** Positions and card sizes are derived on every render from layout rules. */
   const nodes = useMemo(() => {
@@ -1431,15 +1454,16 @@ export function useWhiteboard() {
         gid,
         block: [{ ...n, ...spot, ...measureCard(n) }],
         spots: [spot],
+        view: viewRect(),
       });
       setNodesCore(r.core);
-      if (r.moved) lockViewToSims(home.map((x) => x.id));
+      if (r.outOfView) revealBox(r.box);
       setSel({ type: 'node', id });
       setEditNodeId(id);
-      flashStatus(`Added a sim to ${named(g.hh)}: name them, then press Enter.${roomNote(g.hh, g.world, r)}`);
+      flashStatus(`Added a sim to ${named(g.hh)}: name them, then press Enter.${placeNote(r)}`);
       return id;
     },
-    [groups, nodes, nodesCore, worlds, edges, pushUndo, lockViewToSims, flashStatus],
+    [groups, nodes, nodesCore, worlds, edges, pushUndo, viewRect, revealBox, flashStatus],
   );
 
   /**
@@ -1938,15 +1962,16 @@ export function useWhiteboard() {
         gid: dest.gid,
         block: [{ ...infant, x, y, ...size }],
         spots: [{ x, y }],
+        view: viewRect(),
       });
       setNodesCore(r.core);
-      if (r.moved) lockViewToSims(nodes.filter((n) => n.gid === dest.gid).map((n) => n.id));
+      if (r.outOfView) revealBox(r.box);
       setEdges(nextEdges);
       setSel({ type: 'node', id });
       setInfantHouseMenu(null);
       trackAction(parentIds.length > 1 ? '/action/add-infant' : '/action/add-infant-one-parent');
       const who = parents.map((p) => named(p.first || cardName(p))).join(' ＋ ');
-      const room = roomNote(dest.hh, dest.world, r);
+      const room = placeNote(r);
       const name = sur || 'Sim';
       const one = `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${sur ? named(name) : name}`;
       flashStatus(
@@ -1955,7 +1980,7 @@ export function useWhiteboard() {
           : `Planned a child of ${who}: ${one}, not born yet.${room} Link another parent with Connect if there is one.`,
       );
     },
-    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, lockViewToSims],
+    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, viewRect, revealBox],
   );
 
   const addInfantOfCouple = useCallback(
@@ -2219,16 +2244,20 @@ export function useWhiteboard() {
         gid: h.gid,
         block: [{ ...m, ...patch }],
         spots: spots.length ? spots : [{ x: m.x, y: m.y }],
+        view: viewRect(),
       });
       setNodesCore(r.core);
+      // The view keeps the sim you acted on where it was; when that's the
+      // one who stays, it shows the one who moved in.
       lockViewToSims([follow]);
+      if (follow !== mover && r.outOfView) revealBox(r.box);
       setSel({ type: 'node', id: follow });
       flashStatus(
-        `${named(cardName(m))} moves in with ${named(cardName(h))}, in ${theHousehold(dest.hh, named)}: a plan until a save shows it.${roomNote(dest.hh, dest.world, r)} Undo takes it back.`,
+        `${named(cardName(m))} moves in with ${named(cardName(h))}, in ${theHousehold(dest.hh, named)}: a plan until a save shows it.${placeNote(r)} Undo takes it back.`,
       );
       return true;
     },
-    [nodes, nodesCore, groups, worlds, edges, pushUndo, lockViewToSims, flashStatus],
+    [nodes, nodesCore, groups, worlds, edges, pushUndo, lockViewToSims, viewRect, revealBox, flashStatus],
   );
 
   /**
@@ -2249,12 +2278,12 @@ export function useWhiteboard() {
       patches: Map<string, Partial<SimNode>>,
       destGid: string,
       newGroup: Group | null,
-    ): { joined: boolean; moved: boolean; crowded: boolean } => {
-      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup });
+    ): { joined: boolean; outOfView: boolean; crowded: boolean } => {
+      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup, view: viewRect() });
       setNodesCore(r.core);
       return r;
     },
-    [nodes, nodesCore, groups, worlds, edges],
+    [nodes, nodesCore, groups, worlds, edges, viewRect],
   );
 
   /**
@@ -2308,7 +2337,7 @@ export function useWhiteboard() {
         back
           ? `The ${named(g.hh)} household moves back to ${named(world)}: a new step in your plan. To drop its move instead, use the bin on it in the Log.`
           : joined
-          ? `${moved.length === 1 ? `${named(cardName(moved[0]!))} of the ${named(g.hh)} household joins` : `All ${moved.length} sims of the ${named(g.hh)} household join`} the one in ${named(world)}${plan}.${roomNote(dest.hh, world, landed)} Undo takes it back.`
+          ? `${moved.length === 1 ? `${named(cardName(moved[0]!))} of the ${named(g.hh)} household joins` : `All ${moved.length} sims of the ${named(g.hh)} household join`} the one in ${named(world)}${plan}.${placeNote({ ...landed, outOfView: false }, moved.length > 1)} Undo takes it back.`
           : `The ${g.hh} household moves to ${dest.lot ? `${dest.lot} in ` : ''}${world} with ${moved.length === 1 ? cardName(moved[0]!) : `its ${moved.length} sims`}${plan}. Undo takes it back.`,
       );
       return dest;
@@ -3471,9 +3500,11 @@ export function useWhiteboard() {
           patches: new Map([[back.simId, { gid: home.gid, hh: home.hh, world: home.world, nb: home.nb, color: home.color }]]),
           destGid: home.gid,
           newGroup: null,
+          view: viewRect(),
         });
         setNodesCore(landed.core);
-        room = roomNote(home.hh, home.world, landed);
+        if (landed.outOfView) revealBox(landed.box);
+        room = placeNote(landed);
         setHouseholdMoves((ms) => ms.filter((m) => m.id !== back.id));
       } else pinCardsToCurrentPlaces(r.edges, r.nodes);
       setEdges(r.edges);
@@ -3485,7 +3516,7 @@ export function useWhiteboard() {
             : `Following your game${back && home ? `: ${nameOfCore(back.simId)} is back in ${home.hh}` : ''}.${room}`,
       );
     },
-    [planIssues, pushUndo, nodesCore, nodes, worlds, edges, householdMoves, groups, pinCardsToCurrentPlaces, flashStatus, nameOfCore],
+    [planIssues, pushUndo, nodesCore, nodes, worlds, edges, householdMoves, groups, pinCardsToCurrentPlaces, flashStatus, nameOfCore, viewRect, revealBox],
   );
 
   /** "This is …": a sim from the save fills a planned sim by hand. */
@@ -3996,6 +4027,7 @@ export function useWhiteboard() {
     homes,
     freeLots,
     lotBoxes,
+    visibleAreaRef,
     edgeData,
     shownEdges,
     hideSecrets,

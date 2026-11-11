@@ -1547,6 +1547,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     setNameFocusId(wbRef.current.addSimToHousehold(gid));
   }, []);
 
+  // What of the board is on screen, for new sims to land where you can see
+  // them: the stage, less the legend column beside it.
+  wb.visibleAreaRef.current = () => {
+    const r = svgRef.current?.getBoundingClientRect();
+    if (!r) return null;
+    const lg = legendRef.current?.getBoundingClientRect();
+    const right = !compact && lg && lg.width ? Math.max(0, Math.min(r.width, r.right - lg.left + 12)) : 0;
+    return { w: r.width - right, h: r.height };
+  };
+
   /** A free lot clicked on the board: who moves in, asked beside it. */
   const [lotMenu, setLotMenu] = useState<{ lot: GameLot; x: number; y: number; picked: string[] } | null>(null);
   const onPickLot = useCallback((lot: GameLot, clientX: number, clientY: number) => {

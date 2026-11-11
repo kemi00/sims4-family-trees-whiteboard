@@ -113,20 +113,43 @@ describe('a household growing', () => {
   const a = [card('a1', 'W||A', 1000, 1000), card('a2', 'W||A', 1300, 1000)];
   const under = { x: 1000, y: 1200 };
 
-  it('takes the spot asked for when the household has room there', () => {
+  /** No card of `placed` within a tile of any card in `cards`. */
+  const clearOf = (placed: { x: number; y: number }, cards: SimNode[]) =>
+    cards.every(
+      (c) =>
+        placed.x + CARD_MIN_W + TILE <= c.x ||
+        c.x + c.w + TILE <= placed.x ||
+        placed.y + CARD_H + TILE <= c.y ||
+        c.y + c.h + TILE <= placed.y,
+    );
+
+  it('takes the spot asked for when no card is there', () => {
     const others = [card('c', 'W||C', 2000, 1000)];
-    assert.deepEqual(householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under] }), { at: under, shift: null, crowded: false });
+    assert.deepEqual(householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under] }), {
+      at: under,
+      outOfView: false,
+      crowded: false,
+      atSpot: true,
+    });
   });
 
-  it('grows right when a new row would run it into the household below', () => {
-    const others = [card('b', 'W||B', 1000, 1400), card('c', 'W||C', 2200, 1000)];
+  it('takes the spot even when the household box then runs into its neighbour', () => {
+    // B's box starts a tile under A's new row: boxes may touch, cards may not.
+    const others = [card('b', 'W||B', 1000, 1500)];
     const g = householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under] });
-    assert.equal(g.shift, null);
-    assert.deepEqual(g.at, { x: 1600, y: 1000 });
+    assert.deepEqual(g.at, under);
   });
 
-  it('moves the household whole to free room in its world when it is boxed in', () => {
-    // B below, C right, D left and E above: no side has a tile to spare.
+  it('takes the nearest free spot when a card is in the way, and moves nothing', () => {
+    const others = [card('b', 'W||B', 1000, 1300)];
+    const g = householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under] });
+    assert.equal(g.atSpot, false);
+    assert.equal(g.crowded, false);
+    assert.ok(clearOf(g.at, [...a, ...others]), `lands on a card at ${JSON.stringify(g.at)}`);
+    assert.ok(Math.hypot(g.at.x - under.x, g.at.y - under.y) <= 300, `too far: ${JSON.stringify(g.at)}`);
+  });
+
+  it('boxed in on every side, still moves no one: the nearest free spot', () => {
     const others = [
       card('b', 'W||B', 1000, 1400),
       card('c', 'W||C', 1800, 1000),
@@ -134,18 +157,33 @@ describe('a household growing', () => {
       card('e', 'W||E', 1000, 600),
     ];
     const g = householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under] });
-    assert.ok(g.shift, 'it had to move');
     assert.equal(g.crowded, false);
-    // The baby keeps its place under the household.
-    assert.deepEqual(g.at, { x: under.x + g.shift.x, y: under.y + g.shift.y });
-    const moved = [...a.map((n) => ({ ...n, x: n.x + g.shift!.x, y: n.y + g.shift!.y })), { ...baby, ...g.at }];
-    const box = householdChrome(moved, null)!;
-    for (const o of others) {
-      const ob = householdChrome([o], null)!;
-      const clear =
-        box.boxR + TILE <= ob.boxL || ob.boxR + TILE <= box.boxL || box.boxB + TILE <= ob.boxT || ob.boxB + TILE <= box.boxT;
-      assert.ok(clear, `runs into ${o.gid}`);
-    }
+    assert.ok(clearOf(g.at, [...a, ...others]));
+    assert.ok(!('shift' in g));
+  });
+
+  it('prefers a free spot on screen to a nearer one off it', () => {
+    const others = [card('b', 'W||B', 1000, 1300)];
+    // The screen ends right under A: only spots beside it are on it.
+    const view = { l: 0, t: 0, r: 3000, b: 1150 };
+    const g = householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under], view });
+    assert.equal(g.outOfView, false);
+    assert.ok(g.at.y + CARD_H <= view.b && clearOf(g.at, [...a, ...others]), JSON.stringify(g.at));
+  });
+
+  it('says when nothing on screen was free, for the view to glide there', () => {
+    const view = { l: 900, t: 900, r: 1700, b: 1150 };
+    const g = householdGrowth({ others: [], groups: [], home: a, block: [baby], spots: [under], view });
+    assert.equal(g.outOfView, true);
+    assert.deepEqual(g.at, under);
+  });
+
+  it('prefers a spot outside another household’s box', () => {
+    // C's box has room in its middle, right beside A: no card is there, but
+    // a sim there would look like C's. Under A is free and in no box.
+    const others = [card('c', 'W||C', 1600, 700), card('c2', 'W||C', 1600, 1300)];
+    const g = householdGrowth({ others, groups: [], home: a, block: [baby], spots: [{ x: 1600, y: 1000 }, under] });
+    assert.deepEqual(g.at, under);
   });
 
   describe('on the starter board', () => {
@@ -156,7 +194,7 @@ describe('a household growing', () => {
     const core = seed.nodes;
     const laid = lay(core);
 
-    it('adds a sim to every household without moving a card outside it', () => {
+    it('adds a sim to every household without moving a single card', () => {
       let checked = 0;
       for (const g of groups) {
         const home = laid.filter((n) => n.gid === g.gid);
@@ -166,8 +204,8 @@ describe('a household growing', () => {
         const spot = { x: chrome.boxL, y: chrome.boxB + TILE };
         const r = growHousehold({ core: [...core, n], laid, worlds, edges: seed.edges, groups, gid: g.gid, block: [{ ...n, ...spot }], spots: [spot] });
         const after = new Map(lay(r.core).map((x) => [x.id, x]));
+        // Not even the household's own cards move.
         for (const o of laid) {
-          if (o.gid === g.gid) continue;
           const now = after.get(o.id)!;
           assert.ok(now.x === o.x && now.y === o.y, `${g.gid}: ${o.id} moved`);
         }
