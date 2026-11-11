@@ -1,3 +1,6 @@
+import type { HomeRoom } from '../lib/homeRoom.ts';
+import { HOUSEHOLD_MAX } from '../lib/homeRoom.ts';
+import { lotKindLabel, lotRoomsLabel, lotSizeLabel, type GameLot } from '../lib/places.ts';
 import { useState } from 'react';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { livingPlace } from '../lib/connectionLog.ts';
@@ -16,6 +19,10 @@ type Props = {
   notInGame?: string[];
   /** The game lot it lives on, named before its neighbourhood. */
   lot?: string;
+  /** Room on that lot for everyone, planned babies too (homeRoom). */
+  room?: HomeRoom | null;
+  /** The whole household moves to a free lot that fits. */
+  onMoveToLot?: (lot: GameLot) => void;
   elders: ElderTime[];
   nameOf: (id: string) => string;
   /** "the Munch household". */
@@ -61,6 +68,8 @@ export function HouseholdBrief({
   unblocks,
   notInGame,
   lot,
+  room,
+  onMoveToLot,
   elders,
   nameOf,
   hhOf,
@@ -112,6 +121,7 @@ export function HouseholdBrief({
           ✕
         </button>
       </header>
+      {room && <HomeSection room={room} world={group.world} onMoveToLot={onMoveToLot} />}
       {move && (
         <>
           <button
@@ -200,3 +210,79 @@ export function HouseholdBrief({
     </aside>
   );
 }
+
+/** "3 bed · 2 bath · 40×30", what a lot is. */
+function lotFacts(l: GameLot): string {
+  return [l.kind === 'empty' ? lotKindLabel(l) : lotRoomsLabel(l), lotSizeLabel(l)].filter(Boolean).join(' · ');
+}
+
+/**
+ * Their home and whether it fits them: the lot's bedrooms against who lives
+ * there and who is planned, and the game's limit of eight. When it doesn't
+ * fit, the free lots in their world that would, to move the household to.
+ */
+function HomeSection({
+  room,
+  world,
+  onMoveToLot,
+}: {
+  room: HomeRoom;
+  world: string;
+  onMoveToLot?: (lot: GameLot) => void;
+}) {
+  const { lot } = room;
+  const people = room.sims + room.planned;
+  const who = [
+    room.sims ? `${room.sims} ${room.sims === 1 ? 'sim' : 'sims'}` : '',
+    room.planned ? `${room.planned} planned` : '',
+    room.pets ? `${room.pets} ${room.pets === 1 ? 'pet' : 'pets'}` : '',
+  ].filter(Boolean);
+  return (
+    <section className="brief__home" aria-label="Their home">
+      <p className="brief__homelot">
+        <span aria-hidden="true">🏠</span> <b>{lot.name}</b> <span className="brief__homefacts">{lotFacts(lot)}</span>
+      </p>
+      <p
+        className="brief__homewho"
+        title="Roughly one bedroom for each couple and one for everyone else, babies too."
+      >
+        {who.join(', ')}
+        {lot.kind === 'house' && people > 0 && <>: about {room.rooms === 1 ? '1 bedroom' : `${room.rooms} bedrooms`} needed</>}
+      </p>
+      {room.overCap && (
+        <p className="brief__homewarn">
+          {people + room.pets} in one household: the game allows {HOUSEHOLD_MAX}. Someone has to move out before
+          everyone planned is born.
+        </p>
+      )}
+      {room.short && (
+        <p className="brief__homewarn">
+          The house has {lot.beds === 1 ? '1 bedroom' : `${lot.beds} bedrooms`}: build on, or move to a lot with more.
+        </p>
+      )}
+      {lot.kind === 'empty' && (
+        <p className="brief__homewarn">An empty lot: build them a home with about {room.rooms} bedrooms.</p>
+      )}
+      {room.fits.length > 0 && (
+        <>
+          <p className="brief__homefit">Free in {world}, with room for them:</p>
+          <ul className="brief__homelots">
+            {room.fits.map((l) => (
+              <li key={l.name}>
+                <span>
+                  <b>{l.name}</b>, {l.nb} <span className="brief__homefacts">{lotFacts(l)}</span>
+                </span>
+                {onMoveToLot && (
+                  <button type="button" onClick={() => onMoveToLot(l)}>
+                    Move here
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+

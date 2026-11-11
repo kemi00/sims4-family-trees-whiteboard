@@ -1206,6 +1206,20 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .brief__empty{margin-top:10px}
 .brief__away{margin:10px 0 0;padding:7px 9px;border:1px solid var(--chip-line);border-radius:8px;background:var(--chip);font-size:11.5px;line-height:1.45;color:var(--ink-2)}
 .brief__away b{color:var(--ink)}
+/* Their home: the lot, who needs room, and lots that would fit. */
+.brief__home{margin:10px 0 0;padding:8px 9px;border:1px solid var(--chip-line);border-radius:8px;background:var(--chip);font-size:11.5px;line-height:1.45}
+.brief__home p{margin:0}
+.brief__home p+p{margin-top:3px}
+.brief__homelot b{color:var(--ink)}
+.brief__homefacts{color:var(--ink-2);white-space:nowrap}
+.brief__homewho{color:var(--ink-2)}
+.brief__homewarn{color:var(--warn);font-weight:600}
+.brief__homefit{margin-top:6px!important;color:var(--ink-2)}
+.brief__homelots{list-style:none;margin:3px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.brief__homelots li{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 7px;border:1px solid var(--line);border-radius:7px;background:#fff}
+.brief__homelots li>span{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.brief__homelots button{flex:none;padding:3px 8px;border:1px solid var(--rule);border-radius:6px;background:#fff;color:var(--accent);font:inherit;font-size:11px;font-weight:600;cursor:pointer}
+.brief__homelots button:hover{background:var(--accent-soft);border-color:var(--accent)}
 .brief__movebtn{display:block;width:100%;margin-top:8px;padding:6px 8px;border:1px dashed var(--chip-line);border-radius:8px;background:var(--accent-soft);color:var(--accent);font:inherit;font-size:12px;font-weight:600;text-align:center;cursor:pointer}
 .brief__movebtn:hover{background:var(--hover)}
 .brief__movebtn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}

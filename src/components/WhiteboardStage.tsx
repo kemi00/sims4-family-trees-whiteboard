@@ -77,7 +77,8 @@ import { LotLayer } from './LotLayer.tsx';
 import { BlankHatchPattern } from './BlankDisc.tsx';
 import { LotMoveInMenu } from './LotMoveInMenu.tsx';
 import { RecapPanel } from './RecapPanel.tsx';
-import type { GameLot } from '../lib/places.ts';
+import { freeLotsIn, type GameLot } from '../lib/places.ts';
+import { homeRoom } from '../lib/homeRoom.ts';
 import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
@@ -2304,6 +2305,20 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           unblocks={unblockedBy(wb.planItems, briefGroup.gid)}
           notInGame={wb.notInGame.get(briefGroup.gid)}
           lot={wb.homes.get(briefGroup.gid)?.name}
+          room={homeRoom({
+            gid: briefGroup.gid,
+            nodes: wb.nodes,
+            edges: wb.edges,
+            lot: wb.homes.get(briefGroup.gid),
+            free: freeLotsIn(briefGroup.world, wb.homes),
+          })}
+          onMoveToLot={(l) =>
+            wb.moveIntoLot(
+              wb.nodes.filter((n) => n.gid === briefGroup.gid).map((n) => n.id),
+              l,
+              briefGroup.hh,
+            )
+          }
           elders={eldersOf(wb.nodes, briefGroup.gid, wb.saveGame)}
           nameOf={nameOfSim}
           hhOf={hhOf}
