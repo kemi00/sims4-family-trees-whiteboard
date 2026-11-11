@@ -392,6 +392,14 @@ export function useWhiteboard() {
     }
   }, []);
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEW);
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
+  /**
+   * A pan after an edit, in screen pixels, for the stage to make: it glides
+   * a long one (GLIDE_MIN) so you see where the cards went. `n` tells two
+   * equal pans apart.
+   */
+  const [viewShift, setViewShift] = useState<{ dx: number; dy: number; n: number } | null>(null);
   const [sel, setSel] = useState<Selection>(null);
   const [connectMode, setConnectModeState] = useState(false);
   const [selectMode, setSelectModeState] = useState(false);
@@ -608,11 +616,8 @@ export function useWhiteboard() {
     const dy = lock.y - next.y;
     viewAnchorRef.current = null;
     if (dx === 0 && dy === 0) return;
-    setViewport((v) => ({
-      ...v,
-      tx: v.tx + dx * v.k,
-      ty: v.ty + dy * v.k,
-    }));
+    const k = viewportRef.current.k;
+    setViewShift((s) => ({ dx: dx * k, dy: dy * k, n: (s?.n ?? 0) + 1 }));
   }, [byid]);
 
   const packVis = useCallback(
@@ -2120,10 +2125,12 @@ export function useWhiteboard() {
    * One partner moves into the other's household, as a plan (a household
    * move, done once a save shows it), and their card lands beside the
    * other's on `side`, or wherever the household has room (growHousehold).
-   * No other household moves.
+   * No other household moves. The view keeps `follow`, the sim you were
+   * working on, where you were looking, and selects them: when they are the
+   * one who moves, it goes with them to their new household.
    */
   const moveInWith = useCallback(
-    (mover: string, host: string, side: 'left' | 'right' | null = 'right'): boolean => {
+    (mover: string, host: string, side: 'left' | 'right' | null = 'right', follow: string = host): boolean => {
       const m = nodes.find((x) => x.id === mover);
       const h = nodes.find((x) => x.id === host);
       if (!m || !h || m.gid === h.gid) return false;
@@ -2163,7 +2170,8 @@ export function useWhiteboard() {
         spots: spots.length ? spots : [{ x: m.x, y: m.y }],
       });
       setNodesCore(r.core);
-      lockViewToSims([host]);
+      lockViewToSims([follow]);
+      setSel({ type: 'node', id: follow });
       flashStatus(
         `${named(cardName(m))} moves in with ${named(cardName(h))}, in ${theHousehold(dest.hh, named)}: a plan until a save shows it.${roomNote(dest.hh, dest.world, r)} Undo takes it back.`,
       );
@@ -3958,6 +3966,7 @@ export function useWhiteboard() {
     searchHitIndex,
     searchHitSet,
     searchCurrentSim,
+    viewShift,
     sourceFileName,
     boardSourceLabel,
     canResetBoard,

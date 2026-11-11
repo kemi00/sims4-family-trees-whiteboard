@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  GLIDE_MIN,
+  easeInOut,
   edgeEndsMoveTogether,
+  glideAt,
+  glideMs,
   parseEdgeEndsAttr,
   sceneTransformAttr,
   sharedChromeValue,
@@ -55,5 +59,27 @@ describe('sharedChromeValue', () => {
       ['b', '—'],
     ]);
     assert.equal(sharedChromeValue(['a', 'b'], worlds), undefined);
+  });
+});
+
+describe('the glide after an edit', () => {
+  const from = { k: 1.1, tx: 100, ty: -50 };
+
+  it('starts where the view is and ends the whole shift away, zoom kept', () => {
+    assert.deepEqual(glideAt(from, 1300, -200, 0), from);
+    assert.deepEqual(glideAt(from, 1300, -200, 1), { k: 1.1, tx: 1400, ty: -250 });
+    assert.deepEqual(glideAt(from, 1300, -200, 2), { k: 1.1, tx: 1400, ty: -250 }, 'never past the end');
+  });
+
+  it('goes slow, fast, slow: halfway at the middle, less than a quarter in at a quarter', () => {
+    assert.equal(easeInOut(0.5), 0.5);
+    assert.ok(easeInOut(0.25) < 0.25);
+    assert.ok(easeInOut(0.75) > 0.75);
+  });
+
+  it('takes a little longer for a longer trip, never more than half a second', () => {
+    assert.ok(glideMs(GLIDE_MIN) >= 260);
+    assert.ok(glideMs(3000) > glideMs(400));
+    assert.ok(glideMs(100000) <= 500);
   });
 });

@@ -32,6 +32,9 @@ import {
   restoreChromeTranslates,
   restoreEdgeTranslates,
   restoreNodeTranslates,
+  GLIDE_MIN,
+  glideAt,
+  glideMs,
   sceneTransformAttr,
   type LiveCamera,
 } from '../lib/liveScene.ts';
@@ -409,6 +412,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     [applyVp, commitLiveViewport, readLiveViewport, setNavigating],
   );
 
+  /** The live camera for a glide, read when it starts: one glide per shift. */
+  const cameraRef = useRef(liveCamera);
+  cameraRef.current = liveCamera;
+
   const flushPanTransform = useCallback(() => {
     panFrameRef.current = 0;
     const p = panRef.current;
@@ -429,6 +436,52 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     if (viewportGestureRef.current) return;
     applyVp(wb.viewport, true);
   }, [wb.viewport, applyVp]);
+
+  /**
+   * The board's pan after an edit (wb.viewShift): a long one glides on the
+   * live camera, so you see where the cards went, and settles into state at
+   * the end; a short one, or any with reduced motion, happens at once. Your
+   * own pan or zoom takes over from a glide on its next frame.
+   */
+  useEffect(() => {
+    const shift = wb.viewShift;
+    if (!shift) return;
+    const from = viewportLiveRef.current;
+    const dist = Math.hypot(shift.dx, shift.dy);
+    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (dist < GLIDE_MIN || reduce) {
+      wbRef.current.setViewport(glideAt(from, shift.dx, shift.dy, 1));
+      return;
+    }
+    const camera = cameraRef.current;
+    const ms = glideMs(dist);
+    let last = from;
+    let raf = 0;
+    let settled = false;
+    const t0 = performance.now();
+    camera.beginNav();
+    const step = (t: number) => {
+      // A gesture of yours moved the camera: it is yours now.
+      if (viewportLiveRef.current !== last) {
+        settled = true;
+        return;
+      }
+      const p = (t - t0) / ms;
+      last = glideAt(from, shift.dx, shift.dy, p);
+      camera.apply(last);
+      if (p < 1) raf = requestAnimationFrame(step);
+      else {
+        settled = true;
+        camera.commit();
+      }
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+      // Cut short by the next pan: keep what is on screen, as a gesture would.
+      if (!settled) camera.commit();
+    };
+  }, [wb.viewShift]);
 
   /* Only select-mode is React-owned. Navigating/dragging stay on classList in
      gesture handlers so a mid-gesture commit cannot flash-hide the SVG. */
@@ -2099,7 +2152,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           onChoice={wb.setPartnerChoice}
           onPick={(id) => wb.pickPartner(id, 'name')}
           onMove={(mover, host) => {
-            wb.moveInWith(mover, host, host === wb.partnerMenu?.id ? wb.partnerMenu.side : 'right');
+            const me = wb.partnerMenu?.id;
+            // The view stays with the sim whose ♥ you clicked, wherever they go.
+            wb.moveInWith(mover, host, host === me ? wb.partnerMenu!.side : 'right', me ?? host);
             wb.closePartnerMenu();
           }}
           onClose={wb.closePartnerMenu}

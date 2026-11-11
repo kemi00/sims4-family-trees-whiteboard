@@ -8,6 +8,30 @@ export type LiveCamera = {
   beginNav: () => void;
 };
 
+/**
+ * A pan the board makes after an edit, to keep the sim you acted on where
+ * you were looking, glides when it is long enough to lose you: you see the
+ * board travel from where they were to where they went. Shorter ones, such
+ * as making up for a card nudged by a new link, happen at once.
+ */
+export const GLIDE_MIN = 160;
+
+/** How long a glide over `dist` screen pixels takes: longer trips a little longer. */
+export function glideMs(dist: number): number {
+  return Math.round(260 + Math.min(240, dist / 8));
+}
+
+/** Slow in, slow out. */
+export function easeInOut(p: number): number {
+  return p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
+}
+
+/** Where a glide of (`dx`, `dy`) screen pixels from `from` stands at `p` (0 to 1). */
+export function glideAt(from: Viewport, dx: number, dy: number, p: number): Viewport {
+  const e = easeInOut(Math.min(1, Math.max(0, p)));
+  return { k: from.k, tx: from.tx + dx * e, ty: from.ty + dy * e };
+}
+
 export function sceneTransformAttr(vp: Viewport): string {
   return `translate(${vp.tx},${vp.ty}) scale(${vp.k})`;
 }
