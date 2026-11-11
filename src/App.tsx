@@ -243,7 +243,9 @@ export default function App() {
           onPoster={(gid) => {
             const group = wb.groups.find((g) => g.gid === gid);
             if (!group) return;
-            setPoster(householdPoster({ group, nodes: wb.nodes, lot: wb.homes.get(gid)?.name, saveGame: wb.saveGame }));
+            setPoster(
+              householdPoster({ group, nodes: wb.nodes, links: wb.shownEdges, lot: wb.homes.get(gid)?.name, saveGame: wb.saveGame }),
+            );
           }}
         />
         {poster && <PosterDialog model={poster} onClose={() => setPoster(null)} />}
@@ -385,6 +387,7 @@ export default function App() {
                     label: dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' }),
                     nodes: wb.nodes,
                     edges: wb.edges,
+                    links: wb.shownEdges,
                     saveGame: wb.saveGame,
                   }),
                 )
