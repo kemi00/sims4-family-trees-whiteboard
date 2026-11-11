@@ -131,7 +131,7 @@ export const WORLD_TAG_HIT_PAD_SCREEN_PX = 10;
  * older epoch back to {@link OLDEST_PINNABLE_EPOCH} are pinned in place on
  * load; unstamped ones are re-packed.
  */
-export const LAYOUT_EPOCH = 6;
+export const LAYOUT_EPOCH = 7;
 /**
  * Oldest epoch whose packing rules are still implemented. Boards saved under
  * it or later are pinned to where they were on screen, not re-packed.
@@ -139,6 +139,8 @@ export const LAYOUT_EPOCH = 6;
  * neighbour's long name tag. 3: Unhoused sims in families. 4: Other renamed
  * Not in any world. 5: worlds in columns by household count. 6: households
  * start at the top of their slot, so the one under them never overlaps.
+ * 7: rows built household first: couples level, children right under their
+ * parents, no empty rows, and linked households lined up by moving whole.
  */
 export const OLDEST_PINNABLE_EPOCH = 1;
 export const ALIGN_TH = 13;

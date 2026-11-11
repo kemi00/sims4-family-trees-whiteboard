@@ -181,7 +181,17 @@ function parentEdgesInto(edges: Edge[], ids: Set<string>): Edge[] {
   return edgesAt(index, index.parentTo, ids);
 }
 
-function buildHHGraph(mem: SimNode[], edges: Edge[]): HHGraph {
+/**
+ * First layout epoch with rows built household first (householdRows,
+ * lineUpHouseholds): a household's rows come from its own family, every
+ * couple and every two parents of a child sit level, no row stands empty,
+ * and no parent link is read as a marriage from the sims' ages. Linked
+ * households then line up by moving whole. Older epochs keep their rows, so
+ * a board saved under them is pinned to where it was (see prepareLoadedNodes).
+ */
+export const HOUSEHOLD_ROWS_EPOCH = 7;
+
+function buildHHGraph(mem: SimNode[], edges: Edge[], epoch: number = LAYOUT_EPOCH): HHGraph {
   const ids = new Set(mem.map((n) => n.id));
   const byId = new Map(mem.map((n) => [n.id, n]));
   const partner = new Map<string, string>();
@@ -209,8 +219,14 @@ function buildHHGraph(mem: SimNode[], edges: Edge[]): HHGraph {
     const nb = byId.get(e.b)!;
     const ageGap = Math.abs(ageRank(na.age) - ageRank(nb.age));
 
-    /** Spouse mislabeled as parent (e.g. Adekoya→Jawara while Jawara parents the kids). */
+    /**
+     * Spouse mislabeled as parent, a guess for the hand-made starter roster.
+     * It read a save's ancestors of unknown age as spouses (Ade and Eniola
+     * as Adekoya Darong's), so from HOUSEHOLD_ROWS_EPOCH a parent link is
+     * always a parent link.
+     */
     if (
+      epoch < HOUSEHOLD_ROWS_EPOCH &&
       bParentsKidsInHh &&
       !aParentsThoseKids &&
       ageGap >= 2 &&
@@ -227,8 +243,8 @@ function buildHHGraph(mem: SimNode[], edges: Edge[]): HHGraph {
   return { partner, parents };
 }
 
-function householdMinGen(hhMem: SimNode[], edges: Edge[]): number {
-  const g = buildHHGraph(hhMem, edges);
+function householdMinGen(hhMem: SimNode[], edges: Edge[], epoch: number = LAYOUT_EPOCH): number {
+  const g = buildHHGraph(hhMem, edges, epoch);
   const gen = generationRows(hhMem, g.parents);
   alignPartnerGenerationsFromGraph(hhMem, gen, g.partner);
   propagateGenerationsFromParents(hhMem, gen, g.parents);
@@ -329,6 +345,163 @@ function propagateGenerationsFromParents(
       }
     }
   }
+}
+
+/**
+ * Pairs that share a row: couples (married, partners, exes) and the two
+ * parents of a child, among `mem`.
+ */
+function levelPairs(mem: SimNode[], edges: Edge[], parents: Map<string, Set<string>>): [string, string][] {
+  const ids = new Set(mem.map((n) => n.id));
+  const index = linkIndex(edges);
+  const pairs: [string, string][] = [];
+  for (const e of edgesAt(index, index.fromA, ids)) {
+    if (!ids.has(e.b) || e.a === e.b) continue;
+    if (e.type === 'marriage' || e.type === 'romance' || e.type === 'divorced') pairs.push([e.a, e.b]);
+  }
+  for (const ps of parents.values()) {
+    const here = [...ps].filter((p) => ids.has(p));
+    for (let i = 1; i < here.length; i++) pairs.push([here[0]!, here[i]!]);
+  }
+  return pairs;
+}
+
+/**
+ * Parents above their children and pairs level, settled together: lining a
+ * couple up can push a child down, and pushing a parent down can leave
+ * their partner behind, so both run until neither moves anyone. A family
+ * that can't settle (a sim partnered with their own parent) stops after a
+ * bounded number of passes, as it stood.
+ */
+function settleRows(
+  mem: SimNode[],
+  gen: Map<string, number>,
+  parents: Map<string, Set<string>>,
+  pairs: [string, string][],
+): void {
+  const ids = new Set(mem.map((n) => n.id));
+  const level = pairs.filter(([a, b]) => ids.has(a) && ids.has(b));
+  for (let pass = 0; pass <= mem.length + 1; pass++) {
+    let moved = false;
+    for (const [a, b] of level) {
+      const g = Math.max(gen.get(a) ?? 0, gen.get(b) ?? 0);
+      if ((gen.get(a) ?? 0) !== g) {
+        gen.set(a, g);
+        moved = true;
+      }
+      if ((gen.get(b) ?? 0) !== g) {
+        gen.set(b, g);
+        moved = true;
+      }
+    }
+    const before = mem.map((n) => gen.get(n.id) ?? 0).join(',');
+    propagateGenerationsFromParents(mem, gen, parents);
+    if (!moved && before === mem.map((n) => gen.get(n.id) ?? 0).join(',')) return;
+  }
+}
+
+/** Rows renumbered from 0 with none left empty, in the same order. */
+function closeUpRows(mem: SimNode[], gen: Map<string, number>): Map<string, number> {
+  const used = [...new Set(mem.map((n) => gen.get(n.id) ?? 0))].sort((a, b) => a - b);
+  const at = new Map(used.map((g, i) => [g, i]));
+  return new Map(mem.map((n) => [n.id, at.get(gen.get(n.id) ?? 0)!]));
+}
+
+/**
+ * One household's rows from its own family (HOUSEHOLD_ROWS_EPOCH on):
+ * parents above their children, every couple and every two parents of a
+ * child level, then closed up so no row stands empty. A relative in another
+ * household never stretches it; whole households line up (lineUpHouseholds).
+ */
+function householdRows(
+  mem: SimNode[],
+  edges: Edge[],
+  g: HHGraph,
+  /** With no parent links to go by, stack by life stage (pedigreeTile). */
+  ageTiers = false,
+): Map<string, number> {
+  const ids = new Set(mem.map((n) => n.id));
+  const own = new Map<string, Set<string>>();
+  for (const [kid, ps] of g.parents) {
+    if (!ids.has(kid)) continue;
+    const here = [...ps].filter((p) => ids.has(p));
+    if (here.length) own.set(kid, new Set(here));
+  }
+  const pairs = levelPairs(mem, edges, own);
+  let gen = generationRows(mem, own);
+  settleRows(mem, gen, own, pairs);
+  if (ageTiers && needsAgeGenerations(mem, gen)) {
+    gen = ageTierGenerations(mem);
+    settleRows(mem, gen, own, pairs);
+  }
+  return closeUpRows(mem, gen);
+}
+
+/**
+ * How many rows each linked household moves down, whole, so its family in
+ * the others lines up (HOUSEHOLD_ROWS_EPOCH on): a child in the row right
+ * under their parent, partners level, and the two parents of a child level.
+ * Households only move down, as far as that asks. When those line-ups can't
+ * all hold, only "a child below their parent" is kept; when even that can't,
+ * every household stays at the top.
+ */
+function lineUpHouseholds(
+  households: [string, SimNode[]][],
+  rows: Map<string, number>,
+  edges: Edge[],
+): Map<string, number> {
+  const gidOf = new Map<string, string>();
+  for (const [gid, mem] of households) for (const n of mem) gidOf.set(n.id, gid);
+  const ids = new Set(gidOf.keys());
+  /** row(b) - row(a) should be `d`; `atLeast` only asks it be no less. */
+  type Ask = { a: string; b: string; d: number; atLeast: boolean };
+  const asks: Ask[] = [];
+  const parentsOf = new Map<string, string[]>();
+  for (const e of edges) {
+    if (!ids.has(e.a) || !ids.has(e.b) || e.a === e.b) continue;
+    if (e.type === 'parent') {
+      parentsOf.set(e.b, [...(parentsOf.get(e.b) ?? []), e.a]);
+      if (gidOf.get(e.a) !== gidOf.get(e.b)) asks.push({ a: e.a, b: e.b, d: 1, atLeast: false });
+    } else if ((e.type === 'marriage' || e.type === 'romance') && !e.ending && gidOf.get(e.a) !== gidOf.get(e.b)) {
+      asks.push({ a: e.a, b: e.b, d: 0, atLeast: false });
+    }
+  }
+  for (const ps of parentsOf.values()) {
+    for (let i = 1; i < ps.length; i++) {
+      if (gidOf.get(ps[0]!) !== gidOf.get(ps[i]!)) asks.push({ a: ps[0]!, b: ps[i]!, d: 0, atLeast: false });
+    }
+  }
+  const settle = (use: Ask[]): Map<string, number> | null => {
+    const off = new Map(households.map(([gid]) => [gid, 0]));
+    const row = (id: string) => off.get(gidOf.get(id)!)! + (rows.get(id) ?? 0);
+    const limit = (households.length + 1) * (use.length + 1);
+    for (let pass = 0; pass < limit; pass++) {
+      let moved = false;
+      for (const k of use) {
+        const gap = row(k.b) - row(k.a);
+        if (gap < k.d) {
+          const g = gidOf.get(k.b)!;
+          off.set(g, off.get(g)! + k.d - gap);
+          moved = true;
+        } else if (gap > k.d && !k.atLeast) {
+          const g = gidOf.get(k.a)!;
+          off.set(g, off.get(g)! + gap - k.d);
+          moved = true;
+        }
+      }
+      if (!moved) {
+        const top = Math.min(...off.values());
+        for (const [g, v] of off) off.set(g, v - top);
+        return off;
+      }
+    }
+    return null;
+  };
+  return (
+    settle(asks) ??
+    settle(asks.filter((k) => k.d === 1).map((k) => ({ ...k, atLeast: true }))) ??
+    new Map(households.map(([gid]) => [gid, 0]))
+  );
 }
 
 /** Assign generation rows: parents on top, children below. */
@@ -1203,19 +1376,24 @@ function pedigreeTile(
   edges: Edge[],
   epoch: number = LAYOUT_EPOCH,
 ): { placed: PlacedCard[]; w: number; h: number; colSpan: number } {
-  const g = buildHHGraph(mem, edges);
+  const g = buildHHGraph(mem, edges, epoch);
   const hhIds = new Set(mem.map((n) => n.id));
   for (const e of parentEdgesInto(edges, hhIds)) {
     if (!g.parents.has(e.b)) g.parents.set(e.b, new Set());
     g.parents.get(e.b)!.add(e.a);
   }
 
-  let gen = generationRows(mem, g.parents);
-  alignPartnerGenerationsFromGraph(mem, gen, g.partner);
-  propagateGenerationsFromParents(mem, gen, g.parents);
-  if (needsAgeGenerations(mem, gen)) gen = ageTierGenerations(mem);
-  alignPartnerGenerationsFromGraph(mem, gen, g.partner);
-  propagateGenerationsFromParents(mem, gen, g.parents);
+  let gen: Map<string, number>;
+  if (epoch >= HOUSEHOLD_ROWS_EPOCH) {
+    gen = householdRows(mem, edges, g, true);
+  } else {
+    gen = generationRows(mem, g.parents);
+    alignPartnerGenerationsFromGraph(mem, gen, g.partner);
+    propagateGenerationsFromParents(mem, gen, g.parents);
+    if (needsAgeGenerations(mem, gen)) gen = ageTierGenerations(mem);
+    alignPartnerGenerationsFromGraph(mem, gen, g.partner);
+    propagateGenerationsFromParents(mem, gen, g.parents);
+  }
   gen = splitQuadOtherHouseholds(mem, gen, g);
 
   const minGen = Math.min(...mem.map((n) => gen.get(n.id) ?? 0));
@@ -1427,19 +1605,30 @@ function layoutClusterTile(
   hhLinks: Map<string, Set<string>>,
   epoch: number = LAYOUT_EPOCH,
 ): HHTile {
-  const minGenFn = (hhMem: SimNode[]) => householdMinGen(hhMem, edges);
+  const minGenFn = (hhMem: SimNode[]) => householdMinGen(hhMem, edges, epoch);
   const ordered = orderHouseholdsByLinks(component, hhLinks, minGenFn);
   const allMem = ordered.flatMap(([, mem]) => mem);
   const allIds = new Set(allMem.map((n) => n.id));
 
-  const g = buildHHGraph(allMem, edges);
+  const g = buildHHGraph(allMem, edges, epoch);
   for (const e of parentEdgesInto(edges, allIds)) {
     if (!g.parents.has(e.b)) g.parents.set(e.b, new Set());
     g.parents.get(e.b)!.add(e.a);
   }
-  const gen = generationRows(allMem, g.parents);
-  alignPartnerGenerationsFromGraph(allMem, gen, g.partner);
-  propagateGenerationsFromParents(allMem, gen, g.parents);
+  let gen: Map<string, number>;
+  if (epoch >= HOUSEHOLD_ROWS_EPOCH) {
+    // Each household's own rows, then whole households moved down to line up.
+    const rows = new Map<string, number>();
+    for (const [, hhMem] of ordered) {
+      for (const [id, r] of householdRows(hhMem, edges, buildHHGraph(hhMem, edges, epoch))) rows.set(id, r);
+    }
+    const down = lineUpHouseholds(ordered, rows, edges);
+    gen = new Map(allMem.map((n) => [n.id, (down.get(n.gid) ?? 0) + (rows.get(n.id) ?? 0)]));
+  } else {
+    gen = generationRows(allMem, g.parents);
+    alignPartnerGenerationsFromGraph(allMem, gen, g.partner);
+    propagateGenerationsFromParents(allMem, gen, g.parents);
+  }
   const minGen = Math.min(...allMem.map((n) => gen.get(n.id) ?? 0));
   const maxGen = Math.max(...allMem.map((n) => gen.get(n.id) ?? 0));
   const pitchY = rowPitch();
@@ -1708,16 +1897,21 @@ function layoutHousehold(
     );
     return { gid: mem[0]!.gid, w, h, placed };
   }
-  const g = buildHHGraph(mem, edges);
+  const g = buildHHGraph(mem, edges, epoch);
   const hhIds = new Set(mem.map((n) => n.id));
-  /** Parents in linked households still set generation rows for children here. */
+  /** Parents in linked households still set generation rows for children here (before HOUSEHOLD_ROWS_EPOCH). */
   for (const e of parentEdgesInto(edges, hhIds)) {
     if (!g.parents.has(e.b)) g.parents.set(e.b, new Set());
     g.parents.get(e.b)!.add(e.a);
   }
-  const gen = generationRows(mem, g.parents);
-  alignPartnerGenerationsFromGraph(mem, gen, g.partner);
-  propagateGenerationsFromParents(mem, gen, g.parents);
+  let gen: Map<string, number>;
+  if (epoch >= HOUSEHOLD_ROWS_EPOCH) {
+    gen = householdRows(mem, edges, g);
+  } else {
+    gen = generationRows(mem, g.parents);
+    alignPartnerGenerationsFromGraph(mem, gen, g.partner);
+    propagateGenerationsFromParents(mem, gen, g.parents);
+  }
   const minGen = Math.min(...mem.map((n) => gen.get(n.id) ?? 0));
   const maxGen = Math.max(...mem.map((n) => gen.get(n.id) ?? 0));
   const pitchY = rowPitch();
@@ -1909,7 +2103,7 @@ function layoutWorld(
     byGid.get(n.gid)!.push(n);
   }
 
-  const minGen = (hhMem: SimNode[]) => householdMinGen(hhMem, edges);
+  const minGen = (hhMem: SimNode[]) => householdMinGen(hhMem, edges, epoch);
 
   const households = orderHouseholdsByLinks(
     [...byGid.entries()],

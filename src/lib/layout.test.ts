@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import { CARD_H, CARD_MIN_W, HH_TAG_BAND, HH_TAG_INSET, HH_TAG_PILL_H, HH_TAG_STACK_GAP, TILE } from './constants.ts';
 import {
   computeLayout,
+  HOUSEHOLD_ROWS_EPOCH,
   householdAddSpot,
   partnerSpot,
   layoutBases,
@@ -21,6 +22,7 @@ import {
 import { hhBoxDraw } from './geometry.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
 import { migrateWhiteboardData } from './utils.ts';
+import { prepareLoadedNodes } from './loadLayout.ts';
 import type { Edge, Group, SimNode, WhiteboardData } from '../types/whiteboard.ts';
 import seedRoster from '../data/whiteboard.json' with { type: 'json' };
 
@@ -686,5 +688,85 @@ describe('a household whose parents live elsewhere', () => {
   it('kept a generation of empty space above it before', () => {
     const laid = computeLayout(nodes, both, edges, TIGHT_HOUSEHOLDS_EPOCH - 1);
     assert.equal(top(laid, 'Willow Creek||Kids') - top(laid, 'Willow Creek||Bee'), rowPitch());
+  });
+});
+
+describe('rows built household first', () => {
+  // The Darongs, Dreamers and Ananous of Ondarion as a save brings them: the
+  // family tree adds deceased ancestors whose age the save doesn't keep.
+  const H = (hh: string) => `Willow Creek||${hh}`;
+  const dead = { age: 'Unknown', state: 'Deceased' };
+  const nodes = [
+    sim({ id: 'unknown', first: 'Unknown', hh: 'Darong', gid: H('Darong'), ...dead }),
+    sim({ id: 'ade', first: 'Ade', hh: 'Darong', gid: H('Darong'), ...dead }),
+    sim({ id: 'eniola', first: 'Eniola', hh: 'Darong', gid: H('Darong'), ...dead }),
+    sim({ id: 'adekoya', first: 'Adekoya', hh: 'Darong', gid: H('Darong'), age: 'Elder' }),
+    sim({ id: 'imani', first: 'Imani', hh: 'Darong', gid: H('Darong'), ...dead }),
+    sim({ id: 'jawara', first: 'Jawara', hh: 'Darong', gid: H('Darong'), age: 'Young Adult' }),
+    sim({ id: 'obi', first: 'Obi', hh: 'Darong', gid: H('Darong'), age: 'Child' }),
+    sim({ id: 'darren', first: 'Darren', hh: 'Dreamer', gid: H('Dreamer'), ...dead }),
+    sim({ id: 'darleen', first: 'Darleen', hh: 'Dreamer', gid: H('Dreamer'), ...dead }),
+    sim({ id: 'dirk', first: 'Dirk', hh: 'Dreamer', gid: H('Dreamer'), age: 'Young Adult' }),
+    sim({ id: 'amarachi', first: 'Amarachi', sur: 'Darong', hh: 'Dreamer', gid: H('Dreamer'), age: 'Young Adult' }),
+    sim({ id: 'amara', first: 'Amara', hh: 'Dreamer', gid: H('Dreamer'), age: 'Infant' }),
+    sim({ id: 'ikenna', first: 'Ikenna', hh: 'Dreamer', gid: H('Dreamer'), age: 'Infant' }),
+    sim({ id: 'ekene', first: 'Ekene', hh: 'Ananou', gid: H('Ananou'), age: 'Elder' }),
+    sim({ id: 'aghata', first: 'Aghata', hh: 'Ananou', gid: H('Ananou'), ...dead }),
+    sim({ id: 'afua', first: 'Afua', hh: 'Ananou', gid: H('Ananou'), age: 'Child' }),
+  ];
+  const edges = [
+    edge('unknown', 'ade', 'parent'),
+    edge('ade', 'eniola', 'marriage'),
+    edge('ade', 'adekoya', 'parent'),
+    edge('eniola', 'adekoya', 'parent'),
+    edge('adekoya', 'imani', 'marriage'),
+    edge('adekoya', 'jawara', 'parent'),
+    edge('imani', 'jawara', 'parent'),
+    edge('jawara', 'obi', 'parent'),
+    edge('jawara', 'amarachi', 'parent'),
+    edge('darren', 'darleen', 'marriage'),
+    edge('darren', 'dirk', 'parent'),
+    edge('darleen', 'dirk', 'parent'),
+    edge('dirk', 'amarachi', 'marriage'),
+    edge('dirk', 'amara', 'parent'),
+    edge('amarachi', 'amara', 'parent'),
+    edge('dirk', 'ikenna', 'parent'),
+    edge('amarachi', 'ikenna', 'parent'),
+    edge('ekene', 'aghata', 'parent'),
+    edge('aghata', 'afua', 'parent'),
+    edge('adekoya', 'afua', 'parent'),
+  ];
+  const yOf = (laid: SimNode[]) => new Map(laid.map((n) => [n.id, n.y]));
+  const pitch = rowPitch();
+
+  it('sits a couple side by side, with their children in the row right under', () => {
+    const y = yOf(computeLayout(nodes, worlds, edges));
+    assert.equal(y.get('adekoya'), y.get('imani'), 'Adekoya beside his late wife');
+    assert.equal(y.get('ade'), y.get('eniola'));
+    assert.equal(y.get('adekoya')! - y.get('ade')!, pitch, 'his parents right above him, not his spouses');
+    assert.equal(y.get('jawara')! - y.get('adekoya')!, pitch);
+    assert.equal(y.get('dirk'), y.get('amarachi'), 'Amarachi beside Dirk');
+    assert.equal(y.get('amara')! - y.get('dirk')!, pitch, 'the babies right under them');
+    assert.equal(y.get('ikenna'), y.get('amara'));
+  });
+
+  it('moves linked households whole to line family up across them', () => {
+    const y = yOf(computeLayout(nodes, worlds, edges));
+    assert.equal(y.get('amarachi')! - y.get('jawara')!, pitch, 'Amarachi a row under her mother');
+    assert.equal(y.get('obi'), y.get('amarachi'), 'level with his sister');
+    assert.equal(y.get('aghata'), y.get('adekoya'), 'Afua’s parents level');
+    assert.equal(y.get('afua')! - y.get('aghata')!, pitch, 'Afua right under her mother');
+    assert.equal(y.get('aghata')! - y.get('ekene')!, pitch, 'the Ananous keep their own rows');
+  });
+
+  it('kept the old rows before, and keeps a board saved then where it was', () => {
+    const old = HOUSEHOLD_ROWS_EPOCH - 1;
+    const was = snapNodesToTiles(computeLayout(nodes, worlds, edges, old));
+    const y = yOf(was);
+    assert.notEqual(y.get('dirk'), y.get('amarachi'));
+    const { nodes: pinned, repacked } = prepareLoadedNodes(nodes, old, worlds, edges);
+    assert.equal(repacked, false);
+    const now = new Map(snapNodesToTiles(computeLayout(pinned, worlds, edges)).map((n) => [n.id, n]));
+    for (const n of was) assert.deepEqual([now.get(n.id)!.x, now.get(n.id)!.y], [n.x, n.y], n.first);
   });
 });
