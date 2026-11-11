@@ -36,6 +36,12 @@ function NavTips() {
         <dd>Pinch.</dd>
         <dt>Edit</dt>
         <dd>Tap a Sim's ⠇, or long-press the Sim.</dd>
+        <dt>Delete</dt>
+        <dd>
+          A Sim: <b>Delete</b> at the foot of its editor. A link: tap it, then{' '}
+          <b>Delete link</b>, or take it off on the editor’s Family tab.
+          Several Sims: turn on <b>Select</b>, tap them, then <b>Delete</b>.
+        </dd>
       </dl>
     );
   }
@@ -56,6 +62,12 @@ function NavTips() {
       <dd>
         Select them, then choose <b>Move to household…</b> in the bar that
         appears.
+      </dd>
+      <dt>Delete</dt>
+      <dd>
+        Select Sims or a link and press <kbd>Delete</kbd>, or use <b>Delete</b>{' '}
+        in the bar, the Sim’s editor or the link’s card. A Sim’s links are
+        listed on the editor’s Family tab. Undo takes it back.
       </dd>
       <dt>Move around in Select</dt>
       <dd>

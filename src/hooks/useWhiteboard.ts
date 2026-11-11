@@ -5,6 +5,7 @@ import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import { freeLotsIn, householdLots, lotPick, type GameLot } from '../lib/places.ts';
 import { placeLotBoxes } from '../lib/lotBoxes.ts';
+import { idsForMultiSel } from '../lib/marquee.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
@@ -1217,54 +1218,70 @@ export function useWhiteboard() {
     freezeAfterEdgeChange([a, b], nextEdges);
   }, [edges, freezeAfterEdgeChange, pushUndo, simCalled]);
 
-  const deleteSelected = useCallback(() => {
-    if (!sel) return;
-    // What Delete does, as Undo names it.
-    let step = 'Delete a link';
-    if (sel.type === 'node') step = `Delete ${simCalled(sel.id)}`;
-    else {
-      const chosen = edges.filter((e) => sel.ids.includes(e.id));
-      const e = chosen[0];
-      if (e) {
-        const pair = `${simCalled(e.a)} and ${simCalled(e.b)}`;
-        const ends = chosen.every(
-          (x) => (x.type === 'marriage' || x.type === 'romance') && edgeSourceOf(x) !== 'planned' && !x.ending,
-        );
-        if (ends) step = `Plan ${e.type === 'marriage' ? 'a divorce' : 'a breakup'} of ${pair}`;
-        else if (chosen.length === 1) step = `Delete the link between ${pair}`;
-        else if (chosen.every((x) => x.type === 'parent' && x.b === e.b)) step = `Delete ${simCalled(e.b)}’s parent links`;
-        else step = `Delete ${chosen.length} links`;
-      }
-    }
-    pushUndo(step);
-    trackAction('/action/delete');
-    if (sel.type === 'node') {
-      const nextCore = nodesCore.filter((n) => n.id !== sel.id);
-      const nextEdges = edges.filter(
-        (e) => e.a !== sel.id && e.b !== sel.id,
-      );
+  /**
+   * Sims off the board, as one undo step: their cards, their links, and
+   * what the board kept about them (moves, deaths, age-ups). A sim from your
+   * save comes back with the next save that has them, and the status line
+   * says so.
+   */
+  const deleteSims = useCallback(
+    (ids: string[]) => {
+      const gone = new Set(ids.filter((id) => byid[id]));
+      if (!gone.size) return;
+      const [only] = gone;
+      pushUndo(gone.size === 1 && only ? `Delete ${simCalled(only)}` : `Delete ${gone.size} sims`);
+      trackAction(gone.size === 1 ? '/action/delete' : '/action/delete-sims');
+      const nextCore = nodesCore.filter((n) => !gone.has(n.id));
+      const nextEdges = edges.filter((e) => !gone.has(e.a) && !gone.has(e.b));
       pinCardsToCurrentPlaces(nextEdges, nextCore);
       setEdges(nextEdges);
-      setHouseholdMoves((ms) => ms.filter((m) => m.simId !== sel.id));
-      setDeceasedMarks((ms) => ms.filter((m) => m.simId !== sel.id));
-      setSimAgeUps((ms) => ms.filter((m) => m.simId !== sel.id));
-      if (editNodeId === sel.id) setEditNodeId(null);
-      if (bloodlineId === sel.id) setBloodlineId(null);
-    } else if (sel.type === 'link') {
-      const chosen = edges.filter((e) => sel.ids.includes(e.id));
-      const ends = chosen.flatMap((e) => [e.a, e.b]);
-      // The game can't unmake a couple it has: deleting one plans its end, a
-      // divorce or a breakup. Delete it again to take it off the board.
+      setHouseholdMoves((ms) => ms.filter((m) => !gone.has(m.simId)));
+      setDeceasedMarks((ms) => ms.filter((m) => !gone.has(m.simId)));
+      setSimAgeUps((ms) => ms.filter((m) => !gone.has(m.simId)));
+      if (editNodeId && gone.has(editNodeId)) setEditNodeId(null);
+      if (bloodlineId && gone.has(bloodlineId)) setBloodlineId(null);
+      setSel((s) => (s?.type === 'node' && gone.has(s.id) ? null : s));
+      setMultiSel(null);
+      const fromGame = [...gone].filter((id) => {
+        const n = byid[id]!;
+        return !!n.saveSimId || !!n.treeId || !!n.fromSave;
+      }).length;
+      const what = gone.size === 1 && only ? named(cardName(byid[only]!)) : `${gone.size} sims`;
+      const back = !fromGame
+        ? ''
+        : gone.size === 1
+          ? ' They’re in your save, so your next save upload brings them back.'
+          : fromGame === gone.size
+            ? ' They’re in your save, so your next save upload brings them back.'
+            : ` ${fromGame} of them are in your save, so your next save upload brings those back.`;
+      flashStatus(`Deleted ${what} from the board.${back} Undo takes it back.`);
+    },
+    [byid, nodesCore, edges, editNodeId, bloodlineId, pushUndo, simCalled, pinCardsToCurrentPlaces, flashStatus],
+  );
+
+  /**
+   * Links off the board, as one undo step. A couple the game has can't be
+   * unmade there: deleting it plans its end (a divorce or a breakup), and
+   * deleting it again takes it off. A sim picked stays picked.
+   */
+  const deleteLinks = useCallback(
+    (linkIds: string[]) => {
+      const chosen = edges.filter((e) => linkIds.includes(e.id));
+      const e = chosen[0];
+      if (!e) return;
+      const pair = `${simCalled(e.a)} and ${simCalled(e.b)}`;
       const toEnd = chosen.filter(
-        (e) => (e.type === 'marriage' || e.type === 'romance') && edgeSourceOf(e) !== 'planned' && !e.ending,
+        (x) => (x.type === 'marriage' || x.type === 'romance') && edgeSourceOf(x) !== 'planned' && !x.ending,
       );
+      const ends = chosen.flatMap((x) => [x.a, x.b]);
       if (toEnd.length && toEnd.length === chosen.length) {
+        pushUndo(`Plan ${e.type === 'marriage' ? 'a divorce' : 'a breakup'} of ${pair}`);
+        trackAction('/action/delete');
         const at = new Date().toISOString();
-        const ids = new Set(toEnd.map((e) => e.id));
-        const nextEdges = edges.map((e) => (ids.has(e.id) ? { ...e, ending: { createdAt: at } } : e));
+        const ids = new Set(toEnd.map((x) => x.id));
+        const nextEdges = edges.map((x) => (ids.has(x.id) ? { ...x, ending: { createdAt: at } } : x));
         freezeAfterEdgeChange(ends, nextEdges);
         setEdges(nextEdges);
-        const e = toEnd[0]!;
         const [a, b] = [byid[e.a], byid[e.b]];
         const names = `${a ? cardName(a) : 'They'} and ${b ? cardName(b) : 'their partner'}`;
         flashStatus(
@@ -1273,27 +1290,40 @@ export function useWhiteboard() {
         // Still picked, so a second Delete can take it off.
         return;
       }
-      const nextEdges = edges.filter((e) => !sel.ids.includes(e.id));
+      // What went, as Undo names it and the status line says it.
+      const what =
+        chosen.length === 1
+          ? `the link between ${pair}`
+          : chosen.every((x) => x.type === 'parent' && x.b === e.b)
+            ? `${simCalled(e.b)}’s parent links`
+            : `${chosen.length} links`;
+      pushUndo(`Delete ${what}`);
+      trackAction('/action/delete');
+      const gone = new Set(chosen.map((x) => x.id));
+      const nextEdges = edges.filter((x) => !gone.has(x.id));
       freezeAfterEdgeChange(ends, nextEdges);
       setEdges(nextEdges);
-      if (chosen.some((e) => edgeSourceOf(e) === 'save')) {
-        flashStatus('Took the link off the board. A save that still has it brings it back.');
-      }
-    }
-    setSel(null);
-  }, [
-    sel,
-    editNodeId,
-    bloodlineId,
-    edges,
-    byid,
-    nodesCore,
-    pinCardsToCurrentPlaces,
-    freezeAfterEdgeChange,
-    flashStatus,
-    pushUndo,
-    simCalled,
-  ]);
+      setSel((s) => (s?.type === 'link' && s.ids.some((id) => gone.has(id)) ? null : s));
+      flashStatus(
+        `Deleted ${what}.${chosen.some((x) => edgeSourceOf(x) === 'save') ? ` A save that still has ${chosen.length === 1 ? 'it' : 'them'} brings ${chosen.length === 1 ? 'it' : 'them'} back.` : ''} Undo takes it back.`,
+      );
+    },
+    [edges, byid, pushUndo, simCalled, freezeAfterEdgeChange, flashStatus],
+  );
+
+  /** The sims Delete would take: those picked together, or the one selected. */
+  const simsToDelete = useMemo(() => {
+    if (multiSel && multiSel.kind !== 'worlds') return idsForMultiSel(multiSel, nodes);
+    return sel?.type === 'node' ? [sel.id] : [];
+  }, [multiSel, sel, nodes]);
+  /** Something is picked that Delete acts on. */
+  const canDelete = simsToDelete.length > 0 || sel?.type === 'link';
+
+  /** Delete (the key, or the bar's bin): the sims picked, or the link. */
+  const deleteSelected = useCallback(() => {
+    if (simsToDelete.length) deleteSims(simsToDelete);
+    else if (sel?.type === 'link') deleteLinks(sel.ids);
+  }, [simsToDelete, sel, deleteSims, deleteLinks]);
 
   const addSim = useCallback((svgWidth: number, svgHeight: number) => {
     pushUndo('Add a new sim');
@@ -4057,6 +4087,10 @@ export function useWhiteboard() {
     addEdge,
     parentCycleReason,
     deleteSelected,
+    deleteSims,
+    deleteLinks,
+    canDelete,
+    simsToDelete,
     addSim,
     addSimToHousehold,
     organiseBoard,

@@ -60,7 +60,7 @@ import {
   type ChipObstacle,
 } from '../lib/linkLabel.ts';
 import { slug, trackAction } from '../lib/analytics.ts';
-import { isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
+import { edgeSourceOf, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
@@ -1644,6 +1644,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     wb.multiSel?.kind === 'households' ? new Set(wb.multiSel.gids) : undefined;
   const selectedNodeIds =
     wb.multiSel?.kind === 'nodes' ? new Set(wb.multiSel.ids) : undefined;
+  /** Every picked link a couple the game has, with no end planned: Delete plans that end. */
+  const gameCoupleIntact = (ids: string[]) => {
+    const picked = wb.edges.filter((e) => ids.includes(e.id));
+    return (
+      picked.length > 0 &&
+      picked.every((e) => (e.type === 'marriage' || e.type === 'romance') && edgeSourceOf(e) !== 'planned' && !e.ending)
+    );
+  };
   const linkChip =
     wb.sel?.type === 'link'
       ? describeLinkSelection(
@@ -1998,6 +2006,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                 })(),
               }
             : {})}
+          // Delete takes the link off, except a couple the game has: for that
+          // one Delete plans its end, which the action above already offers.
+          onDelete={wb.sel?.type === 'link' && !gameCoupleIntact(wb.sel.ids) ? wb.deleteSelected : undefined}
         />
       )}
       <div id="autosave-cue">
@@ -2139,6 +2150,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           }}
           onClear={() => wb.clearMultiSel()}
           onPlan={oneHousehold ? () => wb.setBriefGid(oneHousehold) : undefined}
+          onDelete={wb.multiSel.kind !== 'worlds' ? wb.deleteSelected : undefined}
         />
       )}
       {menu && wb.byid[menu.a] && wb.byid[menu.b] && (
@@ -2333,6 +2345,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             if (wb.moveHouseholdToWorld(editNode.gid, world, house)) wb.setEditNodeId(null);
           }}
           onClose={() => wb.setEditNodeId(null)}
+          onDelete={() => wb.deleteSims([editNode.id])}
+          onDeleteLink={(edgeId) => wb.deleteLinks([edgeId])}
           focusName={nameFocusId === editNode.id}
           planIssues={wb.planIssues}
           plannedChild={wb.plannedChildIds.has(editNode.id)}

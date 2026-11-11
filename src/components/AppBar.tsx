@@ -567,9 +567,13 @@ export function AppBar({
       </ToolButton>
       <ToolButton
         icon={Trash}
-        label="Delete the selected sim or link"
+        label={
+          wb.simsToDelete.length > 1
+            ? `Delete the ${wb.simsToDelete.length} selected sims (Delete key)`
+            : 'Delete the selected sim or link (Delete key)'
+        }
         tone="danger"
-        disabled={!wb.sel}
+        disabled={!wb.canDelete}
         onClick={wb.deleteSelected}
       />
       <ToolButton

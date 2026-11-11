@@ -114,10 +114,13 @@ export default function App() {
         ev.preventDefault();
         wb.redo();
       }
+      // The sims picked (one, or several with Select or Shift), or a link.
       if (
         (ev.key === 'Delete' || ev.key === 'Backspace') &&
-        wb.sel &&
-        !typing
+        wb.canDelete &&
+        !typing &&
+        !ev.metaKey &&
+        !ev.ctrlKey
       ) {
         ev.preventDefault();
         wb.deleteSelected();

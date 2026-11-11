@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { commonWorld } from '../lib/householdMove.ts';
+import { cardName } from '../lib/plan.ts';
+import { Trash } from '../icons.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 
@@ -17,13 +19,15 @@ type Props = {
   onClear: () => void;
   /** Set when one household is picked: open its plan. */
   onPlan?: () => void;
+  /** Take the picked sims off the board (also the Delete key). */
+  onDelete?: () => void;
 };
 
 const NAMES_SHOWN = 3;
 
-/** "Bella Goth, Mortimer Goth and 2 more". */
+/** "Bella Goth, Planned (3) Capp and 2 more", as their cards name them. */
 function namesOf(sims: SimNode[]): string {
-  const names = sims.map((n) => `${n.first} ${n.sur}`.trim());
+  const names = sims.map((n) => cardName(n));
   if (names.length <= NAMES_SHOWN) {
     return names.length < 2
       ? (names[0] ?? '')
@@ -47,6 +51,7 @@ export function SelectionBar({
   onMove,
   onClear,
   onPlan,
+  onDelete,
 }: Props) {
   const [open, setOpen] = useState(false);
   const count = sims.length;
@@ -98,6 +103,18 @@ export function SelectionBar({
         >
           Move to household…
         </button>
+        {onDelete && (
+          <button
+            type="button"
+            className="selbar__del"
+            aria-label={count === 1 ? `Delete ${who} from the board` : `Delete the ${count} selected sims from the board`}
+            title={`${count === 1 ? `Delete ${who}` : `Delete these ${count} sims`} from the board (Delete key). Undo takes it back.`}
+            onClick={onDelete}
+          >
+            <Trash aria-hidden="true" />
+            <span>Delete</span>
+          </button>
+        )}
         <button
           type="button"
           className="selbar__clear"

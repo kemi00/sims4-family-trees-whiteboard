@@ -1,3 +1,4 @@
+import { removalLabel, simLinkRows } from '../lib/simLinks.ts';
 import {
   useEffect,
   useLayoutEffect,
@@ -9,7 +10,7 @@ import {
 } from 'react';
 import { AGES, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import { Info } from '../icons.ts';
+import { Info, Trash } from '../icons.ts';
 import { trackAction } from '../lib/analytics.ts';
 import {
   dynastyKey,
@@ -292,6 +293,10 @@ type Props = {
   onMoveHousehold: (world: string, house?: string) => void;
   onLayout: () => void;
   onClose: () => void;
+  /** Take this sim off the board (the Delete key's job too). */
+  onDelete: () => void;
+  /** Take one of their links off the board, or plan a game couple's end. */
+  onDeleteLink: (edgeId: string) => void;
   /** Focus the first name, selected, so a sim just added can be named straight away. */
   focusName?: boolean;
   /** Every plan the game went against (planConflicts); the editor shows this sim's. */
@@ -327,6 +332,8 @@ export function SimEditor({
   onMoveHousehold,
   onLayout,
   onClose,
+  onDelete,
+  onDeleteLink,
   focusName,
   planIssues,
   plannedChild,
@@ -605,6 +612,15 @@ export function SimEditor({
       .sort((a, b) => b.score - a.score || cardName(a.sim).localeCompare(cardName(b.sim)))
       .slice(0, 8);
   }, [planned, linkOpen, edges, nodes, n.id, linkQuery]);
+  /** Their links, to take one off without finding its line (simLinkRows). */
+  const links = useMemo(
+    () =>
+      simLinkRows(n.id, edges, (id) => {
+        const x = byId[id];
+        return x ? cardName(x) : 'someone not on the board';
+      }),
+    [n.id, edges, byId],
+  );
   const nameOf = (id: string | undefined) => {
     const x = id ? byId[id] : undefined;
     return x ? `${x.first} ${x.sur}`.trim() : 'someone not on the board';
@@ -1284,6 +1300,38 @@ export function SimEditor({
                 )}
               </section>
             )}
+            {links.length > 0 && (
+              <section aria-labelledby="edLinksHead">
+                <div className="edlabel">
+                  <span className="edlabel__text" id="edLinksHead">
+                    Links
+                  </span>
+                </div>
+                <ul className="edlinks">
+                  {links.map((l) => (
+                    <li key={l.id}>
+                      <span className="edlinks__text">
+                        {l.text}
+                        {l.planned && <span className="edlinks__tag">planned</span>}
+                      </span>
+                      <button
+                        type="button"
+                        className={l.removal === 'remove' ? 'edlinks__go' : 'edlinks__go edlinks__go--end'}
+                        aria-label={`${removalLabel(l.removal)}: ${l.text}`}
+                        title={
+                          l.removal === 'remove'
+                            ? 'Take this link off the board. Undo takes it back.'
+                            : 'The game has this couple, so this plans its end. Use it again to take the link off.'
+                        }
+                        onClick={() => onDeleteLink(l.id)}
+                      >
+                        {removalLabel(l.removal)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <div className="edlabel">
               <label htmlFor="edDynastyPick">Dynasty</label>
               {renamable && (
@@ -1755,6 +1803,15 @@ export function SimEditor({
           onClick={save}
         >
           Save
+        </button>
+        <button
+          type="button"
+          className="eddelete"
+          title={`${n.saveSimId || n.treeId || n.fromSave ? 'They’re in your save, so your next save upload brings them back. ' : ''}Undo takes it back.`}
+          onClick={onDelete}
+        >
+          <Trash aria-hidden="true" />
+          Delete {cardName(n)} from the board
         </button>
       </div>
     </div>
