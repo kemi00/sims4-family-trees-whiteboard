@@ -15,6 +15,7 @@ import {
   otherLinkDots,
 } from '../lib/constants.ts';
 import type { WorldTotals } from '../lib/worldTag.ts';
+import { worldIconUrl } from '../lib/places.ts';
 import { DivorcePill, HeartPill, OffPlanMark, RingPill, SecretLoversPill } from './EdgeLayer.tsx';
 import { LockGlyph } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
@@ -302,7 +303,15 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
                 }
                 onClick={() => onPickWorld(w.name)}
               >
-                <i style={{ background: w.color }} />
+                {worldIconUrl(w.name) ? (
+                  // The world's picture in a ring of its colour, so the colour
+                  // still keys its frame on the board.
+                  <span className="lg__world" style={{ borderColor: w.color }}>
+                    <img src={worldIconUrl(w.name)} alt="" width={16} height={16} />
+                  </span>
+                ) : (
+                  <i style={{ background: w.color }} />
+                )}
                 {w.name}
               </button>
             );
@@ -493,6 +502,18 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
               }
               label="Unhoused sims"
               note="townies the game made as you played"
+            />
+            <KeyRow
+              sample={
+                <Sample label="A faded lot tile with a dashed edge">
+                  <rect x={1} y={2} width={SW - 2} height={SH - 4} rx={3} fill="#fbfcfe" stroke="#8a94a0" strokeWidth={1.1} strokeDasharray="2 1.6" />
+                  <circle cx={6} cy={SH / 2} r={2.6} fill="#b8c2cd" />
+                  <rect x={10.5} y={SH / 2 - 2.2} width={SW - 15} height={1.6} rx={0.8} fill="#8a94a0" />
+                  <rect x={10.5} y={SH / 2 + 1} width={SW - 19} height={1.3} rx={0.65} fill="#b8c2cd" />
+                </Sample>
+              }
+              label="Free lots"
+              note="no one lives there: click one to move sims in"
             />
           </ul>
           <h4 className="lgk__plans">Your plans</h4>

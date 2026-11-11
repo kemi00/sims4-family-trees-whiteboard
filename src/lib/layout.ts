@@ -11,6 +11,8 @@ import {
   WORLD_TITLE_BAND,
 } from './constants.ts';
 import { householdTagWidth, tileSnapOrigin } from './tiles.ts';
+import { lotBoxSize, lotCols } from './lotGrid.ts';
+import { freeLotsIn, householdLots, lotsIn } from './places.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { isPet } from './utils.ts';
 import { worldCounts, worldTagReserve } from './worldTag.ts';
@@ -2452,7 +2454,31 @@ type ColumnWorld = {
   extent: Extent;
   households: number;
   sims: number;
+  /** Its Free lots box, under its households (LOTS_EPOCH on). */
+  lots?: { w: number; h: number };
 };
+
+/**
+ * First layout epoch that leaves room under each world's households for its
+ * Free lots box (see placeLotBoxes), and gives a world with lots but no
+ * household on the board a place in the columns.
+ */
+export const LOTS_EPOCH = 10;
+
+/** Key of a world's Free lots box in the packed bases, beside the cards'. */
+export function lotsBaseKey(world: string): string {
+  return `\u0000lots\u0000${world}`;
+}
+
+/**
+ * A world's Free lots box as packing sizes it: its lots in as many columns
+ * as its cards are wide (the same measure placeLotBoxes takes on screen).
+ */
+function packedLots(world: string, mem: SimNode[], cardsW: number): { w: number; h: number } | undefined {
+  const free = freeLotsIn(world, householdLots(mem));
+  if (!free.length) return undefined;
+  return lotBoxSize(free.length, lotCols(free.length, cardsW));
+}
 
 /**
  * Worlds left to right by how many households they have, and top to bottom
@@ -2568,16 +2594,37 @@ function placeWorldsInColumns(
   const named: ColumnWorld[] = [];
   for (const world of worldOrder) {
     const mem = byWorld.get(world);
-    if (world === OTHER_WORLD || !mem?.length) continue;
+    if (world === OTHER_WORLD) continue;
+    if (!mem?.length) {
+      // A world with lots and nobody on the board: its Free lots box alone.
+      const lots = epoch >= LOTS_EPOCH ? packedLots(world, [], 0) : undefined;
+      if (lots) {
+        named.push({
+          block: { world, w: lots.w, h: lots.h, placed: [] },
+          extent: { minX: 0, minY: 0, w: lots.w, h: 0 },
+          households: 0,
+          sims: 0,
+          lots,
+        });
+      }
+      continue;
+    }
     const block = layoutWorld(mem, edges, world, epoch);
     const byGid = new Map<string, SimNode[]>();
     for (const n of mem) byGid.set(n.gid, [...(byGid.get(n.gid) ?? []), n]);
     const counts = worldCounts(mem, () => true);
+    const extent = blockExtent(block.placed, [...byGid.entries()]);
+    const cardsW = block.placed.length
+      ? Math.max(...block.placed.map((p) => p.x + p.w)) - extent.minX
+      : 0;
+    const lots = epoch >= LOTS_EPOCH ? packedLots(world, mem, cardsW) : undefined;
     named.push({
       block,
-      extent: blockExtent(block.placed, [...byGid.entries()]),
+      // A narrow world's column takes its Free lots box too.
+      extent: lots ? { ...extent, w: Math.max(extent.w, lots.w) } : extent,
       households: counts.households,
       sims: counts.sims,
+      lots,
     });
   }
   if (!named.length) return null;
@@ -2625,7 +2672,14 @@ function placeWorldsInColumns(
     let top = worldsTop;
     for (const w of col) {
       put(w.block.placed, w.extent, x, top);
-      top = tileCeil(top + w.extent.h + COLUMN_STACK_GAP);
+      let bottom = top + w.extent.h;
+      if (w.lots) {
+        // A tile under the households, as placeLotBoxes puts it on screen.
+        const lotTop = w.block.placed.length ? tileCeil(bottom) + TILE : top;
+        bases.set(lotsBaseKey(w.block.world), { x, y: lotTop, w: w.lots.w, h: w.lots.h });
+        bottom = lotTop + w.lots.h;
+      }
+      top = tileCeil(bottom + COLUMN_STACK_GAP);
     }
     // Room for the column's world tags as they grow zoomed out, too.
     const width = Math.max(
@@ -2654,6 +2708,8 @@ export function packingKey(n: SimNode): string {
     n.hh,
     // Part of the household's name tag, which packing leaves room for.
     n.nb,
+    // Which lots are free, and so how big the world's Free lots box is.
+    n.lot ?? '',
     n.age,
     // Living sims are counted to order the world columns.
     n.state,
@@ -2696,7 +2752,10 @@ function computeLayoutBases(
   }
 
   const worldOrder = [
-    ...worlds.map((w) => w.name).filter((w) => byWorld.has(w)),
+    // From LOTS_EPOCH on, a world with lots is laid out with no one in it.
+    ...worlds
+      .map((w) => w.name)
+      .filter((w) => byWorld.has(w) || (epoch >= LOTS_EPOCH && lotsIn(w).length > 0)),
     ...[...byWorld.keys()].filter((w) => !worlds.some((o) => o.name === w)),
   ];
 

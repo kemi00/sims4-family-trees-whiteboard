@@ -2,7 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { growHousehold, landMovedCards } from '../lib/landing.ts';
 import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
-import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
+import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
+import { freeLotsIn, householdLots, lotPick, type GameLot } from '../lib/places.ts';
+import { placeLotBoxes } from '../lib/lotBoxes.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
@@ -76,6 +78,7 @@ import {
   packingKey,
   rowPitch,
   spawnChildOrigin,
+  lotsBaseKey,
 } from '../lib/layout.ts';
 import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
 import { holdUntouchedCards } from '../lib/holdLayout.ts';
@@ -299,6 +302,21 @@ export type InfantChoices = {
   surnames: { sur: string; sub: string }[];
   surFor: Record<string, string>;
 };
+
+/** A bounding box [x0, y0, x1, y1] grown to take in Free lots boxes. */
+function withLots(
+  box: [number, number, number, number] | null,
+  lots: readonly { l: number; t: number; r: number; b: number }[],
+): [number, number, number, number] {
+  let [x0, y0, x1, y1] = box ?? [Infinity, Infinity, -Infinity, -Infinity];
+  for (const b of lots) {
+    x0 = Math.min(x0, b.l);
+    y0 = Math.min(y0, b.t);
+    x1 = Math.max(x1, b.r);
+    y1 = Math.max(y1, b.b);
+  }
+  return x0 <= x1 ? [x0, y0, x1, y1] : [0, 0, 0, 0];
+}
 
 export function useWhiteboard() {
   const seed = seedData as WhiteboardData;
@@ -684,6 +702,38 @@ export function useWhiteboard() {
 
   const nodeBuckets = useMemo(() => bucketNodes(nodes), [nodes]);
 
+  /** The game lot each household lives on (householdLots). */
+  const homes = useMemo(() => householdLots(nodesCore), [nodesCore]);
+  /**
+   * Each world's lots no household lives on, in the board's world order. A
+   * world whose sims are all filtered out shows none, as it shows no frame.
+   */
+  const freeLots = useMemo(() => {
+    const shown = new Set<string>();
+    const any = new Set<string>();
+    for (const n of nodes) {
+      any.add(n.world);
+      if (nodeVis(n)) shown.add(n.world);
+    }
+    const out = new Map<string, GameLot[]>();
+    for (const w of worlds) {
+      if (w.name === NOT_IN_WORLD || (any.has(w.name) && !shown.has(w.name))) continue;
+      const free = freeLotsIn(w.name, homes);
+      if (free.length) out.set(w.name, free);
+    }
+    return out;
+  }, [nodes, nodeVis, worlds, homes]);
+  /** Each world's Free lots box, under its households as they stand. */
+  const lotBoxes = useMemo(() => {
+    const bases = layoutBases(nodesCore, worlds, edges);
+    const packed = new Map<string, { x: number; y: number }>();
+    for (const w of freeLots.keys()) {
+      const b = bases.get(lotsBaseKey(w));
+      if (b) packed.set(w, b);
+    }
+    return placeLotBoxes({ laid: nodes.filter(nodeVis), groups, free: freeLots, packed });
+  }, [nodes, nodeVis, groups, freeLots, nodesCore, worlds, edges]);
+
   const bloodVertsMemo = useMemo(
     () => bloodVerts(edgeData.blood),
     [edgeData.blood],
@@ -694,9 +744,10 @@ export function useWhiteboard() {
     [nodes, nodeVis],
   );
 
+  // A world with only lots on the board is live too: there are lots to see.
   const liveWorlds = useMemo(
-    () => new Set(visibleNodes.map((n) => n.world)),
-    [visibleNodes],
+    () => new Set([...visibleNodes.map((n) => n.world), ...lotBoxes.keys()]),
+    [visibleNodes, lotBoxes],
   );
   /** What the world tags add up to, for the Worlds card. */
   const boardTotals = useMemo(() => worldTotals(nodes, nodeVis), [nodes, nodeVis]);
@@ -2216,11 +2267,16 @@ export function useWhiteboard() {
    * them. Returns where they went, or null when nothing moved.
    */
   const moveHouseholdToWorld = useCallback(
-    (gid: string, world: string): MoveDestination | null => {
+    /**
+     * `house`: where in `world` — a free lot (lotPick) or a household of the
+     * same name to join. Without it, as before lots, a household of its
+     * name there or a new one with no lot (Not in any world).
+     */
+    (gid: string, world: string, house?: string): MoveDestination | null => {
       const g = groups.find((x) => x.gid === gid);
       const members = nodes.filter((n) => n.gid === gid);
       if (!g || !members.length || isUnhousedGid(gid) || g.world === world) return null;
-      const dest = moveDestination(groups, nodes, worlds, world, NEW_HOUSEHOLD, g.hh);
+      const dest = moveDestination(groups, nodes, worlds, world, house ?? NEW_HOUSEHOLD, g.hh);
       if (!dest || dest.gid === gid) return null;
       const ids = new Set(members.map((n) => n.id));
       const { patches, moves } = householdMovePlan(nodes, [...ids], dest);
@@ -2228,7 +2284,7 @@ export function useWhiteboard() {
       pushUndo(`Move ${theHousehold(g.hh, named)} to ${named(world)}`);
       trackAction('/action/household-world');
       const newGroup: Group | null = dest.isNew
-        ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
+        ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, ...(dest.lot ? { lot: dest.lot } : {}), color: dest.color, x: 0, y: 0, w: 0, h: 0 }
         : null;
       if (newGroup) setGroups((gs) => (gs.some((x) => x.gid === newGroup.gid) ? gs : [...gs, newGroup]));
       const createdAt = new Date().toISOString();
@@ -2253,7 +2309,7 @@ export function useWhiteboard() {
           ? `The ${named(g.hh)} household moves back to ${named(world)}: a new step in your plan. To drop its move instead, use the bin on it in the Log.`
           : joined
           ? `${moved.length === 1 ? `${named(cardName(moved[0]!))} of the ${named(g.hh)} household joins` : `All ${moved.length} sims of the ${named(g.hh)} household join`} the one in ${named(world)}${plan}.${roomNote(dest.hh, world, landed)} Undo takes it back.`
-          : `The ${g.hh} household moves to ${world} with ${moved.length === 1 ? cardName(moved[0]!) : `its ${moved.length} sims`}${plan}. Undo takes it back.`,
+          : `The ${g.hh} household moves to ${dest.lot ? `${dest.lot} in ` : ''}${world} with ${moved.length === 1 ? cardName(moved[0]!) : `its ${moved.length} sims`}${plan}. Undo takes it back.`,
       );
       return dest;
     },
@@ -2643,8 +2699,9 @@ export function useWhiteboard() {
       insetRight: number = 0,
     ) => {
       const inWorld = (n: SimNode) => nodeVis(n) && n.world === world;
-      if (!nodes.some(inWorld)) return;
-      const [x0, y0, x1, y1] = bbox(nodes, inWorld);
+      const lots = lotBoxes.get(world);
+      if (!nodes.some(inWorld) && !lots) return;
+      const [x0, y0, x1, y1] = withLots(nodes.some(inWorld) ? bbox(nodes, inWorld) : null, lots ? [lots] : []);
       const w = x1 - x0;
       const h = y1 - y0;
       const pad = 80;
@@ -2660,12 +2717,15 @@ export function useWhiteboard() {
         ty: (svgHeight - h * k) / 2 - y0 * k,
       });
     },
-    [nodes, nodeVis],
+    [nodes, nodeVis, lotBoxes],
   );
 
   const resetView = useCallback(() => setViewport(INITIAL_VIEW), []);
 
-  const boardBounds = useMemo(() => bbox(nodes, nodeVis), [nodes, nodeVis]);
+  const boardBounds = useMemo(
+    () => withLots(bbox(nodes, nodeVis), [...lotBoxes.values()]),
+    [nodes, nodeVis, lotBoxes],
+  );
   /** Lowest zoom on a stage this size: low enough to show the whole board. */
   const minZoom = useCallback(
     (svgWidth: number, svgHeight: number) => zoomFloor(boardBounds, svgWidth, svgHeight),
@@ -3549,7 +3609,9 @@ export function useWhiteboard() {
       const homes = gameHomes(nodes, householdMoves);
       const back = [...patches.keys()].filter((id) => homes.get(id) === dest.gid).length;
       const [only] = patches.keys();
-      pushUndo(`Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${theHousehold(dest.hh, named)}`);
+      pushUndo(
+        `Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${dest.isNew && dest.lot ? named(dest.lot) : theHousehold(dest.hh, named)}`,
+      );
       if (dest.isNew) {
         setGroups((gs) =>
           gs.some((g) => g.gid === dest.gid)
@@ -3561,6 +3623,7 @@ export function useWhiteboard() {
                   hh: dest.hh,
                   world: dest.world,
                   nb: dest.nb,
+                  ...(dest.lot ? { lot: dest.lot } : {}),
                   color: dest.color,
                   x: 0,
                   y: 0,
@@ -3583,6 +3646,48 @@ export function useWhiteboard() {
       return { dest, moved: patches.size, back };
     },
     [groups, nodes, nodesCore, worlds, edges, householdMoves, pushUndo, pinCardsToCurrentPlaces, simCalled],
+  );
+
+  /**
+   * Sims move into a free lot, as one undo step: a new household there
+   * called `name`. A whole household that moves keeps its name; in its own
+   * world it only changes lots, and from another it moves there whole.
+   */
+  const moveIntoLot = useCallback(
+    (ids: string[], lot: GameLot, name: string) => {
+      const movers = ids.map((id) => byid[id]).filter((n): n is SimNode => !!n);
+      if (!movers.length) return;
+      const gids = new Set(movers.map((n) => n.gid));
+      const [only] = gids;
+      const g = gids.size === 1 && only && !isUnhousedGid(only) ? groups.find((x) => x.gid === only) : undefined;
+      const whole = !!g && nodes.filter((n) => n.gid === g.gid).every((n) => ids.includes(n.id));
+      if (g && whole && g.world === lot.world) {
+        const was = homes.get(g.gid);
+        pushUndo(`Move ${theHousehold(g.hh, named)} to ${named(lot.name)}`);
+        trackAction('/action/household-lot');
+        setGroups((gs) => gs.map((x) => (x.gid === g.gid ? { ...x, lot: lot.name, nb: lot.nb } : x)));
+        pinCardsToCurrentPlaces(
+          edges,
+          nodesCore.map((n) => (n.gid === g.gid ? toCore({ ...n, lot: lot.name, nb: lot.nb }) : n)),
+        );
+        flashStatus(
+          `The ${named(g.hh)} household moves to ${named(lot.name)} in ${lot.nb}${was ? `, and ${named(was.name)} is free` : ''}. Undo takes it back.`,
+        );
+        return;
+      }
+      if (g && whole) {
+        moveHouseholdToWorld(g.gid, lot.world, lotPick(lot));
+        return;
+      }
+      const done = moveSimsToHousehold(ids, lot.world, lotPick(lot), name);
+      if (!done || !done.moved) return;
+      setMultiSel({ kind: 'nodes', ids: movers.map((n) => n.id) });
+      const who = done.moved === 1 ? cardName(movers[0]!) : `${done.moved} sims`;
+      flashStatus(
+        `${named(who)} ${done.moved === 1 ? 'moves' : 'move'} to ${named(lot.name)} in ${lot.nb}, the ${named(done.dest.hh)} household. Their cards stay put: drag them into place. Undo with ⌘Z.`,
+      );
+    },
+    [byid, groups, nodes, nodesCore, edges, homes, pushUndo, pinCardsToCurrentPlaces, flashStatus, moveHouseholdToWorld, moveSimsToHousehold],
   );
 
   const moveSimToHousehold = useCallback(
@@ -3888,6 +3993,9 @@ export function useWhiteboard() {
     playVis,
     nodeVis,
     nodeBuckets,
+    homes,
+    freeLots,
+    lotBoxes,
     edgeData,
     shownEdges,
     hideSecrets,
@@ -3995,6 +4103,7 @@ export function useWhiteboard() {
     setHiddenPacks,
     moveSimToHousehold,
     moveSimsToHousehold,
+    moveIntoLot,
     moveHouseholdToWorld,
     cancelPlan,
     setEnding,

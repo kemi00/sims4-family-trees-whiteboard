@@ -118,6 +118,7 @@ export function SelectionBar({
             initialWorld={commonWorld(sims, worlds)}
             exclude={home}
             submitLabel={`Move ${who} here`}
+            suggestedName={sims[0]?.sur}
             onMove={(world, house, name) => {
               onMove(world, house, name);
               setOpen(false);

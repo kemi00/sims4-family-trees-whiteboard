@@ -6,6 +6,7 @@ import { HH_TAG_STACK_GAP } from '../lib/constants.ts';
 import { planBadge, type PlanTally } from '../lib/householdPlan.ts';
 import { animalLaneDivider, householdChrome, tagPillWidth, UNHOUSED_MARK_W } from '../lib/tiles.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
+import { neighbourhoodIconUrl, type GameLot } from '../lib/places.ts';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
 type Props = {
@@ -37,7 +38,12 @@ type Props = {
   tallies?: ReadonlyMap<string, PlanTally>;
   /** The badge: open the household's plan. */
   onOpenPlan?: (gid: string) => void;
+  /** The game lot each household lives on (householdLots), for its tag's tip. */
+  homes?: ReadonlyMap<string, GameLot>;
 };
+
+/** The neighbourhood icon in a household tag, where the grip would be. */
+const NB_ICON = 18;
 
 /** Badge colors: ready to do, off plan, or only waiting. */
 const BADGE = {
@@ -62,6 +68,7 @@ export const GroupLayer = memo(function GroupLayer({
   onAddSim,
   tallies,
   onOpenPlan,
+  homes,
 }: Props) {
   if (!show) return null;
 
@@ -92,6 +99,7 @@ export const GroupLayer = memo(function GroupLayer({
         const selected = !!selectedGids?.has(g0.gid);
         /** Unhoused sims: not a home, so a dotted box, an outlined tag and no Age up. */
         const unhoused = isUnhousedGid(g0.gid);
+        const nbIcon = unhoused ? undefined : neighbourhoodIconUrl(g0.world, g0.nb);
         if (
           cull &&
           !selected &&
@@ -182,7 +190,10 @@ export const GroupLayer = memo(function GroupLayer({
                   with no home keep their own households.
                 </title>
               ) : (
-                <title>Click for this household’s plan · drag to move the household</title>
+                <title>
+                  {homeLine(homes?.get(g0.gid), g0.nb)}
+                  Click for this household’s plan · drag to move the household
+                </title>
               )}
               <rect
                 x={headerX}
@@ -198,15 +209,37 @@ export const GroupLayer = memo(function GroupLayer({
               />
               {labels && (
                 <>
-                  <text
-                    x={headerX + 10}
-                    y={textY(headerY)}
-                    dominantBaseline="middle"
-                    fontSize={12}
-                    fill={selected ? '#ffffffbb' : g0.color + '99'}
-                  >
-                    ⠿
-                  </text>
+                  {nbIcon ? (
+                    // The neighbourhood's icon stands for the grip: the whole
+                    // tag is the handle, and it shows where they live.
+                    <>
+                      <circle
+                        cx={headerX + 4 + NB_ICON / 2}
+                        cy={textY(headerY)}
+                        r={NB_ICON / 2 + 1}
+                        fill={selected ? '#ffffff' : g0.color + '33'}
+                      />
+                      <image
+                        className="hh-nb"
+                        href={nbIcon}
+                        x={headerX + 4}
+                        y={textY(headerY) - NB_ICON / 2}
+                        width={NB_ICON}
+                        height={NB_ICON}
+                        preserveAspectRatio="xMidYMid meet"
+                      />
+                    </>
+                  ) : (
+                    <text
+                      x={headerX + 10}
+                      y={textY(headerY)}
+                      dominantBaseline="middle"
+                      fontSize={12}
+                      fill={selected ? '#ffffffbb' : g0.color + '99'}
+                    >
+                      ⠿
+                    </text>
+                  )}
                   {unhoused && (
                     <UnhousedGlyph
                       x={headerX + 24 + UNHOUSED_MARK_W / 2 - 2}
@@ -335,3 +368,9 @@ export const GroupLayer = memo(function GroupLayer({
     </g>
   );
 });
+
+/** "Lives on Ophelia Villa, Pendula View." and a line break, for a tag's tip. */
+function homeLine(lot: GameLot | undefined, nb: string): string {
+  if (lot) return `Lives on ${lot.name}, ${lot.nb}.\n`;
+  return nb && nb !== '-' ? `Lives in ${nb}.\n` : '';
+}

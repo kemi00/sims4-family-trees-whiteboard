@@ -289,7 +289,7 @@ type Props = {
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   /** Move this sim's whole household to another world (moveHouseholdToWorld). */
-  onMoveHousehold: (world: string) => void;
+  onMoveHousehold: (world: string, house?: string) => void;
   onLayout: () => void;
   onClose: () => void;
   /** Focus the first name, selected, so a sim just added can be named straight away. */
@@ -1147,6 +1147,7 @@ export function SimEditor({
                 initialWorld={n.oworld || n.world || worlds[0]?.name || ''}
                 exclude={n.gid}
                 submitLabel={`Move ${n.first || 'this sim'} here`}
+                suggestedName={n.sur}
                 onMove={onMove}
                 {...(movableHome
                   ? {

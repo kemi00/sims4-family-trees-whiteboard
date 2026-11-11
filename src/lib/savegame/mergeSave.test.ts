@@ -2074,3 +2074,39 @@ describe('an untouched starter roster', () => {
     assert.equal(isUntouchedStarter(loaded, roster), false);
   });
 });
+
+describe('where a save household lives', () => {
+  const merge = (nodes: SimNode[], sims: ParsedSave['sims']) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges: [],
+      groups: [],
+      worlds: [{ name: 'Willow Creek', color: '#4f9d69' }, { name: 'San Myshuno', color: '#c9a227' }, ...world],
+      parsed: { sims, rels: [] },
+      seedNameKeys: seedNameKeysFromNodes(nodes),
+      now: '2026-11-11T12:00:00.000Z',
+      nextEdgeId: () => 'v1',
+    });
+
+  it('takes the game lot the save names, and its neighbourhood', () => {
+    const bob = sim({ id: 'Bob Pancakes', first: 'Bob', sur: 'Pancakes' });
+    const eliza = sim({ id: 'Eliza Pancakes', first: 'Eliza', sur: 'Pancakes', gender: 'Female' });
+    // Moved from Pique Hearth to Brook Bungalow in the game.
+    const lot = { hash: 1468068720 };
+    const result = merge([bob, eliza], [
+      { saveSimId: '1', householdId: '10', first: 'Bob', last: 'Pancakes', household: 'Pancakes', age: 'Adult', gender: 'Male', world: 'Willow Creek', lot },
+      { saveSimId: '2', householdId: '10', first: 'Eliza', last: 'Pancakes', household: 'Pancakes', age: 'Adult', gender: 'Female', world: 'Willow Creek', lot },
+    ]);
+    assert.deepEqual(result.nodes.map((n) => [n.lot, n.nb]), [['Brook Bungalow', 'Courtyard Lane'], ['Brook Bungalow', 'Courtyard Lane']]);
+    assert.equal(result.groups.find((g) => g.gid === bob.gid)?.lot, 'Brook Bungalow');
+  });
+
+  it('tells a building’s units apart by the name the save keeps', () => {
+    const tenant = sim({ id: 'Jamie Jordan', first: 'Jamie', sur: 'Jordan', gid: 'San Myshuno||Jordan', hh: 'Jordan', world: 'San Myshuno' });
+    const result = merge([tenant], [
+      { saveSimId: '1', householdId: '10', first: 'Jamie', last: 'Jordan', household: 'Jordan', age: 'Adult', gender: 'Male', world: 'San Myshuno', lot: { hash: 2463039573, name: '18 Culpepper House' } },
+    ]);
+    assert.equal(result.nodes[0]!.lot, '18 Culpepper House');
+    assert.equal(result.nodes[0]!.nb, 'Spice Market');
+  });
+});

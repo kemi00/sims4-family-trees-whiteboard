@@ -3,6 +3,8 @@ import { Crown, House, User } from '../icons.ts';
 import { worldFrame, worldTagMetrics } from '../lib/geometry.ts';
 import { nodesForWorld, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { worldColor } from '../lib/utils.ts';
+import { worldIconUrl } from '../lib/places.ts';
+import { frameWithLots, type LotBox } from '../lib/lotBoxes.ts';
 import {
   worldCounts,
   worldCountsText,
@@ -27,6 +29,8 @@ type Props = {
   /** World names currently in a multi-selection. */
   selectedWorlds?: ReadonlySet<string>;
   buckets?: NodeBuckets;
+  /** Each world's Free lots box: part of its frame. */
+  lotBoxes?: ReadonlyMap<string, LotBox>;
   onWorldDragStart?: (
     world: string,
     wx: number,
@@ -133,18 +137,22 @@ export const WorldLayer = memo(function WorldLayer({
   mode,
   selectedWorlds,
   buckets,
+  lotBoxes,
   onWorldDragStart,
 }: Props) {
   if (!show) return null;
 
   const worldNames = worldNamesFrom(nodes, packVis, buckets);
+  // A world with lots and no one on the board: framed round its lots.
+  for (const w of lotBoxes?.keys() ?? []) if (!worldNames.includes(w)) worldNames.push(w);
+  const frameOf = (w: string) => frameWithLots(worldFrame(w, nodes, groups, packVis, buckets), lotBoxes?.get(w));
   const tag = worldTagMetrics(zoom);
 
   if (mode === 'frames') {
     return (
       <g id="lWorlds">
         {worldNames.map((w) => {
-          const frame = worldFrame(w, nodes, groups, packVis, buckets);
+          const frame = frameOf(w);
           if (!frame) return null;
           const col = worldColor(w, worlds);
           const selected = !!selectedWorlds?.has(w);
@@ -188,9 +196,7 @@ export const WorldLayer = memo(function WorldLayer({
     );
   }
 
-  const frames = new Map(
-    worldNames.map((w) => [w, worldFrame(w, nodes, groups, packVis, buckets)] as const),
-  );
+  const frames = new Map(worldNames.map((w) => [w, frameOf(w)] as const));
   const chips: ChipHit[] = [];
   for (const w of worldNames) {
     const frame = frames.get(w);
@@ -295,16 +301,37 @@ export const WorldLayer = memo(function WorldLayer({
                 style={{ pointerEvents: 'none' }}
               />
             )}
-            <text
-              x={c.paintX + pill.handleX}
-              y={c.paintY + pill.nameY}
-              dominantBaseline="middle"
-              fontSize={tag.handleSize}
-              fill="#ffffffbb"
-              style={{ pointerEvents: 'none' }}
-            >
-              ⠿
-            </text>
+            {worldIconUrl(c.w) ? (
+              // The world's picture stands for the grip: the whole tag is
+              // the handle. It fits the pill's round end, before the name.
+              <g style={{ pointerEvents: 'none' }}>
+                <circle
+                  cx={c.paintX + 15.5 * s}
+                  cy={c.paintY + pill.nameY}
+                  r={10.5 * s}
+                  fill="#ffffff"
+                />
+                <image
+                  href={worldIconUrl(c.w)}
+                  x={c.paintX + 6 * s}
+                  y={c.paintY + pill.nameY - 9.5 * s}
+                  width={19 * s}
+                  height={19 * s}
+                  preserveAspectRatio="xMidYMid meet"
+                />
+              </g>
+            ) : (
+              <text
+                x={c.paintX + pill.handleX}
+                y={c.paintY + pill.nameY}
+                dominantBaseline="middle"
+                fontSize={tag.handleSize}
+                fill="#ffffffbb"
+                style={{ pointerEvents: 'none' }}
+              >
+                ⠿
+              </text>
+            )}
             <text
               x={c.paintX + pill.nameX}
               y={c.paintY + pill.nameY}

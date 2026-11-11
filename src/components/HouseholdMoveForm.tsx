@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { NEW_HOUSEHOLD, householdNamed, householdOptions } from '../lib/householdMove.ts';
+import { freeLotsIn, householdLots, lotOfPick, lotPick, lotsIn, lotKindLabel, lotRoomsLabel } from '../lib/places.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 
 type Props = {
@@ -13,6 +14,8 @@ type Props = {
   exclude?: string;
   /** The button, which says who moves ("Move Bella here", "Move 3 sims here"). */
   submitLabel: string;
+  /** A new household's name to start with: the mover's last name. */
+  suggestedName?: string;
   onMove: (world: string, houseGid: string, newName: string) => void;
   /**
    * The household the one sim moving lives in, with how many others do.
@@ -22,14 +25,22 @@ type Props = {
   home?: { hh: string; world: string; others: number };
   /** Who moves alone, for "Move only Dirk". */
   who?: string;
-  onMoveHousehold?: (world: string) => void;
+  /** The whole household moves to `world`: onto the lot `house` picks, when it picks one. */
+  onMoveHousehold?: (world: string, house?: string) => void;
 };
+
+/** "Brook Bungalow · Courtyard Lane · 3 bed, 2 bath", a free lot in the list. */
+function lotOption(lot: ReturnType<typeof lotsIn>[number]): string {
+  const rooms = lotRoomsLabel(lot);
+  return [lot.name, lot.nb, rooms ? rooms.replace(' · ', ', ') : lotKindLabel(lot)].join(' · ');
+}
 
 /**
  * World, then household, then a name for a new one: from the broad choice to
- * the narrow. "Create a new household…" leads the list, as moving sims out is
- * the usual reason to open this; the households that exist follow A to Z with
- * how many sims each holds. Enter moves from any field.
+ * the narrow. Sims join a household that exists or move into one of the
+ * world's free lots, as in the game: a new household needs a lot. Only
+ * where there are no lots (Not in any world) can one be made with none.
+ * Enter moves from any field.
  */
 export function HouseholdMoveForm({
   idPrefix,
@@ -39,34 +50,42 @@ export function HouseholdMoveForm({
   initialWorld,
   exclude,
   submitLabel,
+  suggestedName = '',
   onMove,
   home,
   who,
   onMoveHousehold,
 }: Props) {
   const [world, setWorld] = useState(initialWorld);
-  const [house, setHouse] = useState<string>(NEW_HOUSEHOLD);
-  const [name, setName] = useState('');
+  const homes = useMemo(() => householdLots(nodes), [nodes]);
+  /** A world with no lots to live on: only there is a household made with none. */
+  const lotless = (w: string) => lotsIn(w).length === 0;
+  const startHouse = (w: string) => (lotless(w) ? NEW_HOUSEHOLD : '');
+  const [house, setHouse] = useState<string>(() => startHouse(initialWorld));
+  const [name, setName] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const options = householdOptions(groups, nodes, world, exclude);
-  const isNew = house === NEW_HOUSEHOLD;
-  const twin = isNew ? householdNamed(groups, nodes, world, name) : undefined;
+  const free = lotless(world) ? [] : freeLotsIn(world, homes);
+  const lot = lotOfPick(world, house);
+  const isNew = house === NEW_HOUSEHOLD || !!lot;
+  const typed = name ?? (lot ? suggestedName : '');
+  const twin = isNew ? householdNamed(groups, nodes, world, typed) : undefined;
   /** The name is the household they are all in already: nothing would move. */
-  const stays = !!twin && twin.gid === exclude;
-  const ready = isNew ? !!name.trim() && !stays : options.some((o) => o.gid === house);
+  const stays = !lot && !!twin && twin.gid === exclude;
+  const ready = isNew ? !!typed.trim() && !stays : options.some((o) => o.gid === house);
   /** Their own household's name in another world: the household moving, most likely. */
   const wholeHome =
     isNew && !!home && !!onMoveHousehold && home.others > 0 && world !== home.world &&
-    name.trim().toLocaleLowerCase() === home.hh.trim().toLocaleLowerCase();
+    typed.trim().toLocaleLowerCase() === home.hh.trim().toLocaleLowerCase();
 
   // Ready to type a name on a mouse; on a phone the keyboard would cover the form.
   useEffect(() => {
-    if (window.matchMedia?.('(pointer: fine)').matches) nameRef.current?.focus();
-  }, []);
+    if (house === NEW_HOUSEHOLD && window.matchMedia?.('(pointer: fine)').matches) nameRef.current?.focus();
+  }, [house]);
 
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
-    if (ready) onMove(world, house, name);
+    if (ready) onMove(world, house, typed);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
@@ -85,7 +104,8 @@ export function HouseholdMoveForm({
         value={world}
         onChange={(e) => {
           setWorld(e.target.value);
-          setHouse(NEW_HOUSEHOLD);
+          setHouse(startHouse(e.target.value));
+          setName(null);
         }}
       >
         {worlds.map((w) => (
@@ -94,39 +114,64 @@ export function HouseholdMoveForm({
           </option>
         ))}
       </select>
-      <label htmlFor={`${idPrefix}House`}>Household</label>
+      <label htmlFor={`${idPrefix}House`}>{lotless(world) ? 'Household' : 'Household or free lot'}</label>
       <select
         id={`${idPrefix}House`}
         value={house}
         onChange={(e) => {
           setHouse(e.target.value);
+          setName(null);
           if (e.target.value === NEW_HOUSEHOLD) requestAnimationFrame(() => nameRef.current?.focus());
         }}
       >
-        <option value={NEW_HOUSEHOLD}>➕ Create a new household…</option>
-        {options.map((o) => (
-          <option key={o.gid} value={o.gid}>
-            {o.hh} ({o.count})
+        {lotless(world) ? (
+          <option value={NEW_HOUSEHOLD}>➕ Create a new household…</option>
+        ) : (
+          <option value="" disabled>
+            Choose a household or a free lot
           </option>
-        ))}
+        )}
+        {options.length > 0 && (
+          <optgroup label="Households">
+            {options.map((o) => (
+              <option key={o.gid} value={o.gid}>
+                {o.hh} ({o.count}){homes.get(o.gid) ? ` · ${homes.get(o.gid)!.name}` : ''}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {free.length > 0 && (
+          <optgroup label={`Free lots (${free.length})`}>
+            {free.map((l) => (
+              <option key={l.name} value={lotPick(l)}>
+                {lotOption(l)}
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
+      {!lotless(world) && !free.length && (
+        <p className="hhmove__note">Every lot in {world} has a household, so they can only join one.</p>
+      )}
       {isNew && (
         <>
-          <label htmlFor={`${idPrefix}Name`}>New household name</label>
+          <label htmlFor={`${idPrefix}Name`}>{lot ? `Their household on ${lot.name}` : 'New household name'}</label>
           <input
             ref={nameRef}
             id={`${idPrefix}Name`}
             placeholder="Household name"
             autoComplete="off"
-            value={name}
+            value={typed}
             aria-describedby={twin ? `${idPrefix}Twin` : undefined}
             onChange={(e) => setName(e.target.value)}
           />
           {twin && (
             <p id={`${idPrefix}Twin`} className="hhmove__note">
-              {stays
-                ? `They already live in the ${twin.hh} household. Choose another name.`
-                : `${world} already has a ${twin.hh} household, so they will join it.`}
+              {lot
+                ? `${world} has a ${twin.hh} household already. This makes a second one, on ${lot.name}.`
+                : stays
+                  ? `They already live in the ${twin.hh} household. Choose another name.`
+                  : `${world} already has a ${twin.hh} household, so they will join it.`}
             </p>
           )}
         </>
@@ -137,8 +182,8 @@ export function HouseholdMoveForm({
             That’s their household’s name. To keep it one household, move it whole:{' '}
             {home.others === 1 ? '1 other sim goes' : `${home.others} other sims go`} too.
           </p>
-          <button type="button" className="movego" onClick={() => onMoveHousehold(world)}>
-            Move the {home.hh} household to {world}
+          <button type="button" className="movego" onClick={() => onMoveHousehold(world, lot ? house : undefined)}>
+            Move the {home.hh} household to {lot ? `${lot.name} in ${world}` : world}
           </button>
         </div>
       )}

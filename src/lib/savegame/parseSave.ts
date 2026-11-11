@@ -25,6 +25,13 @@ export type ParsedSaveSim = {
   species?: string;
   /** World name string from the save lot, if present. */
   world?: string;
+  /**
+   * Their household's home lot: the game's id for it (a building's units
+   * share it) and, when the save keeps one, its name, which tells the units
+   * apart. Matched against the game's lots (places.ts); the name is never
+   * shown, as the player may have renamed it.
+   */
+  lot?: { hash: number; name?: string };
   /** The sim's household has no home lot ("Currently Not in World"). */
   unhoused?: true;
   /**
@@ -768,11 +775,14 @@ function idField(fields: ReturnType<typeof decodeFields>, n: number): string {
 function parseWorldIndex(saveGame: Uint8Array): {
   householdWorld: Record<string, string>;
   householdName: Record<string, string>;
+  /** Household id → its home lot's id and name (field 5 and 3 of the lot). */
+  householdLot: Record<string, { hash: number; name?: string }>;
   /** Households the save lists with no home lot. */
   unhoused: Set<string>;
   worlds: string[];
 } {
   const zoneWorld = new Map<string, string>();
+  const zoneLot = new Map<string, { hash: number; name?: string }>();
   const ownerWorld = new Map<string, string>();
   const homeZone = new Map<string, string>();
   const householdName: Record<string, string> = {};
@@ -804,21 +814,30 @@ function parseWorldIndex(saveGame: Uint8Array): {
       const lot = decodeFields(f.bytes);
       const zone = idField(lot, 2);
       if (zone) zoneWorld.set(zone, world);
+      const hash = lot.find((x) => x.field === 5 && !x.bytes)?.int;
+      if (zone && hash) {
+        const name = utf8(lot.find((x) => x.field === 3 && x.bytes)?.bytes ?? null)?.trim();
+        zoneLot.set(zone, { hash: Number(hash), ...(name ? { name } : {}) });
+      }
       const owner = lot.find((x) => x.field === 4 && x.bytes)?.bytes;
       const household = owner ? idField(decodeFields(owner), 3) : '';
       if (household) ownerWorld.set(household, world);
     }
   }
   const householdWorld: Record<string, string> = {};
+  const householdLot: Record<string, { hash: number; name?: string }> = {};
   for (const [id, world] of ownerWorld) householdWorld[id] = world;
   for (const [id, zone] of homeZone) {
     const world = zoneWorld.get(zone);
     if (world) householdWorld[id] = world;
+    const lot = zoneLot.get(zone);
+    if (lot) householdLot[id] = lot;
   }
   const unhoused = new Set([...listed].filter((id) => !homeZone.has(id) && !ownerWorld.has(id)));
   return {
     householdWorld,
     householdName,
+    householdLot,
     unhoused,
     worlds: [...worlds].sort((a, b) => a.localeCompare(b)),
   };
@@ -912,10 +931,12 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     sims.push(sim);
   }
   if (!sims.length) throw new Error('No sims found in this save');
-  const { householdWorld, householdName, unhoused, worlds } = parseWorldIndex(data);
+  const { householdWorld, householdName, householdLot, unhoused, worlds } = parseWorldIndex(data);
   for (const sim of sims) {
     const world = householdWorld[sim.householdId];
     if (world) sim.world = world;
+    const lot = householdLot[sim.householdId];
+    if (lot) sim.lot = lot;
     if (unhoused.has(sim.householdId)) sim.unhoused = true;
     // The household record's name is the game's; a sim's copy can be blank.
     const name = householdName[sim.householdId];

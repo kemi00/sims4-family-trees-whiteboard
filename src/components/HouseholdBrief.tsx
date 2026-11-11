@@ -14,6 +14,8 @@ type Props = {
   unblocks: PlanItem[];
   /** The sims to move in before the game has this household (householdsNotInGame). */
   notInGame?: string[];
+  /** The game lot it lives on, named before its neighbourhood. */
+  lot?: string;
   elders: ElderTime[];
   nameOf: (id: string) => string;
   /** "the Munch household". */
@@ -31,7 +33,7 @@ type Props = {
     worlds: World[];
     groups: Group[];
     nodes: SimNode[];
-    onMove: (world: string) => void;
+    onMove: (world: string, house?: string) => void;
   };
 };
 
@@ -58,6 +60,7 @@ export function HouseholdBrief({
   items,
   unblocks,
   notInGame,
+  lot,
   elders,
   nameOf,
   hhOf,
@@ -70,7 +73,7 @@ export function HouseholdBrief({
 }: Props) {
   const sheet = usePanelSheet();
   const [moveOpen, setMoveOpen] = useState(false);
-  const place = livingPlace(group.nb, group.world);
+  const place = [lot, livingPlace(group.nb, group.world)].filter(Boolean).join(', ');
   const hover = (ids: string[]) => ({
     onMouseEnter: () => onHover(ids),
     onMouseLeave: () => onHover(null),

@@ -73,6 +73,9 @@ import { SelectionBar } from './SelectionBar.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
 import { EdgeLayer } from './EdgeLayer.tsx';
+import { LotLayer } from './LotLayer.tsx';
+import { LotMoveInMenu } from './LotMoveInMenu.tsx';
+import type { GameLot } from '../lib/places.ts';
 import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
@@ -1033,6 +1036,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     // pan to the second sim; a tap there still cancels the link.
     if (wb.connectMode) connectTapRef.current = true;
     else if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
+    setLotMenu(null);
 
     const wantMarquee = !wb.connectMode && (wb.selectMode || ev.shiftKey);
     if (wantMarquee) {
@@ -1542,6 +1546,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
     setNameFocusId(wbRef.current.addSimToHousehold(gid));
   }, []);
 
+  /** A free lot clicked on the board: who moves in, asked beside it. */
+  const [lotMenu, setLotMenu] = useState<{ lot: GameLot; x: number; y: number; picked: string[] } | null>(null);
+  const onPickLot = useCallback((lot: GameLot, clientX: number, clientY: number) => {
+    const sr = stageRef.current?.getBoundingClientRect();
+    const w = wbRef.current;
+    // Sims picked on the board move in, to start with.
+    const picked = w.multiSel && w.multiSel.kind !== 'worlds' ? idsForMultiSel(w.multiSel, w.nodes) : w.sel?.type === 'node' ? [w.sel.id] : [];
+    setLotMenu({ lot, x: sr ? clientX - sr.left + 12 : 0, y: sr ? clientY - sr.top + 12 : 0, picked });
+  }, [stageRef]);
+
   const onHandlePointer = (ev: ReactPointerEvent) => {
     rememberPointer(ev);
     captureSvg(ev.pointerId);
@@ -1743,6 +1757,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             packVis={wb.nodeVis}
             selectedWorlds={selectedWorlds}
             buckets={wb.nodeBuckets}
+            lotBoxes={wb.lotBoxes}
           />
           <GroupLayer
             mode="frames"
@@ -1893,6 +1908,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             onAddSim={onAddSim}
             tallies={wb.planTally}
             onOpenPlan={wb.setBriefGid}
+            homes={wb.homes}
+          />
+          <LotLayer
+            boxes={wb.lotBoxes}
+            worlds={wb.worlds}
+            show={wb.show.groups}
+            labels={labels}
+            cull={cullWin}
+            onPickLot={onPickLot}
           />
           {/* World chips last so they paint above household tags + sim cards. */}
           <WorldLayer
@@ -1905,6 +1929,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             packVis={wb.nodeVis}
             selectedWorlds={selectedWorlds}
             buckets={wb.nodeBuckets}
+            lotBoxes={wb.lotBoxes}
             onWorldDragStart={(world, sx, sy, base, ev) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
@@ -2186,6 +2211,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           onClose={wb.closeChildMenu}
         />
       )}
+      {lotMenu && (
+        <LotMoveInMenu
+          key={lotMenu.lot.world + lotMenu.lot.name}
+          lot={lotMenu.lot}
+          left={lotMenu.x}
+          top={lotMenu.y}
+          nodes={wb.nodes}
+          picked={lotMenu.picked}
+          onMove={(ids, name) => {
+            wb.moveIntoLot(ids, lotMenu.lot, name);
+            setLotMenu(null);
+          }}
+          onClose={() => setLotMenu(null)}
+        />
+      )}
       {wb.infantHouseMenu && (
         <InfantHouseMenu
           left={wb.infantHouseMenu.x}
@@ -2221,6 +2261,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           items={itemsFor(wb.planItems, briefGroup.gid)}
           unblocks={unblockedBy(wb.planItems, briefGroup.gid)}
           notInGame={wb.notInGame.get(briefGroup.gid)}
+          lot={wb.homes.get(briefGroup.gid)?.name}
           elders={eldersOf(wb.nodes, briefGroup.gid, wb.saveGame)}
           nameOf={nameOfSim}
           hhOf={hhOf}
@@ -2242,7 +2283,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
                   worlds: wb.worlds,
                   groups: wb.groups,
                   nodes: wb.nodes,
-                  onMove: (world) => wb.moveHouseholdToWorld(briefGroup.gid, world),
+                  onMove: (world, house) => wb.moveHouseholdToWorld(briefGroup.gid, world, house),
                 }
           }
         />
@@ -2276,8 +2317,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           onMove={(world, houseGid, newName) => {
             wb.moveSimToHousehold(editNode.id, world, houseGid, newName);
           }}
-          onMoveHousehold={(world) => {
-            if (wb.moveHouseholdToWorld(editNode.gid, world)) wb.setEditNodeId(null);
+          onMoveHousehold={(world, house) => {
+            if (wb.moveHouseholdToWorld(editNode.gid, world, house)) wb.setEditNodeId(null);
           }}
           onClose={() => wb.setEditNodeId(null)}
           focusName={nameFocusId === editNode.id}

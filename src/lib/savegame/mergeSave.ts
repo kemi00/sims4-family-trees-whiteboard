@@ -5,6 +5,7 @@ import { dynastyKey, rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
 import { everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
 import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
+import { lotKey, lotsIn, type GameLot } from '../places.ts';
 import { edgeSourceOf, joinNotes, sanitizeEdges, uKey, worldColor } from '../utils.ts';
 import type {
   Edge,
@@ -1043,6 +1044,47 @@ export function fulfilsPlan(planned: EdgeType, saved: EdgeType): boolean {
   return planned === saved || (planned === 'romance' && saved === 'marriage');
 }
 
+/**
+ * The game lot each save household lives on, by the board box most of its
+ * sims are in. The save names the lot by the game's id, which a building's
+ * units share, and by name when it keeps one: that tells the units apart,
+ * and households it names go first. A box whose world has no such lot (the
+ * household moved there by hand) gets none.
+ */
+function saveHouseholdLots(
+  sims: ParsedSaveSim[],
+  saveIdToBoard: ReadonlyMap<string, string>,
+  nodes: SimNode[],
+): Map<string, GameLot> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const households = new Map<string, { hint: { hash: number; name?: string }; votes: Map<string, number> }>();
+  for (const s of sims) {
+    if (!s.lot || !s.householdId || s.householdId === '0' || s.unhoused) continue;
+    const id = saveIdToBoard.get(s.saveSimId);
+    const n = id === undefined ? undefined : byId.get(id);
+    if (!n || isUnhousedGid(n.gid)) continue;
+    const h = households.get(s.householdId) ?? { hint: s.lot, votes: new Map<string, number>() };
+    h.votes.set(n.gid, (h.votes.get(n.gid) ?? 0) + 1);
+    households.set(s.householdId, h);
+  }
+  const worldOf = new Map(nodes.map((n) => [n.gid, n.world]));
+  const out = new Map<string, GameLot>();
+  const held = new Set<string>();
+  const ordered = [...households.values()].sort((a, b) => Number(!!b.hint.name) - Number(!!a.hint.name));
+  for (const { hint, votes } of ordered) {
+    const gid = [...votes].sort((a, b) => b[1] - a[1])[0]![0];
+    const world = worldOf.get(gid);
+    if (!world || out.has(gid)) continue;
+    const units = lotsIn(world).filter((l) => l.hash === hint.hash && !held.has(lotKey(l)));
+    const named = hint.name ? units.find((l) => foldName(l.name) === foldName(hint.name!)) : undefined;
+    const lot = named ?? units[0];
+    if (!lot) continue;
+    out.set(gid, lot);
+    held.add(lotKey(lot));
+  }
+  return out;
+}
+
 export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const { parsed, seedNameKeys, now, nextEdgeId, worlds } = input;
   const nodes = input.nodes.map((n) => ({ ...n }));
@@ -1540,7 +1582,22 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const secretParents = edges.filter((e) => e.secret && e.type === 'parent').length;
   const secretLovers = edges.filter((e) => e.secret && e.type === 'romance').length;
   const adoptions = edges.filter((e) => e.adopted && e.type === 'parent').length;
-  const groups = input.groups.filter((g) => !vacated.has(g.gid));
+  // Where each save household lives, on every card in its box: the game
+  // says which lot, and so which neighbourhood. A box the save doesn't
+  // place keeps what it had.
+  const homeLots = saveHouseholdLots(sims, saveIdToBoard, nodes);
+  for (let i = 0; i < nodes.length; i++) {
+    const lot = homeLots.get(nodes[i]!.gid);
+    if (lot && (nodes[i]!.lot !== lot.name || nodes[i]!.nb !== lot.nb)) {
+      nodes[i] = { ...nodes[i]!, lot: lot.name, nb: lot.nb };
+    }
+  }
+  const groups = input.groups
+    .filter((g) => !vacated.has(g.gid))
+    .map((g) => {
+      const lot = homeLots.get(g.gid);
+      return lot && (g.lot !== lot.name || g.nb !== lot.nb) ? { ...g, lot: lot.name, nb: lot.nb } : g;
+    });
   const gids = new Set(groups.map((g) => g.gid));
   for (const n of nodes) {
     if (gids.has(n.gid)) continue;
@@ -1550,6 +1607,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       hh: n.hh,
       world: n.world,
       nb: n.nb,
+      ...(n.lot ? { lot: n.lot } : {}),
       color: n.color,
       x: 0,
       y: 0,

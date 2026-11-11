@@ -629,6 +629,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 #legend h3{margin:0 0 4px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-3)}
 .lg{display:flex;align-items:center;gap:5px;margin:1.5px 0}
 .lg i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+/* A world's picture in a ring of its colour: the ring keys its frame. */
+.lg__world{display:inline-flex;flex:0 0 auto;width:20px;height:20px;border:2px solid;border-radius:50%;background:var(--chrome);overflow:hidden;box-sizing:border-box}
+.lg__world img{display:block;width:100%;height:100%;object-fit:cover}
 /* The board's totals: figures first, their words under them. */
 .lg-totals{display:flex;gap:6px;margin:2px 0 7px;padding:0 0 7px;border-bottom:1px solid var(--line)}
 .lg-totals>div{display:flex;flex-direction:column;flex:1 1 0;min-width:0}
@@ -686,6 +689,15 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hh-ageup{cursor:pointer}
 .hh-ageup:hover rect{filter:brightness(1.12)}
 .hh-add{cursor:pointer}
+/* Free lots: faded until you point at one, as a household with no one in it. */
+.lots__tag rect{fill:var(--chrome)}
+.lot{cursor:pointer}
+.lot .lot__tile{fill:var(--chrome);fill-opacity:.72;transition:fill-opacity .12s ease,stroke-opacity .12s ease}
+.lot .lot__face{opacity:.72;transition:opacity .12s ease}
+.lot:hover .lot__tile{fill-opacity:1;stroke-opacity:.9;stroke-dasharray:none}
+.lot:hover .lot__face{opacity:1}
+.lot__name{fill:var(--ink)}
+.lot__detail{fill:var(--ink-2)}
 .hh-add:hover rect{filter:brightness(.96)}
 .node rect{cursor:grab}
 .node__more{cursor:pointer;fill:#8a93a0}
@@ -1057,6 +1069,22 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hhmove .movego:disabled{background:#9db6d9;cursor:not-allowed}
 .hhmove .movego:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .hhmove__hint{margin:6px 2px 0;font-size:10.5px;line-height:1.35;color:var(--ink-3)}
+/* A free lot's Move in panel: the lot, then who moves in. */
+.lotmenu__title{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.lotmenu__title img{flex:none;width:22px;height:22px;margin-top:1px}
+.lotmenu__title>span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.lotmenu__title b{font-size:13px;line-height:1.25;color:var(--ink);overflow-wrap:anywhere}
+.lotmenu__facts{font-size:11px;line-height:1.35;color:var(--ink-2)}
+.lotmenu__movers{list-style:none;margin:0 0 5px;padding:0;display:flex;flex-wrap:wrap;gap:4px}
+.lotmenu__movers li{display:inline-flex;align-items:center;gap:2px;padding:2px 3px 2px 8px;border:1px solid var(--chip-line);border-radius:999px;background:var(--accent-soft);font-size:11.5px;color:var(--ink)}
+.menu .lotmenu__movers button{width:18px;height:18px;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
+.menu .lotmenu__movers button:hover{background:var(--hover);color:var(--ink)}
+.lotmenu__movers svg{width:11px;height:11px}
+.lotmenu__found{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto}
+.menu .lotmenu__found button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;margin:0;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--chrome);text-align:left;font:inherit;cursor:pointer;white-space:normal}
+.menu .lotmenu__found button:hover{background:var(--hover);border-color:var(--rule)}
+.lotmenu__name{font-size:12px;font-weight:600;color:var(--ink)}
+.lotmenu__where{font-size:10.5px;color:var(--ink-2)}
 /* Their own household's name in another world: moving it whole comes first. */
 .hhmove__whole{margin-top:8px;padding:8px;border:1px solid var(--chip-line);border-radius:8px;background:var(--accent-soft)}
 .hhmove__whole p{margin:0;font-size:11px;line-height:1.4;color:var(--ink-2)}

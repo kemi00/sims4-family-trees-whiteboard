@@ -27,6 +27,13 @@ export interface SimNode {
   hh: string;
   world: string;
   nb: string;
+  /**
+   * The game lot their household lives on ("Brook Bungalow"), once a move
+   * into a lot or a save import says; '-' for a household with none. Absent
+   * on boards from before lots: a premade household is then where the game
+   * puts it (see householdLots).
+   */
+  lot?: string;
   color: string;
   townie: boolean;
   oworld: string;
@@ -312,6 +319,8 @@ export interface Group {
   hh: string;
   world: string;
   nb: string;
+  /** The game lot it lives on, as its sims' `lot` says. */
+  lot?: string;
   color: string;
   x: number;
   y: number;
