@@ -8,6 +8,7 @@ import { animalLaneDivider, householdChrome, tagPillWidth, UNHOUSED_MARK_W } fro
 import { isUnhousedGid } from '../lib/unhoused.ts';
 import { neighbourhoodIconUrl, type GameLot } from '../lib/places.ts';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
+import { BlankDisc } from './BlankDisc.tsx';
 
 type Props = {
   groups: Group[];
@@ -100,6 +101,8 @@ export const GroupLayer = memo(function GroupLayer({
         /** Unhoused sims: not a home, so a dotted box, an outlined tag and no Age up. */
         const unhoused = isUnhousedGid(g0.gid);
         const nbIcon = unhoused ? undefined : neighbourhoodIconUrl(g0.world, g0.nb);
+        /** A neighbourhood the game draws no picture of that we have: a blank disc. */
+        const nbBlank = !unhoused && !nbIcon && !!g0.nb && g0.nb !== '-';
         if (
           cull &&
           !selected &&
@@ -229,6 +232,8 @@ export const GroupLayer = memo(function GroupLayer({
                         preserveAspectRatio="xMidYMid meet"
                       />
                     </>
+                  ) : nbBlank ? (
+                    <BlankDisc cx={headerX + 4 + NB_ICON / 2} cy={textY(headerY)} r={NB_ICON / 2} color={selected ? '#ffffff' : g0.color} />
                   ) : (
                     <text
                       x={headerX + 10}

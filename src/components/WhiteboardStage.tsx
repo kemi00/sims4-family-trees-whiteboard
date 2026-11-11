@@ -74,6 +74,7 @@ import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
 import { EdgeLayer } from './EdgeLayer.tsx';
 import { LotLayer } from './LotLayer.tsx';
+import { BlankHatchPattern } from './BlankDisc.tsx';
 import { LotMoveInMenu } from './LotMoveInMenu.tsx';
 import type { GameLot } from '../lib/places.ts';
 import { GroupLayer } from './GroupLayer.tsx';
@@ -1720,6 +1721,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
         onLostPointerCapture={onSvgPointerUp}
       >
         <defs>
+          <BlankHatchPattern />
           <clipPath id="tagclip">
             <rect x={0} y={0} width={CARD_MIN_W} height={CARD_H} rx={11} />
           </clipPath>

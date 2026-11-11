@@ -111,7 +111,7 @@ export function LotMoveInMenu({ lot, left, top, nodes, picked, onMove, onClose }
     >
       <div className="pmenu__head">
         <span className="lotmenu__title">
-          {icon && <img src={icon} alt="" width={20} height={20} />}
+          {icon ? <img src={icon} alt="" width={20} height={20} /> : <span className="lotmenu__blank" aria-hidden="true" />}
           <span>
             <b>{lot.name}</b>
             <span className="lotmenu__facts">

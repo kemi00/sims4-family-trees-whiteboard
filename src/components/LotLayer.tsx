@@ -7,6 +7,7 @@ import { tagPillWidth } from '../lib/tiles.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { worldColor } from '../lib/utils.ts';
 import type { World } from '../types/whiteboard.ts';
+import { BlankDisc } from './BlankDisc.tsx';
 
 type Props = {
   boxes: ReadonlyMap<string, LotBox>;
@@ -110,10 +111,12 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
             )}
             {box.tiles.map(({ lot, x, y, w, h }) => {
               const icon = neighbourhoodIconUrl(lot.world, lot.nb);
-              const textX = x + PAD + (icon ? ICON + 7 : 0);
+              const textX = x + PAD + ICON + 7;
               const room = x + w - PAD - textX;
               const name = wrap(lot.name, room, NAME_SIZE, 700);
+              // Its neighbourhood first, so the icon is never the only clue.
               const detail = [
+                lot.nb,
                 [lotKindLabel(lot), lotSizeLabel(lot)].filter(Boolean).join(' · '),
                 lotRoomsLabel(lot),
               ]
@@ -147,7 +150,7 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
                   />
                   {labels && (
                     <g className="lot__face" style={{ pointerEvents: 'none' }}>
-                      {icon && (
+                      {icon ? (
                         <image
                           href={icon}
                           x={x + PAD}
@@ -156,6 +159,8 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
                           height={ICON}
                           preserveAspectRatio="xMidYMid meet"
                         />
+                      ) : (
+                        <BlankDisc cx={x + PAD + ICON / 2} cy={top - 3 + ICON / 2} r={ICON / 2} color={color} />
                       )}
                       <text className="lot__name" fontSize={NAME_SIZE} fontWeight={700}>
                         {name.map((line, i) => (
