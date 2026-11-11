@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "8b6961e",
+   "date": "2026-11-11",
+   "text": "Adding a sim never moves your board any more. A planned baby, a partner moving in, a sim added with a household's + or joining one with Move to takes its family's spot when it's free, or the nearest free spot, on screen when there is one. If there isn't, the view glides just far enough to show it. Its household's box may run over a neighbour's: drag things where you like."
+  },
+  {
    "sha": "9368d94",
    "date": "2026-11-11",
    "text": "Bellacorde, Dambele and Verdemar in Ondarion, and Crystal Valley, Jellyfish Junction and Wanderwood Wilds in Gibbi Point, now have their neighbourhood icons on household tags and free lots. Only Nuevo Corazón still shows a blank ring."
