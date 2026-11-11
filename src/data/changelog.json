@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "5e23efe",
+   "date": "2026-11-11",
+   "text": "When the board lays out your save, couples sit side by side, children sit right under their parents, and households line up with their family next door. Boards you have arranged keep every card where it is."
+  },
+  {
    "sha": "16754ea",
    "date": "2026-11-11",
    "text": "Fixed: sims you gave they/them or other pronouns in Create a Sim are Non-Binary on the board again, after a save import made them Female or Male. Their pronouns show in the sim editor."
