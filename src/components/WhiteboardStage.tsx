@@ -115,13 +115,15 @@ type Props = {
   stageRef: React.RefObject<HTMLDivElement | null>;
   /** No dialog is open: a first visit may show the Getting around card. */
   tipsReady?: boolean;
+  /** Make a poster of a household (by gid). */
+  onPoster?: (gid: string) => void;
 };
 
 /** Chrome on #stage that owns its own wheel (scroll), not board zoom. */
 const STAGE_WHEEL_SCROLL_SEL =
   '#legend, #hint, .legend-chip, .editor, .menu, .bloodline-banner, .minimap';
 
-export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
+export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: Props) {
   const compact = useCompactChrome();
   const [tempLine, setTempLine] = useState<{
     x1: number;
@@ -2323,6 +2325,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
           nameOf={nameOfSim}
           hhOf={hhOf}
           fromSave={!!wb.saveGame}
+          {...(onPoster ? { onPoster: () => onPoster(briefGroup.gid) } : {})}
           onHover={(ids) => wb.setBriefHover(ids ? new Set(ids) : null)}
           onPick={(item) => {
             const first = item.sims[0];

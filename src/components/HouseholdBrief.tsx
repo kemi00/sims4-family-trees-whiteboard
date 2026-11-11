@@ -8,6 +8,7 @@ import { waitText, type ElderTime, type PlanItem, type PlanState } from '../lib/
 import { daysText, oldAgeSoonText } from '../lib/lifeClock.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 import { WorldMoveForm } from './WorldMoveForm.tsx';
+import { ImageSquare } from '../icons.ts';
 
 type Props = {
   group: Group;
@@ -35,6 +36,8 @@ type Props = {
   onPick: (item: PlanItem) => void;
   onPickSim: (id: string) => void;
   onClose: () => void;
+  /** Make a poster of the household. */
+  onPoster?: () => void;
   /** Set when the household can move to another world: the board's worlds and households. */
   move?: {
     worlds: World[];
@@ -78,6 +81,7 @@ export function HouseholdBrief({
   onPick,
   onPickSim,
   onClose,
+  onPoster,
   move,
 }: Props) {
   const sheet = usePanelSheet();
@@ -117,6 +121,17 @@ export function HouseholdBrief({
           <b>{group.hh}</b>
           {place && <span>{place}</span>}
         </div>
+        {onPoster && (
+          <button
+            type="button"
+            className="brief__close brief__poster"
+            aria-label={`Make a poster of the ${group.hh} household`}
+            title="Poster: a picture of this household to keep or share"
+            onClick={onPoster}
+          >
+            <ImageSquare aria-hidden="true" />
+          </button>
+        )}
         <button type="button" className="brief__close" aria-label="Close the household plan" title="Close (Esc)" onClick={onClose}>
           ✕
         </button>

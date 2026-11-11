@@ -19,6 +19,8 @@ import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { UpNextPanel } from './components/UpNextPanel.tsx';
 import { DynastiesPanel } from './components/DynastiesPanel.tsx';
 import { successionForecast } from './lib/forecast.ts';
+import { PosterDialog } from './components/PosterDialog.tsx';
+import { dynastyPoster, householdPoster, type PosterModel } from './lib/poster.ts';
 import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
 import { dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
 import { isPanelSheet } from './lib/chrome.ts';
@@ -42,6 +44,8 @@ export default function App() {
     hasUnseen(CHANGELOG, readSeen()),
   );
   const [devUpdatesUnseen, setDevUpdatesUnseen] = useState(devUpdatesOpen);
+  /** A household's or dynasty's poster, open to keep or share. */
+  const [poster, setPoster] = useState<PosterModel | null>(null);
 
   /** Every dismissal marks the log read, or it would reopen on the next load. */
   const closeDevUpdates = useCallback(() => {
@@ -236,7 +240,13 @@ export default function App() {
           svgRef={svgRef}
           stageRef={stageRef}
           tipsReady={!devUpdatesOpen && !wb.saveImport && !wb.pendingLoadJson}
+          onPoster={(gid) => {
+            const group = wb.groups.find((g) => g.gid === gid);
+            if (!group) return;
+            setPoster(householdPoster({ group, nodes: wb.nodes, lot: wb.homes.get(gid)?.name, saveGame: wb.saveGame }));
+          }}
         />
+        {poster && <PosterDialog model={poster} onClose={() => setPoster(null)} />}
         {(wb.gamesOpen || wb.playOpen || wb.agesOpen) && (
           <div
             className="chrome-backdrop"
@@ -368,6 +378,17 @@ export default function App() {
               onRemove={wb.removeDynasty}
               litKey={wb.dynastyFocus}
               forecastOf={(key) => successionForecast(wb.nodes, wb.edges, key, wb.saveGame)}
+              onPoster={(key) =>
+                setPoster(
+                  dynastyPoster({
+                    key,
+                    label: dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' }),
+                    nodes: wb.nodes,
+                    edges: wb.edges,
+                    saveGame: wb.saveGame,
+                  }),
+                )
+              }
               game={wb.saveGame}
               onLight={(key) => {
                 wb.setDynastyFocus(key);

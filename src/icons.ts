@@ -53,3 +53,5 @@ export { Flower } from '@phosphor-icons/react/Flower';
 export { Sun } from '@phosphor-icons/react/Sun';
 export { Leaf } from '@phosphor-icons/react/Leaf';
 export { Snowflake } from '@phosphor-icons/react/Snowflake';
+export { ImageSquare } from '@phosphor-icons/react/ImageSquare';
+export { ShareNetwork } from '@phosphor-icons/react/ShareNetwork';

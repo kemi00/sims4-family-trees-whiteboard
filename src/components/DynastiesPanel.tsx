@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Highlighter, Warning } from '../icons.ts';
+import { Check, Highlighter, ImageSquare, Warning } from '../icons.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { DYNASTY_ROLES } from '../lib/constants.ts';
@@ -39,6 +39,8 @@ type Props = {
   forecastOf: (key: string) => SuccessionForecast;
   /** The last save's clock and aging options, if any. */
   game: SaveGameInfo | null;
+  /** Make a poster of a dynasty (by key). */
+  onPoster: (key: string) => void;
 };
 
 /** The list's order: by name, or by how many sims each has (the count on its card). */
@@ -114,6 +116,7 @@ export function DynastiesPanel({
   onLight,
   forecastOf,
   game,
+  onPoster,
 }: Props) {
   const sheet = usePanelSheet();
   const [query, setQuery] = useState('');
@@ -161,7 +164,18 @@ export function DynastiesPanel({
     { key: 'planned', title: 'Planned', rows: found.rows.filter((r) => !r.inGame) },
   ].filter((g) => g.rows.length);
 
-  /** A planned dynasty's Rename and Remove, or the form one of them opened. */
+  const posterButton = (r: DynastyRow) => (
+    <button
+      type="button"
+      className="dynp__act dynp__act--poster"
+      title="A picture of this dynasty to keep or share"
+      onClick={() => onPoster(r.key)}
+    >
+      <ImageSquare aria-hidden="true" /> Poster
+    </button>
+  );
+
+  /** A planned dynasty's Poster, Rename and Remove, or the form one of them opened. */
   const tidy = (r: DynastyRow, formId: string) => {
     const sims = r.members.length === 1 ? 'its 1 sim' : `all ${r.members.length} of its sims`;
     if (editing?.key === r.key && editing.mode === 'rename') {
@@ -253,6 +267,7 @@ export function DynastiesPanel({
     }
     return (
       <div className="dynp__actions">
+        {posterButton(r)}
         <button type="button" className="dynp__act" onClick={() => setEditing({ key: r.key, mode: 'rename', to: r.name })}>
           Rename
         </button>
@@ -452,8 +467,8 @@ export function DynastiesPanel({
                           </li>
                         ))}
                       </ul>
-                      {/* Only a planned dynasty: a game one is named by the save. */}
-                      {!r.inGame && tidy(r, listId)}
+                      {/* Only a planned dynasty renames or goes: a game one is named by the save. */}
+                      {r.inGame ? <div className="dynp__actions">{posterButton(r)}</div> : tidy(r, listId)}
                       </div>
                     )}
                   </li>
@@ -465,7 +480,7 @@ export function DynastiesPanel({
       )}
       <p className="upnext__rules">
         Hover a dynasty to light up its members on the board, in any world, or click its highlighter to keep them
-        lit. Open it to see who they are, its line of succession, or to rename or remove a planned one. Counts take
+        lit. Open it to see who they are, its line of succession, a poster of it, or to rename or remove a planned one. Counts take
         in the deceased and sims only planned into it. A dynasty is at risk with no heir, or with 2 sims or fewer
         to carry it on: its living members, planned ones too, but not outcasts or sims planned to leave. The line’s
         countdowns are days on your save’s lifespan, counting only the days that age each sim under its aging

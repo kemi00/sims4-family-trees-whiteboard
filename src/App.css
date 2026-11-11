@@ -940,6 +940,26 @@ svg{width:100%;height:100%;display:block;touch-action:none}
   background:var(--accent)!important;
   color:#fff!important;
 }
+/* A poster to keep or share (PosterDialog.tsx): the picture first, then what to do with it. */
+.poster{position:fixed;inset:0;z-index:70;background:#1b2b3a73;display:flex;align-items:center;justify-content:center;padding:16px}
+.poster__card{display:flex;flex-direction:column;gap:10px;width:min(460px,100%);max-height:calc(100dvh - 32px);background:var(--chrome);border-radius:var(--r-surface);box-shadow:var(--lift);padding:14px 16px;color:var(--ink)}
+.poster__head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.poster__head h2{margin:0;font-size:15px;overflow-wrap:anywhere}
+.poster .poster__x{width:28px;height:28px;flex:0 0 auto;padding:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
+.poster .poster__x:hover{background:var(--hover);color:var(--ink-2)}
+.poster .poster__x svg{width:15px;height:15px}
+.poster__view{flex:1 1 auto;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--recess)}
+.poster__view img{display:block;width:100%;height:auto}
+.poster__wait{margin:0;padding:48px 12px;text-align:center;font-size:12.5px;color:var(--ink-3)}
+.poster__lead{margin:0;font-size:11.5px;color:var(--ink-3)}
+.poster__acts{display:flex;justify-content:flex-end;gap:8px}
+.poster .poster__btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);color:var(--ink);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.poster .poster__btn svg{width:15px;height:15px}
+.poster .poster__btn:hover:not(:disabled){background:var(--hover)}
+.poster .poster__btn--go{border-color:var(--accent);background:var(--accent);color:#fff}
+.poster .poster__btn--go:hover:not(:disabled){background:var(--accent-strong)}
+.poster .poster__btn:disabled{opacity:.5;cursor:default}
+.poster button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .devlog{position:fixed;inset:0;z-index:70;background:#1b2b3a73;display:flex;align-items:center;justify-content:center;padding:16px}
 .devlog__card{display:flex;flex-direction:column;width:min(520px,100%);max-height:min(76vh,660px);background:var(--chrome);border-radius:var(--r-surface);box-shadow:var(--lift);padding:16px 18px 12px;color:var(--ink)}
 .devlog__head{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -1188,6 +1208,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .brief__title span{font-size:11px;color:var(--ink-3)}
 .brief__close{flex:0 0 auto;width:28px;height:28px;border:none;border-radius:var(--r-control);background:transparent;color:var(--ink-2);font-size:13px;cursor:pointer}
 .brief__close:hover{background:var(--hover);color:var(--ink)}
+.brief__poster{display:inline-flex;align-items:center;justify-content:center;padding:0}
+.brief__poster svg{width:17px;height:17px}
 .brief__close:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .brief__section h3{display:flex;align-items:center;gap:6px;margin:12px 0 5px;font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--ink-3)}
 .brief__count{min-width:17px;padding:0 5px;border-radius:999px;background:var(--recess);color:var(--ink-2);font-size:10.5px;text-align:center}
@@ -1289,7 +1311,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .dynp__line{margin:0;padding:0;list-style:none}
 .dynp__step{position:relative;display:flex;flex-direction:column;gap:1px;padding:0 0 6px 12px;border-left:2px solid var(--line);margin-left:4px}
 .dynp__step:last-child{padding-bottom:0}
-.dynp .dynp__stepwho{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px;width:100%;padding:3px 6px;margin-left:-6px;border:none;border-radius:6px;background:transparent;text-align:left;white-space:normal;line-height:1.3;font-weight:400}
+.dynp .dynp__stepwho{display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:baseline;gap:0 6px;width:100%;padding:3px 6px;margin-left:-6px;border:none;border-radius:6px;background:transparent;text-align:left;white-space:normal;line-height:1.3;font-weight:400}
 .dynp .dynp__stepwho:hover{background:var(--hover)}
 .dynp__steprole{flex:none;font-size:10.5px;font-weight:600;color:var(--ink-3)}
 .dynp__stepname{font-size:12px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
@@ -1322,6 +1344,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .dynp__actions{display:flex;gap:8px;padding:2px 12px 10px}
 .dynp .dynp__act{padding:4px 10px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);color:var(--ink-2);font-size:11.5px}
 .dynp .dynp__act:hover{background:var(--hover)}
+.dynp .dynp__act--poster{display:inline-flex;align-items:center;gap:5px}
+.dynp .dynp__act--poster svg{width:14px;height:14px}
 .dynp .dynp__act--danger{color:var(--danger)}
 .dynp .dynp__act--danger:hover{background:var(--danger-soft)}
 .dynp__form{margin:0 8px 10px;padding:8px;border:1px solid #dbe6f5;border-radius:8px;background:#f7fafe}
