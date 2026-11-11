@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "1b6308e",
+   "date": "2026-11-11",
+   "text": "In the Worlds list, Batuu, The Magic Realm and Not in any world, which have no world picture, now get the same circle as the other worlds: a ring in their colour, left blank inside."
+  },
+  {
    "sha": "3d00aaf",
    "date": "2026-11-11",
    "text": "Every world now shows the picture the game shows when you choose it, and every household tag its neighbourhood's icon. Under each world's households, a faded Free lots box lists the lots no one on the board lives on, from the game itself: uninhabited houses, empty lots, apartments and rental units, with their size and rooms. New households need a lot now, as in the game: Move to offers a world's households and then its free lots, a click on a free lot asks who moves in, and moving a household to another world picks a lot there. Saves put each household on the lot the game has it on. Newcrest and Magnolia Promenade are on the board as worlds of free lots."
