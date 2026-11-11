@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "bccbd48",
+   "date": "2026-11-11",
+   "text": "When you marry a sim and they move in with their partner, the view now glides along with them to their new household, keeping them where you were looking, with their partner beside them."
+  },
+  {
    "sha": "983ee70",
    "date": "2026-11-11",
    "text": "The search box finds households and worlds as well as sims. Typing \"Goth\" frames the Goth household before Bella and Mortimer, \"Willow\" frames Willow Creek, and a mark beside the count says whether you're looking at a world, a household or a sim."
