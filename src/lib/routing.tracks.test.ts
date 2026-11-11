@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { computeEdgeRenderData } from './routing.ts';
-import type { BloodPath, Edge, SimNode } from '../types/whiteboard.ts';
+import { householdChrome } from './tiles.ts';
+import type { BloodPath, Edge, Group, SimNode } from '../types/whiteboard.ts';
 
 function card(partial: Partial<SimNode> & Pick<SimNode, 'id' | 'x' | 'y'>): SimNode {
   return {
@@ -117,5 +118,53 @@ describe('two families never share a track', () => {
       blood.flatMap((p) => p.pts.map(([, y]) => y)).sort((m, n) => m - n).filter((y, i, all) => all.indexOf(y) === i),
       [100, 174, 200],
     );
+  });
+});
+
+describe('siblings in their household’s top row', () => {
+  // Laxmi and Raheel Kunal of Gibbi Point: no parents on the board, and
+  // their household's name, Age up and + right above them.
+  const gid = 'Gibbi Point||Kunal';
+  const group: Group = { gid, hh: 'Kunal', world: 'Gibbi Point', nb: 'Gibbi Point', color: '#c77', x: 0, y: 0, w: 0, h: 0 };
+  const at = (id: string, x: number, extra: Partial<SimNode> = {}) =>
+    card({ id, x, y: 400, gid, hh: 'Kunal', world: 'Gibbi Point', ...extra });
+  const sibling = (a: string, b: string): Edge => ({ id: `s_${a}_${b}`, a, b, type: 'sibling', source: 'seed' });
+  const bracket = (nodes: SimNode[]) =>
+    computeEdgeRenderData({
+      nodes,
+      edges: [sibling('laxmi', 'raheel')],
+      groups: [group],
+      show: { groups: true, worlds: false },
+      packVis: () => true,
+      fastRoute: false,
+    }).blood;
+
+  it('keeps the bracket clear of the name, Age up and + pills', () => {
+    const nodes = [at('laxmi', 0), at('raheel', 300)];
+    const c = householdChrome(nodes, group)!;
+    const pills = [
+      { l: c.headerX, t: c.headerY, r: c.headerX + c.labelW, b: c.headerY + c.pillH },
+      { l: c.ageX, t: c.ageY, r: c.addX + c.addW, b: c.ageY + c.pillH },
+    ];
+    for (const p of bracket(nodes)) {
+      for (let i = 1; i < p.pts.length; i++) {
+        const [a, b] = [p.pts[i - 1]!, p.pts[i]!];
+        const [l, r, t, bt] = [Math.min(a[0], b[0]), Math.max(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+        for (const k of pills) assert.ok(!(l < k.r && r > k.l && t < k.b && bt > k.t), `${JSON.stringify(p.pts)} crosses a pill`);
+      }
+    }
+  });
+
+  it('runs the bar under the buttons, a bracket over both cards', () => {
+    const blood = bracket([at('laxmi', 0), at('raheel', 300)]);
+    const bar = blood.find((p) => p.pts.length === 2 && p.pts[0]![1] === p.pts[1]![1])!;
+    assert.deepEqual(bar.pts, [[100, 389], [400, 389]]);
+    const legs = blood.filter((p) => p !== bar).map((p) => p.pts);
+    assert.deepEqual(legs, [[[100, 389], [100, 400]], [[400, 389], [400, 400]]]);
+  });
+
+  it('never runs it low over a card that stands between them', () => {
+    const blood = bracket([at('laxmi', 0), at('luna', 300, { species: 'Horse', state: 'Pet' }), at('raheel', 600)]);
+    for (const p of blood) for (const [, y] of p.pts) assert.ok(y === 400 || y < 400 - 11, `${JSON.stringify(p.pts)} runs over Luna`);
   });
 });

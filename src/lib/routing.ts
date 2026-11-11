@@ -1,4 +1,18 @@
-import { ARROW_LEN, BAND, MINDROP, PILL_DROP, PILL_H, PILL_W, RGAP, STUB, UNION_MIN_GAP } from './constants.ts';
+import {
+  ARROW_LEN,
+  BAND,
+  HH_TAG_BAND,
+  HH_TAG_INSET,
+  HH_TAG_PILL_H,
+  HH_TAG_STACK_GAP,
+  MINDROP,
+  PILL_DROP,
+  PILL_H,
+  PILL_W,
+  RGAP,
+  STUB,
+  UNION_MIN_GAP,
+} from './constants.ts';
 import {
   buildRects,
   ptsClear,
@@ -1084,6 +1098,12 @@ export function hopD(pts: Point[], verts: BloodVert[], pi: number): string {
 
 /** Sibling ⊓: stem up from each top, then a bar or a routed fork. */
 /**
+ * The strip between a household's Age up and + buttons and its top row of
+ * cards: what is left of the tag band under the name and the buttons.
+ */
+const UNDER_BUTTONS = HH_TAG_BAND - HH_TAG_INSET - 2 * HH_TAG_PILL_H - HH_TAG_STACK_GAP;
+
+/**
  * Sibling connector: one bus above every member, then a mandatory top stem
  * into each card. Never route between staggered cards (that climbs through
  * the upper card and looks like a bottom exit).
@@ -1117,6 +1137,16 @@ function drawSiblingFork(
     if (!ok) continue;
     barY = y;
     break;
+  }
+
+  // Siblings in their household's top row sit right under its name, Age up
+  // and + buttons, so every way up crosses them (Laxmi and Raheel Kunal's
+  // bracket ran through the +). The bar runs along the middle of the strip
+  // under the buttons instead, still a bracket over the cards.
+  const top = members[0]!.y;
+  if (barY == null && members.every((n) => n.y === top)) {
+    const y = top - UNDER_BUTTONS / 2;
+    if (clearSeg(ctx, minx, y, maxx, y, new Set([...ex, ...members.map(ownTag)]))) barY = y;
   }
 
   // Last resort: still stay above every card — wing the bus above obstacles
@@ -1154,7 +1184,9 @@ function drawSiblingFork(
     const cx = n.x + n.w / 2;
     out.push({
       ids,
-      pts: ensureChildTopStem([[cx, barY]], n),
+      // Under the buttons the bar is lower than a stem's usual start: each
+      // leg runs from the bar itself, so none climbs back into the buttons.
+      pts: barY > laneTop ? [[cx, barY], [cx, n.y]] : ensureChildTopStem([[cx, barY]], n),
     });
   }
   return out;
@@ -1164,7 +1196,9 @@ function drawSiblingFork(
  * One family's lines among the blood paths (`from` to `to`), for
  * separateTracks: `cards` are its parents and children, whose edges hold its
  * lines' fixed ends along with `anchors`; `ex` the obstacles its lines may
- * touch; `floor` the highest a run may sit, clear of the parents' cards.
+ * touch; `stems` those its upright legs may also pass, the children's own
+ * household tags they come down through; `floor` the highest a run may sit,
+ * clear of the parents' cards.
  */
 export type TrackUnit = {
   from: number;
@@ -1172,6 +1206,7 @@ export type TrackUnit = {
   cards: SimNode[];
   anchors: Point[];
   ex: Set<string>;
+  stems: Set<string>;
   floor: number;
 };
 
@@ -1298,7 +1333,10 @@ export function separateTracks(blood: BloodPath[], units: TrackUnit[], ctx: Rout
             const far = at(before.pts[i - 1]!) ? b : a;
             if (Math.sign(now) !== Math.sign(was) || Math.abs(now) < (fixed(far) ? STUB : 8)) return false;
             if (inColumn(ix, a[0], Math.min(a[1], b[1]), Math.max(a[1], b[1]))) return false;
+            if (!clearSeg(ctx, a[0], a[1], b[0], b[1], u.stems)) return false;
+            continue;
           }
+          // A flat run never moves into a tag, its own household's either.
           if (!clearSeg(ctx, a[0], a[1], b[0], b[1], u.ex)) return false;
         }
         return true;
@@ -1609,7 +1647,7 @@ export function computeEdgeRenderData(
   const parentBusKids = new Set<string>();
   /** Each family's share of BLOOD, for separateTracks. */
   const tracks: TrackUnit[] = [];
-  const kidEx = (kids: SimNode[]) => kids.flatMap((n) => [n.id, ownTag(n)]);
+  const tagsOf = (kids: SimNode[]) => kids.map(ownTag);
 
   Object.values(fam).forEach((f) => {
     const kids = f.kids.filter((c) => byid[c]);
@@ -1650,7 +1688,8 @@ export function computeEdgeRenderData(
         to: BLOOD.length,
         cards: [...pCards, ...kn],
         anchors: pCards.map((p) => [p.x + p.w / 2, p.y + p.h] as Point),
-        ex: new Set([...ps, ...kidEx(kn)]),
+        ex: new Set([...ps, ...kn.map((n) => n.id)]),
+        stems: new Set([...ps, ...kn.map((n) => n.id), ...tagsOf(kn)]),
         floor: Math.min(...pCards.map((p) => p.y + p.h)) + STUB,
       });
       return;
@@ -1721,7 +1760,8 @@ export function computeEdgeRenderData(
       to: BLOOD.length,
       cards: [...parentCards, ...kn],
       anchors: [[ax, ay]],
-      ex: new Set([...exBase, ...kidEx(kn)]),
+      ex: new Set([...exBase, ...kn.map((n) => n.id)]),
+      stems: new Set([...exBase, ...kn.map((n) => n.id), ...tagsOf(kn)]),
       floor: unionStemJunctionY(ay, tagsBottom),
     });
   });
@@ -1772,7 +1812,15 @@ export function computeEdgeRenderData(
           drawSiblingFork(mn, ids, ctx).map((p) => ({ ...p, ...cross })),
         ),
       );
-      tracks.push({ from, to: BLOOD.length, cards: mn, anchors: [], ex: new Set(kidEx(mn)), floor: -Infinity });
+      tracks.push({
+        from,
+        to: BLOOD.length,
+        cards: mn,
+        anchors: [],
+        ex: new Set(ms),
+        stems: new Set([...ms, ...tagsOf(mn)]),
+        floor: -Infinity,
+      });
     });
   }
   separateTracks(BLOOD, tracks, ctx);
