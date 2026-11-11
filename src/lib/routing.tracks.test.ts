@@ -168,3 +168,72 @@ describe('siblings in their household’s top row', () => {
     for (const p of blood) for (const [, y] of p.pts) assert.ok(y === 400 || y < 400 - 11, `${JSON.stringify(p.pts)} runs over Luna`);
   });
 });
+
+describe('lines into a household’s top row keep off its name and buttons', () => {
+  const groupFor = (gid: string, hh: string): Group => ({ gid, hh, world: 'W', nb: 'Oasis Springs', color: '#7a7', x: 0, y: 0, w: 0, h: 0 });
+  const landgraab = 'W||Landgraab';
+  const zest = 'W||Zest';
+  const groups = [groupFor(landgraab, 'Landgraab'), groupFor(zest, 'Zest')];
+  const route = (nodes: SimNode[], edges: Edge[]) =>
+    computeEdgeRenderData({ nodes, edges, groups, show: { groups: true, worlds: false }, packVis: () => true, fastRoute: false }).blood;
+  const pillsOf = (mem: SimNode[], gid: string) => {
+    const c = householdChrome(mem, groups.find((g) => g.gid === gid))!;
+    return [
+      { l: c.headerX, t: c.headerY, r: c.headerX + c.labelW, b: c.headerY + c.pillH },
+      { l: c.ageX, t: c.ageY, r: c.addX + c.addW, b: c.ageY + c.pillH },
+    ];
+  };
+  const crossing = (blood: BloodPath[], pills: { l: number; t: number; r: number; b: number }[]) =>
+    blood.flatMap((p) =>
+      p.pts.slice(1).flatMap((b, i) => {
+        const a = p.pts[i]!;
+        const [l, r, t, bt] = [Math.min(a[0], b[0]), Math.max(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+        return pills.some((k) => l < k.r && r > k.l && t < k.b && bt > k.t) ? [JSON.stringify(p.pts)] : [];
+      }),
+    );
+  const into = (blood: BloodPath[], kid: SimNode) =>
+    blood.find((p) => {
+      const end = p.pts[p.pts.length - 1]!;
+      return end[0] === kid.x + kid.w / 2 && end[1] === kid.y;
+    });
+
+  it('brings a line from beside along the strip under the buttons (Johnny Zest)', () => {
+    // Geoffrey and Nancy Landgraab; their son Johnny heads the Zests next door, a row down.
+    const geoffrey = card({ id: 'geoffrey', x: 0, y: 0, gid: landgraab, gender: 'Male' });
+    const nancy = card({ id: 'nancy', x: 300, y: 0, gid: landgraab });
+    const johnny = card({ id: 'johnny', x: 700, y: 200, gid: zest, gender: 'Male' });
+    const blood = route(
+      [geoffrey, nancy, johnny],
+      [
+        { id: 'm', a: 'geoffrey', b: 'nancy', type: 'marriage', source: 'save' },
+        parent('geoffrey', 'johnny'),
+        parent('nancy', 'johnny'),
+      ],
+    );
+    assert.deepEqual(crossing(blood, pillsOf([johnny], zest)), []);
+    const line = into(blood, johnny)!;
+    assert.ok(line, 'a line into Johnny’s top');
+    const [a, b] = line.pts.slice(-2);
+    assert.equal(a![0], b![0], 'it drops straight into his card');
+    assert.ok(b![1] - a![1] > 0 && b![1] - a![1] < 22, 'from the strip under the buttons');
+    assert.ok(line.arrows?.some((x) => x.tip[0] === 800 && x.tip[1] === 200 && x.dir[1] === 1), 'its arrow into his card');
+  });
+
+  it('goes round the pills when the line arrives right above them (Cordelia Capp)', () => {
+    const consort = card({ id: 'consort', x: 600, y: -400, gid: landgraab, gender: 'Male' });
+    const cordelia = card({ id: 'cordelia', x: 700, y: 200, gid: zest });
+    const raf = card({ id: 'raf', x: 1000, y: 200, gid: zest, gender: 'Male' });
+    const blood = route([consort, cordelia, raf], [parent('consort', 'cordelia')]);
+    assert.deepEqual(crossing(blood, pillsOf([cordelia, raf], zest)), []);
+    assert.ok(into(blood, cordelia), 'a line into Cordelia’s top');
+  });
+
+  it('leaves a household that draws no tag alone', () => {
+    const geoffrey = card({ id: 'geoffrey', x: 0, y: 0, gid: 'W||Untagged' });
+    const johnny = card({ id: 'johnny', x: 700, y: 200, gid: 'W||Untagged2' });
+    const blood = route([geoffrey, johnny], [parent('geoffrey', 'johnny')]);
+    const line = into(blood, johnny)!;
+    const [a, b] = line.pts.slice(-2);
+    assert.ok(b![1] - a![1] >= 26, 'the usual stem');
+  });
+});

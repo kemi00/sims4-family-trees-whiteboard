@@ -11,8 +11,10 @@ import {
   PILL_W,
   RGAP,
   STUB,
+  TILE,
   UNION_MIN_GAP,
 } from './constants.ts';
+import { householdChrome, type HouseholdChrome } from './tiles.ts';
 import {
   buildRects,
   ptsClear,
@@ -1103,6 +1105,68 @@ export function hopD(pts: Point[], verts: BloodVert[], pi: number): string {
  */
 const UNDER_BUTTONS = HH_TAG_BAND - HH_TAG_INSET - 2 * HH_TAG_PILL_H - HH_TAG_STACK_GAP;
 
+type PillBox = { l: number; t: number; r: number; b: number };
+
+/** Where a segment from `a` to `b` runs through one of `pills` (a hair's margin round each). */
+function hitsPill(a: Point, b: Point, pills: PillBox[]): boolean {
+  const [l, r] = [Math.min(a[0], b[0]), Math.max(a[0], b[0])];
+  const [t, bt] = [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+  return pills.some((k) => l < k.r + 2 && r > k.l - 2 && t < k.b + 2 && bt > k.t - 2);
+}
+
+/**
+ * A line into a child in their household's top row, kept off the
+ * household's own name, Age up and + pills, which sit right above that row:
+ * the first card's top centre is under the buttons, so a line from parents
+ * elsewhere came down through them (Johnny Zest's, Cordelia Capp's). From the
+ * last point before it would cross them, the line comes down beside them (or
+ * goes round first, when it arrives above them), runs along the strip under
+ * the buttons and drops into the card. Null when the line keeps clear
+ * already, or no way round is clear of every other card and tag.
+ */
+export function underOwnButtons(
+  pts: Point[],
+  child: SimNode,
+  chrome: HouseholdChrome | null,
+  ctx: RoutingContext,
+  ex: Set<string>,
+): Point[] | null {
+  if (!chrome || Math.abs(child.y - chrome.y0) > 0.5 || pts.length < 2) return null;
+  const cx = child.x + child.w / 2;
+  const end = pts[pts.length - 1]!;
+  if (Math.abs(end[0] - cx) > 0.5 || Math.abs(end[1] - child.y) > 0.5) return null;
+  const pills: PillBox[] = [
+    { l: chrome.headerX, t: chrome.headerY, r: chrome.headerX + chrome.labelW, b: chrome.headerY + chrome.pillH },
+    { l: chrome.ageX, t: chrome.ageY, r: chrome.addX + chrome.addW, b: chrome.ageY + chrome.pillH },
+  ];
+  const cut = pts.findIndex((p, i) => i > 0 && hitsPill(pts[i - 1]!, p, pills));
+  if (cut < 0) return null;
+  const from = pts[cut - 1]!;
+  const strip = (chrome.ageY + chrome.pillH + child.y) / 2;
+  const pillsL = Math.min(...pills.map((k) => k.l));
+  const pillsR = Math.max(...pills.map((k) => k.r));
+  const beside = from[0] < pillsL - RGAP || from[0] > pillsR + RGAP;
+  // Down to the strip where the line is, when that is beside the pills; else
+  // just past the name, or through the middle of the gap either side of the
+  // box, the nearest that is clear first.
+  const sides = [
+    ...new Set([...(beside ? [from[0]] : []), pillsR + RGAP, chrome.boxL - TILE / 2, chrome.boxR + TILE / 2]),
+  ].sort((a, b) => Math.abs(a - from[0]) - Math.abs(b - from[0]));
+  const keep = new Set([...ex, child.id, ownTag(child)]);
+  for (const x of sides) {
+    // Only the new stretches are checked: the line up to `from` stays.
+    const fresh: Point[] = [from, [x, from[1]], [x, strip], [cx, strip], [cx, child.y]];
+    let ok = true;
+    for (let i = 1; i < fresh.length && ok; i++) {
+      const [a, b] = [fresh[i - 1]!, fresh[i]!];
+      if (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) < 0.5) continue;
+      ok = !hitsPill(a, b, pills) && clearSeg(ctx, a[0], a[1], b[0], b[1], keep);
+    }
+    if (ok) return [...simplify([...pts.slice(0, cut), ...fresh.slice(1, -1)]), [cx, child.y]];
+  }
+  return null;
+}
+
 /**
  * Sibling connector: one bus above every member, then a mandatory top stem
  * into each card. Never route between staggered cards (that climbs through
@@ -1645,6 +1709,46 @@ export function computeEdgeRenderData(
 
   const BLOOD: BloodPath[] = [];
   const parentBusKids = new Set<string>();
+  const homes = new Map<string, SimNode[]>();
+  for (const n of nodes) if (packVis(n)) homes.set(n.gid, [...(homes.get(n.gid) ?? []), n]);
+  const groupOf = new Map(groups.map((g) => [g.gid, g]));
+  const chromes = new Map<string, HouseholdChrome | null>();
+  /** A household's tag, drawn only for a household with a group (GroupLayer). */
+  const chromeOf = (gid: string): HouseholdChrome | null => {
+    const g = groupOf.get(gid);
+    if (!show.groups || !g) return null;
+    if (!chromes.has(gid)) chromes.set(gid, householdChrome(homes.get(gid) ?? [], g));
+    return chromes.get(gid)!;
+  };
+  /**
+   * A family's lines from BLOOD[from] on, those into a child in their
+   * household's top row kept off its own name and buttons (underOwnButtons).
+   * New paths replace them, so cached routes stay as they were routed.
+   */
+  const clearOwnButtons = (from: number, kids: SimNode[], ex: Set<string>): void => {
+    for (let i = from; i < BLOOD.length; i++) {
+      const p = BLOOD[i]!;
+      const last = p.pts[p.pts.length - 1];
+      const kid = last && kids.find((n) => Math.abs(n.x + n.w / 2 - last[0]) < 0.5 && Math.abs(n.y - last[1]) < 0.5);
+      if (!kid) continue;
+      const pts = underOwnButtons(p.pts, kid, chromeOf(kid.gid), ctx, ex);
+      if (!pts) continue;
+      const arrows = (p.arrows ?? []).flatMap((a): Arrow[] => {
+        if (Math.abs(a.tip[0] - last[0]) < 0.5 && Math.abs(a.tip[1] - last[1]) < 0.5) {
+          const tip = endArrow(pts);
+          return tip ? [tip] : [];
+        }
+        if (a.dir[1] !== 0) return [a];
+        // A leave arrow marks where the line turns off the trunk: it moves
+        // to where the new way turns from that column.
+        const base = a.tip[0] - a.dir[0] * ARROW_LEN;
+        const at = pts.findIndex((q, j) => Math.abs(q[0] - base) < 0.5 && pts[j + 1] && Math.abs(pts[j + 1]![1] - q[1]) < 0.5);
+        return at < 0 ? [] : [leaveArrow(pts[at]!, stepDir(pts[at]!, pts[at + 1]!))];
+      });
+      const { arrows: _old, ...rest } = p;
+      BLOOD[i] = arrows.length ? { ...rest, pts, arrows } : { ...rest, pts };
+    }
+  };
   /** Each family's share of BLOOD, for separateTracks. */
   const tracks: TrackUnit[] = [];
   const tagsOf = (kids: SimNode[]) => kids.map(ownTag);
@@ -1683,6 +1787,7 @@ export function computeEdgeRenderData(
           }),
         ),
       );
+      clearOwnButtons(from, kn, new Set(ps));
       tracks.push({
         from,
         to: BLOOD.length,
@@ -1755,6 +1860,7 @@ export function computeEdgeRenderData(
         return familyArrows(out, ax, ay, kn, isCouple);
       }),
     );
+    clearOwnButtons(from, kn, new Set(exBase));
     tracks.push({
       from,
       to: BLOOD.length,
