@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "c36b304",
+   "date": "2026-11-11",
+   "text": "The world list always keeps room for at least six worlds beside a shorter key. The key shows family lines as a small table: solid or dashed for same or other household, grey or violet for in your save or planned. Other links are now drawn in dots, so a dash always means another household."
+  },
+  {
    "sha": "4201dc3",
    "date": "2026-11-11",
    "text": "A line from parents in another household into the first sim of a household now comes in under the household's Age up and + buttons, instead of through them."
