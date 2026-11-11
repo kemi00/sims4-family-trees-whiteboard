@@ -9,6 +9,7 @@ import {
   nameKey,
   seedNameKeysFromNodes,
   followGameDynasties,
+  gameGender,
   syncDynasty,
 } from './mergeSave.ts';
 import type { ParsedSave } from './parseSave.ts';
@@ -2010,5 +2011,43 @@ describe('planned sims a save fills', () => {
       ['dad:save', 'mum:save'],
     );
     assert.deepEqual(r.nodes.find((n) => n.id === 'new9')!.plannedAs?.parents, ['dirk']);
+  });
+});
+
+describe('a sim\u2019s gender on import', () => {
+  const they = { subject: 'they', object: 'them', possessive: 'their', independent: 'theirs', reflexive: 'themself' };
+  const merge = (nodes: SimNode[], sims: ParsedSave['sims']) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges: [],
+      groups: [],
+      worlds: world,
+      parsed: { sims, rels: [] } as unknown as ParsedSave,
+      seedNameKeys: seedNameKeysFromNodes(nodes),
+      now: '2026-11-11T12:00:00.000Z',
+      nextEdgeId: (() => {
+        let n = 1;
+        return () => 'v' + n++;
+      })(),
+    }).nodes;
+
+  it('takes Non-Binary and the pronouns from the save, over a card that says Female', () => {
+    const dani = sim({ id: 'dani', first: 'Dani', sur: 'Davila', gender: 'Female', saveSimId: '1' });
+    const [out] = merge([dani], [
+      { saveSimId: '1', householdId: '10', first: 'Dani', last: 'Davila', household: 'Pancakes', age: 'Young Adult', gender: 'Non-Binary', pronouns: they },
+    ]);
+    assert.equal(out!.gender, 'Non-Binary');
+    assert.deepEqual(out!.pronouns, they);
+  });
+
+  it('never makes a Non-Binary card binary from a save without pronouns', () => {
+    const jazz = sim({ id: 'jazz', first: 'Jazz', sur: 'McFierce', gender: 'Non-Binary', saveSimId: '2' });
+    const [out] = merge([jazz], [
+      { saveSimId: '2', householdId: '10', first: 'Jazz', last: 'McFierce', household: 'Pancakes', age: 'Young Adult', gender: 'Male' },
+    ]);
+    assert.equal(out!.gender, 'Non-Binary');
+    assert.equal(gameGender('Non-Binary', { gender: 'Female', pronouns: { ...they, subject: 'she' } }), 'Female');
+    assert.equal(gameGender('Female', { gender: 'Male' }), 'Male');
+    assert.equal(gameGender('Female', { gender: '' }), 'Female');
   });
 });

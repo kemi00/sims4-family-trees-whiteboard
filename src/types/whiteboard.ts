@@ -1,6 +1,20 @@
 /** 👑 the dynasty's head, ⚜️ its heir, 🥀 an outcast it declared. */
 export type DynastyRole = 'head' | 'heir' | 'outcast';
 
+/**
+ * A sim's own pronouns, as the game keeps them when a player sets them in
+ * Create a Sim: they / them / their / theirs / themself.
+ */
+export type SimPronouns = {
+  subject: string;
+  object: string;
+  /** Before a noun: their name. */
+  possessive: string;
+  /** On its own: it is theirs. */
+  independent: string;
+  reflexive: string;
+};
+
 /** A sim card on the whiteboard. */
 export interface SimNode {
   id: string;
@@ -49,6 +63,12 @@ export interface SimNode {
    * the editor's "Planned as Heir 1", and what Unlink restores.
    */
   plannedAs?: PlannedAs;
+  /**
+   * The pronouns the game uses for this sim, when the player set them in
+   * Create a Sim. They decide `gender` on import: she is Female, he is
+   * Male, and any other (they, xie) is Non-Binary.
+   */
+  pronouns?: SimPronouns;
   /** Sims 4 sim id from an imported .save, as a decimal string. */
   saveSimId?: string;
   /** In the save and not on the shipped xlsx roster. */

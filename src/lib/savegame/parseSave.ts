@@ -1,6 +1,6 @@
 import { TREE_NAMES } from '../../data/treeNames.ts';
-import { AGES_H } from '../constants.ts';
-import type { DynastyRole, PairTag } from '../../types/whiteboard.ts';
+import { AGES_H, NON_BINARY } from '../constants.ts';
+import type { DynastyRole, PairTag, SimPronouns } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
@@ -14,7 +14,14 @@ export type ParsedSaveSim = {
   last: string;
   household: string;
   age: string;
+  /**
+   * The sim's gender as the game speaks of them: from their pronouns when
+   * the player set some (she Female, he Male, any other Non-Binary), else
+   * from the game's own two-value gender.
+   */
   gender: string;
+  /** The pronouns the player set in Create a Sim; absent for the game's default. */
+  pronouns?: SimPronouns;
   species?: string;
   /** World name string from the save lot, if present. */
   world?: string;
@@ -146,7 +153,52 @@ const SIM = {
    */
   creation: 47,
   species: 60,
+  /**
+   * Pronouns set in Create a Sim: one entry (field 1) per case, each with
+   * the case (1) and the word (2). Cases 1 to 5 are subject, object,
+   * possessive, independent possessive and reflexive: they, them, their,
+   * theirs, themself. Checked on 2026-11-11 in a real save, where 90 sims
+   * have them (Dani Davila they/them, Esther Gomes xie/xem) and the rest
+   * have none and use the game's default for their gender.
+   */
+  pronouns: 69,
 } as const;
+
+const PRONOUN_CASES = ['subject', 'object', 'possessive', 'independent', 'reflexive'] as const;
+
+/** A sim's pronouns from their SimInfo field 69, or undefined with none set. */
+function parsePronouns(bytes: Uint8Array): SimPronouns | undefined {
+  const out: Partial<SimPronouns> = {};
+  for (const entry of decodeFields(bytes)) {
+    if (entry.field !== 1 || !entry.bytes) continue;
+    const fields = decodeFields(entry.bytes);
+    const kase = fields.find((f) => f.field === 1 && f.wire === 0)?.int;
+    const word = (utf8(fields.find((f) => f.field === 2 && f.bytes)?.bytes ?? null) ?? '').trim();
+    const key = kase === undefined ? undefined : PRONOUN_CASES[Number(kase) - 1];
+    if (key && word) out[key] = word;
+  }
+  if (!out.subject) return undefined;
+  return {
+    subject: out.subject,
+    object: out.object ?? out.subject,
+    possessive: out.possessive ?? out.object ?? out.subject,
+    independent: out.independent ?? out.possessive ?? out.subject,
+    reflexive: out.reflexive ?? `${out.object ?? out.subject}self`,
+  };
+}
+
+/**
+ * A sim's gender as their pronouns say it: she is Female, he is Male, and
+ * any other (they, xie, ze) is Non-Binary. Without pronouns, the game's
+ * own gender stands.
+ */
+export function genderFromPronouns(pronouns: SimPronouns | undefined, gameGender: string): string {
+  const subject = pronouns?.subject.toLocaleLowerCase();
+  if (!subject) return gameGender;
+  if (subject === 'she') return 'Female';
+  if (subject === 'he') return 'Male';
+  return NON_BINARY;
+}
 
 /** Household records (Save Game Data field 5). Field 31 is 1 once played. */
 const HOUSEHOLD = {
@@ -353,6 +405,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
   let household = '';
   let age = '';
   let gender = '';
+  let pronouns: SimPronouns | undefined;
   let species: string | undefined;
   let generated = false;
   let newborn = false;
@@ -380,6 +433,8 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     } else if (f.field === SIM.stageDays && f.wire === 5) {
       const days = float32(f.int);
       if (Number.isFinite(days) && days >= 0) stageDays = days;
+    } else if (f.field === SIM.pronouns && f.bytes) {
+      pronouns = parsePronouns(f.bytes) ?? pronouns;
     } else if (f.field === SIM.species && f.wire === 0) {
       species = SPECIES[Number(f.int)];
     } else if (f.field === SIM.creation && f.bytes) {
@@ -399,7 +454,8 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     last,
     household,
     age,
-    gender,
+    gender: genderFromPronouns(pronouns, gender),
+    ...(pronouns ? { pronouns } : {}),
     species,
     ...(generated ? { generated: true as const } : {}),
     ...(aliveTicks !== undefined ? { aliveTicks } : {}),

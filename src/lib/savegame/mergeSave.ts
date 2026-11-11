@@ -1,4 +1,4 @@
-import { DECEASED_STATE, UNHOUSED_HH } from '../constants.ts';
+import { DECEASED_STATE, NON_BINARY, UNHOUSED_HH } from '../constants.ts';
 import { advanceSuccession } from '../succession.ts';
 import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
 import { dynastyKey, rememberFirstHeads } from '../generations.ts';
@@ -182,6 +182,17 @@ function pairKey(type: EdgeType, a: string, b: string): string {
 type SourcedEdge = Edge & { source: 'seed' | 'save' | 'planned' };
 
 const BINARY = new Set(['Male', 'Female']);
+
+/**
+ * A card's gender after an import. The save's pronouns decide it when the
+ * player set some; without them the game only knows Female or Male, which
+ * never turns a Non-Binary card (from the roster, or set by hand) binary.
+ */
+export function gameGender(board: string, sim: Pick<ParsedSaveSim, 'gender' | 'pronouns'>): string {
+  if (!sim.gender) return board;
+  if (sim.pronouns || board !== NON_BINARY) return sim.gender;
+  return board;
+}
 
 /** A save sim as the board files it (see {@link withOwnSurnames}). */
 type SaveSim = ParsedSaveSim & {
@@ -515,6 +526,7 @@ function plainSaveNode(
     age: sim.age,
     state: sim.species ? 'Pet' : 'Sim',
     gender: sim.gender,
+    ...(sim.pronouns ? { pronouns: sim.pronouns } : {}),
     hh: home.hh,
     world: home.world,
     nb: home.nb,
@@ -664,7 +676,9 @@ function patchMatched(
   else delete next.marriedSur;
   syncDynasty(next, sim, saveHasDynasties, boardIds);
   if (sim.age) next.age = sim.age;
-  if (sim.gender) next.gender = sim.gender;
+  next.gender = gameGender(next.gender, sim);
+  if (sim.pronouns) next.pronouns = sim.pronouns;
+  else delete next.pronouns;
   if (sim.species) {
     next.species = sim.species;
     next.state = 'Pet';
@@ -1279,7 +1293,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
           card = { ...card, ...named };
           relativesNamed.push(card.id);
         }
-        if (r.gender) card.gender = r.gender;
+        // The tree knows two genders, so a Non-Binary card stays as it is.
+        if (r.gender && card.gender !== NON_BINARY) card.gender = r.gender;
         if (r.deceased) card = { ...card, state: DECEASED_STATE, diedOnImport: true };
         if (card.gid !== home.gid && !movedByHand.has(card.id)) {
           card = moveInto(card, home);

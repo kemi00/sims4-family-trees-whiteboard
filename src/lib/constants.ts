@@ -191,6 +191,9 @@ export type HiDynastyRole = (typeof HI_DYNASTY)[number];
 export const hiDynastyChip = (role: HiDynastyRole): string => `dynasty:${role}`;
 export const HI_DYNASTY_CHIPS: ReadonlySet<string> = new Set(HI_DYNASTY.map(hiDynastyChip));
 
+/** The gender of a sim whose pronouns are neither she nor he. */
+export const NON_BINARY = 'Non-Binary';
+
 /** Genders assigned when the user adds a sim. */
 export const NEW_SIM_GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
 

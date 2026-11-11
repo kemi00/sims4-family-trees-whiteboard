@@ -56,7 +56,7 @@ import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import { WorldMoveForm } from './WorldMoveForm.tsx';
 import { PartnerRow } from './PartnerRow.tsx';
 import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
-import { fold } from '../lib/utils.ts';
+import { fold, pronounsLabel } from '../lib/utils.ts';
 import { heirAfterChoices, heirAfterHolder, successionLine, withSuccessionChoice, type LinePlace } from '../lib/succession.ts';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
@@ -1077,6 +1077,11 @@ export function SimEditor({
                 {!GENDERS.includes(gender as (typeof GENDERS)[number]) &&
                   !(planned && gender === GENDER_NOT_KNOWN) && <option value={gender}>{gender}</option>}
               </select>
+              {n.pronouns && (
+                <div id="edPronouns" className="edhint" title="As set in your game">
+                  Pronouns: {pronounsLabel(n.pronouns)}
+                </div>
+              )}
             </div>
           </div>
           {life && (

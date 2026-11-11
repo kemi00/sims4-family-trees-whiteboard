@@ -1,7 +1,7 @@
 import { DECEASED_STATE, GENDERS } from './constants.ts';
 import { edgeSourceOf, joinNotes, withNote } from './utils.ts';
 import type { ParsedSave, ParsedSaveSim } from './savegame/parseSave.ts';
-import type { Edge, EdgeType, HouseholdMove, SimNode } from '../types/whiteboard.ts';
+import type { Edge, EdgeType, HouseholdMove, SimNode, SimPronouns } from '../types/whiteboard.ts';
 
 /**
  * Your plan against your game. A plan is what you add on the board and the
@@ -288,6 +288,8 @@ export type SlotCandidate = {
   /** The only one that fits, by both planned parents or a marriage. */
   sure: boolean;
   gender: string;
+  /** Their pronouns, when the game has some of their own. */
+  pronouns?: SimPronouns;
   /** A child's parents in the save, by save sim id. */
   parents: string[];
   /** A child of every planned parent; a spouse always is. */
@@ -381,6 +383,7 @@ export function slotSuggestions(opts: {
           why: `${x.s.gender === 'Female' ? 'Daughter' : x.s.gender === 'Male' ? 'Son' : 'Child'} of ${firstNames(x.parents)}`,
           sure: sureOne && x === top[0],
           gender: x.s.gender,
+          ...(x.s.pronouns ? { pronouns: x.s.pronouns } : {}),
           parents: x.parents,
           all: x.overlap === plannedParents.size,
         })),
@@ -404,6 +407,7 @@ export function slotSuggestions(opts: {
           why: `${x.married ? 'Married' : 'Partner of'} ${nameOf(pid)}`,
           sure,
           gender: s.gender,
+          ...(s.pronouns ? { pronouns: s.pronouns } : {}),
           parents: [],
           all: true,
         });

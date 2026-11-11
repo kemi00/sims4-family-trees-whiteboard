@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
-import { inferTreeDeaths, pairTagsFromBits, parseSaveGame, readableHouseholdName } from './parseSave.ts';
+import { genderFromPronouns, inferTreeDeaths, pairTagsFromBits, parseSaveGame, readableHouseholdName } from './parseSave.ts';
 import { decodeFields, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
 
@@ -128,6 +128,8 @@ function simBlob(opts: {
   alive?: number;
   /** Days into the life stage (field 13, a float). */
   stageDays?: number;
+  /** Pronouns set in Create a Sim, subject to reflexive (field 69). */
+  pronouns?: string[];
 }): Uint8Array {
   const play = concat(
     ...(opts.alive !== undefined ? [encodeVarintField(16, opts.alive)] : []),
@@ -145,6 +147,14 @@ function simBlob(opts: {
     encodeString(22, opts.household),
     ...(play.byteLength ? [encodeBytes(47, play)] : []),
     ...(opts.species ? [encodeVarintField(60, opts.species)] : []),
+    ...(opts.pronouns
+      ? [
+          encodeBytes(
+            69,
+            concat(...opts.pronouns.map((w, i) => encodeBytes(1, concat(encodeVarintField(1, i + 1), encodeString(2, w))))),
+          ),
+        ]
+      : []),
   );
 }
 
@@ -820,5 +830,40 @@ describe('readableHouseholdName', () => {
     for (const name of ['Goth', 'Caliente', 'Bro', 'Fixer_Upper', '']) {
       assert.equal(readableHouseholdName(name), name);
     }
+  });
+});
+
+describe('a sim\u2019s pronouns', () => {
+  const they = ['they', 'them', 'their', 'theirs', 'themself'];
+  const save = () =>
+    saveOf(
+      encodeBytes(6, simBlob({ id: 1, householdId: 10, first: 'Dani', last: 'Davila', household: 'Duo', gender: 8192, age: 32, pronouns: they })),
+      encodeBytes(6, simBlob({ id: 2, householdId: 10, first: 'Celeste', last: 'Capp', household: 'Capp', gender: 4096, age: 32, pronouns: they })),
+      encodeBytes(6, simBlob({ id: 3, householdId: 10, first: 'Esther', last: 'Gomes', household: 'Gomes', gender: 8192, age: 32, pronouns: ['xie', 'xem', 'xir', 'xirs', 'xirself'] })),
+      encodeBytes(6, simBlob({ id: 4, householdId: 10, first: 'Ana', last: 'Rosa', household: 'Rosa', gender: 4096, age: 32, pronouns: ['she', 'her', 'her', 'hers', 'herself'] })),
+      encodeBytes(6, simBlob({ id: 5, householdId: 10, first: 'Bob', last: 'Pancakes', household: 'Pancakes', gender: 4096, age: 32 })),
+    );
+
+  it('makes a sim with they/them or xie/xem Non-Binary, keeping their words', () => {
+    const sims = new Map(parseSaveGame(save()).sims.map((s) => [s.first, s]));
+    assert.equal(sims.get('Dani')!.gender, 'Non-Binary');
+    assert.equal(sims.get('Celeste')!.gender, 'Non-Binary');
+    assert.deepEqual(sims.get('Dani')!.pronouns, {
+      subject: 'they',
+      object: 'them',
+      possessive: 'their',
+      independent: 'theirs',
+      reflexive: 'themself',
+    });
+    assert.equal(sims.get('Esther')!.gender, 'Non-Binary');
+    assert.equal(sims.get('Esther')!.pronouns!.possessive, 'xir');
+  });
+
+  it('goes by she and he over the game\u2019s two-value gender, and by that without pronouns', () => {
+    const sims = new Map(parseSaveGame(save()).sims.map((s) => [s.first, s]));
+    assert.equal(sims.get('Ana')!.gender, 'Female');
+    assert.equal(sims.get('Bob')!.gender, 'Male');
+    assert.equal(sims.get('Bob')!.pronouns, undefined);
+    assert.equal(genderFromPronouns({ subject: 'He', object: 'him', possessive: 'his', independent: 'his', reflexive: 'himself' }, 'Female'), 'Male');
   });
 });

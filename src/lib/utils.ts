@@ -12,6 +12,7 @@ import type {
   SimAgeUp,
   SimNode,
   World,
+  SimPronouns,
 } from '../types/whiteboard.ts';
 
 export const uKey = (a: string, b: string): string =>
@@ -207,6 +208,11 @@ export function pruneContradictoryParentEdges(edges: Edge[]): Edge[] {
     if (e.type !== 'parent') return true;
     return !unionPairs.has(uKey(e.a, e.b));
   });
+}
+
+/** A sim's pronouns as people write them: they/them, xie/xem. */
+export function pronounsLabel(p: SimPronouns): string {
+  return p.object && p.object !== p.subject ? `${p.subject}/${p.object}` : p.subject;
 }
 
 /**

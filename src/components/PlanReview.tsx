@@ -22,7 +22,9 @@ function andList(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} & ${items[items.length - 1]}`;
 }
 
-const pronoun = (gender: string) => (gender === 'Female' ? 'her' : gender === 'Male' ? 'his' : 'their');
+/** Their possessive word: their own pronoun when the game has one. */
+const pronoun = (c: SlotCandidate) =>
+  c.pronouns?.possessive ?? (c.gender === 'Female' ? 'her' : c.gender === 'Male' ? 'his' : 'their');
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
@@ -67,7 +69,7 @@ export function PlanReview({
 
   /** What filling a planned sim with this save sim does, in a sentence. */
   const fillEffect = (slotId: string, c: SlotCandidate, kind: 'child' | 'spouse', planned: string[]) => {
-    const their = pronoun(c.gender);
+    const their = pronoun(c);
     if (kind === 'spouse') {
       return `${c.name} takes ${name(slotId)}’s place, with ${their} name, gender and age from your save.`;
     }
