@@ -46,6 +46,14 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  --press:#dfe6ef;
  --press-line:#aeb9c7;
  --canvas:#eef2f6;
+ /* The save's season, on its chip: one hue each, never a tint on the board. */
+ --season-spring:#c2508a;
+ --season-summer:#c98a0a;
+ --season-fall:#c0582a;
+ --season-winter:#3f7fbf;
+ /* A plan come true: gold, for a moment. */
+ --celebrate:#e3a21a;
+ --celebrate-soft:#fdf4dc;
  --grid:#b4bfcc;
  --chip:#f4f7fb;
  --chip-line:#dbe2eb;
@@ -1500,6 +1508,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .savestatus__btn:hover,.savestatus__btn[aria-expanded=true]{background:var(--hover);border-color:var(--line)}
 .savestatus__btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .savestatus__btn svg{width:13px;height:13px;color:var(--ink-3)}
+.savestatus__btn .savestatus__season--spring{color:var(--season-spring)}
+.savestatus__btn .savestatus__season--summer{color:var(--season-summer)}
+.savestatus__btn .savestatus__season--fall{color:var(--season-fall)}
+.savestatus__btn .savestatus__season--winter{color:var(--season-winter)}
 .savestatus__btn .savestatus__caret{width:9px;height:9px}
 .savestatus__pop{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);text-align:left;letter-spacing:normal;user-select:text;max-width:calc(100vw - 24px)}
 
@@ -1514,3 +1526,38 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 @media (prefers-reduced-motion:reduce){ .search--bar{transition:none} }
 .appbar:has(.search--bar :focus) .tool--secondary .tool__label{display:none}
 .appbar:has(.search--bar :focus) .tool--secondary{width:32px;padding:0;gap:0}
+
+/* A planned birth or couple the save confirmed: a glow and five twinkles. */
+.node__glow{fill:none;stroke:var(--celebrate);stroke-width:4;opacity:0;animation:celebrate-glow 2.8s ease-out 3}
+.node__sparkle{fill:var(--celebrate);opacity:0;transform-box:fill-box;transform-origin:center;animation:celebrate-twinkle 1.5s ease-in-out 5}
+@keyframes celebrate-glow{0%{opacity:0}25%{opacity:.85}100%{opacity:0}}
+@keyframes celebrate-twinkle{0%{opacity:0;transform:scale(.2) rotate(0deg)}45%{opacity:1;transform:scale(1) rotate(25deg)}100%{opacity:0;transform:scale(.3) rotate(45deg)}}
+@media (prefers-reduced-motion:reduce){
+ .node__glow{animation:none;opacity:.7}
+ .node__sparkle{animation:none;opacity:.9}
+}
+
+/* Previously on…: the story since the last upload. */
+.recap{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:9;width:min(430px, calc(100% - 24px));max-height:min(72vh, 600px);display:flex;flex-direction:column;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);box-shadow:var(--lift);font-size:12.5px;line-height:1.4}
+.recap__head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:12px 12px 8px 14px;border-bottom:1px solid var(--line)}
+.recap__kicker{margin:0;font-size:11px;font-weight:700;font-style:italic;letter-spacing:.2px;color:var(--accent)}
+.recap__head h2{margin:2px 0 0;font-size:15px;font-weight:800}
+.recap__season{font-weight:600;color:var(--ink-2)}
+.recap__close{flex:none;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
+.recap__close:hover{background:var(--hover);color:var(--ink)}
+.recap__close svg{width:15px;height:15px}
+.recap__body{overflow-y:auto;padding:6px 14px 10px}
+.recap__sec h3{margin:8px 0 3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ink-2)}
+.recap__sec ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.recap__sec li{overflow-wrap:anywhere}
+.recap__sim{padding:0;border:0;background:none;font:inherit;font-weight:600;color:var(--name);cursor:pointer;text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:2px}
+.recap__sim:hover{text-decoration-color:currentColor}
+.recap__done{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--celebrate-soft);color:var(--warn);font-size:10.5px;font-weight:700;vertical-align:1px}
+.recap__done--big{margin-left:0;padding:2px 8px;font-size:11.5px}
+.recap__more{margin-top:2px;padding:0;border:0;background:none;font:inherit;font-size:11px;font-weight:600;color:var(--accent);cursor:pointer}
+.recap__met{margin:8px 0 0;color:var(--ink-2)}
+.recap__plans{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0;padding:8px 14px 12px;border-top:1px solid var(--line)}
+.recap__off{font-size:11.5px;color:var(--warn)}
+.savechip__recap{display:block;width:100%;margin:2px 0 8px;padding:6px 8px;border:1px solid var(--chip-line);border-radius:8px;background:var(--celebrate-soft);color:var(--warn);font:inherit;font-size:11.5px;font-weight:700;text-align:left;cursor:pointer}
+.savechip__recap:hover{border-color:var(--celebrate)}
+

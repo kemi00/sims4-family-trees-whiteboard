@@ -49,3 +49,7 @@ export { Warning } from '@phosphor-icons/react/Warning';
 export { X } from '@phosphor-icons/react/X';
 export { IconContext } from '@phosphor-icons/react/dist/lib/context';
 export type { Icon } from '@phosphor-icons/react/dist/lib/types';
+export { Flower } from '@phosphor-icons/react/Flower';
+export { Sun } from '@phosphor-icons/react/Sun';
+export { Leaf } from '@phosphor-icons/react/Leaf';
+export { Snowflake } from '@phosphor-icons/react/Snowflake';

@@ -1640,9 +1640,23 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     const advanced = advanceSuccession(nodes);
     if (advanced !== nodes) nodes.splice(0, nodes.length, ...advanced);
   }
-  const saveGame = parsed.game
+  const saveGameRead = parsed.game
     ? saveGameFrom(parsed.game, sims, input.game ?? null, input.fileName, input.now)
     : (input.game ?? null);
+  // The box the last-played household's sims are in on the board.
+  const activeId = parsed.game?.activeHouseholdId;
+  const lastPlayedGid = activeId
+    ? mostCommonOf(
+        sims
+          .filter((s) => s.householdId === activeId)
+          .map((s) => nodes.find((n) => n.id === saveIdToBoard.get(s.saveSimId))?.gid)
+          .filter((g): g is string => !!g && !isUnhousedGid(g)),
+      )
+    : undefined;
+  const saveGame =
+    saveGameRead && parsed.game
+      ? { ...saveGameRead, ...(lastPlayedGid ? { lastPlayedGid } : {}) }
+      : saveGameRead;
 
   const nameOf = (id: string) => {
     const n = nodes.find((x) => x.id === id)!;
@@ -1725,6 +1739,13 @@ function lifeFor(sim: ParsedSaveSim, game: ParsedGameInfo, played: ReadonlySet<s
   };
 }
 
+/** The value most often in `xs`, the first of a tie; undefined when empty. */
+function mostCommonOf(xs: string[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const x of xs) counts.set(x, (counts.get(x) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
 /** Earlier active households the board remembers (SaveGameInfo.playedBefore). */
 const PLAYED_BEFORE_KEPT = 24;
 
@@ -1745,6 +1766,8 @@ function saveGameFrom(
     clock: game.clock,
     ...(game.lifespan ? { lifespan: game.lifespan } : {}),
     ...(game.seasonDays ? { seasonDays: game.seasonDays } : {}),
+    ...(game.season ? { season: game.season.now, seasonSince: game.season.since } : {}),
+    calendar: game.season ? 'seasons' : 'days',
     ...(game.playedAging ? { playedAging: game.playedAging } : {}),
     ...(game.unplayedAging !== undefined ? { unplayedAging: game.unplayedAging } : {}),
     ...(active ? { activeHousehold: active } : {}),

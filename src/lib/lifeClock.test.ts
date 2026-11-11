@@ -13,6 +13,8 @@ import {
   lifeDays,
   lifeView,
   oldAgeEarliest,
+  saveChipText,
+  seasonNow,
   wholeDaysText,
   yearOf,
 } from './lifeClock.ts';
@@ -155,5 +157,17 @@ describe('who is aging', () => {
     assert.equal(frozenReason({ played: false, active: false, unplayedAging: false }), 'unplayed');
     assert.equal(frozenReason({ played: false, active: false, unplayedAging: true }), null);
     assert.equal(frozenReason({ played: false, active: false }), undefined);
+  });
+});
+
+describe('the save chip’s calendar', () => {
+  const day = 2_160_000;
+  it('says the season and its day with Seasons, the day alone without', () => {
+    const game = { importedAt: 'x', clock: 720_000 + day, lifespan: 'Short' as const, seasonDays: 7 };
+    assert.equal(saveChipText({ ...game, season: 'Spring', seasonSince: 0, calendar: 'seasons' }), 'Short · Spring, day 2 of 7');
+    assert.deepEqual(seasonNow({ ...game, season: 'Spring', seasonSince: 0 }), { season: 'Spring', day: 2, of: 7, next: 'Summer', nextIn: 6 });
+    assert.equal(saveChipText({ ...game, calendar: 'days' }), 'Short · Day 2');
+    // Read before the board knew the calendar.
+    assert.equal(saveChipText(game), 'Short · 7-day seasons');
   });
 });

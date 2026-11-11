@@ -269,9 +269,32 @@ export function everyoneAges(game: Pick<SaveGameInfo, 'playedAging' | 'unplayedA
   return game.playedAging === 'Yes' && game.unplayedAging === true;
 }
 
-/** "Short · 7-day seasons" for the save chip; "Short lifespan" with no Seasons. */
+const NEXT_SEASON = { Spring: 'Summer', Summer: 'Fall', Fall: 'Winter', Winter: 'Spring' } as const;
+
+/**
+ * Where the save is in its Seasons calendar: the season, which day of it,
+ * and the next one. Null without Seasons, whose saves only count days.
+ */
+export function seasonNow(
+  game: Pick<SaveGameInfo, 'clock' | 'season' | 'seasonSince' | 'seasonDays'>,
+): { season: NonNullable<SaveGameInfo['season']>; day: number; of: number; next: NonNullable<SaveGameInfo['season']>; nextIn: number } | null {
+  if (!game.season || !game.seasonDays) return null;
+  const of = game.seasonDays;
+  const into = Math.max(0, game.clock - (game.seasonSince ?? 0)) / TICKS_PER_DAY;
+  const day = Math.min(of, Math.floor(into) + 1);
+  return { season: game.season, day, of, next: NEXT_SEASON[game.season], nextIn: Math.max(0, Math.ceil(of - into)) };
+}
+
+/**
+ * "Short · Spring, day 2 of 7" for the save chip; "Short · Day 2" without
+ * Seasons, where the calendar is days alone.
+ */
 export function saveChipText(game: SaveGameInfo): string {
   const life = game.lifespan ?? 'Lifespan unknown';
+  const s = seasonNow(game);
+  if (s) return `${life} · ${s.season}, day ${s.day} of ${s.of}`;
+  if (game.calendar === 'days') return `${life} · ${dayText(dayOf(game.clock))}`;
+  // Read before the board knew the calendar: what it knew then.
   return game.seasonDays ? `${life} · ${game.seasonDays}-day seasons` : `${life} lifespan`;
 }
 

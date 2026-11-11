@@ -206,12 +206,25 @@ export interface SaveGameInfo {
   lifespan?: Lifespan;
   /** Days in a season (Seasons); a year is four seasons. */
   seasonDays?: number;
+  /**
+   * The season when the game saved and the tick it began, from the Seasons
+   * calendar. Absent without Seasons: the board then counts days only.
+   */
+  season?: 'Spring' | 'Summer' | 'Fall' | 'Winter';
+  seasonSince?: number;
+  /**
+   * The save's calendar: Seasons, or days alone (no Seasons pack). Absent
+   * on imports from before the board read it.
+   */
+  calendar?: 'seasons' | 'days';
   /** Auto Age (Played Households): No, Yes or Only Active Household. */
   playedAging?: 'No' | 'Yes' | 'Active';
   /** Auto Age (Unplayed Households). */
   unplayedAging?: boolean;
-  /** The household being played when the game saved. */
+  /** The household being played when the game saved: the last one played. */
   activeHousehold?: string;
+  /** Its box on the board, as the import found its sims. */
+  lastPlayedGid?: string;
   /**
    * The households played at earlier imports, newest first, without the
    * one active now: Up next suggests the one played longest ago first.

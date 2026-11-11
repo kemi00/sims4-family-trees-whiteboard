@@ -1853,11 +1853,18 @@ describe('ages, game options and first heads from the save', () => {
       clock: 11_135_049,
       lifespan: 'Short',
       seasonDays: 7,
+      // No Seasons calendar in this save: it counts days.
+      calendar: 'days',
       playedAging: 'Active',
       unplayedAging: false,
       activeHousehold: 'Bheeda',
+      // Its box on the board: Kelvin's.
+      lastPlayedGid: 'Willow Creek||Bheeda',
     });
     assert.deepEqual(first.summary.gameChanges, []);
+    const seasons = merge({ ...parsed, game: game({ season: { now: 'Spring', since: 0 } }) }, []);
+    assert.equal(seasons.saveGame?.season, 'Spring');
+    assert.equal(seasons.saveGame?.calendar, 'seasons');
     const everyone = merge({ ...parsed, game: game({ lifespan: 'Long', playedAging: 'Yes', unplayedAging: true }) }, [], first.saveGame);
     assert.deepEqual(everyone.summary.gameChanges, [
       'Sim Lifespan: Short → Long',

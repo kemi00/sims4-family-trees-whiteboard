@@ -41,6 +41,8 @@ type Props = {
   onOpenPlan?: (gid: string) => void;
   /** The game lot each household lives on (householdLots), for its tag's tip. */
   homes?: ReadonlyMap<string, GameLot>;
+  /** The household the save was last played in: a soft glow, no label. */
+  lastPlayedGid?: string;
 };
 
 /** The neighbourhood icon in a household tag, where the grip would be. */
@@ -70,6 +72,7 @@ export const GroupLayer = memo(function GroupLayer({
   tallies,
   onOpenPlan,
   homes,
+  lastPlayedGid,
 }: Props) {
   if (!show) return null;
 
@@ -116,6 +119,23 @@ export const GroupLayer = memo(function GroupLayer({
           const lane = animalLaneDivider(mem);
           return (
             <g key={g0.gid} data-gid={g0.gid}>
+              {g0.gid === lastPlayedGid && (
+                // Where you were when the game saved: a glow in its colour.
+                <rect
+                  className="hh-lastplayed"
+                  x={boxL - 6}
+                  y={boxT - 6}
+                  width={boxR - boxL + 12}
+                  height={boxB - boxT + 12}
+                  rx={18}
+                  fill="none"
+                  stroke={g0.color}
+                  strokeWidth={10}
+                  strokeOpacity={0.35}
+                  filter="url(#softGlow)"
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
               <rect
                 x={boxL}
                 y={boxT}
@@ -194,6 +214,7 @@ export const GroupLayer = memo(function GroupLayer({
                 </title>
               ) : (
                 <title>
+                  {g0.gid === lastPlayedGid ? 'The household you last played, when the game saved.\n' : ''}
                   {homeLine(homes?.get(g0.gid), g0.nb)}
                   Click for this household’s plan · drag to move the household
                 </title>

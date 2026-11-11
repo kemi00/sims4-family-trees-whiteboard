@@ -76,6 +76,7 @@ import { EdgeLayer } from './EdgeLayer.tsx';
 import { LotLayer } from './LotLayer.tsx';
 import { BlankHatchPattern } from './BlankDisc.tsx';
 import { LotMoveInMenu } from './LotMoveInMenu.tsx';
+import { RecapPanel } from './RecapPanel.tsx';
 import type { GameLot } from '../lib/places.ts';
 import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
@@ -1740,6 +1741,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
       >
         <defs>
           <BlankHatchPattern />
+          <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur stdDeviation="6" />
+          </filter>
           <clipPath id="tagclip">
             <rect x={0} y={0} width={CARD_MIN_W} height={CARD_H} rx={11} />
           </clipPath>
@@ -1792,6 +1796,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             keepGids={dragUnit?.gids}
             onHouseholdDragStart={onHouseholdDragStart}
             onAgeUp={onAgeUp}
+            lastPlayedGid={wb.saveGame?.lastPlayedGid}
           />
           <EdgeLayer
             blood={mountedEdges.blood}
@@ -1872,6 +1877,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
               <SimNodeView
                 key={n.id}
                 node={n}
+                celebrate={wb.celebrateIds.has(n.id)}
                 selected={
                   (wb.sel?.type === 'node' && wb.sel.id === n.id) ||
                   !!selectedNodeIds?.has(n.id)
@@ -1929,6 +1935,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             tallies={wb.planTally}
             onOpenPlan={wb.setBriefGid}
             homes={wb.homes}
+            lastPlayedGid={wb.saveGame?.lastPlayedGid}
           />
           <LotLayer
             boxes={wb.lotBoxes}
@@ -2033,7 +2040,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             <span className="autosave-cue__sep savestatus-sep" aria-hidden="true">
               ·
             </span>
-            <SaveStatus game={wb.saveGame} />
+            <SaveStatus game={wb.saveGame} onRecap={wb.recap ? () => wb.setRecapOpen(true) : undefined} />
           </>
         )}
         <button
@@ -2233,6 +2240,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady }: Props) {
             wb.closeChildMenu();
           }}
           onClose={wb.closeChildMenu}
+        />
+      )}
+      {wb.recap && wb.recapOpen && (
+        <RecapPanel
+          recap={wb.recap}
+          offPlan={wb.planIssues.length}
+          onGoToSim={(id) => {
+            const r = svgRef.current?.getBoundingClientRect();
+            wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
+          }}
+          onClose={() => wb.setRecapOpen(false)}
         />
       )}
       {lotMenu && (

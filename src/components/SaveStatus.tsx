@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarBlank, CaretUp } from '../icons.ts';
+import { CalendarBlank, CaretUp, Flower, Leaf, Snowflake, Sun } from '../icons.ts';
 import { trackAction } from '../lib/analytics.ts';
 import {
   agingSummary,
@@ -8,6 +8,7 @@ import {
   dayText,
   playedAgingText,
   saveChipText,
+  seasonNow,
   yearOf,
   yearText,
 } from '../lib/lifeClock.ts';
@@ -20,32 +21,52 @@ function readAt(iso: string): string {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+/** The calendar's rows: the season and when the next begins, or days alone without Seasons. */
+function seasonRows(game: SaveGameInfo): [string, string][] {
+  const s = seasonNow(game);
+  if (s) {
+    return [
+      ['Season', `${s.season}, day ${s.day} of ${s.of}`],
+      ['Next', `${s.next} in ${s.nextIn === 1 ? '1 day' : `${s.nextIn} days`}`],
+      ['Season Length', `${s.of} days (a year is ${s.of * 4} days)`],
+    ];
+  }
+  if (game.calendar === 'days') return [['Calendar', 'Days only: no Seasons in this save']];
+  return [['Season Length', game.seasonDays ? `${game.seasonDays} days (a year is ${game.seasonDays * 4} days)` : 'Not in this save']];
+}
+
+/** The chip's icon: the season's, or a calendar without Seasons. */
+const SEASON_ICON = { Spring: Flower, Summer: Sun, Fall: Leaf, Winter: Snowflake } as const;
+
 /**
  * What the board knows of the save it last read: the game time, then the
  * options that decide ages. Read only: they change in the game.
  */
-export function SaveDetails({ game }: { game: SaveGameInfo }) {
+export function SaveDetails({ game, onRecap }: { game: SaveGameInfo; onRecap?: () => void }) {
   const day = dayOf(game.clock);
   const rows: [string, string][] = [
     ['Game time', `${clockText(game.clock)}${game.seasonDays ? ` · ${yearText(yearOf(day, game.seasonDays))}` : ''}`],
     ['Sim Lifespan', game.lifespan ?? 'Unknown'],
-    [
-      'Season Length',
-      game.seasonDays ? `${game.seasonDays} days (a year is ${game.seasonDays * 4} days)` : 'Not in this save',
-    ],
+    ...seasonRows(game),
     ['Auto Age (Played)', playedAgingText(game.playedAging)],
     [
       'Auto Age (Unplayed)',
       game.unplayedAging === undefined ? 'Unknown' : game.unplayedAging ? 'On' : 'Off',
     ],
   ];
-  if (game.activeHousehold) rows.push(['Active household', game.activeHousehold]);
+  // Where the player was when the game saved: maybe not who they play next.
+  if (game.activeHousehold) rows.push(['Last played', game.activeHousehold]);
   if (game.allAgingSince !== undefined) rows.push(['Everyone ages since', dayText(dayOf(game.allAgingSince))]);
   const who = agingSummary(game);
   const read = readAt(game.importedAt);
   return (
     <>
       <div className="pop__head">From your save</div>
+      {onRecap && (
+        <button type="button" className="savechip__recap" onClick={onRecap}>
+          ✨ What happened since the last upload
+        </button>
+      )}
       <dl className="savechip__list">
         {rows.map(([k, v]) => (
           <div key={k} className="savechip__row">
@@ -69,7 +90,7 @@ export function SaveDetails({ game }: { game: SaveGameInfo }) {
  * status about the board, not an action, so it lives with the board's other
  * status rather than in the top bar. Opens the save details above it.
  */
-export function SaveStatus({ game }: { game: SaveGameInfo }) {
+export function SaveStatus({ game, onRecap }: { game: SaveGameInfo; onRecap?: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -102,13 +123,26 @@ export function SaveStatus({ game }: { game: SaveGameInfo }) {
           setOpen(!open);
         }}
       >
-        <CalendarBlank aria-hidden="true" />
+        {(() => {
+          const Icon = game.season && game.calendar === 'seasons' ? SEASON_ICON[game.season] : CalendarBlank;
+          return <Icon aria-hidden="true" className={game.season ? `savestatus__season savestatus__season--${game.season.toLowerCase()}` : undefined} />;
+        })()}
         {saveChipText(game)}
         <CaretUp className="savestatus__caret" weight="bold" aria-hidden="true" />
       </button>
       {open && (
         <div className="pop pop--save savestatus__pop" role="dialog" aria-label="Your save">
-          <SaveDetails game={game} />
+          <SaveDetails
+            game={game}
+            {...(onRecap
+              ? {
+                  onRecap: () => {
+                    setOpen(false);
+                    onRecap();
+                  },
+                }
+              : {})}
+          />
         </div>
       )}
     </span>

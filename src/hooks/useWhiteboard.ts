@@ -6,6 +6,7 @@ import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOC
 import { freeLotsIn, householdLots, lotPick, type GameLot } from '../lib/places.ts';
 import { placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
+import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
@@ -489,6 +490,12 @@ export function useWhiteboard() {
   );
   /** Game clock and aging options from the last save import. */
   const [saveGame, setSaveGame] = useState<SaveGameInfo | null>(() => boot.saveGame ?? null);
+  /** What the last save upload says happened in the game ("Previously on…"). */
+  const [recap, setRecap] = useState<SaveRecap | null>(null);
+  const [recapOpen, setRecapOpen] = useState(false);
+  /** Cards to sparkle a moment: a planned birth or couple the save just confirmed. */
+  const [celebrateIds, setCelebrateIds] = useState<ReadonlySet<string>>(() => new Set());
+  const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pairIndex = useMemo(
     () => indexPairStatus(hideSecrets ? withoutSecretStatus(pairStatus) : pairStatus),
     [pairStatus, hideSecrets],
@@ -3323,6 +3330,21 @@ export function useWhiteboard() {
       svgHeight: number,
       mode: 'merge' | 'replace',
     ) => {
+      // The story since the last upload, told only between two saves of the
+      // same game: a board's first save, or Replace, starts the story.
+      const told =
+        mode === 'merge' && saveGame
+          ? saveRecap({ nodes: nodesCore, edges, saveGame }, { nodes: result.nodes, edges: result.edges, saveGame: result.saveGame })
+          : null;
+      if (told && recapHasNews(told)) {
+        setRecap(told);
+        setRecapOpen(true);
+        setCelebrateIds(new Set(told.celebrate));
+        if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
+        celebrateTimer.current = setTimeout(() => setCelebrateIds(new Set()), 9000);
+      } else if (mode === 'replace') {
+        setRecap(null);
+      }
       if (mode === 'replace') {
         undoRef.current = [];
         redoRef.current = [];
@@ -3390,7 +3412,7 @@ export function useWhiteboard() {
       );
       fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, releaseLayout, seed.nodes],
+    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, edges, saveGame, releaseLayout, seed.nodes],
   );
 
   const previewSave = useCallback((file: File) => {
@@ -4058,6 +4080,10 @@ export function useWhiteboard() {
     freeLots,
     lotBoxes,
     visibleAreaRef,
+    recap,
+    recapOpen,
+    setRecapOpen,
+    celebrateIds,
     edgeData,
     shownEdges,
     hideSecrets,

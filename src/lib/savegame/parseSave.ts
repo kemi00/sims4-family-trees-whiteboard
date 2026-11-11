@@ -74,6 +74,13 @@ export type ParsedGameInfo = {
   lifespan?: 'Short' | 'Normal' | 'Long';
   /** Days in a season (Seasons): 7, 14 or 28. */
   seasonDays?: number;
+  /**
+   * The season when the game saved, and the tick it began: gameplay field
+   * 16, the Seasons pack's calendar (1, the game's season number: 0 Summer,
+   * 1 Fall, 2 Winter, 3 Spring; 2, its start). A save without Seasons has
+   * none, and only counts days.
+   */
+  season?: { now: 'Spring' | 'Summer' | 'Fall' | 'Winter'; since: number };
   playedAging?: SavePlayedAging;
   unplayedAging?: boolean;
   /** Household the player was in when the game saved. */
@@ -225,6 +232,8 @@ const HOUSEHOLD = {
 const OPTION = { lifespan: 3, playedAging: 8, unplayedAging: 9, seasonLength: 12 } as const;
 const LIFESPANS: Record<number, ParsedGameInfo['lifespan']> = { 0: 'Short', 1: 'Normal', 2: 'Long' };
 const SEASON_DAYS: Record<number, number> = { 0: 7, 1: 14, 2: 28 };
+/** The game's season numbers (SeasonType). */
+const SEASONS: Record<number, 'Spring' | 'Summer' | 'Fall' | 'Winter'> = { 0: 'Summer', 1: 'Fall', 2: 'Winter', 3: 'Spring' };
 const PLAYED_AGING: Record<number, SavePlayedAging> = { 0: 'No', 1: 'Yes', 2: 'Active' };
 
 /**
@@ -491,6 +500,13 @@ function parseGameInfo(saveGame: Uint8Array): ParsedGameInfo | undefined {
     : undefined;
   if (!slot || !clockField) return undefined;
   const info: ParsedGameInfo = { clock: Number(clockField.int), playedHouseholds: [] };
+  const seasonRec = gameplay ? firstBytes(gameplay, 16) : null;
+  if (seasonRec) {
+    const sf = decodeFields(seasonRec);
+    const now = SEASONS[Number(sf.find((f) => f.field === 1 && f.wire === 0)?.int ?? 0n)];
+    const since = Number(sf.find((f) => f.field === 2 && f.wire === 0)?.int ?? 0n);
+    if (now) info.season = { now, since };
+  }
   const active = idField(decodeFields(slot), 11);
   if (active) info.activeHouseholdId = active;
   for (const rec of decodeFields(saveGame)) {

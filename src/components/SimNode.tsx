@@ -62,8 +62,21 @@ type Props = {
    * heir after Eric" in place of the dynasty on the last line.
    */
   heirAfter?: { first: string; full: string };
+  /** A planned birth or couple the save just confirmed: a sparkle, for a moment. */
+  celebrate?: boolean;
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
+
+/** Where a celebration's sparkles sit round a card, as fractions of its size, and their delay. */
+const SPARKLES = [
+  { x: -0.04, y: -0.18, s: 1, d: 0 },
+  { x: 0.5, y: -0.28, s: 0.7, d: 0.25 },
+  { x: 1.05, y: -0.12, s: 0.9, d: 0.5 },
+  { x: 1.08, y: 0.95, s: 0.75, d: 0.15 },
+  { x: -0.06, y: 1.05, s: 0.8, d: 0.4 },
+];
+/** A four-pointed star, 12 across. */
+const STAR = 'M0,-6 C0.8,-1.4 1.4,-0.8 6,0 C1.4,0.8 0.8,1.4 0,6 C-0.8,1.4 -1.4,0.8 -6,0 C-1.4,-0.8 -0.8,-1.4 0,-6Z';
 
 /** A piece of a card's last line; `dyn` marks the dynasty, styled by its plan, and `risk` its warning. */
 type Part = { text: string; dyn?: true; risk?: true; later?: true };
@@ -107,6 +120,7 @@ export const SimNodeView = memo(function SimNodeView({
   dynastyTag,
   dynastyRisk,
   heirAfter,
+  celebrate = false,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -210,6 +224,17 @@ export const SimNodeView = memo(function SimNodeView({
       transform={`translate(${n.x},${n.y})`}
       onPointerDown={(e) => onPointerDown(e, n)}
     >
+      {celebrate && (
+        <g className="node__celebrate" aria-hidden="true" style={{ pointerEvents: 'none' }}>
+          <rect className="node__glow" x={-6} y={-6} width={n.w + 12} height={h + 12} rx={16} />
+          {SPARKLES.map((p, i) => (
+            // Placed and sized by the groups; the star itself twinkles.
+            <g key={i} transform={`translate(${p.x * n.w},${p.y * h}) scale(${p.s * 1.6})`}>
+              <path className="node__sparkle" d={STAR} style={{ animationDelay: `${p.d}s` }} />
+            </g>
+          ))}
+        </g>
+      )}
       <rect
         x={0}
         y={0}
