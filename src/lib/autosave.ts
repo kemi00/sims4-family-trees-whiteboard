@@ -11,7 +11,7 @@ import type {
   WhiteboardData,
 } from '../types/whiteboard.ts';
 import { LAYOUT_EPOCH } from './constants.ts';
-import { prepareLoadedNodes } from './loadLayout.ts';
+import { prepareLoadedBoard } from './loadLayout.ts';
 import { migrateWhiteboardData, sanitizeEdges } from './utils.ts';
 
 /** localStorage key for the browser draft board. */
@@ -376,7 +376,7 @@ export type DraftGuard = ReturnType<typeof createDraftGuard>;
 export function bootWhiteboardData(
   seed: WhiteboardData,
   store: Storage | null = storage(),
-): { fromDraft: boolean; data: WhiteboardData; repacked: boolean; stamp: string | null } {
+): { fromDraft: boolean; data: WhiteboardData; repacked: boolean; realmHouseholds?: number; stamp: string | null } {
   const stamp = storedStamp(store);
   const stored = readDraft(store);
   // Older world names first: layout and the built-in check both need today's.
@@ -390,15 +390,17 @@ export function bootWhiteboardData(
   }
   // Same edges the board is laid out with, so an older epoch's pinning
   // reproduces exactly what was on screen.
-  const prepared = prepareLoadedNodes(
-    draft.nodes,
-    draft.layoutEpoch,
-    seed.worlds,
-    sanitizeEdges(draft.edges),
-  );
+  const prepared = prepareLoadedBoard({
+    nodes: draft.nodes,
+    layoutEpoch: draft.layoutEpoch,
+    worlds: seed.worlds,
+    edges: sanitizeEdges(draft.edges),
+    groups: draft.groups?.length ? draft.groups : seed.groups,
+  });
   return {
     fromDraft: true,
     repacked: prepared.repacked,
+    realmHouseholds: prepared.realmHouseholds,
     stamp,
     data: {
       ...seed,
@@ -406,7 +408,7 @@ export function bootWhiteboardData(
       sourceFileName: draft.sourceFileName ?? null,
       nodes: prepared.nodes,
       edges: draft.edges,
-      groups: draft.groups?.length ? draft.groups : seed.groups,
+      groups: prepared.groups,
       hiddenPacks: draft.hiddenPacks,
       hiddenPlay: draft.hiddenPlay,
       hiAges: draft.hiAges,

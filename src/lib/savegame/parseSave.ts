@@ -1,4 +1,5 @@
 import { TREE_NAMES } from '../../data/treeNames.ts';
+import { homeWorld } from '../realm.ts';
 import { AGES_H, NON_BINARY } from '../constants.ts';
 import type { DynastyRole, PairTag, SimPronouns } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
@@ -823,6 +824,8 @@ function parseWorldIndex(saveGame: Uint8Array): {
     for (const f of fields) {
       if (f.field === 3 && f.bytes) world = utf8(f.bytes) ?? '';
     }
+    // A region inside another world (the Magic Realm, in Glimmerbrook) is that world.
+    world = homeWorld(world);
     if (!world) continue;
     worlds.add(world);
     for (const f of fields) {

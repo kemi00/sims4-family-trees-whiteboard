@@ -1,4 +1,6 @@
 {"worlds": {
+  "Batuu": {"icon":"worlds/batuu.webp","neighbourhoods":{},
+   "lots": []},
   "Brindleton Bay": {"icon":"worlds/brindleton-bay.webp","neighbourhoods":{"Cavalier Cove":{"icon":"neighbourhoods/brindleton-bay--cavalier-cove.webp"},"Sable Square":{"icon":"neighbourhoods/brindleton-bay--sable-square.webp"},"Whiskerman's Wharf":{"icon":"neighbourhoods/brindleton-bay--whiskerman-s-wharf.webp"}},
    "lots": [
    {"nb":"Cavalier Cove","name":"Bedlington Boathouse","hash":3959554053,"w":20,"d":20,"beds":1,"baths":1,"kind":"house","venue":"house"},
@@ -37,7 +39,7 @@
    {"nb":"Riders' Glen","name":"Red Roan Field","hash":2617508567,"w":64,"d":64,"beds":0,"baths":0,"kind":"empty","venue":"house"},
    {"nb":"Riders' Glen","name":"Sweet Nectar Glade","hash":2694447834,"w":30,"d":20,"beds":2,"baths":3,"kind":"house","venue":"house","household":"The Nectar Making Duo"}
   ]},
-  "Ciudad Enamorada": {"icon":"worlds/ciudad-enamorada.webp","neighbourhoods":{"Nuevo Corazón":{},"Plaza Mariposa":{"icon":"neighbourhoods/ciudad-enamorada--plaza-mariposa.webp"},"Vista Hermosa":{"icon":"neighbourhoods/ciudad-enamorada--vista-hermosa.webp"}},
+  "Ciudad Enamorada": {"icon":"worlds/ciudad-enamorada.webp","neighbourhoods":{"Nuevo Corazón":{"icon":"neighbourhoods/ciudad-enamorada--nuevo-corazon.webp"},"Plaza Mariposa":{"icon":"neighbourhoods/ciudad-enamorada--plaza-mariposa.webp"},"Vista Hermosa":{"icon":"neighbourhoods/ciudad-enamorada--vista-hermosa.webp"}},
    "lots": [
    {"nb":"Nuevo Corazón","name":"La Suite del Flechazo","hash":3656581125,"w":20,"d":15,"beds":3,"baths":3,"kind":"house","venue":"house","household":"Nadir"},
    {"nb":"Nuevo Corazón","name":"Torres Amanecer","hash":3664445447,"w":20,"d":20,"beds":2,"baths":2,"kind":"house","venue":"house"},
@@ -99,7 +101,7 @@
    {"nb":"Wanderwood Wilds","name":"Hothead Rock Hideaway","hash":3980722193,"w":64,"d":64,"beds":0,"baths":0,"kind":"empty","venue":"house"},
    {"nb":"Wanderwood Wilds","name":"Wanderwood Wonder","hash":2234187891,"w":30,"d":20,"beds":4,"baths":3,"kind":"house","venue":"house","household":"Chavez-Ralston"}
   ]},
-  "Glimmerbrook": {"icon":"worlds/glimmerbrook.webp","neighbourhoods":{"Glimmerbrook":{"icon":"worlds/glimmerbrook.webp"}},
+  "Glimmerbrook": {"icon":"worlds/glimmerbrook.webp","neighbourhoods":{"Glimmerbrook":{"icon":"worlds/glimmerbrook.webp"},"The Magic Realm":{"icon":"neighbourhoods/glimmerbrook--the-magic-realm.webp"}},
    "lots": [
    {"nb":"Glimmerbrook","name":"Brooks Bridge Borough","hash":3112435718,"w":30,"d":20,"beds":0,"baths":0,"kind":"empty","venue":"house"},
    {"nb":"Glimmerbrook","name":"Creek Side Corner","hash":3258318863,"w":30,"d":20,"beds":0,"baths":0,"kind":"empty","venue":"house","household":"Amicable Acolytes"},

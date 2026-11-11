@@ -18,7 +18,7 @@ import {
   type DraftGuard,
 } from '../lib/autosave.ts';
 import { trackAction } from '../lib/analytics.ts';
-import { jsonLoadTargets, pinCoreToTargets, prepareLoadedNodes, saveImportCore, separateLoadOverlaps, shouldRepackOffsets, withReadableHouseholdNames } from '../lib/loadLayout.ts';
+import { jsonLoadTargets, pinCoreToTargets, prepareLoadedBoard, realmMovedText, saveImportCore, separateLoadOverlaps, shouldRepackOffsets, withReadableHouseholdNames } from '../lib/loadLayout.ts';
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
@@ -326,6 +326,7 @@ export function useWhiteboard() {
   const bootRef = useRef<{
     fromDraft: boolean;
     repacked: boolean;
+    realmHouseholds?: number;
     data: WhiteboardData;
     stamp: string | null;
   } | null>(null);
@@ -342,6 +343,7 @@ export function useWhiteboard() {
     bootRef.current = {
       fromDraft: raw.fromDraft,
       repacked: raw.repacked,
+      realmHouseholds: raw.realmHouseholds ?? 0,
       stamp: raw.stamp,
       data: {
         ...migrated,
@@ -353,6 +355,7 @@ export function useWhiteboard() {
   }
   const boot = bootRef.current.data;
   const bootRepacked = bootRef.current.repacked;
+  const bootRealm = bootRef.current.realmHouseholds ?? 0;
   const bootFromDraft = bootRef.current.fromDraft;
   const [sourceFileName, setSourceFileName] = useState<string | null>(
     () => boot.sourceFileName ?? null,
@@ -823,11 +826,12 @@ export function useWhiteboard() {
   }, []);
 
   useEffect(() => {
-    if (!bootRepacked) return;
-    flashStatus(
-      'Older save — board re-packed for the current layout. Download JSON to keep it.',
-    );
-  }, [bootRepacked, flashStatus]);
+    if (bootRepacked) {
+      flashStatus('Older save — board re-packed for the current layout. Download JSON to keep it.');
+    } else if (bootRealm) {
+      flashStatus(realmMovedText(bootRealm));
+    }
+  }, [bootRepacked, bootRealm, flashStatus]);
 
   const persistPayload = useCallback(
     () =>
@@ -2990,16 +2994,17 @@ export function useWhiteboard() {
         };
         const d = migrateWhiteboardData(parsed);
         const loadedEdges = sanitizeEdges(d.edges);
-        const prepared = prepareLoadedNodes(
-          fillMissingSavePacks(d.nodes as SimNode[], seed.nodes),
-          parsed.layoutEpoch,
+        const prepared = prepareLoadedBoard({
+          nodes: fillMissingSavePacks(d.nodes as SimNode[], seed.nodes),
+          layoutEpoch: parsed.layoutEpoch,
           worlds,
-          loadedEdges,
-        );
+          edges: loadedEdges,
+          groups: (d.groups as Group[]) ?? groups,
+        });
         // Premade template ids become readable household names, nothing moves.
         const fileNamed = withReadableHouseholdNames({
           core: prepared.nodes,
-          groups: (d.groups as Group[]) ?? groups,
+          groups: prepared.groups,
           worlds,
           edges: loadedEdges,
         });
@@ -3052,7 +3057,7 @@ export function useWhiteboard() {
         redoRef.current = [];
         setUndoWhat(null);
         setRedoWhat(null);
-        if (d.groups) setGroups(fileGroups);
+        if (d.groups || prepared.realmHouseholds) setGroups(fileGroups);
         setHiddenPacks(new Set(d.hiddenPacks || []));
         setHiddenPlay(new Set(d.hiddenPlay || []));
         setHiAges(new Set(d.hiAges || []));
@@ -3079,6 +3084,8 @@ export function useWhiteboard() {
           flashStatus(
             'Older save — board re-packed for the current layout. Download JSON to keep it.',
           );
+        } else if (prepared.realmHouseholds) {
+          flashStatus(`Loaded ${file.name}. ${realmMovedText(prepared.realmHouseholds)}`);
         } else {
           flashStatus(`Loaded ${file.name}`);
         }
@@ -3200,15 +3207,16 @@ export function useWhiteboard() {
         };
         const d = migrateWhiteboardData(parsed);
         const incomingEdges = sanitizeEdges(d.edges);
-        const prepared = prepareLoadedNodes(
-          fillMissingSavePacks(d.nodes as SimNode[], seed.nodes),
-          parsed.layoutEpoch,
+        const prepared = prepareLoadedBoard({
+          nodes: fillMissingSavePacks(d.nodes as SimNode[], seed.nodes),
+          layoutEpoch: parsed.layoutEpoch,
           worlds,
-          incomingEdges,
-        );
+          edges: incomingEdges,
+          groups: (d.groups as Group[]) ?? [],
+        });
         const fileNamed = withReadableHouseholdNames({
           core: prepared.nodes,
-          groups: (d.groups as Group[]) ?? [],
+          groups: prepared.groups,
           worlds,
           edges: incomingEdges,
         });

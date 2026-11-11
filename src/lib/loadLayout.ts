@@ -1,4 +1,4 @@
-import { LAYOUT_EPOCH, OLDEST_PINNABLE_EPOCH } from './constants.ts';
+import { LAYOUT_EPOCH, NOT_IN_WORLD, OLDEST_PINNABLE_EPOCH } from './constants.ts';
 import {
   coreOffsetsAfterImportSeparation,
   coreOffsetsAfterWorldSeparation,
@@ -15,7 +15,10 @@ import {
   unhousedArrangement,
   unhousedEdgeSide,
 } from './layout.ts';
+import { landMovedCards } from './landing.ts';
+import { MAGIC_REALM, MAGIC_REALM_WORLD, realmGid } from './realm.ts';
 import { renameTemplateHouseholds } from './savegame/mergeSave.ts';
+import { worldColor } from './utils.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
@@ -82,6 +85,96 @@ export function prepareLoadedNodes(
       ? withUnhousedBoxesRelaid(wasOnScreen, core, edges)
       : wasOnScreen;
   return { nodes: pinCoreToTargets(targets, core, worlds, edges), repacked: false };
+}
+
+/**
+ * The worlds a board saved before the Magic Realm joined Glimmerbrook was
+ * laid out with: the Realm back in its place A to Z, so its cards are
+ * found where they were. Unchanged when it's there already.
+ */
+export function worldsWithRealm(worlds: World[]): World[] {
+  if (worlds.some((w) => w.name === MAGIC_REALM)) return worlds;
+  const at = worlds.findIndex((w) => w.name !== NOT_IN_WORLD && w.name.localeCompare(MAGIC_REALM) > 0);
+  const realm: World = { name: MAGIC_REALM, color: '#c94c8c' };
+  return at < 0 ? [...worlds, realm] : [...worlds.slice(0, at), realm, ...worlds.slice(at)];
+}
+
+/**
+ * Households a board has in the Magic Realm as a world of its own, moved
+ * to Glimmerbrook, neighbourhood The Magic Realm, as the game has it. Each
+ * lands beside Glimmerbrook's households as a household moved there would
+ * (landMovedCards), keeping its cards' places among themselves, and takes
+ * Glimmerbrook's colour; no other card moves. `worlds` are the board's
+ * (without the Realm). The same arrays back when it has none.
+ */
+export function realmIntoGlimmerbrook(opts: {
+  core: SimNode[];
+  worlds: World[];
+  edges: Edge[];
+  groups: Group[];
+}): { core: SimNode[]; groups: Group[]; households: number } {
+  const { worlds, edges } = opts;
+  let { core, groups } = opts;
+  const gids = [...new Set(core.filter((n) => n.world === MAGIC_REALM).map((n) => n.gid))];
+  if (!gids.length) return { core, groups, households: 0 };
+  const color = worldColor(MAGIC_REALM_WORLD, worlds);
+  const laidWith = worldsWithRealm(worlds);
+  for (const gid of gids) {
+    // As shown now: the Realm's households not moved yet still in theirs.
+    const laid = snapNodesToTiles(computeLayout(core, laidWith, edges));
+    const members = core.filter((n) => n.gid === gid);
+    const destGid = realmGid(gid);
+    const old = groups.find((g) => g.gid === gid);
+    const group: Group = {
+      ...(old ?? { gid, hh: members[0]!.hh, x: 0, y: 0, w: 0, h: 0 }),
+      gid: destGid,
+      world: MAGIC_REALM_WORLD,
+      nb: MAGIC_REALM,
+      color,
+    };
+    const patches = new Map(
+      members.map((n) => [
+        n.id,
+        {
+          gid: destGid,
+          world: MAGIC_REALM_WORLD,
+          nb: MAGIC_REALM,
+          color,
+          ...(n.oworld === MAGIC_REALM ? { oworld: MAGIC_REALM_WORLD, onb: MAGIC_REALM } : {}),
+        } satisfies Partial<SimNode>,
+      ]),
+    );
+    const rest = groups.filter((g) => g.gid !== gid);
+    const there = rest.some((g) => g.gid === destGid);
+    core = landMovedCards({ core, laid, worlds, edges, groups: rest, patches, destGid, newGroup: there ? null : group }).core;
+    groups = there ? rest : [...rest, group];
+  }
+  return { core, groups, households: gids.length };
+}
+
+/**
+ * A loaded board's cards ready for the current layout (prepareLoadedNodes),
+ * with households still in the Magic Realm as a world moved into
+ * Glimmerbrook (realmIntoGlimmerbrook): how many moved, for a word to the
+ * player. `worlds` are the board's.
+ */
+export function prepareLoadedBoard(opts: {
+  nodes: SimNode[];
+  layoutEpoch: number | null | undefined;
+  worlds: World[];
+  edges: Edge[];
+  groups: Group[];
+}): { nodes: SimNode[]; groups: Group[]; repacked: boolean; realmHouseholds: number } {
+  const prepared = prepareLoadedNodes(opts.nodes, opts.layoutEpoch, worldsWithRealm(opts.worlds), opts.edges);
+  const realm = realmIntoGlimmerbrook({ core: prepared.nodes, worlds: opts.worlds, edges: opts.edges, groups: opts.groups });
+  return { nodes: realm.core, groups: realm.groups, repacked: prepared.repacked, realmHouseholds: realm.households };
+}
+
+/** What the board says after moving the Magic Realm's households into Glimmerbrook. */
+export function realmMovedText(households: number): string {
+  return `The Magic Realm is a neighbourhood of Glimmerbrook, as in the game: ${
+    households === 1 ? 'its household moved' : `its ${households} households moved`
+  } there, beside Glimmerbrook’s. Nothing else moved.`;
 }
 
 /**

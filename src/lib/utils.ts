@@ -1,4 +1,5 @@
 import { chainPlannedHeirs } from './succession.ts';
+import { MAGIC_REALM, homeWorld, realmGid } from './realm.ts';
 import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
 import type {
   DeceasedMark,
@@ -241,7 +242,9 @@ export function pruneImpliedSiblingEdges(edges: Edge[]): Edge[] {
 
 /**
  * Rename legacy world labels in loaded saves, and turn heirs planned at
- * each generation into one line of succession (chainPlannedHeirs).
+ * each generation into one line of succession (chainPlannedHeirs). Cards
+ * and households keep a world name the layout needs to place them as they
+ * were; prepareLoadedBoard moves the Magic Realm's into Glimmerbrook.
  */
 export function migrateWhiteboardData(d: {
   nodes: SimNode[];
@@ -287,18 +290,23 @@ export function migrateWhiteboardData(d: {
         source: e.source ?? (String(e.id).charAt(0) === 'u' ? 'planned' : 'seed'),
       })),
     ),
+    // Records of households in the Magic Realm when it was a world name
+    // Glimmerbrook's neighbourhood; the cards move with the layout (realmIntoGlimmerbrook).
     householdMoves: d.householdMoves?.map((m) => ({
       ...m,
-      fromGid: gid(m.fromGid),
-      fromWorld: world(m.fromWorld),
-      toGid: gid(m.toGid),
-      toWorld: world(m.toWorld),
+      fromGid: realmGid(gid(m.fromGid)),
+      fromWorld: homeWorld(world(m.fromWorld)),
+      ...(m.fromWorld === MAGIC_REALM ? { fromNb: MAGIC_REALM } : {}),
+      toGid: realmGid(gid(m.toGid)),
+      toWorld: homeWorld(world(m.toWorld)),
+      ...(m.toWorld === MAGIC_REALM ? { toNb: MAGIC_REALM } : {}),
     })),
     householdAgeUps: d.householdAgeUps?.map((a) => ({
       ...a,
-      gid: gid(a.gid),
-      world: world(a.world),
+      gid: realmGid(gid(a.gid)),
+      world: homeWorld(world(a.world)),
     })),
+    ...(d.saveGame?.lastPlayedGid ? { saveGame: { ...d.saveGame, lastPlayedGid: realmGid(d.saveGame.lastPlayedGid) } } : {}),
   };
 }
 

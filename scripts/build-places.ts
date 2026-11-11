@@ -275,6 +275,16 @@ lots.sort((a, b) => a.world.localeCompare(b.world) || a.nb.localeCompare(b.nb) |
 const slug = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const worlds = new Map<string, Set<string>>();
 for (const l of lots) worlds.set(l.world, (worlds.get(l.world) ?? new Set()).add(l.nb));
+// Places with no lot to live on that the board still shows: Batuu, a world
+// of its own, and the Magic Realm, Glimmerbrook's hidden neighbourhood
+// reached through the portal there (the save lists it as a region of its
+// own; the board reads it as Glimmerbrook's, see src/lib/realm.ts).
+const NO_HOMES: [world: string, nb?: string][] = [['Batuu'], ['Glimmerbrook', 'The Magic Realm']];
+for (const [world, nb] of NO_HOMES) {
+  const names = worlds.get(world) ?? new Set<string>();
+  if (nb) names.add(nb);
+  worlds.set(world, names);
+}
 
 // Icons, as they sit in public/places: each world's and each neighbourhood's
 // from the Sims Wiki (the in-game world picture and the neighbourhood disc),
@@ -283,7 +293,9 @@ for (const l of lots) worlds.set(l.world, (worlds.get(l.world) ?? new Set()).add
 // browser; this only lists what is there. The wiki has none for Ondarion's
 // and Gibbi Point's neighbourhoods: those six were made for the board, and
 // trimmed to their disc. A world of one neighbourhood uses the world's
-// picture for it.
+// picture for it. The Magic Realm's is the wiki's "Misc Neighborhood" disc,
+// as its page shows it; Nuevo Corazón's is the wiki's at 30px, saved with a
+// wiki page (its image server turned the browser away).
 const outDir = path.join(ROOT, 'public/places');
 const have = (dir: string, name: string) => fs.readdirSync(path.join(outDir, dir)).find((f) => f.replace(/\.[^.]+$/, '') === name);
 const worldIcon: Record<string, string> = {};
@@ -293,7 +305,8 @@ for (const [world, names] of worlds) {
   if (w) worldIcon[world] = `worlds/${w}`;
   for (const nb of names) {
     const own = have('neighbourhoods', `${slug(world)}--${slug(nb)}`);
-    const icon = own ? `neighbourhoods/${own}` : names.size === 1 ? worldIcon[world] : undefined;
+    // The world's own neighbourhood (Glimmerbrook in Glimmerbrook) has the world's picture.
+    const icon = own ? `neighbourhoods/${own}` : names.size === 1 || nb === world ? worldIcon[world] : undefined;
     if (icon) nbIcon[`${world}||${nb}`] = icon;
   }
 }
@@ -306,7 +319,8 @@ const worldEntries = [...worlds].sort(([a], [b]) => a.localeCompare(b)).map(([wo
   };
   const own = lots.filter((l) => l.world === world).map(({ world: _w, ...l }) => `   ${JSON.stringify(l)}`);
   const headJson = JSON.stringify(head).slice(0, -1);
-  return `  ${JSON.stringify(world)}: ${headJson},\n   "lots": [\n${own.join(',\n')}\n  ]}`;
+  const lotsJson = own.length ? `[\n${own.join(',\n')}\n  ]` : '[]';
+  return `  ${JSON.stringify(world)}: ${headJson},\n   "lots": ${lotsJson}}`;
 });
 fs.writeFileSync(path.join(ROOT, 'src/data/places.json'), `{"worlds": {\n${worldEntries.join(',\n')}\n}}\n`);
 console.log(`${lots.length} lots in ${worlds.size} worlds; ${lots.filter((l) => !l.household).length} free (${lots.filter((l) => !l.household && l.kind === 'empty').length} empty)`);
