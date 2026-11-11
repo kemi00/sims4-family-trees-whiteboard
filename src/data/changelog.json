@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "babcc32",
+   "date": "2026-11-11",
+   "text": "Delete or Backspace now deletes every sim you picked with Select or Shift, not just one. Delete is also right beside what you picked: in the selection bar, at the foot of a sim's editor, and on a link's card. The editor's Family tab lists a sim's links, each with Remove, which is easier on a phone than tapping a thin line. Undo takes any of it back."
+  },
+  {
    "sha": "12a9a6a",
    "date": "2026-11-11",
    "text": "A new sim now goes beside its partner or siblings when there's room, and otherwise into free room inside its own household's box before growing it. Planned children no longer end up below their grown siblings or on the far side of a neighbour. Still nothing else moves."
