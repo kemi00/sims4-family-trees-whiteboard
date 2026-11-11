@@ -1,4 +1,4 @@
-import { TILE } from './constants.ts';
+import { HH_TAG_BAND, TILE } from './constants.ts';
 import { toCore } from './autosave.ts';
 import { LAYOUT, layoutBases } from './layout.ts';
 import { householdChrome, tileSnapOrigin } from './tiles.ts';
@@ -141,15 +141,19 @@ const NEAR_TILES = 40;
 
 /**
  * Where cards joining a household go. Nothing already on the board moves
- * for them: the user arranged it. They take the first of `spots` (where the
- * family puts them: beside a partner, under the parents) when no card is
- * there, else the nearest place no card is, a tile clear of every card. A
- * place on screen (`view`, in board units) comes first; then one outside
- * other households' boxes, so a baby doesn't seem to live next door. The
- * household's box may grow over its neighbours': the user rearranges from
- * there. `outOfView` when nothing on screen was free, so the view can glide
- * to them; `crowded` when nothing near was free at all and they sit on
- * other cards; `atSpot` when they took the family's spot.
+ * for them: the user arranged it. Of the places no card is (a tile clear of
+ * every card, and off the household's own name and buttons), best first:
+ * - outside other households' boxes, so a baby doesn't seem to live next door;
+ * - the family's spot, `spots` in order: beside a partner, beside full siblings;
+ * - free room inside the household's own box, as the user fills it by hand
+ *   (Tybalt Capp's planned children beside him, not below his grown ones);
+ * - on screen (`view`, in board units);
+ * - growing the box down, then right, then left or up, as little as it can;
+ * - nearest the first spot.
+ * The box may grow over its neighbours': the user rearranges from there.
+ * `outOfView` when the place is off screen, so the view can glide to it;
+ * `crowded` when nothing near was free at all and they sit on other cards;
+ * `atSpot` when they took the family's first spot.
  */
 export function householdGrowth(opts: {
   /** Every card outside the household and the newcomers, laid out. */
@@ -182,14 +186,28 @@ export function householdGrowth(opts: {
   const free = (at: Point) => boxesAt(at).every((b) => cards.every((c) => overlapArea(c, b) === 0));
   const seen = (at: Point) => !view || boxesAt(at).every((b) => b.l >= view.l && b.t >= view.t && b.r <= view.r && b.b <= view.b);
   const apart = (at: Point) => boxesAt(at).every((b) => nextDoor.every((h) => overlapArea(h, b) === 0));
-  /** Best first: on screen, outside other households, the family's own spots in order, then nearest. */
+  // The household's box as it stands. Its name and buttons sit in the band
+  // over its first row: a card there or higher would cover them, or push
+  // them up a row, so none goes above the first row.
+  const chrome = home.length ? householdChrome(home, opts.label) : null;
+  const own: Box | null = chrome ? { l: chrome.boxL, t: chrome.boxT, r: chrome.boxR, b: chrome.boxB } : null;
+  const firstRow = own ? own.t + HH_TAG_BAND : -Infinity;
+  const inside = (at: Point) =>
+    !!own && boxesAt(at).every((b) => b.l >= own.l && b.t >= firstRow && b.r <= own.r && b.b <= own.b);
+  const above = (at: Point) => boxesAt(at).some((b) => b.t < firstRow);
   const score = (at: Point, spot: number) => {
     const dx = at.x - first.x;
     const dy = at.y - first.y;
+    const grew = own ? boxesAt(at).reduce(union, own) : null;
+    const side = !own || !grew ? 0 : growthSide(own, grew);
     return [
-      seen(at) ? 0 : 1,
       apart(at) ? 0 : 1,
-      spot >= 0 ? spot : spots.length + Math.hypot(dx, dy),
+      spot >= 0 ? spot : spots.length,
+      inside(at) ? 0 : 1,
+      seen(at) ? 0 : 1,
+      side,
+      own && grew ? area(grew) - area(own) : 0,
+      Math.hypot(dx, dy),
       // Equally near: below before above, right before left.
       dy < 0 ? 1 : 0,
       dx < 0 ? 1 : 0,
@@ -197,7 +215,7 @@ export function householdGrowth(opts: {
   };
   let best: { at: Point; score: number[]; spot: number } | null = null;
   const consider = (at: Point, spot: number) => {
-    if (!free(at)) return;
+    if (!free(at) || above(at)) return;
     const sc = score(at, spot);
     if (!best || lessThan(sc, best.score)) best = { at, score: sc, spot };
   };
@@ -208,7 +226,7 @@ export function householdGrowth(opts: {
   }
   const found = best as { at: Point; score: number[]; spot: number } | null;
   if (!found) return { at: first, outOfView: !seen(first), crowded: true, atSpot: true };
-  return { at: found.at, outOfView: found.score[0] === 1, crowded: false, atSpot: found.spot === 0 };
+  return { at: found.at, outOfView: !seen(found.at), crowded: false, atSpot: found.spot === 0 };
 }
 
 /**

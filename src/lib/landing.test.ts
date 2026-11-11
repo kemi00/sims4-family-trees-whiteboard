@@ -186,6 +186,46 @@ describe('a household growing', () => {
     assert.deepEqual(g.at, under);
   });
 
+  it('fills free room in its own household before growing it, as you would by hand', () => {
+    // The Capps, boxed in: grandparents, Tybalt, his three grown children.
+    // Free room inside the box: beside Tybalt, twice, and beside Caliban.
+    const home = [
+      card('cordelia', 'W||Capp', 1000, 1000),
+      card('caliban', 'W||Capp', 1300, 1000),
+      card('tybalt', 'W||Capp', 1000, 1200),
+      card('beatrice', 'W||Capp', 1000, 1400),
+      card('celeste', 'W||Capp', 1300, 1400),
+      card('virgilio', 'W||Capp', 1600, 1400),
+    ];
+    const others = [
+      card('dreamer', 'W||Dreamer', 500, 1100),
+      card('monty', 'W||Monty', 1900, 1100),
+      card('thebe', 'W||Thebe', 1300, 1700),
+    ];
+    const placed: SimNode[] = [];
+    for (let i = 0; i < 3; i++) {
+      const last = placed[placed.length - 1];
+      // Beside the last full sibling, else under Tybalt, where his grown children are.
+      const spot = last ? { x: last.x + CARD_MIN_W + TILE, y: last.y } : { x: 1000, y: 1400 };
+      const g = householdGrowth({ others, groups: [], home: [...home, ...placed], block: [baby], spots: [spot] });
+      placed.push({ ...baby, id: `kid${i}`, ...g.at });
+    }
+    assert.deepEqual(
+      placed.map((n) => [n.x, n.y]),
+      [
+        [1300, 1200],
+        [1600, 1200],
+        [1600, 1000],
+      ],
+    );
+  });
+
+  it('never puts a card above the household’s first row, where its name and buttons are', () => {
+    // Room only in the band over A's cards and below it.
+    const g = householdGrowth({ others: [card('b', 'W||B', 1000, 1300)], groups: [], home: a, block: [baby], spots: [{ x: 1600, y: 900 }] });
+    assert.ok(g.at.y >= 1000, JSON.stringify(g.at));
+  });
+
   describe('on the starter board', () => {
     const seed = migrateWhiteboardData(seedRoster as unknown as WhiteboardData);
     const worlds = seed.worlds!;
