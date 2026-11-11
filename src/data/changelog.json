@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "4201dc3",
+   "date": "2026-11-11",
+   "text": "A line from parents in another household into the first sim of a household now comes in under the household's Age up and + buttons, instead of through them."
+  },
+  {
    "sha": "c87d180",
    "date": "2026-11-11",
    "text": "Siblings in a household's top row get their bracket just under the household's Age up and + buttons, instead of a line drawn through them."
