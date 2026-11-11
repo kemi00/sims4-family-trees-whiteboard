@@ -84,6 +84,13 @@ export function daysUntilStage(
   return Math.max(0, to - (from + stageDays)) * scaleOf(lifespan);
 }
 
+/** The life stage `days` Normal-lifespan days into a life: "Newborn" for the first. */
+export function stageAtLifeDays(days: number): string {
+  let out = ORDER[0]!;
+  for (const s of ORDER) if (daysBeforeStage(s)! <= days) out = s;
+  return out;
+}
+
 /** Days from birth to `target` on `lifespan`: a baby not born yet grows up 24 Short days after birth. */
 export function daysFromBirth(target: string, lifespan?: Lifespan): number | null {
   const to = daysBeforeStage(target);
@@ -283,6 +290,21 @@ export function seasonNow(
   const into = Math.max(0, game.clock - (game.seasonSince ?? 0)) / TICKS_PER_DAY;
   const day = Math.min(of, Math.floor(into) + 1);
   return { season: game.season, day, of, next: NEXT_SEASON[game.season], nextIn: Math.max(0, Math.ceil(of - into)) };
+}
+
+/**
+ * The season on game tick `tick`, counting whole seasons on from the one
+ * the save is in. Null without Seasons.
+ */
+export function seasonAt(
+  game: Pick<SaveGameInfo, 'season' | 'seasonSince' | 'seasonDays'>,
+  tick: number,
+): NonNullable<SaveGameInfo['season']> | null {
+  if (!game.season || !game.seasonDays) return null;
+  const steps = Math.floor((tick - (game.seasonSince ?? 0)) / (game.seasonDays * TICKS_PER_DAY));
+  const order = ['Spring', 'Summer', 'Fall', 'Winter'] as const;
+  const at = order.indexOf(game.season);
+  return order[(((at + steps) % 4) + 4) % 4]!;
 }
 
 /**

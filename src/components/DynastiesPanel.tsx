@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Highlighter, Warning } from '../icons.ts';
+import { Check, Highlighter, Warning } from '../icons.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { DYNASTY_ROLES } from '../lib/constants.ts';
 import { riskText, type DynastyMember, type DynastyRow } from '../lib/dynastyMenu.ts';
+import { handoverText, lineClockText, stepClockText, stepWhen, type Handover, type SuccessionForecast } from '../lib/forecast.ts';
+import { agingSummary } from '../lib/lifeClock.ts';
+import type { SaveGameInfo } from '../types/whiteboard.ts';
 import { fold } from '../lib/utils.ts';
 
 const WIDTH = 330;
@@ -32,6 +35,10 @@ type Props = {
   litKey: string | null;
   /** Keep a dynasty lit on the board, or none. */
   onLight: (key: string | null) => void;
+  /** A dynasty's line of succession with its countdowns (successionForecast). */
+  forecastOf: (key: string) => SuccessionForecast;
+  /** The last save's clock and aging options, if any. */
+  game: SaveGameInfo | null;
 };
 
 /** The list's order: by name, or by how many sims each has (the count on its card). */
@@ -105,6 +112,8 @@ export function DynastiesPanel({
   onRemove,
   litKey,
   onLight,
+  forecastOf,
+  game,
 }: Props) {
   const sheet = usePanelSheet();
   const [query, setQuery] = useState('');
@@ -420,6 +429,7 @@ export function DynastiesPanel({
                     </div>
                     {expanded && (
                       <div id={listId}>
+                      <LineForecast f={forecastOf(r.key)} game={game} nameOf={nameOf} onFind={onFind} />
                       <ul className="dynp__members" aria-label={`${labelOf(r)} members`}>
                         {r.members.map((m) => (
                           <li key={m.id}>
@@ -455,10 +465,103 @@ export function DynastiesPanel({
       )}
       <p className="upnext__rules">
         Hover a dynasty to light up its members on the board, in any world, or click its highlighter to keep them
-        lit. Open it to see who they are, or to rename or remove a planned one. Counts take in the deceased and
-        sims only planned into it. A dynasty is at risk with no heir, or with 2 sims or fewer to carry it on: its
-        living members, planned ones too, but not outcasts or sims planned to leave.
+        lit. Open it to see who they are, its line of succession, or to rename or remove a planned one. Counts take
+        in the deceased and sims only planned into it. A dynasty is at risk with no heir, or with 2 sims or fewer
+        to carry it on: its living members, planned ones too, but not outcasts or sims planned to leave. The line’s
+        countdowns are days on your save’s lifespan, counting only the days that age each sim under its aging
+        options; old age can come from the day shown, usually a few days after.
       </p>
     </div>
+  );
+}
+
+/** How a handover reads: fine, worth a look, or just so. */
+function handoverTone(h: Handover): 'ok' | 'warn' | 'info' {
+  if (h.kind === 'ready' || h.kind === 'first') return 'ok';
+  if (h.kind === 'late' || (h.kind === 'bornBy' && h.days <= 0)) return 'warn';
+  return 'info';
+}
+
+/**
+ * A dynasty's line of succession, head first, each with where they are in
+ * life and between each two whether the next grows up in time. Under the
+ * heading, who ages in the save, since that decides which days count.
+ */
+function LineForecast({
+  f,
+  game,
+  nameOf,
+  onFind,
+}: {
+  f: SuccessionForecast;
+  game: SaveGameInfo | null;
+  nameOf: (id: string) => string;
+  onFind: (id: string) => void;
+}) {
+  if (!f.steps.length) return null;
+  const aging = game ? agingSummary(game) : '';
+  const note = !game
+    ? 'Upload a save to see when each one grows up or grows old.'
+    : [game.lifespan ? `${game.lifespan} lifespan` : '', aging].filter(Boolean).join(' · ');
+  // Everyone in line in one household on one clock: said once, under the heading.
+  const shared = lineClockText(f.steps);
+  return (
+    <section className="dynp__fc" aria-label="Line of succession">
+      <h4 className="dynp__fch">
+        Line of succession
+        {note && <span className="dynp__fcnote">{note}</span>}
+        {shared && <span className="dynp__fcnote">{shared}</span>}
+      </h4>
+      <ol className="dynp__line">
+        {f.steps.map((s, i) => {
+          const h = i ? f.handovers[i - 1] : undefined;
+          const hand = h ? handoverText(h, nameOf(f.steps[i - 1]!.id), nameOf(s.id)) : '';
+          const tone = h ? handoverTone(h) : 'info';
+          const when = stepWhen(s, game);
+          const clock = shared ? '' : stepClockText(s, i ? f.steps[i - 1] : undefined);
+          const mark = s.place === 'head' ? '👑' : s.place === 'heir' ? '⚜️' : '';
+          const role = s.place === 'head' ? 'Head' : s.place === 'heir' ? 'Heir' : 'Then';
+          const partner =
+            s.place === 'head' || s.unborn
+              ? null
+              : s.partner
+                ? `${s.partner.married ? 'Married to' : 'Partner:'} ${nameOf(s.partner.id)}${s.partner.planned ? ' (planned)' : ''}`
+                : ['Young Adult', 'Adult', 'Elder'].includes(s.stage)
+                  ? 'No partner yet'
+                  : null;
+          return (
+            <li key={s.id} className="dynp__step">
+              {hand && (
+                <p className={`dynp__hand dynp__hand--${tone}`}>
+                  {tone === 'ok' ? <Check size={12} weight="bold" aria-hidden /> : tone === 'warn' ? <Warning size={12} weight="fill" aria-hidden /> : null}
+                  {hand}
+                </p>
+              )}
+              <button
+                type="button"
+                className={s.planned ? 'dynp__stepwho dynp__stepwho--planned' : 'dynp__stepwho'}
+                title="Show them on the board"
+                onClick={() => onFind(s.id)}
+              >
+                <span className="dynp__steprole">
+                  {mark && <span aria-hidden="true">{mark} </span>}
+                  {role}
+                  {s.planned && s.place !== 'later' ? ', planned' : ''}
+                </span>
+                <span className="dynp__stepname">{nameOf(s.id)}</span>
+                <span className="dynp__stepstage">{s.unborn ? 'not born yet' : s.stage}</span>
+              </button>
+              {when && <span className="dynp__when">{when}</span>}
+              {partner && (
+                <span className={partner === 'No partner yet' ? 'dynp__partner dynp__partner--none' : 'dynp__partner'}>
+                  {partner}
+                </span>
+              )}
+              {clock && <span className="dynp__clock">{clock}</span>}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }

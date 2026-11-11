@@ -18,6 +18,7 @@ import { GamesPanel } from './components/GamesPanel.tsx';
 import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { UpNextPanel } from './components/UpNextPanel.tsx';
 import { DynastiesPanel } from './components/DynastiesPanel.tsx';
+import { successionForecast } from './lib/forecast.ts';
 import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
 import { dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
 import { isPanelSheet } from './lib/chrome.ts';
@@ -366,6 +367,8 @@ export default function App() {
               renameLabel={renamedLabel}
               onRemove={wb.removeDynasty}
               litKey={wb.dynastyFocus}
+              forecastOf={(key) => successionForecast(wb.nodes, wb.edges, key, wb.saveGame)}
+              game={wb.saveGame}
               onLight={(key) => {
                 wb.setDynastyFocus(key);
                 // A phone's sheet covers the board: it gets out of the way.
