@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "12a9a6a",
+   "date": "2026-11-11",
+   "text": "A new sim now goes beside its partner or siblings when there's room, and otherwise into free room inside its own household's box before growing it. Planned children no longer end up below their grown siblings or on the far side of a neighbour. Still nothing else moves."
+  },
+  {
    "sha": "8b6961e",
    "date": "2026-11-11",
    "text": "Adding a sim never moves your board any more. A planned baby, a partner moving in, a sim added with a household's + or joining one with Move to takes its family's spot when it's free, or the nearest free spot, on screen when there is one. If there isn't, the view glides just far enough to show it. Its household's box may run over a neighbour's: drag things where you like."
