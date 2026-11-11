@@ -1858,8 +1858,108 @@ function assignTilesToColumns(
 }
 
 /**
+ * First layout epoch that packs a world's households by their whole boxes,
+ * name tags included, into the gaps they leave (packHouseholdGaps). Before,
+ * three columns were sized by cards alone: a long tag ran into the next
+ * column, and the household under it was pushed below the whole box
+ * (clearTitleOverhangs), and narrow households under a wide one left the
+ * room beside them empty. Gibbi Point stood 1400 tall for 600 of cards.
+ */
+export const PACKED_WORLDS_EPOCH = 9;
+
+/**
+ * How far a name tag may run past its column into the gap after it, short of
+ * the next household's box by a little air, as packing always let it.
+ */
+const TAG_REACH = LAYOUT.hhGap - 16;
+
+/**
+ * How wide a tile's household boxes reach from its first card: a name tag
+ * can run past the cards (the same measure as clearTitleOverhangs) and into
+ * the gap after them by TAG_REACH, rounded up to whole tiles so snapping
+ * never closes the gap after it.
+ */
+function tileBoxWidth(tile: HHTile, households: [string, SimNode[]][]): number {
+  const gidOf = new Map<string, string>();
+  const tag = new Map<string, number>();
+  for (const [gid, mem] of households) {
+    for (const n of mem) gidOf.set(n.id, gid);
+    if (mem[0]) tag.set(gid, HH_TAG_INSET * 2 + householdTagWidth(mem[0]));
+  }
+  const byGid = new Map<string, PlacedCard[]>();
+  for (const p of tile.placed) {
+    const gid = gidOf.get(p.id);
+    if (gid) byGid.set(gid, [...(byGid.get(gid) ?? []), p]);
+  }
+  const left = Math.min(...tile.placed.map((p) => p.x));
+  let right = Math.max(...tile.placed.map((p) => p.x + p.w));
+  for (const [gid, cards] of byGid) {
+    right = Math.max(right, Math.min(...cards.map((p) => p.x)) + (tag.get(gid) ?? 0) - TAG_REACH);
+  }
+  return Math.ceil((right - left) / TILE) * TILE;
+}
+
+/**
+ * A world's household tiles packed into the gaps they leave, no wider than
+ * `limitW`: tallest first, each at the lowest spot its box fits, then the
+ * leftmost, one household gap from every other box. Returns null when that
+ * comes out no lower than `than`.
+ */
+function packHouseholdGaps(
+  items: { tile: HHTile; w: number }[],
+  limitW: number,
+  than: number,
+): { placed: PlacedCard[]; w: number; h: number } | null {
+  type Seg = { x: number; r: number; y: number };
+  let sky: Seg[] = [{ x: 0, r: Infinity, y: 0 }];
+  const floor = (x: number, w: number) =>
+    Math.max(...sky.filter((s) => s.x < x + w && s.r > x).map((s) => s.y));
+  const order = [...items].sort(
+    (a, b) => b.tile.h - a.tile.h || b.w - a.w || a.tile.sortKey.localeCompare(b.tile.sortKey),
+  );
+  const placed: PlacedCard[] = [];
+  let w = 0;
+  let h = 0;
+  for (const { tile, w: tw } of order) {
+    let at: { x: number; y: number } | null = null;
+    for (const s of sky) {
+      if (s.x + tw > limitW && s.x > 0) continue;
+      const y = floor(s.x, tw);
+      if (!at || y < at.y || (y === at.y && s.x < at.x)) at = { x: s.x, y };
+    }
+    const { x, y } = at!;
+    for (const p of tile.placed) placed.push({ ...p, x: p.x + x, y: p.y + y });
+    w = Math.max(w, x + tw);
+    h = Math.max(h, y + tile.h);
+    // Raise the skyline under this box and the gap after it.
+    const top: Seg = { x, r: x + tw + LAYOUT.hhGap, y: y + tile.h + LAYOUT.hhGap };
+    const next: Seg[] = [];
+    for (const seg of sky) {
+      if (seg.r <= top.x || seg.x >= top.r) next.push(seg);
+      else {
+        if (seg.x < top.x) next.push({ ...seg, r: top.x });
+        if (seg.r > top.r) next.push({ ...seg, x: top.r });
+      }
+    }
+    next.push(top);
+    next.sort((a, b) => a.x - b.x);
+    sky = next.filter((seg, i) => {
+      const prev = next[i - 1];
+      if (prev && prev.y === seg.y && prev.r === seg.x) {
+        prev.r = seg.r;
+        return false;
+      }
+      return true;
+    });
+  }
+  return h < than ? { placed, w, h } : null;
+}
+
+/**
  * Bento-style packer: linked households cluster on the right; unconnected
- * singles stack in regular columns on the left.
+ * singles stack in regular columns on the left. From PACKED_WORLDS_EPOCH
+ * columns are as wide as their boxes, tags included, and when the boxes pack
+ * lower into the gaps, no wider, that wins (packHouseholdGaps).
  */
 function placeHouseholdBento(
   households: [string, SimNode[]][],
@@ -1887,6 +1987,11 @@ function placeHouseholdBento(
   const colHeights = new Array<number>(cols).fill(0);
   const colWidths = new Array<number>(cols).fill(0);
   const assignments: { tile: HHTile; col: number }[] = [];
+  const boxW = new Map<HHTile, number>();
+  if (epoch >= PACKED_WORLDS_EPOCH) {
+    for (const t of [...clusterTiles, ...singleTiles]) boxW.set(t, tileBoxWidth(t, households));
+    for (const t of [...clusterTiles, ...singleTiles]) t.w = Math.max(t.w, boxW.get(t)!);
+  }
 
   if (!clusterTiles.length) {
     assignTilesToColumns(singleTiles, 0, cols, colHeights, colWidths, assignments);
@@ -1910,7 +2015,15 @@ function placeHouseholdBento(
     );
   }
 
-  return packTilesInColumns(assignments, cols, colWidths);
+  const columns = packTilesInColumns(assignments, cols, colWidths);
+  if (epoch < PACKED_WORLDS_EPOCH) return columns;
+  return (
+    packHouseholdGaps(
+      [...clusterTiles, ...singleTiles].map((tile) => ({ tile, w: tile.w })),
+      columns.w,
+      columns.h,
+    ) ?? columns
+  );
 }
 
 /** Masonry: named worlds fill worldCols; Other sits in its own column to the right. */

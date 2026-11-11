@@ -10,6 +10,7 @@ import {
   partnerSpot,
   rowsUnderHousehold,
   layoutBases,
+  PACKED_WORLDS_EPOCH,
   packingKey,
   packingSignature,
   LAYOUT,
@@ -901,5 +902,63 @@ describe('a row of children in the order of their parents', () => {
   it('went by name before', () => {
     const c = x(snapNodesToTiles(computeLayout(nodes, worlds, edges, ANIMAL_LANE_EPOCH - 1)));
     assert.equal(c.get('ash'), c.get('ava'));
+  });
+});
+
+describe('a world’s households packed into the gaps they leave', () => {
+  const seed = migrateWhiteboardData(seedRoster as unknown as WhiteboardData);
+  const laidAt = (epoch: number) => snapNodesToTiles(computeLayout(seed.nodes, seed.worlds!, seed.edges, epoch));
+  const box = (laid: SimNode[], gid: string) => hhBoxDraw(gid, laid, seed.groups!, () => true)!;
+  /** Each world's height, from its top household box to its bottom one. */
+  const heights = (laid: SimNode[]) => {
+    const out = new Map<string, { t: number; b: number }>();
+    for (const gid of new Set(laid.map((n) => n.gid))) {
+      const world = laid.find((n) => n.gid === gid)!.world;
+      const b = box(laid, gid);
+      const was = out.get(world);
+      out.set(world, was ? { t: Math.min(was.t, b.t), b: Math.max(was.b, b.b) } : { t: b.t, b: b.b });
+    }
+    return new Map([...out].map(([w, b]) => [w, b.b - b.t]));
+  };
+
+  it('fits Gibbi Point’s seven households in half the height', () => {
+    const now = heights(laidAt(PACKED_WORLDS_EPOCH)).get('Gibbi Point')!;
+    const was = heights(laidAt(PACKED_WORLDS_EPOCH - 1)).get('Gibbi Point')!;
+    assert.ok(now <= was / 2, `${now} against ${was}`);
+  });
+
+  it('puts Preener beside the tall Perrys, not below them', () => {
+    const laid = laidAt(PACKED_WORLDS_EPOCH);
+    const perry = box(laid, 'Gibbi Point||Perry');
+    const preener = box(laid, 'Gibbi Point||Preener');
+    assert.ok(preener.t < perry.b);
+  });
+
+  it('makes no world of the built-in board taller', () => {
+    const now = heights(laidAt(PACKED_WORLDS_EPOCH));
+    const was = heights(laidAt(PACKED_WORLDS_EPOCH - 1));
+    for (const [world, h] of now) assert.ok(h <= was.get(world)!, `${world}: ${h} against ${was.get(world)}`);
+    assert.ok([...now].some(([world, h]) => h < was.get(world)!));
+  });
+
+  it('keeps every household box, name tag included, clear of the others', () => {
+    const laid = laidAt(PACKED_WORLDS_EPOCH);
+    const boxes = [...new Set(laid.map((n) => n.gid))].map((gid) => [gid, box(laid, gid)] as const);
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const [ga, a] = boxes[i]!;
+        const [gb, b] = boxes[j]!;
+        assert.ok(!(a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t), `${ga} / ${gb}`);
+      }
+    }
+  });
+
+  it('keeps a board saved before where it was', () => {
+    const old = PACKED_WORLDS_EPOCH - 1;
+    const was = laidAt(old);
+    const { nodes: pinned, repacked } = prepareLoadedNodes(seed.nodes, old, seed.worlds!, seed.edges);
+    assert.equal(repacked, false);
+    const now = new Map(snapNodesToTiles(computeLayout(pinned, seed.worlds!, seed.edges)).map((n) => [n.id, n]));
+    for (const n of was) assert.deepEqual([now.get(n.id)!.x, now.get(n.id)!.y], [n.x, n.y], n.id);
   });
 });
