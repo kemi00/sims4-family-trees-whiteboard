@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "072ca40",
+   "date": "2026-11-12",
+   "text": "Look back through your uploads: a slider shows the board as it was at each one, and plays the story forward."
+  },
+  {
    "sha": "75f3bdf",
    "date": "2026-11-12",
    "text": "The Chronicle: every save upload adds a page to the board's story, which you can read whole or for one sim, household or dynasty, and add to a poster."
