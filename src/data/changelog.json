@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "e40343c",
+   "date": "2026-11-12",
+   "text": "Search like Spotlight: press ⌘K (Ctrl+K on Windows) or the Search button to find any sim, household, neighbourhood, world or dynasty, or something to do. The top bar is calmer, with a View menu, and Organise and the Log in More, so it fits every window."
+  },
+  {
    "sha": "6377ef3",
    "date": "2026-11-12",
    "text": "A Story button in the top bar opens the Chronicle, household tags show when a planned couple is running out of time for babies, and the editor's Delete wraps long names."
