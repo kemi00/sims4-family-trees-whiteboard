@@ -461,6 +461,8 @@ export function useWhiteboard() {
     setBriefGidState(gid);
     setBriefHover(null);
   }, []);
+  /** The Filters panel; Games, Play and Highlight open as views inside it. */
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [gamesOpen, setGamesOpen] = useState(false);
   const [agesOpen, setAgesOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
@@ -4068,6 +4070,8 @@ export function useWhiteboard() {
     planItems,
     notInGame,
     planTally,
+    filtersOpen,
+    setFiltersOpen,
     gamesOpen,
     setGamesOpen,
     agesOpen,

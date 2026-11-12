@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DownloadSimple, ShareNetwork, X } from '../icons.ts';
+import { CloseButton } from './CloseButton.tsx';
+import { DownloadSimple, ShareNetwork } from '../icons.ts';
 import type { PosterModel } from '../lib/poster.ts';
 import { drawPoster } from '../lib/posterDraw.ts';
 
@@ -78,9 +79,7 @@ export function PosterDialog({ model, onClose }: Props) {
       <div className="poster__card" onClick={(e) => e.stopPropagation()}>
         <div className="poster__head">
           <h2 id="poster-title">Poster: {model.title}</h2>
-          <button ref={closeRef} type="button" className="poster__x" aria-label="Close the poster" onClick={onClose}>
-            <X aria-hidden="true" />
-          </button>
+          <CloseButton ref={closeRef} label="Close the poster" onClick={onClose} />
         </div>
         <div className="poster__view">
           {url ? (

@@ -1,4 +1,5 @@
-import { Info, X } from '../icons.ts';
+import { Info } from '../icons.ts';
+import { CloseButton } from './CloseButton.tsx';
 import { useEffect, useId, useRef, useState } from 'react';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 
@@ -153,16 +154,7 @@ export function Hint({ introReady = false }: Props) {
       >
         <div className="hint__head">
           <b id={titleId}>Getting around</b>
-          <button
-            ref={closeRef}
-            id="hintClose"
-            type="button"
-            title="Close"
-            aria-label="Close"
-            onClick={close}
-          >
-            <X aria-hidden="true" />
-          </button>
+          <CloseButton ref={closeRef} id="hintClose" label="Close Getting around" onClick={close} />
         </div>
         <NavTips />
         <p className="hint__again">
@@ -219,19 +211,7 @@ export function Hint({ introReady = false }: Props) {
     >
       <div className="hint__head">
         <b id={titleId}>Quick tips</b>
-        <button
-          ref={closeRef}
-          id="hintClose"
-          type="button"
-          title="Close"
-          aria-label="Close tips"
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen(false);
-          }}
-        >
-          <X aria-hidden="true" />
-        </button>
+        <CloseButton ref={closeRef} id="hintClose" label="Close tips" onClick={() => setOpen(false)} />
       </div>
 
       <div className="hint__legend" aria-label="Link colors">

@@ -1,6 +1,6 @@
 import { Analytics } from '@vercel/analytics/react';
 import { IconContext } from './icons.ts';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import changelog from './data/changelog.json';
 import {
@@ -10,14 +10,12 @@ import {
   visibleEntries,
   type ChangelogEntry,
 } from './lib/changelog.ts';
-import { AgesPanel } from './components/AgesPanel.tsx';
 import { AppBar } from './components/AppBar.tsx';
 import { ConnectionLogPanel } from './components/ConnectionLogPanel.tsx';
 import { DevUpdatesDialog } from './components/DevUpdatesDialog.tsx';
-import { GamesPanel } from './components/GamesPanel.tsx';
-import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { UpNextPanel } from './components/UpNextPanel.tsx';
 import { DynastiesPanel } from './components/DynastiesPanel.tsx';
+import { FiltersPanel } from './components/FiltersPanel.tsx';
 import { successionForecast } from './lib/forecast.ts';
 import { partnerWindows } from './lib/matchClock.ts';
 import { storyLines } from './lib/chronicle.ts';
@@ -76,16 +74,6 @@ export default function App() {
   }, []);
   const svgRef = useRef<SVGSVGElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const filtersBtnRef = useRef<HTMLButtonElement>(null);
-  const logBtnRef = useRef<HTMLButtonElement>(null);
-  const gamesPanelRef = useRef<HTMLDivElement>(null);
-  const agesPanelRef = useRef<HTMLDivElement>(null);
-  const playPanelRef = useRef<HTMLDivElement>(null);
-  const logPanelRef = useRef<HTMLDivElement>(null);
-  const upNextBtnRef = useRef<HTMLButtonElement>(null);
-  const upNextPanelRef = useRef<HTMLDivElement>(null);
-  const dynastiesBtnRef = useRef<HTMLButtonElement>(null);
-  const dynastiesPanelRef = useRef<HTMLDivElement>(null);
   /** Search, Spotlight-style: ⌘K or Ctrl+K anywhere, or the bar's Search. */
   const [findOpen, setFindOpen] = useState(false);
   const findKeys = useMemo(() => findShortcut(), []);
@@ -105,18 +93,13 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') {
+      // A bar panel (BarPanel) took this Esc: going back a view, or closing.
+      if (ev.key === 'Escape' && !ev.defaultPrevented) {
         if (devUpdatesOpen) closeDevUpdates();
         else if (wb.saveImport) wb.cancelSaveImport();
         else if (wb.pendingLoadJson) wb.cancelLoadJson();
         else if (wb.partnerMenu) wb.closePartnerMenu();
         else if (wb.childMenu) wb.closeChildMenu();
-        else if (wb.gamesOpen) wb.setGamesOpen(false);
-        else if (wb.playOpen) wb.setPlayOpen(false);
-        else if (wb.agesOpen) wb.setAgesOpen(false);
-        else if (wb.logOpen) wb.setLogOpen(false);
-        else if (wb.upNextOpen) wb.setUpNextOpen(false);
-        else if (wb.dynastiesOpen) wb.setDynastiesOpen(false);
         else if (wb.editNodeId) wb.setEditNodeId(null);
         else if (wb.briefGid) wb.setBriefGid(null);
         else if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
@@ -172,67 +155,54 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [wb, devUpdatesOpen, closeDevUpdates]);
 
-  useEffect(() => {
-    const onPointer = (ev: PointerEvent) => {
-      const t = ev.target as Node;
-      if (
-        wb.gamesOpen &&
-        gamesPanelRef.current &&
-        !gamesPanelRef.current.contains(t) &&
-        !filtersBtnRef.current?.contains(t)
-      ) {
+  /**
+   * The bar's group (Up next, Dynasties, Story, Filters) and the Log share
+   * one panel: one open at a time. The one opened last swaps in for the
+   * other, in the same place, before it paints.
+   */
+  const barOpen = {
+    upnext: wb.upNextOpen,
+    dynasties: wb.dynastiesOpen,
+    story: !!wb.chronicleView,
+    log: wb.logOpen,
+    filters: wb.filtersOpen || wb.gamesOpen || wb.playOpen || wb.agesOpen,
+  };
+  const barWas = useRef(barOpen);
+  const closeBar = useCallback(
+    (keep?: keyof typeof barOpen) => {
+      if (keep !== 'upnext') wb.setUpNextOpen(false);
+      if (keep !== 'dynasties') wb.setDynastiesOpen(false);
+      if (keep !== 'story') wb.setChronicleView(null);
+      if (keep !== 'log') wb.setLogOpen(false);
+      if (keep !== 'filters') {
+        wb.setFiltersOpen(false);
         wb.setGamesOpen(false);
-      }
-      if (
-        wb.playOpen &&
-        playPanelRef.current &&
-        !playPanelRef.current.contains(t) &&
-        !filtersBtnRef.current?.contains(t)
-      ) {
         wb.setPlayOpen(false);
-      }
-      if (
-        wb.agesOpen &&
-        agesPanelRef.current &&
-        !agesPanelRef.current.contains(t) &&
-        !filtersBtnRef.current?.contains(t)
-      ) {
         wb.setAgesOpen(false);
       }
-      if (
-        wb.logOpen &&
-        logPanelRef.current &&
-        !logPanelRef.current.contains(t) &&
-        !logBtnRef.current?.contains(t) &&
-        // Opened from More's menu: its menu item toggles it.
-        !(t as Element).closest?.('.overflow')
-      ) {
-        wb.setLogOpen(false);
-      }
-      if (
-        wb.upNextOpen &&
-        upNextPanelRef.current &&
-        !upNextPanelRef.current.contains(t) &&
-        !upNextBtnRef.current?.contains(t) &&
-        // Folded into More on a phone: its menu opens the panel.
-        !(t as Element).closest?.('.overflow')
-      ) {
-        wb.setUpNextOpen(false);
-      }
-      if (
-        wb.dynastiesOpen &&
-        dynastiesPanelRef.current &&
-        !dynastiesPanelRef.current.contains(t) &&
-        !dynastiesBtnRef.current?.contains(t) &&
-        // Folded into More on a phone: its menu opens the panel.
-        !(t as Element).closest?.('.overflow')
-      ) {
-        wb.setDynastiesOpen(false);
-      }
+    },
+    [wb],
+  );
+  useLayoutEffect(() => {
+    const was = barWas.current;
+    barWas.current = barOpen;
+    const opened = (Object.keys(barOpen) as (keyof typeof barOpen)[]).find((k) => barOpen[k] && !was[k]);
+    if (opened && Object.values(barOpen).filter(Boolean).length > 1) closeBar(opened);
+  });
+  const anyBarOpen = Object.values(barOpen).some(Boolean);
+  useEffect(() => {
+    if (!anyBarOpen) return;
+    // A press on the board closes it. The panel, the bar (whose buttons
+    // toggle and swap it) and anything over it (a dialog, a menu, the sim
+    // editor, search) keep it.
+    const onPointer = (ev: PointerEvent) => {
+      const t = ev.target as Element | null;
+      if (!t?.closest || t.closest('.barpanel, .appbar, [aria-modal="true"], .menu, .editor, .find, .poster, .pop')) return;
+      closeBar();
     };
     document.addEventListener('pointerdown', onPointer, true);
     return () => document.removeEventListener('pointerdown', onPointer, true);
-  }, [wb.gamesOpen, wb.playOpen, wb.agesOpen, wb.logOpen, wb.upNextOpen, wb.dynastiesOpen, wb]);
+  }, [anyBarOpen, closeBar]);
 
   /** Every dynasty on the board, for the Dynasties panel: worked out only while it is open. */
   const dynastyRows = useMemo(() => (wb.dynastiesOpen ? dynastyIndex(wb.nodes) : []), [wb.dynastiesOpen, wb.nodes]);
@@ -426,10 +396,6 @@ export default function App() {
         <AppBar
           wb={wb}
           svgRef={svgRef}
-          filtersBtnRef={filtersBtnRef}
-          logBtnRef={logBtnRef}
-          upNextBtnRef={upNextBtnRef}
-          dynastiesBtnRef={dynastiesBtnRef}
           onDevUpdates={() => setDevUpdatesOpen(true)}
           devUpdatesUnseen={devUpdatesUnseen}
           onOpenFind={() => {
@@ -453,73 +419,8 @@ export default function App() {
           }}
         />
         {poster && <PosterDialog model={poster} onClose={() => setPoster(null)} />}
-        {(wb.gamesOpen || wb.playOpen || wb.agesOpen) && (
-          <div
-            className="chrome-backdrop"
-            aria-hidden
-            onPointerDown={() => {
-              wb.setGamesOpen(false);
-              wb.setPlayOpen(false);
-              wb.setAgesOpen(false);
-            }}
-          />
-        )}
-        {wb.gamesOpen && (
-          <div ref={gamesPanelRef}>
-            <GamesPanel
-              packs={wb.packs}
-              hiddenPacks={wb.hiddenPacks}
-              counts={wb.packCounts}
-              colors={wb.packColors}
-              anchorRect={
-                filtersBtnRef.current?.getBoundingClientRect() ?? null
-              }
-              onToggle={wb.togglePack}
-              onAll={() => wb.setHiddenPacks(new Set())}
-              onNone={() => wb.setHiddenPacks(new Set(wb.packs))}
-              onClose={() => wb.setGamesOpen(false)}
-            />
-          </div>
-        )}
-        {wb.playOpen && (
-          <div ref={playPanelRef}>
-            <PlayabilityPanel
-              playabilities={wb.playabilities}
-              hiddenPlay={wb.hiddenPlay}
-              nodes={wb.nodes}
-              anchorRect={
-                filtersBtnRef.current?.getBoundingClientRect() ?? null
-              }
-              onToggle={wb.togglePlay}
-              onAll={() => wb.setHiddenPlay(new Set())}
-              onNone={() => wb.setHiddenPlay(new Set(wb.playabilities))}
-            />
-          </div>
-        )}
-        {wb.agesOpen && (
-          <div ref={agesPanelRef}>
-            <AgesPanel
-              nodes={wb.nodes}
-              partnered={wb.partneredIds}
-              parents={wb.parentIds}
-              hiAges={wb.hiAges}
-              hiSingle={wb.hiSingle}
-              unborn={wb.plannedChildIds}
-              packVis={wb.nodeVis}
-              anchorRect={
-                filtersBtnRef.current?.getBoundingClientRect() ?? null
-              }
-              onToggle={wb.toggleAge}
-              onToggleSingle={wb.toggleSingle}
-              onClear={() => {
-                wb.setHiAges(new Set());
-                wb.setHiSingle(false);
-              }}
-            />
-          </div>
-        )}
+        {barOpen.filters && <FiltersPanel wb={wb} />}
         {wb.upNextOpen && (
-          <div ref={upNextPanelRef}>
             <UpNextPanel
               rows={upNext({
                 items: wb.planItems,
@@ -536,7 +437,7 @@ export default function App() {
                 return n ? cardName(n) : 'someone';
               }}
               hhOf={(gid) => householdName(gid, wb.groups, wb.nodes)}
-              anchorRect={upNextBtnRef.current?.getBoundingClientRect() ?? null}
+              onClose={() => wb.setUpNextOpen(false)}
               onOpen={(r) => {
                 wb.setUpNextOpen(false);
                 wb.setBriefGid(r.gid);
@@ -558,10 +459,8 @@ export default function App() {
                 })
               }
             />
-          </div>
         )}
         {wb.dynastiesOpen && (
-          <div ref={dynastiesPanelRef}>
             <DynastiesPanel
               rows={dynastyRows}
               labelOf={dynastyLabelOf}
@@ -571,7 +470,7 @@ export default function App() {
                 const n = wb.byid[id];
                 return n?.hh ? householdPlace(n.hh, n.nb, n.world) : '';
               }}
-              anchorRect={dynastiesBtnRef.current?.getBoundingClientRect() ?? null}
+              onClose={() => wb.setDynastiesOpen(false)}
               onFind={(id) => {
                 // A phone's sheet covers the board: it gets out of the way.
                 if (isPanelSheet()) wb.setDynastiesOpen(false);
@@ -622,10 +521,8 @@ export default function App() {
                 if (key && isPanelSheet()) wb.setDynastiesOpen(false);
               }}
             />
-          </div>
         )}
         {wb.logOpen && (
-          <div ref={logPanelRef}>
             <ConnectionLogPanel
               entries={wb.connectionLog}
               offPlanEdgeIds={wb.offPlan.edges}
@@ -634,9 +531,6 @@ export default function App() {
                 const r = svgRef.current?.getBoundingClientRect();
                 wb.cancelPlan(entry, r ? { w: r.width, h: r.height } : undefined);
               }}
-              anchorRect={
-                logBtnRef.current?.getBoundingClientRect() ?? null
-              }
               isSelLink={wb.isSelLink}
               selectedSimId={wb.sel?.type === 'node' ? wb.sel.id : null}
               onPick={(entry) => {
@@ -665,7 +559,6 @@ export default function App() {
               }}
               onClose={() => wb.setLogOpen(false)}
             />
-          </div>
         )}
         {wb.saveImport && (
           <SaveImportDialog

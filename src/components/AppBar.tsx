@@ -6,24 +6,18 @@ import {
   Eye,
   EyeSlash,
   Funnel,
-  GameController,
   Globe,
-  Highlighter,
   House,
-  IdentificationBadge,
   LinkSimple,
   ListNumbers,
-  LockSimple,
   MagicWand,
   MagnifyingGlass,
-  Skull,
   ArrowClockwise,
   ArrowCounterClockwise,
   Scroll,
   TreeStructure,
   UserPlus,
   UsersFour,
-  UsersThree,
   type Icon,
 } from '../icons.ts';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
@@ -31,7 +25,7 @@ import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
-import { simName } from '../lib/connectionLog.ts';
+import { filterCounts } from '../lib/filterCount.ts';
 import type { LinksView } from '../lib/family.ts';
 import { saveChipText } from '../lib/lifeClock.ts';
 import { REDO_KEYS, UNDO_KEYS, redoTip, undoTip } from '../lib/undoNames.ts';
@@ -39,18 +33,6 @@ import { StepTip } from './StepText.tsx';
 import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
 import { SaveDetails } from './SaveStatus.tsx';
 import { ToolButton } from './ToolButton.tsx';
-
-function bloodlineToolLabel(wb: WhiteboardApi): string {
-  if (wb.bloodlineId) {
-    const node = wb.byid[wb.bloodlineId];
-    const name = node ? simName(node) : 'this sim';
-    return `Showing ${name}'s bloodline. Click to show everyone.`;
-  }
-  if (wb.sel?.type === 'node') {
-    return 'Dim everyone who is not an ancestor or descendant of the selected sim.';
-  }
-  return 'Select a sim, then Bloodline, to dim everyone outside their ancestors and descendants.';
-}
 
 /** The family-links views, in the menu's order: most shown to least. */
 const LINK_VIEWS: { view: LinksView; icon: Icon; label: string; note?: string }[] = [
@@ -121,10 +103,6 @@ function useDismiss(
 type Props = {
   wb: WhiteboardApi;
   svgRef: RefObject<SVGSVGElement | null>;
-  filtersBtnRef: RefObject<HTMLButtonElement | null>;
-  logBtnRef: RefObject<HTMLButtonElement | null>;
-  upNextBtnRef: RefObject<HTMLButtonElement | null>;
-  dynastiesBtnRef: RefObject<HTMLButtonElement | null>;
   onDevUpdates: () => void;
   devUpdatesUnseen: boolean;
   /** Open search (⌘K or Ctrl+K does too). */
@@ -136,22 +114,12 @@ type Props = {
 export function AppBar({
   wb,
   svgRef,
-  filtersBtnRef,
-  logBtnRef,
-  upNextBtnRef,
-  dynastiesBtnRef,
   onDevUpdates,
   devUpdatesUnseen,
   onOpenFind,
   findKeys,
 }: Props) {
   const compact = useCompactChrome();
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const filtersRef = useRef<HTMLDivElement>(null);
-  const { popRef: filtersPopRef, style: filtersPopStyle } = useDropdownPosition(
-    filtersOpen,
-    filtersRef,
-  );
   /** The More menu's wrapper: what popovers opened from it hang off. */
   const moreRef = useRef<HTMLDivElement>(null);
   const [linksFrom, setLinksFrom] = useState<OpenedFrom | null>(null);
@@ -172,19 +140,9 @@ export function AppBar({
   const closeSave = useCallback(() => setSaveOpen(false), []);
   useDismiss(saveOpen, moreRef, closeSave, savePopRef);
 
-  // A game switched off with no sims on the board hides nothing, so it is
-  // not an active filter (Games lists it, off, all the same).
-  const hiddenCount = [...wb.hiddenPacks].filter((p) => wb.packCounts.get(p)).length;
-  const playHidden = wb.hiddenPlay.size;
-  const ageCount = wb.hiAges.size + (wb.hiSingle ? 1 : 0);
-  const filterCount =
-    hiddenCount +
-    playHidden +
-    ageCount +
-    (wb.bloodlineId ? 1 : 0) +
-    (wb.hideSecrets ? 1 : 0) +
-    (wb.hideDeceased ? 1 : 0);
-  const filterPanelOpen = wb.gamesOpen || wb.playOpen || wb.agesOpen;
+  const filterCount = filterCounts(wb).total;
+  /** Filters' panel, on any of its views (Games, Play and Highlight open inside it). */
+  const filtersOpen = wb.filtersOpen || wb.gamesOpen || wb.playOpen || wb.agesOpen;
 
   const svgSize = () => {
     const r = svgRef.current?.getBoundingClientRect();
@@ -204,67 +162,31 @@ export function AppBar({
     wb.addSim(r.width, r.height);
   };
 
-  const closeFilters = useCallback(() => setFiltersOpen(false), []);
-  useDismiss(filtersOpen, filtersRef, closeFilters);
-
-  const closeFilterPanels = () => {
-    wb.setGamesOpen(false);
-    wb.setPlayOpen(false);
-    wb.setAgesOpen(false);
-  };
-
+  // The bar's group opens one panel at a time, in one place: App swaps out
+  // whichever was open, so each button only toggles its own.
   const toggleFilters = () => {
-    if (filterPanelOpen) {
-      closeFilterPanels();
-      setFiltersOpen(false);
-      return;
-    }
-    wb.setLogOpen(false);
-    wb.setDynastiesOpen(false);
     closeLinks();
     closeSave();
-    setFiltersOpen((o) => {
-      if (!o) trackAction('/action/filters');
-      return !o;
-    });
-  };
-
-  const openGames = () => {
-    setFiltersOpen(false);
-    wb.setPlayOpen(false);
-    wb.setAgesOpen(false);
-    wb.setLogOpen(false);
-    wb.setGamesOpen(!wb.gamesOpen);
-  };
-  const openPlay = () => {
-    setFiltersOpen(false);
-    wb.setGamesOpen(false);
-    wb.setAgesOpen(false);
-    wb.setLogOpen(false);
-    wb.setPlayOpen(!wb.playOpen);
-  };
-  const openAges = () => {
-    setFiltersOpen(false);
-    wb.setGamesOpen(false);
-    wb.setPlayOpen(false);
-    wb.setLogOpen(false);
-    wb.setAgesOpen(!wb.agesOpen);
+    if (filtersOpen) {
+      wb.setFiltersOpen(false);
+      wb.setGamesOpen(false);
+      wb.setPlayOpen(false);
+      wb.setAgesOpen(false);
+      return;
+    }
+    trackAction('/action/filters');
+    wb.setFiltersOpen(true);
   };
   const openUpNext = () => {
-    setFiltersOpen(false);
-    closeFilterPanels();
-    wb.setLogOpen(false);
-    wb.setDynastiesOpen(false);
     const next = !wb.upNextOpen;
     if (next) trackAction('/action/up-next');
     wb.setUpNextOpen(next);
   };
   /** The Chronicle, the whole board's story: from here as well as the save chip. */
-  const storyOpen = !!wb.chronicleView && wb.chronicleView.ids === null;
+  const storyOpen = !!wb.chronicleView;
   const openStory = () => {
-    setFiltersOpen(false);
-    closeFilterPanels();
-    if (storyOpen) {
+    // Open on one household's or dynasty's story, the button shows the whole one.
+    if (wb.chronicleView?.ids === null) {
       wb.setChronicleView(null);
       return;
     }
@@ -272,43 +194,21 @@ export function AppBar({
     wb.setRecapOpen(false);
     wb.setChronicleView({ label: 'your board', ids: null });
   };
-
   const openDynasties = () => {
-    setFiltersOpen(false);
-    closeFilterPanels();
-    wb.setLogOpen(false);
-    wb.setUpNextOpen(false);
     const next = !wb.dynastiesOpen;
     if (next) trackAction('/action/dynasties');
     wb.setDynastiesOpen(next);
   };
   const openLog = () => {
-    setFiltersOpen(false);
-    closeFilterPanels();
-    wb.setUpNextOpen(false);
-    wb.setDynastiesOpen(false);
     const next = !wb.logOpen;
     if (next) trackAction('/action/log');
     wb.setLogOpen(next);
-  };
-  const onBloodline = () => {
-    wb.toggleBloodline();
-    setFiltersOpen(false);
-  };
-  const onHideSecrets = () => {
-    wb.toggleHideSecrets();
-    setFiltersOpen(false);
-  };
-  const onHideDeceased = () => {
-    wb.toggleHideDeceased();
-    setFiltersOpen(false);
   };
   const organise = () => {
     const { w, h } = svgSize();
     wb.organiseBoard(w, h);
   };
   const toggleLinks = (from: OpenedFrom) => {
-    setFiltersOpen(false);
     closeSave();
     setLinksFrom((f) => (f ? null : from));
   };
@@ -385,7 +285,6 @@ export function AppBar({
                 label: 'Your save',
                 note: saveChipText(wb.saveGame),
                 onSelect: () => {
-                  setFiltersOpen(false);
                   closeLinks();
                   setSaveOpen((o) => {
                     if (!o) trackAction('/action/save-details');
@@ -549,7 +448,6 @@ export function AppBar({
       {!compact && (
         <ToolButton
           id="btnUpNext"
-          ref={upNextBtnRef}
           icon={ListNumbers}
           label="Up next: a suggested order to play your households in"
           pressed={wb.upNextOpen}
@@ -563,7 +461,6 @@ export function AppBar({
       {!compact && (
         <ToolButton
           id="btnDynasties"
-          ref={dynastiesBtnRef}
           icon={Crown}
           label="Dynasties: every dynasty, planned or in your game, with its members"
           pressed={wb.dynastiesOpen}
@@ -588,87 +485,17 @@ export function AppBar({
         </ToolButton>
       )}
 
-      <div className="overflow" ref={filtersRef}>
-        <ToolButton
-          id="btnFilters"
-          ref={filtersBtnRef}
-          icon={Funnel}
-          label={filterCount ? `Filters: ${filterCount} on` : 'Bloodline, hide secrets or deceased, games, play, highlight'}
-          pressed={filterCount > 0 || filterPanelOpen || filtersOpen}
-          count={filterCount}
-          expanded={filtersOpen}
-          onClick={toggleFilters}
-        >
-          Filters
-        </ToolButton>
-        {filtersOpen && (
-          <div
-            ref={filtersPopRef}
-            className="pop"
-            role="menu"
-            aria-label="Filters"
-            style={filtersPopStyle}
-          >
-            <button
-              type="button"
-              role="menuitem"
-              aria-pressed={!!wb.bloodlineId}
-              disabled={!(wb.bloodlineId || wb.sel?.type === 'node')}
-              title={bloodlineToolLabel(wb)}
-              onClick={onBloodline}
-            >
-              <UsersThree aria-hidden="true" />
-              Bloodline
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              aria-pressed={wb.hideSecrets}
-              disabled={!wb.hasSecrets && !wb.hideSecrets}
-              title={
-                wb.hasSecrets || wb.hideSecrets
-                  ? 'Hide secret lovers and secret parents, for screenshots without spoilers. They stay in your file.'
-                  : 'No secrets on this board. Secret lovers and secret parents come from a save import.'
-              }
-              onClick={onHideSecrets}
-            >
-              <LockSimple aria-hidden="true" />
-              Hide secrets
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              aria-pressed={wb.hideDeceased}
-              disabled={!wb.hasDeceased && !wb.hideDeceased}
-              title={
-                wb.hasDeceased || wb.hideDeceased
-                  ? 'Hide sims marked Deceased. Their cards keep their places, and they stay in your file.'
-                  : 'No deceased sims on this board.'
-              }
-              onClick={onHideDeceased}
-            >
-              <Skull aria-hidden="true" />
-              Hide deceased
-            </button>
-            <span className="pop__rule" aria-hidden="true" />
-            <button type="button" role="menuitem" onClick={openGames}>
-              <GameController aria-hidden="true" />
-              Games
-              {hiddenCount ? ` (${hiddenCount})` : ''}
-            </button>
-            <button type="button" role="menuitem" onClick={openPlay}>
-              <IdentificationBadge aria-hidden="true" />
-              Play
-              {playHidden ? ` (${playHidden})` : ''}
-            </button>
-            <button type="button" role="menuitem" onClick={openAges}>
-              <Highlighter aria-hidden="true" />
-              Highlight
-              {ageCount ? ` (${ageCount})` : ''}
-            </button>
-          </div>
-        )}
-      </div>
+      <ToolButton
+        id="btnFilters"
+        icon={Funnel}
+        label={filterCount ? `Filters: ${filterCount} on` : 'Filters: bloodline, hide secrets or deceased, games, play, highlight'}
+        pressed={filterCount > 0 || filtersOpen}
+        count={filterCount}
+        expanded={filtersOpen}
+        onClick={toggleFilters}
+      >
+        Filters
+      </ToolButton>
 
       {/* Search opens over the board, Spotlight-style, and never changes the bar's size. */}
       <button
@@ -704,7 +531,6 @@ export function AppBar({
         }
         folded={folded}
         wrapRef={moreRef}
-        buttonRef={logBtnRef}
       />
       {linksFrom === 'more' && linksMenu}
       {compact && saveOpen && wb.saveGame && (

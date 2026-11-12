@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
 import { PartnerRow } from './PartnerRow.tsx';
-import { X } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
 import { theHousehold } from '../lib/utils.ts';
@@ -121,9 +121,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
     >
       <div className="pmenu__head">
         <b>Partner for {name}</b>
-        <button type="button" className="pmenu__close" aria-label="Close" onClick={onClose}>
-          <X aria-hidden="true" />
-        </button>
+        <CloseButton label="Close" onClick={onClose} />
       </div>
       <div className="pmenu__kinds" role="radiogroup" aria-label="Link">
         {PARTNER_CHOICES.map((c) => (

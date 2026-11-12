@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { CloseButton } from './CloseButton.tsx';
 import { X } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { DECEASED_STATE } from '../lib/constants.ts';
@@ -119,9 +120,7 @@ export function LotMoveInMenu({ lot, left, top, nodes, picked, onMove, onClose }
             </span>
           </span>
         </span>
-        <button type="button" className="pmenu__close" aria-label="Close" onClick={onClose}>
-          <X aria-hidden="true" />
-        </button>
+        <CloseButton label="Close" onClick={onClose} />
       </div>
       <form className="hhmove" onSubmit={submit} onKeyDown={onKeyDown}>
         <label htmlFor="lotWho">Who moves in?</label>

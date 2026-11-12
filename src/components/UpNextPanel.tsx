@@ -1,9 +1,6 @@
-import { usePanelSheet } from '../hooks/usePanelSheet.ts';
-import { panelPosition } from '../lib/chrome.ts';
+import { BarPanel } from './BarPanel.tsx';
 import { upNextReason, type UpNextRow } from '../lib/householdPlan.ts';
 import type { Group } from '../types/whiteboard.ts';
-
-const WIDTH = 320;
 
 type Props = {
   rows: UpNextRow[];
@@ -11,7 +8,7 @@ type Props = {
   nameOf: (id: string) => string;
   /** "the Munch household". */
   hhOf: (gid: string) => string;
-  anchorRect: DOMRect | null;
+  onClose: () => void;
   onOpen: (row: UpNextRow) => void;
   onSkip: (gid: string, skip: boolean) => void;
 };
@@ -30,23 +27,17 @@ function metaText(r: UpNextRow): string {
  * handed a plan than pick by mood: only households where playing does
  * something, each with why it is where it is. It never changes the board.
  */
-export function UpNextPanel({ rows, groups, nameOf, hhOf, anchorRect, onOpen, onSkip }: Props) {
-  const sheet = usePanelSheet();
-  const pos = panelPosition(anchorRect, WIDTH);
-  if (!pos) return null;
+export function UpNextPanel({ rows, groups, nameOf, hhOf, onClose, onOpen, onSkip }: Props) {
   // The suggestion is the first household you can play now.
   const first = rows.findIndex((r) => !r.skipped && !r.notInGame);
   return (
-    <div
+    <BarPanel
       id="upnext"
-      className={sheet ? 'gpanel gpanel--sheet upnext' : 'gpanel upnext'}
-      style={{ display: 'block', ...(sheet ? {} : { width: WIDTH }), ...pos }}
-      role="dialog"
-      aria-label="Up next"
+      className="gpanel upnext"
+      title="Up next"
+      description="A suggested order to play your households in"
+      onClose={onClose}
     >
-      <div className="gph">
-        <b>Up next</b>
-      </div>
       {!rows.length ? (
         <p className="upnext__empty">
           Nothing to suggest yet. Plan a couple or a baby, and the households with something to do show up here.
@@ -93,6 +84,6 @@ export function UpNextPanel({ rows, groups, nameOf, hhOf, anchorRect, onOpen, on
         the oldest generation, and whoever you played longest ago. Households not in your game yet come last. It only
         suggests: play who you like.
       </p>
-    </div>
+    </BarPanel>
   );
 }

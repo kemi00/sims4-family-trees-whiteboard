@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
+import { CloseButton } from './CloseButton.tsx';
 import type { ReactNode, Ref } from 'react';
 import type { DynastyRole, World } from '../types/whiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import { Crown, House, Key, User, X } from '../icons.ts';
+import { Crown, House, Key, User } from '../icons.ts';
 import {
   COL,
   DYNASTY_ROLES,
@@ -257,9 +258,7 @@ function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; shee
       <div className="lgk-head">
         <h3 id="legend-key-h">Key</h3>
         {!sheet && (
-          <button type="button" className="lgk-close" aria-label="Close the key" onClick={onClose}>
-            <X aria-hidden="true" />
-          </button>
+          <CloseButton label="Close the key" onClick={onClose} />
         )}
       </div>
       {(missing > 0 || every) && (
@@ -567,14 +566,11 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
       className={compact ? 'legend--sheet' : undefined}
     >
       {compact && (
-        <button
-          type="button"
-          className="legend-close"
-          aria-label="Close legend"
-          onClick={() => setExpanded(false)}
-        >
-          Close
-        </button>
+        // Pinned while the sheet scrolls, so closing is always in reach.
+        <div className="legend-sheethead">
+          <b>Legend</b>
+          <CloseButton label="Close the legend" onClick={() => setExpanded(false)} />
+        </div>
       )}
       {/* Beside the world list on a wide screen, so the list stays in view; under it on a phone. */}
       {!compact && keyPanel}

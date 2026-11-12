@@ -1,7 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
 import { PartnerRow } from './PartnerRow.tsx';
-import { CaretLeft, X } from '../icons.ts';
+import { CaretLeft } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
 import { theHousehold } from '../lib/utils.ts';
@@ -104,9 +105,7 @@ export function ChildMenu({
       ) : (
         <b>{title}</b>
       )}
-      <button type="button" className="pmenu__close" aria-label="Close" onClick={onClose}>
-        <X aria-hidden="true" />
-      </button>
+      <CloseButton label="Close" onClick={onClose} />
     </div>
   );
   const shell = (label: string, body: ReactNode) => (

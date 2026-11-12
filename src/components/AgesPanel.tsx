@@ -1,6 +1,4 @@
 import { AGES_H, DECEASED_STATE, DYNASTY_ROLES, GENDERS, HI_DYNASTY, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, NEW_SIM_GENDERS, SPECIES, SPECIES_H, hiDynastyChip, type HiDynastyRole } from '../lib/constants.ts';
-import { panelPosition } from '../lib/chrome.ts';
-import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { dynastyStanding, isPet } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
@@ -32,12 +30,12 @@ type Props = {
   /** Planned babies, not born yet. */
   unborn: Set<string>;
   packVis: (n: SimNode) => boolean;
-  anchorRect: DOMRect | null;
   onToggle: (age: string) => void;
   onToggleSingle: () => void;
   onClear: () => void;
 };
 
+/** Filters › Highlight: light up sims by life stage, gender, family or dynasty role. */
 export function AgesPanel({
   nodes,
   partnered,
@@ -46,15 +44,10 @@ export function AgesPanel({
   hiSingle,
   unborn,
   packVis,
-  anchorRect,
   onToggle,
   onToggleSingle,
   onClear,
 }: Props) {
-  const sheet = usePanelSheet();
-  const pos = panelPosition(anchorRect, 266);
-  if (!pos) return null;
-
   // Counts follow what the board shows: hidden games and play types are left
   // out, as on the board. So are the deceased, whom the chips never pick.
   const living = nodes.filter((n) => packVis(n) && n.state !== DECEASED_STATE);
@@ -82,18 +75,11 @@ export function AgesPanel({
   const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, partnered, parents, unborn });
 
   return (
-    <div
-      id="ages"
-      className={sheet ? 'gpanel gpanel--sheet' : 'gpanel'}
-      style={{ display: 'block', ...pos }}
-    >
-      <div className="gph">
-        <b>Highlight sims</b>
-        <span>
-          <button onClick={onClear} disabled={!active}>
-            Clear
-          </button>
-        </span>
+    <>
+      <div className="fpanel__bulk">
+        <button type="button" onClick={onClear} disabled={!active}>
+          Clear
+        </button>
       </div>
       <div className="hlsum" role="status" aria-live="polite">
         {active ? (
@@ -228,6 +214,6 @@ export function AgesPanel({
         both, like Teen and Elder; picks in different rows narrow each
         other, and so do Single and No children. Pets add to life stages.
       </div>
-    </div>
+    </>
   );
 }

@@ -319,9 +319,6 @@ export const CHROME_PANEL_SHEET_MAX_PX = 900;
 /** Inset from the viewport edge when clamping floating chrome. */
 export const CHROME_EDGE_PAD_PX = 6;
 
-/** Width of the connection-log panel (sentences need more room than pack lists). */
-export const CONNECTION_LOG_PANEL_W = 440;
-
 /** Gap between a toolbar control and the dropdown that belongs to it. */
 export const CHROME_DROPDOWN_GAP_PX = 6;
 

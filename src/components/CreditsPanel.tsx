@@ -1,4 +1,4 @@
-import { X } from '../icons.ts';
+import { CloseButton } from './CloseButton.tsx';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import {
   EA_FAN_CONTENT_URL,
@@ -37,9 +37,7 @@ export function CreditsPanel({ anchorRect, onClose }: Props) {
     >
       <div className="gph">
         <b>Credits</b>
-        <button type="button" aria-label="Close credits" onClick={onClose}>
-          <X aria-hidden="true" />
-        </button>
+        <CloseButton label="Close credits" onClick={onClose} />
       </div>
       <p className="credits-panel__lead">
         The pre-made sim roster on this board comes from{' '}

@@ -2368,7 +2368,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
         liveWorlds={wb.liveWorlds}
         totals={wb.boardTotals}
         marks={marksShown}
-        hidden={wb.gamesOpen || wb.playOpen || wb.agesOpen || !!briefGroup}
+        hidden={!!briefGroup}
         onPickWorld={(world) => {
           const r = svgRef.current?.getBoundingClientRect();
           const lg = legendRef.current?.getBoundingClientRect();

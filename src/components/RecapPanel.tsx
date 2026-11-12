@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { X } from '../icons.ts';
+import { CloseButton } from './CloseButton.tsx';
 import { recapTimeText, type RecapSim, type SaveRecap } from '../lib/saveRecap.ts';
 
 type Props = {
@@ -36,9 +36,7 @@ export function RecapPanel({ recap, offPlan, onGoToSim, onClose }: Props) {
             )}
           </h2>
         </div>
-        <button type="button" className="recap__close" aria-label="Close" onClick={onClose}>
-          <X aria-hidden="true" />
-        </button>
+        <CloseButton label="Close Previously on" onClick={onClose} />
       </div>
       <div className="recap__body">
         <RecapStory recap={recap} onGoToSim={onGoToSim} />

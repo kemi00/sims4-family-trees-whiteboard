@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { X } from '../icons.ts';
+import { CloseButton } from './CloseButton.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import type { InfantChoices } from '../hooks/useWhiteboard.ts';
 
@@ -49,9 +49,7 @@ export function InfantHouseMenu({ left, top, title, homes, surnames, surFor, onP
     >
       <div className="pmenu__head">
         <b>{title}</b>
-        <button type="button" className="pmenu__close" aria-label="Close" onClick={onCancel}>
-          <X aria-hidden="true" />
-        </button>
+        <CloseButton label="Close" onClick={onCancel} />
       </div>
       {askHome && (
         <div role={both ? 'radiogroup' : 'group'} aria-label="Where will the baby live?">

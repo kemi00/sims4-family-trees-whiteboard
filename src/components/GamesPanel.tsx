@@ -1,5 +1,3 @@
-import { panelPosition } from '../lib/chrome.ts';
-import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 type Props = {
   /** Every game, including those with no sims on the board. */
   packs: string[];
@@ -7,42 +5,32 @@ type Props = {
   /** Cards on the board from each game. */
   counts: ReadonlyMap<string, number>;
   colors: ReadonlyMap<string, string>;
-  anchorRect: DOMRect | null;
   onToggle: (pack: string, visible: boolean) => void;
   onAll: () => void;
   onNone: () => void;
-  onClose: () => void;
 };
 
+/** Filters › Games and packs: which games' sims the board shows. */
 export function GamesPanel({
   packs,
   hiddenPacks,
   counts,
   colors,
-  anchorRect,
   onToggle,
   onAll,
   onNone,
 }: Props) {
-  const sheet = usePanelSheet();
-  const pos = panelPosition(anchorRect, 266);
-  if (!pos) return null;
-
-
   return (
-    <div
-      id="games"
-      className={sheet ? 'gpanel gpanel--sheet' : 'gpanel'}
-      style={{ display: 'block', ...pos }}
-    >
-      <div className="gph">
-        <b>Games / packs</b>
-        <span>
-          <button onClick={onAll}>All</button>
-          <button onClick={onNone}>None</button>
-        </span>
+    <>
+      <div className="fpanel__bulk">
+        <button type="button" onClick={onAll}>
+          Show all
+        </button>
+        <button type="button" onClick={onNone}>
+          Hide all
+        </button>
       </div>
-      {!packs.length && <p className="gpanel__empty">No games on this board yet.</p>}
+      {!packs.length && <p className="barpanel__empty">No games on this board yet.</p>}
       {packs.map((p) => {
         const on = !hiddenPacks.has(p);
         const n = counts.get(p) ?? 0;
@@ -65,6 +53,6 @@ export function GamesPanel({
           </label>
         );
       })}
-    </div>
+    </>
   );
 }

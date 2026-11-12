@@ -5,10 +5,27 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 #root,#app{display:flex;flex-direction:column;height:100%;min-height:0}
 /* Base for the panels floating over the canvas. Deliberately scoped: the top
    bar owns .tool and must not inherit any of this. */
-.gpanel button,.menu button,.editor button,.agechips button{padding:6px 11px;border:1px solid transparent;background:transparent;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:#3b4757;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:5px;line-height:1;transition:background .12s ease,color .12s ease,box-shadow .12s ease,transform .06s ease}
-.gpanel button:hover,.menu button:hover,.editor button:hover,.agechips button:hover{background:#eef1f4}
-.gpanel button:active,.menu button:active,.editor button:active,.agechips button:active{transform:translateY(1px)}
-.gpanel button:focus-visible,.menu button:focus-visible,.editor button:focus-visible,.agechips button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.gpanel button:where(:not(.iconbtn)),.menu button:where(:not(.iconbtn)),.editor button:where(:not(.iconbtn)),.agechips button{padding:6px 11px;border:1px solid transparent;background:transparent;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:#3b4757;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:5px;line-height:1;transition:background .12s ease,color .12s ease,box-shadow .12s ease,transform .06s ease}
+.gpanel button:where(:not(.iconbtn)):hover,.menu button:where(:not(.iconbtn)):hover,.editor button:where(:not(.iconbtn)):hover,.agechips button:hover{background:#eef1f4}
+.gpanel button:where(:not(.iconbtn)):active,.menu button:where(:not(.iconbtn)):active,.editor button:where(:not(.iconbtn)):active,.agechips button:active{transform:translateY(1px)}
+.gpanel button:where(:not(.iconbtn)):focus-visible,.menu button:where(:not(.iconbtn)):focus-visible,.editor button:where(:not(.iconbtn)):focus-visible,.agechips button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+
+/* The one small round icon button (CloseButton.tsx): every close button,
+   and the few icon controls in a panel's header. Same size, icon, colours
+   and states everywhere; containers place it but never restyle it. */
+.iconbtn{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;margin:0;padding:0;border:0;border-radius:50%;background:transparent;color:var(--ink-3);font:inherit;line-height:1;cursor:pointer;transition:background .13s ease,color .13s ease,box-shadow .13s ease}
+.iconbtn svg{width:16px;height:16px;flex:0 0 auto}
+.iconbtn:hover:not(:disabled){background:var(--hover);color:var(--ink)}
+.iconbtn:active:not(:disabled){background:var(--press)}
+.iconbtn:focus-visible{outline:none;color:var(--ink);box-shadow:0 0 0 3px var(--accent-ring)}
+.iconbtn[aria-pressed=true]{background:var(--accent-soft);color:var(--accent-strong)}
+.iconbtn:disabled{opacity:.4;cursor:default}
+@media (pointer:coarse){ .iconbtn{width:44px;height:44px} .iconbtn svg{width:18px;height:18px} }
+@media (prefers-reduced-motion:reduce){ .iconbtn{transition:none} }
+/* Placement only: the editor's close sits in its corner, beside the name fields. */
+.editor .ed__close{position:absolute;top:4px;right:4px;z-index:3}
+/* The Legend sheet's header stays in reach while the sheet scrolls. */
+.legend-sheethead{position:sticky;top:-12px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-12px -12px 0;padding:8px 8px 8px 16px;background:var(--chrome);border-bottom:1px solid var(--line);font-size:14px;color:var(--ink)}
 
 /* ── chrome tokens ─────────────────────────────────────────────────────────
    Radius scale: 8px on anything you click, 12px on floating surfaces,
@@ -238,9 +255,6 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .find__icon{width:19px;height:19px;color:var(--ink-3);flex:0 0 auto}
 .find__field input{flex:1 1 auto;min-width:0;height:54px;padding:0;border:none;background:transparent;color:var(--ink);font:inherit;font-size:17px;outline:none}
 .find__field input::placeholder{color:var(--ink-3)}
-.find__close{flex:0 0 auto;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
-.find__close:hover{background:var(--hover);color:var(--ink)}
-.find__close:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .find__list{flex:1 1 auto;overflow:auto;overscroll-behavior:contain;padding:4px 6px 8px}
 .find__title{display:flex;align-items:center;gap:5px;margin:10px 10px 4px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
 .find__title svg{width:12px;height:12px}
@@ -259,7 +273,6 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  .find__box{width:100%;height:100dvh;max-height:none;border:none;border-radius:0;box-shadow:none}
  .find__field{padding:env(safe-area-inset-top,0px) 6px 0 14px}
  .find__field input{height:56px;font-size:16px}
- .find__close{height:44px;padding:0 12px;border:none;background:transparent;color:var(--accent-strong);font-size:15px}
  .find__list{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
  .find__item{padding:9px 10px}
  .find__foot{display:none}
@@ -304,9 +317,6 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .pop__danger:disabled svg{color:var(--ink-3)!important}
 
 .credits-panel{font-size:11.5px;line-height:1.45}
-.credits-panel .gph button{width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
-.credits-panel .gph button:hover{background:var(--hover);color:var(--ink-2)}
-.credits-panel .gph button svg{width:14px;height:14px}
 .credits-panel__lead,.credits-panel__note{margin:0;color:var(--ink-2)}
 .credits-panel__links{margin:8px 0 0;padding:0 0 0 16px;color:var(--ink)}
 .credits-panel__links li+li{margin-top:4px}
@@ -503,23 +513,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
   color:var(--ink-2);
 }
 .hint__head b{color:var(--ink);font-size:13px}
-#hintClose{
-  width:28px;
-  height:28px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  border:none;
-  border-radius:50%;
-  background:transparent;
-  color:var(--ink-3);
-  cursor:pointer;
-  padding:0;
-  flex:0 0 auto;
-}
-#hintClose svg{width:14px;height:14px}
-#hintClose:hover{background:var(--hover);color:var(--ink-2)}
-#hintClose:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .hint__legend{
   display:flex;
   flex-wrap:wrap;
@@ -754,10 +747,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .legend-key{width:300px;max-height:100%;display:flex;flex-direction:column;overflow:hidden;padding:12px 6px 4px 16px;font-size:12.5px;color:#3f4756}
 .lgk-head{display:flex;align-items:center;justify-content:space-between;padding-right:8px}
 #legend .lgk-head h3{margin:0;font-size:14px;letter-spacing:0;text-transform:none;color:var(--ink)}
-.lgk-close{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink-3);cursor:pointer}
-.lgk-close svg{width:15px;height:15px}
-.lgk-close:hover{background:var(--hover);color:var(--ink)}
-.lgk-close:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
 .lgk-scope{margin:2px 10px 0 0;font-size:11.5px;line-height:1.45;color:var(--ink-3)}
 .lgk-scope__toggle{padding:0;border:0;background:none;font:inherit;color:var(--accent-strong);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .lgk-groups{min-height:0;margin-top:4px;padding:0 10px 10px 0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
@@ -834,13 +823,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .union-pill:hover .union-add,.union-pill.union-pill--plus .union-add{opacity:1;pointer-events:auto}
 .menu{position:absolute;background:#fff;border:1px solid #cdd3da;border-radius:var(--r-surface);box-shadow:0 8px 24px #0003;padding:6px;z-index:20;font-size:12px;display:none;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain}
 .editor{position:fixed;background:#fff;border:1px solid #cdd3da;border-radius:var(--r-surface);box-shadow:0 8px 24px #0003;padding:6px;z-index:50;font-size:12px;display:none}
-.menu button{display:block;width:100%;text-align:left;margin:2px 0;border:none;background:#f5f6f8;white-space:normal;line-height:1.3}
+.menu button:where(:not(.iconbtn)){display:block;width:100%;text-align:left;margin:2px 0;border:none;background:#f5f6f8;white-space:normal;line-height:1.3}
 /* ── partner menu (the ♥ on a card's side) ── */
 .menu.pmenu{width:300px;padding:10px}
 .pmenu__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;font-size:12.5px;color:var(--ink)}
-.menu .pmenu__close{flex:none;width:24px;height:24px;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:transparent;color:var(--ink-3)}
-.menu .pmenu__close:hover{background:var(--hover);color:var(--ink-2)}
-.pmenu__close svg{width:14px;height:14px}
 .pmenu__kinds{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:2px;margin:0 0 8px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
 .menu .pmenu__kind{margin:0;padding:5px 8px;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11.5px;font-weight:600;text-align:center}
 .menu .pmenu__kind:hover{background:var(--hover);color:var(--ink)}
@@ -862,37 +848,70 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .gpanel__empty{margin:6px 2px 2px;color:var(--ink-2);font-size:12px}
 .gpanel .gph{display:flex;justify-content:space-between;align-items:center;margin:2px 4px 8px;font-size:11px;color:#5a6673}
 .gpanel .gph span{display:flex;gap:5px}
-.gpanel .gph button{padding:3px 8px;font-size:11px;border:1px solid var(--chip-line);background:var(--chip);color:#3b4757;border-radius:7px;font-weight:600}
-.gpanel .gph button:hover{background:var(--hover)}
+.gpanel .gph button:where(:not(.iconbtn)){padding:3px 8px;font-size:11px;border:1px solid var(--chip-line);background:var(--chip);color:#3b4757;border-radius:7px;font-weight:600}
+.gpanel .gph button:where(:not(.iconbtn)):hover{background:var(--hover)}
 .gpanel .grow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;cursor:pointer}
 .gpanel .grow:hover{background:var(--hover)}
 .gpanel .grow i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
-.gpanel .grow>span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gpanel .grow>span{flex:1;min-width:0;overflow-wrap:anywhere}
 .gpanel .grow b{color:var(--ink-3);font-weight:600;font-size:11px}
 .gpanel .grow--none>span,.gpanel .grow--none b{color:var(--ink-3)}
 .gpanel .grow--none i{opacity:.45}
 .gpanel input[type=checkbox]{width:15px;height:15px;accent-color:#1b6cd6;cursor:pointer;flex:0 0 auto}
-.chrome-backdrop{position:fixed;inset:0;z-index:55;background:#1b2b3a40}
-/* Keep in sync with CONNECTION_LOG_PANEL_W in src/lib/constants.ts */
-.gpanel.connection-log{--pad:9px;width:min(440px, calc(100vw - 24px))}
+/*
+ * The bar's group (Up next, Dynasties, Story, Filters) and the Log open in
+ * one panel (BarPanel.tsx): one place under the bar at the right, one width,
+ * one header, an optional tools row, a scrolling body. It comes after .gpanel
+ * so it wins where content still carries that class for its buttons.
+ */
+.barpanel{position:fixed;z-index:60;top:calc(var(--bar-h) + env(safe-area-inset-top,0px) + 8px);right:12px;left:auto;bottom:auto;display:flex;flex-direction:column;width:380px;max-width:calc(100vw - 24px);max-height:calc(100dvh - var(--bar-h) - env(safe-area-inset-top,0px) - 20px);margin:0;padding:0;overflow:hidden;background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:0 12px 34px #1b2b3a33;color:var(--ink);font-size:12.5px;line-height:1.4;box-sizing:border-box}
+.barpanel__head{flex:0 0 auto;display:flex;align-items:flex-start;gap:2px;padding:12px 10px 10px 16px}
+.barpanel__head .iconbtn{margin-top:-5px}
+.barpanel__head .iconbtn:first-child{margin-left:-10px}
+.barpanel__title{flex:1 1 auto;min-width:0;padding-right:4px}
+.barpanel__title h2{margin:0;font-size:16px;font-weight:700;line-height:1.3;color:var(--ink);overflow-wrap:anywhere}
+.barpanel__title p{margin:2px 0 0;font-size:12px;line-height:1.4;color:var(--ink-3)}
+.barpanel__tools{flex:0 0 auto;display:flex;flex-direction:column;gap:8px;padding:0 16px 10px}
+.barpanel__search{display:block;box-sizing:border-box;width:100%;height:34px;margin:0;padding:0 10px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:13px}
+.barpanel__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.barpanel__body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 16px 16px;border-top:1px solid var(--line)}
+.barpanel__empty{margin:6px 0;color:var(--ink-2);line-height:1.5}
+.barpanel__link{padding:0;border:0;background:none;font:inherit;font-weight:600;color:var(--accent-strong);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.barpanel__link:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
+/* Filters (FiltersPanel.tsx): on/off rows, then rows that open a view inside. */
+.fpanel__title{margin:4px 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.fpanel__title~.fpanel__title{margin-top:16px}
+.fpanel__list{display:flex;flex-direction:column;gap:6px}
+.gpanel button.fpanel__row{display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;min-height:48px;margin:0;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:13px;font-weight:600;line-height:1.3;text-align:left;white-space:normal}
+.gpanel button.fpanel__row:hover:not(:disabled){background:var(--hover)}
+.gpanel button.fpanel__row[aria-checked=true]{border-color:var(--accent-soft-hi);background:var(--accent-soft);color:var(--accent-strong)}
+.gpanel button.fpanel__row:disabled{opacity:.55;cursor:default}
+.fpanel__row svg{width:18px;height:18px;flex:0 0 auto;color:var(--ink-3)}
+.fpanel__row[aria-checked=true] svg{color:var(--accent-strong)}
+.fpanel__text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.fpanel__text small{font-size:11.5px;font-weight:400;line-height:1.4;color:var(--ink-3)}
+.fpanel__row[aria-checked=true] .fpanel__text small{color:var(--accent-strong)}
+/* Show all, Hide all, Clear: at the top of a filter's own view. */
+.fpanel__bulk{display:flex;gap:6px;margin:0 0 8px}
+.gpanel .fpanel__bulk button{padding:5px 12px;border:1px solid var(--chip-line);background:var(--chip);color:var(--ink-2);border-radius:var(--r-control);font-size:12px}
+.gpanel .fpanel__bulk button:hover:not(:disabled){background:var(--hover)}
+.gpanel .fpanel__bulk button:disabled{opacity:.5;cursor:default}
+/* A narrow screen: the same panel as a sheet from the bottom. */
+@media (max-width:900px){
+ .barpanel{top:auto;left:0;right:0;bottom:0;width:auto;max-width:none;max-height:75dvh;border-width:1px 0 0;border-radius:16px 16px 0 0;box-shadow:0 -8px 28px #0002;padding-bottom:env(safe-area-inset-bottom,0px)}
+}
+
 /* Title and tabs stay put while the list scrolls under them. */
-.connection-log__top{display:flow-root;position:sticky;top:calc(-1 * var(--pad));z-index:1;margin:calc(-1 * var(--pad)) calc(-1 * var(--pad)) 0;padding:var(--pad) var(--pad) 0;background:inherit;border-radius:inherit}
-.gpanel.connection-log .gph button{width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
-.gpanel.connection-log .gph button:hover{background:var(--hover);color:var(--ink-2)}
-.gpanel.connection-log .gph button:disabled{opacity:.4;cursor:default}
-.gpanel.connection-log .gph button:disabled:hover{background:transparent;color:var(--ink-3)}
-.gpanel.connection-log .gph button[aria-pressed=true]{color:var(--ink-2);background:var(--hover)}
-.gpanel.connection-log .gph button svg{width:14px;height:14px}
 .connection-log__empty{margin:4px 4px 2px;color:var(--ink-2);line-height:1.45;font-size:12px;font-weight:500}
 /* Plan | In your game: two lists, not one feed with a pill on every line. */
-.connection-log__tabs{display:flex;padding:2px;margin:0 4px 8px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
+.connection-log__tabs{display:flex;padding:2px;margin:0;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
 .gpanel .connection-log__tab{flex:1 1 0;padding:6px 8px;border:none;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;font-weight:600}
 .gpanel .connection-log__tab:hover{background:var(--hover);color:var(--ink)}
 .gpanel .connection-log__tab[aria-selected=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1f}
 .connection-log__count{display:inline-flex;align-items:center;gap:2px;color:var(--ink-3);font-weight:600;font-variant-numeric:tabular-nums}
 .connection-log__count--off{color:var(--warn-strong)}
 .connection-log__count svg{width:11px;height:11px;flex:none}
-.connection-log__tools{display:flex;gap:6px;margin:-2px 4px 8px}
+.connection-log__tools{display:flex;gap:6px;margin:0}
 .gpanel .connection-log__chip{padding:3px 9px;border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);color:var(--done);font-size:11px;gap:4px}
 .gpanel .connection-log__chip svg{width:11px;height:11px;flex:none}
 .gpanel .connection-log__chip:hover{background:var(--done-soft)}
@@ -1038,9 +1057,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .poster__card{display:flex;flex-direction:column;gap:10px;width:min(460px,100%);max-height:calc(100dvh - 32px);background:var(--chrome);border-radius:var(--r-surface);box-shadow:var(--lift);padding:14px 16px;color:var(--ink)}
 .poster__head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .poster__head h2{margin:0;font-size:15px;overflow-wrap:anywhere}
-.poster .poster__x{width:28px;height:28px;flex:0 0 auto;padding:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
-.poster .poster__x:hover{background:var(--hover);color:var(--ink-2)}
-.poster .poster__x svg{width:15px;height:15px}
 .poster__view{flex:1 1 auto;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--recess)}
 .poster__view img{display:block;width:100%;height:auto}
 .poster__wait{margin:0;padding:48px 12px;text-align:center;font-size:12.5px;color:var(--ink-3)}
@@ -1059,10 +1075,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .devlog__card{display:flex;flex-direction:column;width:min(520px,100%);max-height:min(76vh,660px);background:var(--chrome);border-radius:var(--r-surface);box-shadow:var(--lift);padding:16px 18px 12px;color:var(--ink)}
 .devlog__head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .devlog__head h2{margin:0;font-size:16px}
-.devlog__head button{width:26px;height:26px;flex:0 0 auto;padding:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
-.devlog__head button:hover{background:var(--hover);color:var(--ink-2)}
-.devlog__head button svg{width:15px;height:15px}
-.devlog__head button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .devlog__lead{margin:4px 0 10px;font-size:12px;line-height:1.45;color:var(--ink-3)}
 .devlog__scroll{flex:1 1 auto;min-height:0;overflow:auto;padding-right:2px}
 .devlog__day+.devlog__day{margin-top:14px}
@@ -1088,7 +1100,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .agechips{display:flex;flex-wrap:wrap;gap:5px}
 .agechips button{padding:5px 10px;border:1px solid var(--chip-line);background:var(--chip);color:#3b4757;border-radius:16px;font-weight:600}
 .agechips button.on{background:#f5a300;color:#fff;border-color:#f5a300}
-.menu button:hover{background:#e7eefb}
+.menu button:where(:not(.iconbtn)):hover{background:#e7eefb}
 .menu button:disabled{opacity:.6;cursor:not-allowed}
 .menu button:disabled:hover{background:#f5f6f8}
 .menu__why{display:block;margin-top:3px;font-size:11px;font-weight:400;color:#6b7684}
@@ -1248,20 +1260,15 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .selbar__del svg{width:14px;height:14px}
 .selbar__del:hover{border-color:var(--danger)}
 .selbar__del:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
-.selbar__clear{flex:0 0 auto;width:28px;height:28px;border:none;border-radius:var(--r-control);background:transparent;color:var(--ink-2);font-size:13px;cursor:pointer}
-.selbar__clear:hover{background:#eef1f4;color:var(--ink)}
-.selbar__go:focus-visible,.selbar__clear:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.selbar__go:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .selbar__tip{margin:4px 0 0;font-size:10.5px;color:var(--ink-2)}
 .selbar__form{margin-top:8px;padding:8px;border:1px solid #dbe6f5;border-radius:8px;background:#f7fafe}
 /* The close button keeps a gutter of its own beside the name fields, so it
    never sits on the last name; 24px, a comfortable size to hit. */
-.editor .edx{position:absolute;top:7px;right:7px;width:24px;height:24px;border:none;background:#eef0f3;color:#5a6673;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;padding:0;z-index:3}
-.editor .edpair--name{padding-right:28px}
-.editor .edx:hover{background:#e0e4e9}
+.editor .edpair--name{padding-right:34px}
 
 .legend-chip{position:absolute;right:12px;top:12px;z-index:6;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--chrome);color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;box-shadow:var(--lift);cursor:pointer}
 .legend-chip:hover{background:var(--hover);color:var(--ink)}
-.legend-close{align-self:flex-end;margin:0 2px;border:none;background:transparent;color:var(--ink-3);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 
 @media (pointer:coarse){
  .tool{height:44px}
@@ -1271,7 +1278,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .gpanel .connection-log__sim{min-height:0;padding:0}
  .editor .edtab,.editor .edsave{min-height:44px}
  .editor .edtip{width:32px;height:32px;margin:-9px -2px}
- #hintClose,#hintIcon{width:44px;height:44px}
+ #hintIcon{width:44px;height:44px}
  #hintIcon svg{width:20px;height:20px}
 }
 
@@ -1282,11 +1289,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .brief__title{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;overflow-wrap:anywhere}
 .brief__title b{font-size:14px}
 .brief__title span{font-size:11px;color:var(--ink-3)}
-.brief__close{flex:0 0 auto;width:28px;height:28px;border:none;border-radius:var(--r-control);background:transparent;color:var(--ink-2);font-size:13px;cursor:pointer}
-.brief__close:hover{background:var(--hover);color:var(--ink)}
-.brief__poster{display:inline-flex;align-items:center;justify-content:center;padding:0}
-.brief__poster svg{width:17px;height:17px}
-.brief__close:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .brief__section h3{display:flex;align-items:center;gap:6px;margin:12px 0 5px;font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--ink-3)}
 .brief__count{min-width:17px;padding:0 5px;border-radius:999px;background:var(--recess);color:var(--ink-2);font-size:10.5px;text-align:center}
 .brief ul{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;list-style:none}
@@ -1369,8 +1371,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  */
 .dynp .gph{margin-bottom:6px}
 .dynp__total{font-size:11px;color:var(--ink-3)}
-.dynp .dynp__search{width:100%;box-sizing:border-box;margin:0 0 4px;padding:6px 8px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;font:inherit;font-size:12px;color:var(--ink)}
-.dynp .dynp__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
 .dynp__title{display:flex;align-items:center;gap:6px;margin:12px 2px 6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
 .dynp__list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
 .dynp__row{border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
@@ -1467,7 +1467,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .gpanel--sheet,.menu--sheet,.editor--sheet{
   position:fixed;left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;max-width:none;max-height:70dvh;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
  }
- .gpanel--sheet.connection-log{--pad:12px}
  .editor--sheet{width:auto;max-height:min(70dvh,100%);padding:0;overflow:hidden;gap:0}
  .editor--sheet .ed__head{padding:12px 12px 0}
  .editor--sheet .ed__body{padding:2px 12px 12px}
@@ -1487,7 +1486,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
   padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));
   box-shadow:0 -8px 28px #0002;
  }
- #hint.hint--sheet #hintClose{width:44px;height:44px}
  #hint.hint--sheet .hint__more summary{min-height:44px;display:flex;align-items:center}
 }
 
@@ -1522,7 +1520,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  /* Over the board's own corner controls (minimap, zoom, tips, all at 6–7) while open. */
  #legend.legend--sheet{z-index:9}
  /* Close stays in reach while the key below is scrolled into view. */
- #legend.legend--sheet .legend-close{position:sticky;top:-4px;z-index:1;padding:4px 10px;border-radius:999px;background:var(--chrome);box-shadow:0 0 0 1px var(--line)}
  /* The sheet scrolls as a whole: the world list, the Key button, then the key under them. */
  #legend.legend--sheet .legend-col{flex:0 0 auto;width:auto;max-height:none}
  #legend.legend--sheet .legend-card--worlds{flex:0 0 auto;min-height:0;max-height:min(36dvh, 280px)}
@@ -1695,9 +1692,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .recap__kicker{margin:0;font-size:11px;font-weight:700;font-style:italic;letter-spacing:.2px;color:var(--accent)}
 .recap__head h2{margin:2px 0 0;font-size:15px;font-weight:800}
 .recap__season{font-weight:600;color:var(--ink-2)}
-.recap__close{flex:none;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
-.recap__close:hover{background:var(--hover);color:var(--ink)}
-.recap__close svg{width:15px;height:15px}
 .recap__body{overflow-y:auto;padding:6px 14px 10px}
 .recap__sec h3{margin:8px 0 3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ink-2)}
 .recap__sec ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
@@ -1725,8 +1719,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lookback__note{margin:6px 0 0;font-size:11px;line-height:1.4;color:var(--ink-3)}
 .lookback button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 /* The Chronicle (ChroniclePanel.tsx): the board's story, upload by upload, newest first. */
-.chron .chron__search{margin:8px 14px 0;padding:6px 8px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;font:inherit;font-size:12px;color:var(--ink)}
-.chron .chron__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
 .chron__entry{padding:8px 0 10px;border-bottom:1px solid var(--line)}
 .chron__entry:last-child{border-bottom:0}
 .chron__when{margin:0;font-size:13px;font-weight:800;color:var(--ink)}

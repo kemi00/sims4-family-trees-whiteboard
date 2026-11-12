@@ -101,7 +101,7 @@ export function ConnectMenu({ aName, bName, left, top, options, onConfirm, onCan
         </div>
       ))}
       <button type="button" className="menu__cancel" onClick={onCancel}>
-        ✕ Cancel
+        Cancel
       </button>
     </div>
   );

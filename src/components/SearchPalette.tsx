@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { CloseButton } from './CloseButton.tsx';
 import { ArrowRight, ClockCounterClockwise, Crown, Globe, House, MapPin, MagnifyingGlass, User, type Icon } from '../icons.ts';
 import { useFittingPlaceholder } from '../hooks/useFittingPlaceholder.ts';
 import { findResults, type FindAction, type FindGroup, type FindKind, type FindResult } from '../lib/findPalette.ts';
@@ -162,9 +163,7 @@ export function SearchPalette({ worlds, groups, visibleNodes, dynastyNames, acti
             }}
             onKeyDown={onKey}
           />
-          <button type="button" className="find__close" onClick={onClose}>
-            Close
-          </button>
+          <CloseButton label="Close search" onClick={onClose} />
         </div>
         <div ref={listRef} id={`${id}-list`} className="find__list" role="listbox" aria-label="Results">
           {query.trim() && !flat.length && (

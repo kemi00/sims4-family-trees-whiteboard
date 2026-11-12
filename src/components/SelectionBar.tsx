@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CloseButton } from './CloseButton.tsx';
 import { commonWorld } from '../lib/householdMove.ts';
 import { cardName } from '../lib/plan.ts';
 import { Trash } from '../icons.ts';
@@ -115,15 +116,7 @@ export function SelectionBar({
             <span>Delete</span>
           </button>
         )}
-        <button
-          type="button"
-          className="selbar__clear"
-          aria-label="Clear the selection"
-          title="Clear the selection (Esc)"
-          onClick={onClear}
-        >
-          ✕
-        </button>
+        <CloseButton label="Clear the selection" title="Clear the selection (Esc)" onClick={onClear} />
       </div>
       {open && (
         <div id="selMove" className="selbar__form">

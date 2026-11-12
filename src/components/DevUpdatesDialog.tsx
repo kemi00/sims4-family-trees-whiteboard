@@ -1,4 +1,5 @@
-import { Warning, X } from '../icons.ts';
+import { Warning } from '../icons.ts';
+import { CloseButton } from './CloseButton.tsx';
 import { useEffect, useMemo, useRef } from 'react';
 import { formatDay, groupByDay, type ChangelogEntry } from '../lib/changelog.ts';
 import { REPO_URL } from '../lib/credits.ts';
@@ -34,14 +35,7 @@ export function DevUpdatesDialog({ entries, onClose }: Props) {
       <div className="devlog__card" onClick={(e) => e.stopPropagation()}>
         <div className="devlog__head">
           <h2 id="devlog-title">Developer updates</h2>
-          <button
-            ref={closeRef}
-            type="button"
-            aria-label="Close developer updates"
-            onClick={onClose}
-          >
-            <X aria-hidden="true" />
-          </button>
+          <CloseButton ref={closeRef} label="Close developer updates" onClick={onClose} />
         </div>
         <p className="devlog__lead">
           Everything that has changed on the board, newest first.

@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookOpenText, Check, Highlighter, ImageSquare, Warning } from '../icons.ts';
-import { usePanelSheet } from '../hooks/usePanelSheet.ts';
-import { panelPosition } from '../lib/chrome.ts';
 import { DYNASTY_ROLES } from '../lib/constants.ts';
 import { riskText, type DynastyMember, type DynastyRow } from '../lib/dynastyMenu.ts';
 import { handoverText, lineClockText, stepClockText, stepWhen, type Handover, type SuccessionForecast } from '../lib/forecast.ts';
@@ -9,8 +7,7 @@ import { agingSummary } from '../lib/lifeClock.ts';
 import { windowText } from '../lib/matchClock.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
 import { fold } from '../lib/utils.ts';
-
-const WIDTH = 330;
+import { BarPanel } from './BarPanel.tsx';
 
 type Props = {
   rows: DynastyRow[];
@@ -21,7 +18,7 @@ type Props = {
   nameOf: (id: string) => string;
   /** "the Munch household · Willow Creek". */
   homeOf: (id: string) => string;
-  anchorRect: DOMRect | null;
+  onClose: () => void;
   /** Show a member on the board. */
   onFind: (id: string) => void;
   /** Light up these sims on the board (a dynasty's members), or no one. */
@@ -114,7 +111,7 @@ export function DynastiesPanel({
   phraseOf,
   nameOf,
   homeOf,
-  anchorRect,
+  onClose,
   onFind,
   onHover,
   onRename,
@@ -129,7 +126,6 @@ export function DynastiesPanel({
   onStory,
   prestigeOf,
 }: Props) {
-  const sheet = usePanelSheet();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -171,8 +167,6 @@ export function DynastiesPanel({
   /** Prestige is in the save (Royalty & Legacy, read since 2026-11-12): only then sort by it. */
   const hasPrestige = useMemo(() => rows.some((r) => prestigeOf?.(r.key) !== undefined), [rows, prestigeOf]);
 
-  const pos = panelPosition(anchorRect, WIDTH);
-  if (!pos) return null;
   const groups = [
     { key: 'game', title: 'In your game', rows: found.rows.filter((r) => r.inGame) },
     { key: 'planned', title: 'Planned', rows: found.rows.filter((r) => !r.inGame) },
@@ -321,69 +315,69 @@ export function DynastiesPanel({
     ) : null;
 
   return (
-    <div
+    <BarPanel
       id="dynasties"
-      className={sheet ? 'gpanel gpanel--sheet dynp' : 'gpanel dynp'}
-      style={{ display: 'block', ...(sheet ? {} : { width: WIDTH }), ...pos }}
-      role="dialog"
-      aria-label="Dynasties"
+      className="gpanel dynp"
+      title="Dynasties"
+      description={`${plural(rows.length, 'dynasty', 'dynasties')}, planned or in your game`}
+      onClose={onClose}
+      tools={
+        rows.length > 0 && (
+          <>
+            <input
+              type="search"
+              className="barpanel__search"
+              value={query}
+              placeholder="Find a dynasty or a sim"
+              aria-label="Find a dynasty or a sim in one"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // Esc clears the search first, then closes the panel.
+                if (e.key === 'Escape' && query) {
+                  e.stopPropagation();
+                  setQuery('');
+                }
+              }}
+            />
+            {rows.length > 1 && (
+              <div className="dynp__tools">
+                <div className="dynp__sort" role="group" aria-label="Sort dynasties">
+                  {SORTS.filter((o) => o.key !== 'prestige' || hasPrestige).map((o) => (
+                    <button
+                      key={o.key}
+                      type="button"
+                      className="dynp__sortopt"
+                      aria-pressed={sort === o.key}
+                      title={o.title}
+                      onClick={() => pickSort(o.key)}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                {(atRisk > 0 || riskOnly) && (
+                  <button
+                    type="button"
+                    className="dynp__riskonly"
+                    aria-pressed={riskOnly}
+                    title={riskOnly ? 'Show every dynasty' : 'Show only the dynasties at risk'}
+                    onClick={() => setRiskOnly((v) => !v)}
+                  >
+                    <Warning size={13} weight="fill" aria-hidden />
+                    {atRisk} at risk
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )
+      }
     >
-      <div className="gph">
-        <b>Dynasties</b>
-        <span className="dynp__total">{plural(rows.length, 'dynasty', 'dynasties')}</span>
-      </div>
       {/* Prestige comes with a save read since the board learned it: say so until then. */}
       {!hasPrestige && rows.some((r) => r.inGame) && (
         <p className="dynp__note">Each dynasty’s prestige shows here the next time you open your save.</p>
-      )}
-      {rows.length > 0 && (
-        <input
-          type="search"
-          className="dynp__search"
-          value={query}
-          placeholder="Find a dynasty or a sim"
-          aria-label="Find a dynasty or a sim in one"
-          autoComplete="off"
-          spellCheck={false}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            // Esc clears the search first, then closes the panel.
-            if (e.key === 'Escape' && query) {
-              e.stopPropagation();
-              setQuery('');
-            }
-          }}
-        />
-      )}
-      {rows.length > 1 && (
-        <div className="dynp__tools">
-          <div className="dynp__sort" role="group" aria-label="Sort dynasties">
-            {SORTS.filter((o) => o.key !== 'prestige' || hasPrestige).map((o) => (
-              <button
-                key={o.key}
-                type="button"
-                className="dynp__sortopt"
-                aria-pressed={sort === o.key}
-                title={o.title}
-                onClick={() => pickSort(o.key)}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          {(atRisk > 0 || riskOnly) && (
-            <button
-              type="button"
-              className="dynp__riskonly"
-              aria-pressed={riskOnly}
-              title={riskOnly ? 'Show every dynasty' : 'Show only the dynasties at risk'}
-              onClick={() => setRiskOnly((v) => !v)}
-            >
-              <Warning size={13} weight="fill" aria-hidden />
-              {atRisk} at risk
-            </button>
-          )}
-        </div>
       )}
       {!rows.length ? (
         <p className="dynp__empty">
@@ -532,7 +526,7 @@ export function DynastiesPanel({
         countdowns are days on your save’s lifespan, counting only the days that age each sim under its aging
         options; old age can come from the day shown, usually a few days after.
       </p>
-    </div>
+    </BarPanel>
   );
 }
 

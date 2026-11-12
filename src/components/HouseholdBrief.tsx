@@ -1,4 +1,5 @@
 import type { HomeRoom } from '../lib/homeRoom.ts';
+import { CloseButton, IconButton } from './CloseButton.tsx';
 import { HOUSEHOLD_MAX } from '../lib/homeRoom.ts';
 import { lotKindLabel, lotRoomsLabel, lotSizeLabel, type GameLot } from '../lib/places.ts';
 import { useState } from 'react';
@@ -130,30 +131,24 @@ export function HouseholdBrief({
           {place && <span>{place}</span>}
         </div>
         {onStory && (
-          <button
-            type="button"
-            className="brief__close brief__poster"
-            aria-label={`The story of the ${group.hh} household`}
+          <IconButton
+            label={`The story of the ${group.hh} household`}
             title="Story: what happened to this household in your saves"
             onClick={onStory}
           >
             <BookOpenText aria-hidden="true" />
-          </button>
+          </IconButton>
         )}
         {onPoster && (
-          <button
-            type="button"
-            className="brief__close brief__poster"
-            aria-label={`Make a poster of the ${group.hh} household`}
+          <IconButton
+            label={`Make a poster of the ${group.hh} household`}
             title="Poster: a picture of this household to keep or share"
             onClick={onPoster}
           >
             <ImageSquare aria-hidden="true" />
-          </button>
+          </IconButton>
         )}
-        <button type="button" className="brief__close" aria-label="Close the household plan" title="Close (Esc)" onClick={onClose}>
-          ✕
-        </button>
+        <CloseButton label="Close the household plan" onClick={onClose} />
       </header>
       {room && <HomeSection room={room} world={group.world} onMoveToLot={onMoveToLot} />}
       {move && (

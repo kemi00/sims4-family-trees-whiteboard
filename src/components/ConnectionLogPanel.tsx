@@ -1,8 +1,7 @@
-import { ArrowsDownUp, Check, NotePencil, Trash, Warning, X } from '../icons.ts';
+import { ArrowsDownUp, Check, NotePencil, Trash, Warning } from '../icons.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CONNECTION_LOG_PANEL_W } from '../lib/constants.ts';
-import { panelPosition } from '../lib/chrome.ts';
-import { usePanelSheet } from '../hooks/usePanelSheet.ts';
+import { BarPanel } from './BarPanel.tsx';
+import { IconButton } from './CloseButton.tsx';
 import {
   canNote,
   connectionLogRows,
@@ -17,7 +16,6 @@ import { NOTE_MAX } from '../lib/utils.ts';
 
 type Props = {
   entries: ConnectionLogEntry[];
-  anchorRect: DOMRect | null;
   selectedSimId: string | null;
   isSelLink: (ids: string[]) => boolean;
   onPick: (entry: ConnectionLogEntry) => void;
@@ -155,7 +153,6 @@ function NoteEditor({
 
 export function ConnectionLogPanel({
   entries,
-  anchorRect,
   selectedSimId,
   isSelLink,
   onPick,
@@ -165,8 +162,6 @@ export function ConnectionLogPanel({
   onNote,
   onCancel,
 }: Props) {
-  const sheet = usePanelSheet();
-  const pos = panelPosition(anchorRect, CONNECTION_LOG_PANEL_W);
   const [newestFirst, setNewestFirst] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [doneOnly, setDoneOnly] = useState(false);
@@ -221,7 +216,6 @@ export function ConnectionLogPanel({
       ),
     [sorted, sectionOf, tab, doneOnly],
   );
-  if (!pos) return null;
 
   const sortLabel = newestFirst
     ? 'Newest first. Click for oldest first.'
@@ -333,34 +327,19 @@ export function ConnectionLogPanel({
   const planTotal = counts.off + counts.plan;
 
   return (
-    <div
+    <BarPanel
       id="connection-log"
-      className={
-        sheet
-          ? 'gpanel connection-log gpanel--sheet'
-          : 'gpanel connection-log'
+      className="gpanel connection-log"
+      title="Log"
+      description="Links and household moves you added, and what your saves showed"
+      onClose={onClose}
+      actions={
+        <IconButton label={sortLabel} pressed={newestFirst} disabled={entries.length < 2} onClick={() => setNewestFirst((on) => !on)}>
+          <ArrowsDownUp aria-hidden="true" />
+        </IconButton>
       }
-      style={{ display: 'block', ...pos }}
-    >
-      <div className="connection-log__top">
-        <div className="gph">
-          <b>Log</b>
-          <span>
-            <button
-              type="button"
-              title={sortLabel}
-              aria-label={sortLabel}
-              aria-pressed={newestFirst}
-              disabled={entries.length < 2}
-              onClick={() => setNewestFirst((on) => !on)}
-            >
-              <ArrowsDownUp aria-hidden="true" />
-            </button>
-            <button type="button" aria-label="Close the log" onClick={onClose}>
-              <X aria-hidden="true" />
-            </button>
-          </span>
-        </div>
+      tools={
+        <>
         <div className="connection-log__tabs" role="tablist" aria-label="Log">
           <button
             type="button"
@@ -404,7 +383,9 @@ export function ConnectionLogPanel({
             </button>
           </div>
         )}
-      </div>
+        </>
+      }
+    >
       {tab === 'plan' && planTotal === 0 ? (
         <p className="connection-log__empty">
           Nothing planned. Links you add with Connect and moves you plan show
@@ -452,6 +433,6 @@ export function ConnectionLogPanel({
           )}
         </>
       )}
-    </div>
+    </BarPanel>
   );
 }

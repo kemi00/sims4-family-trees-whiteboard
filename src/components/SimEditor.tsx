@@ -1,4 +1,5 @@
 import { removalLabel, simLinkRows } from '../lib/simLinks.ts';
+import { CloseButton } from './CloseButton.tsx';
 import { PET_AGES, PET_GENDERS, PET_KINDS, petAgeLabel, petPack, type PetKind } from '../lib/pets.ts';
 import { PetFamily } from './PetFamily.tsx';
 import {
@@ -1001,9 +1002,7 @@ export function SimEditor({
       }
     >
       <div className="ed__head">
-        <button type="button" className="edx" title="Close without saving" aria-label="Close" onClick={onClose}>
-          ✕
-        </button>
+        <CloseButton className="ed__close" label="Close the editor" title="Close without saving (Esc)" onClick={onClose} />
         <div className="edpair edpair--name">
           <div>
             <label htmlFor="edFirst">First name</label>

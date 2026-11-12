@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { X } from '../icons.ts';
 import { chronicleWhen, entryAbout, type ChronicleEntry } from '../lib/chronicle.ts';
 import { recapTimeText } from '../lib/saveRecap.ts';
+import { BarPanel } from './BarPanel.tsx';
 import { RecapStory } from './RecapPanel.tsx';
 
 type Props = {
@@ -38,45 +38,45 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
     [entries, set, query, keys],
   );
   return (
-    <section
-      className="recap chron"
-      role="dialog"
-      aria-labelledby="chronHead"
-      onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        if (e.key !== 'Escape') return;
-        e.stopPropagation();
-        if (query) setQuery('');
-        else onClose();
-      }}
-    >
-      <div className="recap__head">
-        <div>
-          <p className="recap__kicker">The story so far</p>
-          <h2 id="chronHead">{ids ? `The story of ${label}` : 'Your story'}</h2>
-          {ids && (
-            <button type="button" className="recap__more" onClick={onShowAll}>
+    <BarPanel
+      id="story"
+      className="chron"
+      title={ids ? `The story of ${label}` : 'Story'}
+      description={
+        ids ? (
+          <>
+            What happened to them, save by save.{' '}
+            <button type="button" className="barpanel__link" onClick={onShowAll}>
               The whole story
             </button>
-          )}
-        </div>
-        <button type="button" className="recap__close" aria-label="Close" onClick={onClose}>
-          <X aria-hidden="true" />
-        </button>
-      </div>
-      {entries.length > 0 && (
-        <input
-          type="search"
-          className="chron__search"
-          value={query}
-          placeholder="Find a name in the story"
-          aria-label="Find a name in the story"
-          autoComplete="off"
-          spellCheck={false}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      )}
-      <div className="recap__body">
+          </>
+        ) : (
+          'What happened in your game, save by save'
+        )
+      }
+      onClose={onClose}
+      tools={
+        entries.length > 0 && (
+          <input
+            type="search"
+            className="barpanel__search"
+            value={query}
+            placeholder="Find a name in the story"
+            aria-label="Find a name in the story"
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              // Esc clears the search first, then closes the panel.
+              if (e.key === 'Escape' && query) {
+                e.stopPropagation();
+                setQuery('');
+              }
+            }}
+          />
+        )
+      }
+    >
         {!entries.length ? (
           <p className="chron__empty">
             Your story starts the next time you open your save: each save you open adds what happened in your game
@@ -115,7 +115,6 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
             );
           })
         )}
-      </div>
-    </section>
+    </BarPanel>
   );
 }

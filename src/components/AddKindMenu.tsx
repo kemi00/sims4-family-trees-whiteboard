@@ -1,5 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
-import { X } from '../icons.ts';
+import { CloseButton } from './CloseButton.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { SPECIES } from '../lib/constants.ts';
 import type { PetKind } from '../lib/pets.ts';
@@ -47,9 +47,7 @@ export function AddKindMenu({ x, y, title, kinds, onPick, onClose }: Props) {
     >
       <div className="pmenu__head">
         <b>{title}</b>
-        <button type="button" className="pmenu__close" aria-label="Close" onClick={onClose}>
-          <X aria-hidden="true" />
-        </button>
+        <CloseButton label="Close" onClick={onClose} />
       </div>
       <button ref={firstRef} type="button" className="cmenu__pick" onClick={() => onPick()}>
         <span className="cmenu__title">＋ A sim</span>

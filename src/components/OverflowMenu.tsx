@@ -40,8 +40,6 @@ type Props = {
   folded?: FoldedItem[];
   /** The menu's wrapper, so a popover opened from a folded item can hang off it. */
   wrapRef?: RefObject<HTMLDivElement | null>;
-  /** The ⋮ button itself, for a panel opened from the menu (the Log) to hang under. */
-  buttonRef?: RefObject<HTMLButtonElement | null>;
 };
 
 /** File actions, kept out of the bar because they are used rarely. */
@@ -56,7 +54,6 @@ export function OverflowMenu({
   label = 'Save, load, contact, and credits',
   folded = [],
   wrapRef: outerWrapRef,
-  buttonRef,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
@@ -102,7 +99,6 @@ export function OverflowMenu({
   return (
     <div className="overflow" ref={wrapRef}>
       <ToolButton
-        ref={buttonRef}
         icon={DotsThreeVertical}
         label={label}
         expanded={open}
