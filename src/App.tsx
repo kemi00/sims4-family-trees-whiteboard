@@ -20,10 +20,11 @@ import { UpNextPanel } from './components/UpNextPanel.tsx';
 import { DynastiesPanel } from './components/DynastiesPanel.tsx';
 import { successionForecast } from './lib/forecast.ts';
 import { partnerWindows } from './lib/matchClock.ts';
+import { storyLines } from './lib/chronicle.ts';
 import { PosterDialog } from './components/PosterDialog.tsx';
 import { dynastyPoster, householdPoster, type PosterModel } from './lib/poster.ts';
 import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
-import { dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
+import { dynastyKey, dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
 import { isPanelSheet } from './lib/chrome.ts';
 import { householdPlace } from './lib/connectionLog.ts';
 import { householdName, upNext } from './lib/householdPlan.ts';
@@ -244,9 +245,9 @@ export default function App() {
           onPoster={(gid) => {
             const group = wb.groups.find((g) => g.gid === gid);
             if (!group) return;
-            setPoster(
-              householdPoster({ group, nodes: wb.nodes, links: wb.shownEdges, lot: wb.homes.get(gid)?.name, saveGame: wb.saveGame }),
-            );
+            const poster = householdPoster({ group, nodes: wb.nodes, links: wb.shownEdges, lot: wb.homes.get(gid)?.name, saveGame: wb.saveGame });
+            const story = storyLines(wb.chronicle, new Set(wb.nodes.filter((n) => n.gid === gid).map((n) => n.id)));
+            setPoster(story.length ? { ...poster, story } : poster);
           }}
         />
         {poster && <PosterDialog model={poster} onClose={() => setPoster(null)} />}
@@ -385,18 +386,30 @@ export default function App() {
                 return { ...f, windows: partnerWindows(f, wb.nodes, wb.saveGame) };
               }}
               hhOf={(gid) => householdName(gid, wb.groups, wb.nodes)}
-              onPoster={(key) =>
-                setPoster(
-                  dynastyPoster({
-                    key,
-                    label: dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' }),
-                    nodes: wb.nodes,
-                    edges: wb.edges,
-                    links: wb.shownEdges,
-                    saveGame: wb.saveGame,
-                  }),
-                )
-              }
+              {...(wb.chronicle.length
+                ? {
+                    onStory: (key: string) => {
+                      if (isPanelSheet()) wb.setDynastiesOpen(false);
+                      wb.setRecapOpen(false);
+                      wb.setChronicleView({
+                        label: `the ${dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' })} dynasty`,
+                        ids: wb.nodes.filter((n) => dynastyKey(n) === key).map((n) => n.id),
+                      });
+                    },
+                  }
+                : {})}
+              onPoster={(key) => {
+                const poster = dynastyPoster({
+                  key,
+                  label: dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' }),
+                  nodes: wb.nodes,
+                  edges: wb.edges,
+                  links: wb.shownEdges,
+                  saveGame: wb.saveGame,
+                });
+                const story = storyLines(wb.chronicle, new Set(wb.nodes.filter((n) => dynastyKey(n) === key).map((n) => n.id)));
+                setPoster(story.length ? { ...poster, story } : poster);
+              }}
               game={wb.saveGame}
               onLight={(key) => {
                 wb.setDynastyFocus(key);
@@ -462,9 +475,10 @@ export default function App() {
               const r = svgRef.current?.getBoundingClientRect();
               wb.confirmSaveImport(r?.width ?? 800, r?.height ?? 600, choices);
             }}
-            onReplace={() => {
+            story={wb.chronicle.length}
+            onReplace={(keepStory) => {
               const r = svgRef.current?.getBoundingClientRect();
-              wb.confirmSaveReplace(r?.width ?? 800, r?.height ?? 600);
+              wb.confirmSaveReplace(r?.width ?? 800, r?.height ?? 600, keepStory);
             }}
           />
         )}

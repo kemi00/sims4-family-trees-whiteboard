@@ -25,8 +25,11 @@ type Props = {
   plan: SavePlanReview;
   /** The board's planned links and planned sims, which Replace drops. */
   planned: { links: number; sims: number };
+  /** Uploads in the board's story (the chronicle): Replace asks whether it goes on. */
+  story?: number;
   onMerge: (choices?: PlanChoices) => void;
-  onReplace: () => void;
+  /** `keepStory`: the board's story goes on, this save its next page. */
+  onReplace: (keepStory: boolean) => void;
   onCancel: () => void;
 };
 
@@ -53,11 +56,14 @@ export function SaveImportDialog({
   fresh,
   plan,
   planned,
+  story = 0,
   onMerge,
   onReplace,
   onCancel,
 }: Props) {
   const [mode, setMode] = useState<'merge' | 'replace'>(starter ? 'replace' : 'merge');
+  /** Replace keeps the story by default: a newer save of the same game. */
+  const [keepStory, setKeepStory] = useState(true);
   /** Merge has a second step when the save fills planned sims or goes against the plan. */
   const reviewable = plan.suggestions.length > 0 || plan.conflicts.length > 0;
   const [step, setStep] = useState<'choose' | 'plan'>('choose');
@@ -279,6 +285,15 @@ export function SaveImportDialog({
                   Discards the current board and builds a new one from the save
                   alone.
                 </span>
+                {story > 0 && mode === 'replace' && (
+                  <label className="save-import__keep">
+                    <input type="checkbox" checked={keepStory} onChange={(e) => setKeepStory(e.target.checked)} />
+                    <span>
+                      Keep the board’s story ({story === 1 ? '1 upload' : `${story} uploads`}): this save is its next
+                      page. Untick for a different game, to start a new story.
+                    </span>
+                  </label>
+                )}
                 {planned.links + planned.sims > 0 && (
                   <span className="save-import__choice-note planrev__drops">
                     Drops your plan: {planned.links} planned{' '}
@@ -390,7 +405,7 @@ export function SaveImportDialog({
             type="button"
             className="save-import__ok"
             onClick={() => {
-              if (mode === 'replace') onReplace();
+              if (mode === 'replace') onReplace(story > 0 && keepStory);
               else if (step === 'choose' && reviewable) setStep('plan');
               else onMerge(step === 'plan' ? { ...choices, matches: effectiveMatches(plan, choices) } : undefined);
             }}

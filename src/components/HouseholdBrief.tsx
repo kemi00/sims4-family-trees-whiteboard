@@ -9,7 +9,7 @@ import { daysText, oldAgeSoonText } from '../lib/lifeClock.ts';
 import { windowText, type PlanWindow } from '../lib/matchClock.ts';
 import type { Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 import { WorldMoveForm } from './WorldMoveForm.tsx';
-import { ImageSquare } from '../icons.ts';
+import { BookOpenText, ImageSquare } from '../icons.ts';
 
 type Props = {
   group: Group;
@@ -41,6 +41,8 @@ type Props = {
   onClose: () => void;
   /** Make a poster of the household. */
   onPoster?: () => void;
+  /** Open the Chronicle on the household's story; absent while the story is empty. */
+  onStory?: () => void;
   /** Set when the household can move to another world: the board's worlds and households. */
   move?: {
     worlds: World[];
@@ -86,6 +88,7 @@ export function HouseholdBrief({
   onPickSim,
   onClose,
   onPoster,
+  onStory,
   move,
 }: Props) {
   const sheet = usePanelSheet();
@@ -126,6 +129,17 @@ export function HouseholdBrief({
           <b>{group.hh}</b>
           {place && <span>{place}</span>}
         </div>
+        {onStory && (
+          <button
+            type="button"
+            className="brief__close brief__poster"
+            aria-label={`The story of the ${group.hh} household`}
+            title="Story: what happened to this household in your uploads"
+            onClick={onStory}
+          >
+            <BookOpenText aria-hidden="true" />
+          </button>
+        )}
         {onPoster && (
           <button
             type="button"

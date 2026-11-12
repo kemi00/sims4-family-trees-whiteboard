@@ -42,7 +42,7 @@ const SEASON_ICON = { Spring: Flower, Summer: Sun, Fall: Leaf, Winter: Snowflake
  * What the board knows of the save it last read: the game time, then the
  * options that decide ages. Read only: they change in the game.
  */
-export function SaveDetails({ game, onRecap }: { game: SaveGameInfo; onRecap?: () => void }) {
+export function SaveDetails({ game, onRecap, onStory }: { game: SaveGameInfo; onRecap?: () => void; onStory?: () => void }) {
   const day = dayOf(game.clock);
   const rows: [string, string][] = [
     ['Game time', `${clockText(game.clock)}${game.seasonDays ? ` · ${yearText(yearOf(day, game.seasonDays))}` : ''}`],
@@ -65,6 +65,11 @@ export function SaveDetails({ game, onRecap }: { game: SaveGameInfo; onRecap?: (
       {onRecap && (
         <button type="button" className="savechip__recap" onClick={onRecap}>
           ✨ What happened since the last upload
+        </button>
+      )}
+      {onStory && (
+        <button type="button" className="savechip__recap" onClick={onStory}>
+          📖 Your story so far
         </button>
       )}
       <dl className="savechip__list">
@@ -90,7 +95,7 @@ export function SaveDetails({ game, onRecap }: { game: SaveGameInfo; onRecap?: (
  * status about the board, not an action, so it lives with the board's other
  * status rather than in the top bar. Opens the save details above it.
  */
-export function SaveStatus({ game, onRecap }: { game: SaveGameInfo; onRecap?: () => void }) {
+export function SaveStatus({ game, onRecap, onStory }: { game: SaveGameInfo; onRecap?: () => void; onStory?: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -139,6 +144,14 @@ export function SaveStatus({ game, onRecap }: { game: SaveGameInfo; onRecap?: ()
                   onRecap: () => {
                     setOpen(false);
                     onRecap();
+                  },
+                }
+              : {})}
+            {...(onStory
+              ? {
+                  onStory: () => {
+                    setOpen(false);
+                    onStory();
                   },
                 }
               : {})}

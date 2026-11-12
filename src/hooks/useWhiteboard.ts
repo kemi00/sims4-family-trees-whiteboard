@@ -7,6 +7,7 @@ import { freeLotsIn, householdLots, lotPick, type GameLot } from '../lib/places.
 import { placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
 import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
+import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
@@ -291,6 +292,8 @@ type BoardSnap = {
   simAgeUps: SimAgeUp[];
   pairStatus: PairStatus[];
   saveGame: SaveGameInfo | null;
+  /** The board's story: a save merge adds to it, and its undo takes that back. */
+  chronicle: ChronicleEntry[];
   /** Set only by actions that change filters, so only their undo restores them. */
   filters?: BoardFilters;
 };
@@ -499,6 +502,10 @@ export function useWhiteboard() {
   );
   /** Game clock and aging options from the last save import. */
   const [saveGame, setSaveGame] = useState<SaveGameInfo | null>(() => boot.saveGame ?? null);
+  /** The board's story, one entry per save upload (the chronicle). */
+  const [chronicle, setChronicle] = useState<ChronicleEntry[]>(() => boot.chronicle ?? []);
+  /** The Chronicle panel, open on the whole story or on one sim's, household's or dynasty's. */
+  const [chronicleView, setChronicleView] = useState<{ label: string; ids: string[] | null } | null>(null);
   /** What the last save upload says happened in the game ("Previously on…"). */
   const [recap, setRecap] = useState<SaveRecap | null>(null);
   const [recapOpen, setRecapOpen] = useState(false);
@@ -858,6 +865,7 @@ export function useWhiteboard() {
         simAgeUps,
         pairStatus,
         saveGame,
+        chronicle,
         connectionLog,
         sourceFileName,
       }),
@@ -878,6 +886,7 @@ export function useWhiteboard() {
       simAgeUps,
       pairStatus,
       saveGame,
+      chronicle,
       connectionLog,
       sourceFileName,
     ],
@@ -949,6 +958,7 @@ export function useWhiteboard() {
       simAgeUps: simAgeUps.map((a) => ({ ...a })),
       pairStatus,
       saveGame,
+      chronicle,
       filters: filters
         ? {
             hiddenPacks: [...hiddenPacks],
@@ -960,7 +970,7 @@ export function useWhiteboard() {
           }
         : undefined,
     }),
-    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
+    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, chronicle, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
   );
 
   /** The board as `snap` kept it; nothing stays picked or open over it. */
@@ -976,6 +986,7 @@ export function useWhiteboard() {
     setSimAgeUps(snap.simAgeUps);
     setPairStatus(snap.pairStatus);
     setSaveGame(snap.saveGame);
+    setChronicle(snap.chronicle);
     if (snap.filters) {
       setHiddenPacks(new Set(snap.filters.hiddenPacks));
       setHiddenPlay(new Set(snap.filters.hiddenPlay));
@@ -2984,6 +2995,7 @@ export function useWhiteboard() {
       setSimAgeUps([]);
       setPairStatus([]);
       setSaveGame(null);
+      setChronicle([]);
       setSourceFileName(null);
       setFromBrowserDraft(false);
       undoRef.current = [];
@@ -3076,6 +3088,7 @@ export function useWhiteboard() {
         setSimAgeUps(loadedSimAgeUps);
         setPairStatus(d.pairStatus ?? []);
         setSaveGame(d.saveGame ?? null);
+        setChronicle(d.chronicle ?? []);
         eidcRef.current = nextEidc(
           loadedEdges,
           eidcRef.current,
@@ -3298,6 +3311,8 @@ export function useWhiteboard() {
         }
         // The board's own save details win; a board without any takes the file's.
         if (d.saveGame) setSaveGame((prev) => prev ?? d.saveGame!);
+        // The file's story joins the board's: every upload once, in the game's order.
+        if (d.chronicle?.length) setChronicle((prev) => mergeChronicles(prev, d.chronicle!));
         if (d.householdMoves?.length) {
           setHouseholdMoves((prev) => {
             const seen = new Set(prev.map((m) => m.id));
@@ -3370,13 +3385,29 @@ export function useWhiteboard() {
       svgWidth: number,
       svgHeight: number,
       mode: 'merge' | 'replace',
+      /** Replace only: carry the board's story on (a newer save of the same game). */
+      keepStory = false,
     ) => {
       // The story since the last upload, told only between two saves of the
       // same game: a board's first save, or Replace, starts the story.
+      const goesOn = mode === 'merge' || keepStory;
       const told =
-        mode === 'merge' && saveGame
+        goesOn && saveGame
           ? saveRecap({ nodes: nodesCore, edges, saveGame }, { nodes: result.nodes, edges: result.edges, saveGame: result.saveGame })
           : null;
+      // The chronicle: this upload's story, or the start of one.
+      if (result.saveGame) {
+        const start = told
+          ? undefined
+          : {
+              sims: result.nodes.filter((n) => n.saveSimId && !n.species && n.state !== DECEASED_STATE).length,
+              households: new Set(result.nodes.filter((n) => n.saveSimId && !isUnhousedGid(n.gid)).map((n) => n.gid)).size,
+            };
+        const entry = chronicleEntry(result.saveGame, { recap: told && recapHasNews(told) ? told : null, ...(start ? { start } : {}) });
+        if (told && !recapHasNews(told)) {
+          // Nothing happened since: the story has no new page.
+        } else setChronicle((prev) => withEntry(goesOn ? prev : [], entry));
+      }
       if (told && recapHasNews(told)) {
         setRecap(told);
         setRecapOpen(true);
@@ -3655,7 +3686,7 @@ export function useWhiteboard() {
   );
 
   const confirmSaveReplace = useCallback(
-    (svgWidth: number, svgHeight: number) => {
+    (svgWidth: number, svgHeight: number, keepStory = false) => {
       if (!saveImport) return;
       let n = eidcRef.current;
       const replaced = mergeSaveIntoBoard({
@@ -3682,6 +3713,7 @@ export function useWhiteboard() {
         svgWidth,
         svgHeight,
         'replace',
+        keepStory,
       );
     },
     [saveImport, worlds, seed.nodes, seed.edges, applySaveBoard],
@@ -4090,6 +4122,9 @@ export function useWhiteboard() {
     openPartnerMenu,
     closePartnerMenu,
     childMenu,
+    chronicle,
+    chronicleView,
+    setChronicleView,
     addMenu,
     setAddMenu,
     openChildMenu,

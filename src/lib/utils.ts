@@ -1,4 +1,5 @@
 import { chainPlannedHeirs } from './succession.ts';
+import type { ChronicleEntry } from './chronicle.ts';
 import { MAGIC_REALM, homeWorld, realmGid } from './realm.ts';
 import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
 import type {
@@ -264,6 +265,7 @@ export function migrateWhiteboardData(d: {
   simAgeUps?: SimAgeUp[];
   pairStatus?: PairStatus[];
   saveGame?: SaveGameInfo | null;
+  chronicle?: ChronicleEntry[];
 }): typeof d {
   const world = currentWorldName;
   const gid = currentGid;

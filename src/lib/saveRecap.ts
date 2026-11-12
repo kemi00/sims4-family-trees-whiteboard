@@ -17,7 +17,7 @@ export type SaveRecap = {
   days: number | null;
   /** The season then and now, when the save has Seasons and it changed. */
   seasons?: { from: string; to: string };
-  born: (RecapSim & { parents: string[]; planned: boolean })[];
+  born: (RecapSim & { parents: string[]; parentIds?: string[]; planned: boolean })[];
   together: { a: RecapSim; b: RecapSim; type: 'marriage' | 'romance'; planned: boolean }[];
   apart: { a: RecapSim; b: RecapSim; type: 'divorced' | 'breakup' }[];
   moved: (RecapSim & { from: string; to: string })[];
@@ -45,8 +45,13 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
   const was = new Map(before.nodes.map((n) => [n.id, n]));
   const now = new Map(after.nodes.map((n) => [n.id, n]));
   const sim = (n: SimNode): RecapSim => ({ id: n.id, name: cardName(n) });
-  const parentsOf = (id: string) =>
-    after.edges.filter((e) => e.type === 'parent' && e.b === id).map((e) => now.get(e.a)).filter((p): p is SimNode => !!p).map(cardName);
+  const parentNodes = (id: string) =>
+    after.edges.filter((e) => e.type === 'parent' && e.b === id).map((e) => now.get(e.a)).filter((p): p is SimNode => !!p);
+  /** A baby's parents, by name and by card, so a story of their family finds the birth. */
+  const parentsOf = (id: string) => {
+    const ps = parentNodes(id);
+    return { parents: ps.map(cardName), parentIds: ps.map((p) => p.id) };
+  };
 
   const recap: SaveRecap = { days: null, born: [], together: [], apart: [], moved: [], grew: [], died: [], met: 0, plansDone: 0, celebrate: [] };
   const from = before.saveGame?.clock;
@@ -60,13 +65,13 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
     const o = was.get(n.id);
     if (!o) {
       if (!n.saveSimId) continue;
-      if (YOUNG.has(n.age) && n.state !== DECEASED_STATE) recap.born.push({ ...sim(n), parents: parentsOf(n.id), planned: false });
+      if (YOUNG.has(n.age) && n.state !== DECEASED_STATE) recap.born.push({ ...sim(n), ...parentsOf(n.id), planned: false });
       else if (!n.treeId) recap.met += 1;
       continue;
     }
     // A planned sim the save filled: the plan came true.
     if (isPlannedSim(o) && !isPlannedSim(n)) {
-      recap.born.push({ ...sim(n), parents: parentsOf(n.id), planned: true });
+      recap.born.push({ ...sim(n), ...parentsOf(n.id), planned: true });
       recap.plansDone += 1;
       recap.celebrate.push(n.id);
       continue;

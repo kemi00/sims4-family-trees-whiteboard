@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DownloadSimple, ShareNetwork, X } from '../icons.ts';
 import type { PosterModel } from '../lib/poster.ts';
 import { drawPoster } from '../lib/posterDraw.ts';
@@ -15,6 +15,9 @@ type Props = {
  * uploaded.
  */
 export function PosterDialog({ model, onClose }: Props) {
+  /** With its story from the chronicle, when it has one. */
+  const [withStory, setWithStory] = useState(false);
+  const drawn = useMemo(() => (withStory ? model : { ...model, story: undefined }), [model, withStory]);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -28,7 +31,7 @@ export function PosterDialog({ model, onClose }: Props) {
   useEffect(() => {
     let alive = true;
     let made: string | null = null;
-    drawPoster(model)
+    drawPoster(drawn)
       .then((b) => {
         if (!alive) return;
         made = URL.createObjectURL(b);
@@ -40,7 +43,7 @@ export function PosterDialog({ model, onClose }: Props) {
       alive = false;
       if (made) URL.revokeObjectURL(made);
     };
-  }, [model]);
+  }, [drawn]);
 
   const file = blob ? new File([blob], fileName, { type: 'image/png' }) : null;
   const canShare = !!file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
@@ -88,6 +91,12 @@ export function PosterDialog({ model, onClose }: Props) {
             </p>
           )}
         </div>
+        {!!model.story?.length && (
+          <label className="poster__opt">
+            <input type="checkbox" checked={withStory} onChange={(e) => setWithStory(e.target.checked)} />
+            Add its story so far: {model.story.length === 1 ? '1 moment' : `${model.story.length} moments`} from your uploads
+          </label>
+        )}
         <p className="poster__lead">Made on this device from your board: nothing is uploaded.</p>
         <div className="poster__acts">
           {canShare && (

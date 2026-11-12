@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Highlighter, ImageSquare, Warning } from '../icons.ts';
+import { BookOpenText, Check, Highlighter, ImageSquare, Warning } from '../icons.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { panelPosition } from '../lib/chrome.ts';
 import { DYNASTY_ROLES } from '../lib/constants.ts';
@@ -44,6 +44,8 @@ type Props = {
   onPoster: (key: string) => void;
   /** "the Munch household", for the matchmaking clock's lines. */
   hhOf: (gid: string) => string;
+  /** Open the Chronicle on a dynasty's story (by key); absent while the story is empty. */
+  onStory?: (key: string) => void;
 };
 
 /** The list's order: by name, or by how many sims each has (the count on its card). */
@@ -121,6 +123,7 @@ export function DynastiesPanel({
   game,
   onPoster,
   hhOf,
+  onStory,
 }: Props) {
   const sheet = usePanelSheet();
   const [query, setQuery] = useState('');
@@ -178,6 +181,17 @@ export function DynastiesPanel({
       <ImageSquare aria-hidden="true" /> Poster
     </button>
   );
+  const storyButton = (r: DynastyRow) =>
+    onStory ? (
+      <button
+        type="button"
+        className="dynp__act dynp__act--poster"
+        title="What happened to this dynasty in your uploads"
+        onClick={() => onStory(r.key)}
+      >
+        <BookOpenText aria-hidden="true" /> Story
+      </button>
+    ) : null;
 
   /** A planned dynasty's Poster, Rename and Remove, or the form one of them opened. */
   const tidy = (r: DynastyRow, formId: string) => {
@@ -272,6 +286,7 @@ export function DynastiesPanel({
     return (
       <div className="dynp__actions">
         {posterButton(r)}
+        {storyButton(r)}
         <button type="button" className="dynp__act" onClick={() => setEditing({ key: r.key, mode: 'rename', to: r.name })}>
           Rename
         </button>
@@ -472,7 +487,14 @@ export function DynastiesPanel({
                         ))}
                       </ul>
                       {/* Only a planned dynasty renames or goes: a game one is named by the save. */}
-                      {r.inGame ? <div className="dynp__actions">{posterButton(r)}</div> : tidy(r, listId)}
+                      {r.inGame ? (
+                        <div className="dynp__actions">
+                          {posterButton(r)}
+                          {storyButton(r)}
+                        </div>
+                      ) : (
+                        tidy(r, listId)
+                      )}
                       </div>
                     )}
                   </li>

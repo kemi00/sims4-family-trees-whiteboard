@@ -952,6 +952,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .poster__view img{display:block;width:100%;height:auto}
 .poster__wait{margin:0;padding:48px 12px;text-align:center;font-size:12.5px;color:var(--ink-3)}
 .poster__lead{margin:0;font-size:11.5px;color:var(--ink-3)}
+.poster__opt{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2)}
+.poster__opt input{margin:0}
 .poster__acts{display:flex;justify-content:flex-end;gap:8px}
 .poster .poster__btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);color:var(--ink);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
 .poster .poster__btn svg{width:15px;height:15px}
@@ -1640,6 +1642,18 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .recap__met{margin:8px 0 0;color:var(--ink-2)}
 .recap__plans{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0;padding:8px 14px 12px;border-top:1px solid var(--line)}
 .recap__off{font-size:11.5px;color:var(--warn)}
+/* The Chronicle (ChroniclePanel.tsx): the board's story, upload by upload, newest first. */
+.chron .chron__search{margin:8px 14px 0;padding:6px 8px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;font:inherit;font-size:12px;color:var(--ink)}
+.chron .chron__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.chron__entry{padding:8px 0 10px;border-bottom:1px solid var(--line)}
+.chron__entry:last-child{border-bottom:0}
+.chron__when{margin:0;font-size:13px;font-weight:800;color:var(--ink)}
+.chron__meta{margin:1px 0 0;font-size:11px;color:var(--ink-3)}
+.chron__start{margin:6px 0 0;color:var(--ink-2)}
+.chron__plans{margin:6px 0 0}
+.chron__empty{margin:10px 0;color:var(--ink-2)}
+.save-import__keep{display:flex;align-items:flex-start;gap:6px;margin-top:6px;font-size:11.5px;line-height:1.4;color:var(--ink-2)}
+.save-import__keep input{margin:2px 0 0;flex:none}
 .savechip__recap{display:block;width:100%;margin:2px 0 8px;padding:6px 8px;border:1px solid var(--chip-line);border-radius:8px;background:var(--celebrate-soft);color:var(--warn);font:inherit;font-size:11.5px;font-weight:700;text-align:left;cursor:pointer}
 .savechip__recap:hover{border-color:var(--celebrate)}
 

@@ -21,6 +21,52 @@ const SHOWN = 5;
  */
 export function RecapPanel({ recap, offPlan, onGoToSim, onClose }: Props) {
   const time = recapTimeText(recap.days);
+  return (
+    <section className="recap" role="dialog" aria-labelledby="recapHead" onPointerDown={(e) => e.stopPropagation()}>
+      <div className="recap__head">
+        <div>
+          <p className="recap__kicker">Previously on…</p>
+          <h2 id="recapHead">
+            {time ? `${time[0]!.toUpperCase()}${time.slice(1)}` : 'Since your last save'}
+            {recap.seasons && (
+              <span className="recap__season">
+                {' '}
+                · {recap.seasons.to} arrived
+              </span>
+            )}
+          </h2>
+        </div>
+        <button type="button" className="recap__close" aria-label="Close" onClick={onClose}>
+          <X aria-hidden="true" />
+        </button>
+      </div>
+      <div className="recap__body">
+        <RecapStory recap={recap} onGoToSim={onGoToSim} />
+      </div>
+      {(recap.plansDone > 0 || offPlan > 0) && (
+        <p className="recap__plans">
+          {recap.plansDone > 0 && (
+            <span className="recap__done recap__done--big">
+              ✨ {recap.plansDone === 1 ? '1 plan came true' : `${recap.plansDone} plans came true`}
+            </span>
+          )}
+          {offPlan > 0 && (
+            <span className="recap__off">
+              {offPlan === 1 ? '1 plan' : `${offPlan} plans`} the game went against: see the Log.
+            </span>
+          )}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * What happened, as the story it is: births and couples first, then
+ * moves, birthdays and goodbyes. Names take you to the sim. Shared by
+ * Previously on and the Chronicle.
+ */
+export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celebrate'>; onGoToSim: (id: string) => void }) {
   const who = (s: RecapSim) => (
     <button type="button" className="recap__sim" onClick={() => onGoToSim(s.id)}>
       {s.name}
@@ -87,51 +133,17 @@ export function RecapPanel({ recap, offPlan, onGoToSim, onClose }: Props) {
       items: recap.died.map((d) => <>{who(d)}</>),
     },
   ].filter((s) => s.items.length > 0);
-
   return (
-    <section className="recap" role="dialog" aria-labelledby="recapHead" onPointerDown={(e) => e.stopPropagation()}>
-      <div className="recap__head">
-        <div>
-          <p className="recap__kicker">Previously on…</p>
-          <h2 id="recapHead">
-            {time ? `${time[0]!.toUpperCase()}${time.slice(1)}` : 'Since your last save'}
-            {recap.seasons && (
-              <span className="recap__season">
-                {' '}
-                · {recap.seasons.to} arrived
-              </span>
-            )}
-          </h2>
-        </div>
-        <button type="button" className="recap__close" aria-label="Close" onClick={onClose}>
-          <X aria-hidden="true" />
-        </button>
-      </div>
-      <div className="recap__body">
-        {sections.map((s) => (
-          <RecapSection key={s.key} mark={s.mark} title={s.title} items={s.items} />
-        ))}
-        {recap.met > 0 && (
-          <p className="recap__met">
-            {recap.met === 1 ? '1 new sim' : `${recap.met} new sims`} met along the way.
-          </p>
-        )}
-      </div>
-      {(recap.plansDone > 0 || offPlan > 0) && (
-        <p className="recap__plans">
-          {recap.plansDone > 0 && (
-            <span className="recap__done recap__done--big">
-              ✨ {recap.plansDone === 1 ? '1 plan came true' : `${recap.plansDone} plans came true`}
-            </span>
-          )}
-          {offPlan > 0 && (
-            <span className="recap__off">
-              {offPlan === 1 ? '1 plan' : `${offPlan} plans`} the game went against: see the Log.
-            </span>
-          )}
+    <>
+      {sections.map((s) => (
+        <RecapSection key={s.key} mark={s.mark} title={s.title} items={s.items} />
+      ))}
+      {recap.met > 0 && (
+        <p className="recap__met">
+          {recap.met === 1 ? '1 new sim' : `${recap.met} new sims`} met along the way.
         </p>
       )}
-    </section>
+    </>
   );
 }
 

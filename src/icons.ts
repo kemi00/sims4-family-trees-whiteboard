@@ -55,3 +55,4 @@ export { Leaf } from '@phosphor-icons/react/Leaf';
 export { Snowflake } from '@phosphor-icons/react/Snowflake';
 export { ImageSquare } from '@phosphor-icons/react/ImageSquare';
 export { ShareNetwork } from '@phosphor-icons/react/ShareNetwork';
+export { BookOpenText } from '@phosphor-icons/react/BookOpenText';

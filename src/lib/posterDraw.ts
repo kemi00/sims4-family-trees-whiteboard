@@ -288,8 +288,16 @@ export async function drawPoster(model: PosterModel): Promise<Blob> {
   const lineRows = lineText ? wrap(ctx, lineText, W - PAD * 2 - 40) : [];
   const lineH = lineRows.length ? 44 + 32 + lineRows.length * 38 + 28 : 0;
 
+  // Its story, the latest moments: when, then what, each wrapped.
+  const STORY_MAX = 10;
+  const story = model.story?.slice(-STORY_MAX) ?? [];
+  const earlier = (model.story?.length ?? 0) - story.length;
+  ctx.font = font(22, 400);
+  const storyText = story.map((l) => wrap(ctx, l.text, W - PAD * 2 - 48));
+  const storyH = story.length ? 44 + 30 + storyText.reduce((h, t) => h + 24 + t.length * 30 + 10, 0) + (earlier ? 34 : 0) + 24 : 0;
+
   // Where each card goes: rows stacked, each centred.
-  const rowsTop = headH + 40 + lineH;
+  const rowsTop = headH + 40 + lineH + storyH;
   type Spot = { x: number; y: number; h: number; row: number };
   const spot = new Map<string, Spot>();
   const rowGeo: { labelY?: number; top: number; h: number }[] = [];
@@ -405,6 +413,40 @@ export async function drawPoster(model: PosterModel): Promise<Blob> {
     ctx.fillStyle = C.line;
     ctx.fillRect(from, ly + 19, W - PAD - from, 2);
   });
+
+  // Its story so far, from the chronicle.
+  if (story.length) {
+    const sy0 = headH + 40 + lineH;
+    roundRect(ctx, PAD, sy0, W - PAD * 2, storyH - 24, 18);
+    ctx.fillStyle = C.card;
+    ctx.fill();
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.textBaseline = 'top';
+    ctx.font = font(19, 700);
+    ctx.fillStyle = C.ink3;
+    ctx.fillText('THE STORY SO FAR', PAD + 24, sy0 + 22);
+    let sy = sy0 + 22 + 34;
+    story.forEach((l, i) => {
+      ctx.font = font(19, 600);
+      ctx.fillStyle = C.ink3;
+      ctx.fillText(l.when, PAD + 24, sy);
+      sy += 24;
+      ctx.font = font(22, 400);
+      ctx.fillStyle = C.ink;
+      for (const t of storyText[i]!) {
+        ctx.fillText(t, PAD + 24, sy);
+        sy += 30;
+      }
+      sy += 10;
+    });
+    if (earlier) {
+      ctx.font = font(19, 500);
+      ctx.fillStyle = C.ink3;
+      ctx.fillText(`And ${earlier === 1 ? '1 earlier moment' : `${earlier} earlier moments`} in the board’s Chronicle.`, PAD + 24, sy);
+    }
+  }
 
   // Family lines first, so cards sit over any that pass behind them.
   const coupleOf = new Map<string, PosterCouple>();

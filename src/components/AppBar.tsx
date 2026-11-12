@@ -816,7 +816,22 @@ export function AppBar({
           aria-label="Your save"
           style={savePopStyle}
         >
-          <SaveDetails game={wb.saveGame} />
+          <SaveDetails
+            game={wb.saveGame}
+            {...(wb.recap
+              ? {
+                  onRecap: () => {
+                    setSaveOpen(false);
+                    wb.setRecapOpen(true);
+                  },
+                }
+              : {})}
+            onStory={() => {
+              setSaveOpen(false);
+              wb.setRecapOpen(false);
+              wb.setChronicleView({ label: 'your board', ids: null });
+            }}
+          />
         </div>
       )}
 

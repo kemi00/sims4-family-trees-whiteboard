@@ -326,6 +326,8 @@ type Props = {
   onPlanYoung: (parentIds: string[]) => void;
   /** The pets your packs allow, for a pet added on the board to change its kind. */
   petKinds: readonly PetKind[];
+  /** Open the Chronicle on this sim's story; absent while the story is empty. */
+  onStory?: () => void;
 };
 
 export function SimEditor({
@@ -359,6 +361,7 @@ export function SimEditor({
   onLinkParent,
   onPlanYoung,
   petKinds,
+  onStory,
 }: Props) {
   const compact = useCompactChrome();
   const isPet = !!n.species;
@@ -1259,6 +1262,11 @@ export function SimEditor({
           {n.hh && !isUnhousedGid(n.gid) && (
             <button type="button" className="edlink edlink--plan" onClick={onOpenPlan}>
               See the {n.hh} household’s plan
+            </button>
+          )}
+          {onStory && (
+            <button type="button" className="edlink edlink--plan" onClick={onStory}>
+              📖 {n.first || cardName(n)}’s story
             </button>
           )}
           {planned && (

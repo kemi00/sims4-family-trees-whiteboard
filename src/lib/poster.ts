@@ -4,6 +4,7 @@ import { dayOf, dayText, seasonNow } from './lifeClock.ts';
 import { NOT_YET_AGE, cardName, isPlannedSim } from './plan.ts';
 import { successionLine } from './succession.ts';
 import { edgeSourceOf, isPet } from './utils.ts';
+import type { StoryLine } from './chronicle.ts';
 import type { Edge, Group, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 /** One sim on a poster. */
@@ -65,6 +66,8 @@ export type PosterModel = {
   rows: PosterRow[];
   couples: PosterCouple[];
   families: PosterFamily[];
+  /** Its big moments from the chronicle, oldest first, when you add them (storyLines). */
+  story?: StoryLine[];
   /** The save's calendar when it has one: "Short · Spring, day 6 of 7". */
   calendar: string;
   /** For the file: "goth-household". */
@@ -130,13 +133,20 @@ function relate(
   const on = (id: string) => rowOf.has(id);
 
   // Couples, the strongest link first; each sim in one.
+  const gone = (e: Edge) => [e.a, e.b].some((id) => nameOf.get(id)?.state === DECEASED_STATE);
   const paired = new Map<string, PosterCouple>();
   const partnerOf = new Map<string, string>();
   const notes = new Map<string, string[]>();
   const note = (id: string, text: string) => notes.set(id, [...(notes.get(id) ?? []), text]);
   const coupleLinks = links
     .filter((e) => e.type in COUPLE_RANK && (on(e.a) || on(e.b)) && e.a !== e.b)
-    .sort((x, y) => COUPLE_RANK[x.type]! - COUPLE_RANK[y.type]! || Number(!!x.ending) - Number(!!y.ending));
+    // A living partner before a late one: the card names whom they're with now.
+    .sort(
+      (x, y) =>
+        COUPLE_RANK[x.type]! - COUPLE_RANK[y.type]! ||
+        Number(gone(x)) - Number(gone(y)) ||
+        Number(!!x.ending) - Number(!!y.ending),
+    );
   for (const e of coupleLinks) {
     const type = e.type as PosterCouple['type'];
     if (on(e.a) && on(e.b) && rowOf.get(e.a) === rowOf.get(e.b)) {

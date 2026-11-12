@@ -1,3 +1,4 @@
+import type { ChronicleEntry } from './chronicle.ts';
 import type {
   DeceasedMark,
   Edge,
@@ -45,6 +46,8 @@ export type PersistPayload = {
   pairStatus?: PairStatus[];
   /** Game clock and aging options from the last save import (absent on older files). */
   saveGame?: SaveGameInfo | null;
+  /** The board's story, one entry per save upload (absent on older files). */
+  chronicle?: ChronicleEntry[];
   connectionLog: string[];
 };
 
@@ -79,6 +82,7 @@ export function buildPersistPayload(input: {
   simAgeUps: SimAgeUp[];
   pairStatus?: PairStatus[];
   saveGame?: SaveGameInfo | null;
+  chronicle?: ChronicleEntry[];
   connectionLog: { text: string }[];
   sourceFileName: string | null;
 }): PersistPayload {
@@ -101,6 +105,7 @@ export function buildPersistPayload(input: {
     simAgeUps: input.simAgeUps,
     pairStatus: input.pairStatus ?? [],
     saveGame: input.saveGame ?? null,
+    chronicle: input.chronicle ?? [],
     connectionLog: input.connectionLog.map((entry) => entry.text),
   };
 }
@@ -422,6 +427,7 @@ export function bootWhiteboardData(
       simAgeUps: draft.simAgeUps,
       pairStatus: draft.pairStatus,
       saveGame: draft.saveGame ?? null,
+      chronicle: draft.chronicle ?? [],
       connectionLog: draft.connectionLog,
     },
   };

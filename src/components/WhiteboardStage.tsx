@@ -85,6 +85,7 @@ import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { PartnerMenu } from './PartnerMenu.tsx';
 import { ChildMenu } from './ChildMenu.tsx';
 import { AddKindMenu } from './AddKindMenu.tsx';
+import { ChroniclePanel } from './ChroniclePanel.tsx';
 import { connectOptions } from '../lib/connectOptions.ts';
 import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
@@ -2057,7 +2058,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
             <span className="autosave-cue__sep savestatus-sep" aria-hidden="true">
               ·
             </span>
-            <SaveStatus game={wb.saveGame} onRecap={wb.recap ? () => wb.setRecapOpen(true) : undefined} />
+            <SaveStatus
+              game={wb.saveGame}
+              onRecap={wb.recap ? () => wb.setRecapOpen(true) : undefined}
+              onStory={() => {
+                wb.setRecapOpen(false);
+                wb.setChronicleView({ label: 'your board', ids: null });
+              }}
+            />
           </>
         )}
         <button
@@ -2279,7 +2287,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
           onClose={wb.closeChildMenu}
         />
       )}
-      {wb.recap && wb.recapOpen && (
+      {wb.recap && wb.recapOpen && !wb.chronicleView && (
         <RecapPanel
           recap={wb.recap}
           offPlan={wb.planIssues.length}
@@ -2288,6 +2296,19 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
           }}
           onClose={() => wb.setRecapOpen(false)}
+        />
+      )}
+      {wb.chronicleView && (
+        <ChroniclePanel
+          entries={wb.chronicle}
+          label={wb.chronicleView.label}
+          ids={wb.chronicleView.ids}
+          onGoToSim={(id) => {
+            const r = svgRef.current?.getBoundingClientRect();
+            wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
+          }}
+          onShowAll={() => wb.setChronicleView({ label: 'your board', ids: null })}
+          onClose={() => wb.setChronicleView(null)}
         />
       )}
       {lotMenu && (
@@ -2361,6 +2382,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
           fromSave={!!wb.saveGame}
           game={wb.saveGame}
           {...(onPoster ? { onPoster: () => onPoster(briefGroup.gid) } : {})}
+          {...(wb.chronicle.length
+            ? {
+                onStory: () => {
+                  wb.setRecapOpen(false);
+                  wb.setChronicleView({
+                    label: `the ${briefGroup.hh} household`,
+                    ids: wb.nodes.filter((n) => n.gid === briefGroup.gid).map((n) => n.id),
+                  });
+                },
+              }
+            : {})}
           onHover={(ids) => wb.setBriefHover(ids ? new Set(ids) : null)}
           onPick={(item) => {
             const first = item.sims[0];
@@ -2438,6 +2470,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
             wb.planPetYoung(ids);
           }}
           petKinds={wb.petKinds}
+          {...(wb.chronicle.length
+            ? {
+                onStory: () => {
+                  wb.setEditNodeId(null);
+                  wb.setRecapOpen(false);
+                  wb.setChronicleView({ label: cardName(editNode), ids: [editNode.id] });
+                },
+              }
+            : {})}
         />
       )}
     </div>

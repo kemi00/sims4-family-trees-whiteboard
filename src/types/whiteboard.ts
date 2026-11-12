@@ -1,3 +1,5 @@
+import type { ChronicleEntry } from '../lib/chronicle.ts';
+
 /** 👑 the dynasty's head, ⚜️ its heir, 🥀 an outcast it declared. */
 export type DynastyRole = 'head' | 'heir' | 'outcast';
 
@@ -424,6 +426,8 @@ export interface WhiteboardData {
   pairStatus?: PairStatus[];
   /** Game clock and aging options from the last save import. */
   saveGame?: SaveGameInfo | null;
+  /** The board's story, one entry per save upload (absent on older files). */
+  chronicle?: ChronicleEntry[];
   /** Pack names hidden by the Games filter. */
   hiddenPacks?: string[];
   /** Origin-playability values hidden by the Play filter. */
