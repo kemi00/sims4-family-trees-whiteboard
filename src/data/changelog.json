@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "32dc1ae",
+   "date": "2026-11-12",
+   "text": "Reset view is gone from the zoom bar: it jumped to an empty corner on boards from a save. Fit all brings back the whole board."
+  },
+  {
    "sha": "05766f9",
    "date": "2026-11-12",
    "text": "Opening your save picks Replace only when the board is still the starter roster as it came. If you've changed it, the board asks whether to merge or replace."
