@@ -90,6 +90,7 @@ import { LookBackBar } from './LookBackBar.tsx';
 import { pastNode } from '../lib/lookBack.ts';
 import { connectOptions } from '../lib/connectOptions.ts';
 import { Legend } from './Legend.tsx';
+import { keyMarks } from '../lib/keyMarks.ts';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
@@ -119,6 +120,8 @@ type Props = {
   stageRef: React.RefObject<HTMLDivElement | null>;
   /** No dialog is open: a first visit may show the Getting around card. */
   tipsReady?: boolean;
+  /** Open a .save from the board's status line while the board has none. */
+  onOpenSave?: () => void;
   /** Make a poster of a household (by gid). */
   onPoster?: (gid: string) => void;
 };
@@ -127,7 +130,7 @@ type Props = {
 const STAGE_WHEEL_SCROLL_SEL =
   '#legend, #hint, .legend-chip, .editor, .menu, .bloodline-banner, .minimap';
 
-export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: Props) {
+export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, onPoster }: Props) {
   const compact = useCompactChrome();
   const [tempLine, setTempLine] = useState<{
     x1: number;
@@ -1568,6 +1571,19 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
     w.setAddMenu({ gid, x: ev.clientX - (sr?.left ?? 0), y: ev.clientY - (sr?.top ?? 0) + 14 });
   }, [stageRef]);
 
+  /** The marks the board shows now, for the key to explain. */
+  const marksShown = useMemo(
+    () =>
+      keyMarks({
+        nodes: wb.visibleNodes,
+        edges: wb.shownEdges,
+        freeLots: wb.show.groups && wb.freeLots.size > 0,
+        offPlan: wb.offPlan.sims.size > 0 || wb.offPlan.edges.size > 0,
+        closing: [...wb.planTally.values()].some((t) => !!t.closing),
+      }),
+    [wb.visibleNodes, wb.shownEdges, wb.show.groups, wb.freeLots, wb.offPlan, wb.planTally],
+  );
+
   // What of the board is on screen, for new sims to land where you can see
   // them: the stage, less the legend column beside it.
   wb.visibleAreaRef.current = () => {
@@ -2052,6 +2068,17 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
         >
           {wb.boardSourceLabel}
         </span>
+        {!wb.saveGame && onOpenSave && (
+          <>
+            <span className="autosave-cue__sep" aria-hidden="true">
+              ·
+            </span>
+            {/* The step that makes the board theirs, in reach until a save is on it. */}
+            <button type="button" className="autosave-cue__open" onClick={onOpenSave}>
+              Open your save
+            </button>
+          </>
+        )}
         {wb.saveGame && (
           <>
             <span className="autosave-cue__sep savestatus-sep" aria-hidden="true">
@@ -2340,6 +2367,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
         worlds={wb.worlds}
         liveWorlds={wb.liveWorlds}
         totals={wb.boardTotals}
+        marks={marksShown}
         hidden={wb.gamesOpen || wb.playOpen || wb.agesOpen || !!briefGroup}
         onPickWorld={(world) => {
           const r = svgRef.current?.getBoundingClientRect();

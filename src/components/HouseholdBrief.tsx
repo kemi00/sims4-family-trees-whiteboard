@@ -134,7 +134,7 @@ export function HouseholdBrief({
             type="button"
             className="brief__close brief__poster"
             aria-label={`The story of the ${group.hh} household`}
-            title="Story: what happened to this household in your uploads"
+            title="Story: what happened to this household in your saves"
             onClick={onStory}
           >
             <BookOpenText aria-hidden="true" />
@@ -183,7 +183,7 @@ export function HouseholdBrief({
       )}
       {notInGame && (
         <p className="brief__away">
-          <b>Not in your game yet.</b> Move {listNames(notInGame.map(nameOf))} in, then upload a save: until then there’s no
+          <b>Not in your game yet.</b> Move {listNames(notInGame.map(nameOf))} in, then open your save: until then there’s no
           household to play.
         </p>
       )}
@@ -238,8 +238,8 @@ export function HouseholdBrief({
       )}
       <p className="brief__foot">
         {fromSave
-          ? 'Ages come from your last save import. Upload a newer save to refresh them.'
-          : 'No save imported yet: countdowns appear once you upload one.'}
+          ? 'Ages come from the last save you opened. Open a newer save to refresh them.'
+          : 'No save opened yet: countdowns appear once you open one.'}
       </p>
     </aside>
   );

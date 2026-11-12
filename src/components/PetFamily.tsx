@@ -150,7 +150,7 @@ export function PetFamily({ pet, nodes, edges, onLinkParent, onDeleteLink, onPla
               </button>
             </div>
             <p className="edhint">
-              Not born yet until a save has it: the next upload fills it in with the {young} the game has.
+              Not born yet until a save has it: your next save fills it in with the {young} the game has.
             </p>
           </div>
         )}

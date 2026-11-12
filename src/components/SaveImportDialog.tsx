@@ -113,7 +113,7 @@ export function SaveImportDialog({
       onClick={onCancel}
     >
       <div className="save-import__card" onClick={(e) => e.stopPropagation()}>
-        <h2 id="save-import-title">Load save game</h2>
+        <h2 id="save-import-title">Open your save</h2>
         {step === 'plan' ? (
           <p>
             Step 2 of 2 · <b>Your plan</b>: how your plan meets this save. Nothing changes until
@@ -289,7 +289,7 @@ export function SaveImportDialog({
                   <label className="save-import__keep">
                     <input type="checkbox" checked={keepStory} onChange={(e) => setKeepStory(e.target.checked)} />
                     <span>
-                      Keep the board’s story ({story === 1 ? '1 upload' : `${story} uploads`}): this save is its next
+                      Keep the board’s story ({story === 1 ? '1 save' : `${story} saves`}): this save is its next
                       page. Untick for a different game, to start a new story.
                     </span>
                   </label>

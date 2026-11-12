@@ -315,8 +315,9 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .credits-panel__note{margin-top:10px;font-size:10.5px;color:var(--ink-3)}
 
 /* ── floating view controls ──────────────────────────────────────────────── */
-/* Viewport chrome: bottom-center (not the legend’s right edge). */
-.viewctl{position:absolute;left:50%;right:auto;bottom:12px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:2px;padding:4px;background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:var(--lift)}
+/* Viewport chrome: bottom-centre of the free board, between the minimap and
+   the corner's world list and key (--legend-inset, set by Legend). */
+.viewctl{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);right:auto;bottom:12px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:2px;padding:4px;background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:var(--lift)}
 .viewctl__rule{width:1px;height:20px;background:var(--rule);margin:0 3px;flex:0 0 auto}
 .viewctl__zoom{position:relative;min-width:46px;text-align:center;font-size:11.5px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;cursor:default}
 
@@ -627,9 +628,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 #hintIcon svg{width:18px;height:18px}
 #hintIcon:hover{background:var(--hover);color:var(--ink)}
 #hintIcon:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
-#status{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;box-shadow:var(--lift);display:none;max-width:min(520px, calc(100% - 24px));text-align:center;line-height:1.35;z-index:8}
+#status{position:absolute;left:calc((100% - var(--legend-inset,0px)) / 2);top:12px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;box-shadow:var(--lift);display:none;max-width:min(520px, calc(100% - 24px));text-align:center;line-height:1.35;z-index:8}
 /* Session cue sits with view controls (bottom-center), not on the legend. */
-#autosave-cue{position:absolute;left:50%;right:auto;bottom:calc(12px + 40px + 8px);transform:translateX(-50%);z-index:6;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 8px;max-width:min(420px, calc(100% - 24px));padding:5px 10px;border:1px solid var(--line);border-radius:var(--r-control);background:var(--chrome);color:var(--ink-2);font-size:11px;font-weight:600;letter-spacing:.02em;box-shadow:var(--lift);user-select:none;text-align:center}
+#autosave-cue{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);right:auto;bottom:calc(12px + 40px + 8px);transform:translateX(-50%);z-index:6;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 8px;max-width:min(420px, calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px));padding:5px 10px;border:1px solid var(--line);border-radius:var(--r-control);background:var(--chrome);color:var(--ink-2);font-size:11px;font-weight:600;letter-spacing:.02em;box-shadow:var(--lift);user-select:none;text-align:center}
 .autosave-cue__label{color:var(--ink-2);pointer-events:none}
 .autosave-cue__sep{color:var(--ink-3);font-weight:500;pointer-events:none}
 .autosave-cue__file{max-width:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink);pointer-events:none}
@@ -639,7 +640,50 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .autosave-cue__reset:disabled{color:var(--ink-3);text-decoration:none;cursor:default;opacity:.42}
 .autosave-cue__reset:disabled:hover{color:var(--ink-3)}
 .autosave-cue__reset:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
-.bloodline-banner{position:absolute;left:50%;top:48px;transform:translateX(-50%);z-index:7;pointer-events:auto;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;max-width:min(520px, calc(100% - 24px));padding:8px 10px 8px 13px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;box-shadow:var(--lift)}
+/* Until a save is on the board, the step that makes it theirs. */
+.autosave-cue__open{padding:0;border:none;background:none;font:inherit;font-size:11px;font-weight:700;color:var(--accent-strong);cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.autosave-cue__open:hover{color:var(--accent)}
+.autosave-cue__open:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
+
+/* ── the first visit's welcome (Welcome.tsx): over the example board ───── */
+.welcome{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:16px;background:#1b2b3a59;overflow:auto}
+.welcome__card{width:min(480px,100%);max-height:100%;overflow:auto;padding:24px 26px 20px;border:2px solid transparent;border-radius:16px;background:var(--chrome);box-shadow:0 18px 50px #1b2b3a3d,0 2px 6px #1b2b3a1a;color:var(--ink)}
+.welcome__card--drop{border-color:var(--accent);background:var(--accent-soft)}
+.welcome__kicker{margin:0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.welcome__card h2{margin:4px 0 6px;font-size:22px;line-height:1.25}
+.welcome__lead{margin:0 0 16px;font-size:14px;line-height:1.5;color:var(--ink-2)}
+.welcome__drop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px;border:1.5px dashed var(--rule);border-radius:var(--r-surface);background:#fff;text-align:center}
+.welcome__card--drop .welcome__drop{border-color:var(--accent)}
+.welcome__open{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 18px;border:none;border-radius:var(--r-control);background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:650;cursor:pointer}
+.welcome__open svg{width:18px;height:18px}
+.welcome__open:hover{background:var(--accent-strong)}
+.welcome__open:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.welcome__droptext{margin:0;font-size:12px;color:var(--ink-3)}
+.welcome__wrong{margin:2px 0 0;font-size:12px;line-height:1.45;color:var(--danger)}
+.welcome__where{margin:12px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+.welcome__where summary{width:max-content;max-width:100%;color:var(--accent-strong);font-weight:600;cursor:pointer}
+.welcome__where summary:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
+.welcome__where p{margin:6px 0 0}
+.welcome__where b{font-weight:650;color:var(--ink)}
+.welcome__facts{list-style:none;display:grid;gap:10px;margin:16px 0 0;padding:14px 0 0;border-top:1px solid var(--line);font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+.welcome__facts li{display:flex;align-items:flex-start;gap:10px}
+.welcome__facts svg{flex:0 0 auto;width:16px;height:16px;margin-top:2px;color:var(--ink-3)}
+.welcome__foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-top:18px}
+.welcome__explore{min-height:36px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.welcome__explore:hover{background:var(--hover)}
+.welcome__board{padding:0;border:none;background:none;font:inherit;font-size:12px;color:var(--ink-3);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.welcome__board:hover{color:var(--ink)}
+.welcome__explore:focus-visible,.welcome__board:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:var(--r-control)}
+/* A phone: the whole screen, buttons a thumb can hit. */
+@media (max-width:640px){
+ .welcome{padding:0;align-items:stretch}
+ .welcome__card{width:100%;max-height:none;border-radius:0;box-shadow:none;padding:calc(20px + env(safe-area-inset-top,0px)) 18px calc(20px + env(safe-area-inset-bottom,0px))}
+ .welcome__open{min-height:48px;width:100%;justify-content:center}
+ .welcome__explore{min-height:44px;width:100%}
+ .welcome__foot{flex-direction:column;align-items:stretch;text-align:center}
+ .welcome__board{min-height:44px}
+}
+.bloodline-banner{position:absolute;left:calc((100% - var(--legend-inset,0px)) / 2);top:48px;transform:translateX(-50%);z-index:7;pointer-events:auto;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;max-width:min(520px, calc(100% - 24px));padding:8px 10px 8px 13px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;box-shadow:var(--lift)}
 .bloodline-banner p{margin:0;flex:1 1 12em;min-width:0}
 .family-banner__roles{display:block;margin-top:2px;font-weight:500;color:var(--ink-2)}
 /* Wider than Bloodline's: it also holds the Close / Extended switch. */
@@ -668,11 +712,17 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  * worlds; the key, read while you learn the marks, takes what is left and
  * scrolls inside its own card when the window is short.
  */
-#legend{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:8px;width:184px;max-height:calc(100% - 24px);padding:0;border:none;background:transparent;box-shadow:none;overflow:hidden;font-size:10px}
+/* The corner: the world list (daily use) in a 184px column, with the key
+   (reference) opening beside it in a wider panel of its own. The wrapper
+   spans the stage's height so both can scroll inside it; only the cards
+   take pointers, so the board stays clickable below them. */
+#legend{position:absolute;right:12px;top:12px;z-index:6;display:flex;align-items:flex-start;gap:8px;height:calc(100% - 24px);padding:0;border:none;background:transparent;box-shadow:none;pointer-events:none;font-size:10px}
+#legend>*{pointer-events:auto}
+.legend-col{display:flex;flex-direction:column;gap:8px;width:184px;max-height:100%;min-height:0;pointer-events:none}
+.legend-col>*{pointer-events:auto}
 .legend-card{background:var(--chrome-glass);border:1px solid var(--line);border-radius:var(--r-surface);padding:8px 10px;box-shadow:var(--lift);min-width:0}
-.legend-card--worlds{flex:1 1000 auto;min-height:var(--lg-worlds-min,172px);display:flex;flex-direction:column;overflow:hidden}
+.legend-card--worlds{flex:0 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .legend-card__body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain}
-.legend-card--links{flex:0 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 #legend h3{margin:0 0 4px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-3)}
 .lg{display:flex;align-items:center;gap:5px;margin:1.5px 0}
 .lg i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
@@ -686,48 +736,57 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lg-totals dd{order:-1;margin:0;font-size:15px;font-weight:700;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
 .lg-totals dt{color:var(--ink-2)}
 .lg-totals .lg-totals__note{order:0;font-size:9px;font-weight:400;line-height:1.3;color:var(--ink-3)}
+/* The Key button under the world list: opens the key beside it. */
+.legend-keybtn{flex:0 0 auto;display:flex;align-items:center;gap:7px;width:100%;min-height:36px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome-glass);box-shadow:var(--lift);color:var(--ink-2);font:inherit;text-align:left;cursor:pointer}
+.legend-keybtn svg{width:16px;height:16px;flex:0 0 auto}
+.legend-keybtn__label{font-size:12px;font-weight:650}
+.legend-keybtn__what{font-size:10.5px;color:var(--ink-3);line-height:1.25}
+.legend-keybtn:hover{background:var(--hover);color:var(--ink)}
+.legend-keybtn[aria-expanded=true]{background:var(--accent-soft);border-color:var(--accent-soft-hi);color:var(--accent-strong)}
+.legend-keybtn[aria-expanded=true] .legend-keybtn__what{color:var(--accent-strong)}
+.legend-keybtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 /*
  * The key: what each board mark means, in four groups (family lines,
- * couples, cards, plans). Every sample is drawn the same size, so the
- * meanings line up in one column; a note under a meaning is quieter.
+ * couples, cards and tags, your plans), with room to read: 12.5px text,
+ * 28px rows, each meaning on its own row with its note under it. Every
+ * sample is drawn the same size, so the meanings line up in one column.
  */
-.legend-toggle{display:flex;align-items:center;gap:4px;width:calc(100% + 8px);margin:-3px -4px;padding:3px 4px;border:0;border-radius:5px;background:none;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer}
-.legend-toggle:hover{background:var(--hover)}
-.legend-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
-.legend-toggle__caret{width:9px;height:9px;margin-left:auto;transition:transform .15s ease}
-.legend-toggle[aria-expanded=false] .legend-toggle__caret{transform:rotate(-90deg)}
-#legend .legend-card--links h3{margin-bottom:0}
-.lgk-groups{margin-top:4px;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-gutter:stable}
-.lgk-groups h4{margin:8px 0 2px;font-size:10px;font-weight:700;color:#3b4757}
-.lgk-groups h4:first-child{margin-top:2px}
+.legend-key{width:300px;max-height:100%;display:flex;flex-direction:column;overflow:hidden;padding:12px 6px 4px 16px;font-size:12.5px;color:#3f4756}
+.lgk-head{display:flex;align-items:center;justify-content:space-between;padding-right:8px}
+#legend .lgk-head h3{margin:0;font-size:14px;letter-spacing:0;text-transform:none;color:var(--ink)}
+.lgk-close{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink-3);cursor:pointer}
+.lgk-close svg{width:15px;height:15px}
+.lgk-close:hover{background:var(--hover);color:var(--ink)}
+.lgk-close:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
+.lgk-scope{margin:2px 10px 0 0;font-size:11.5px;line-height:1.45;color:var(--ink-3)}
+.lgk-scope__toggle{padding:0;border:0;background:none;font:inherit;color:var(--accent-strong);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.lgk-groups{min-height:0;margin-top:4px;padding:0 10px 10px 0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.lgk-groups h4{margin:18px 0 4px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.lgk-groups h4:first-child{margin-top:10px}
 .lgk-groups ul{list-style:none;margin:0;padding:0}
-.lgk{position:relative;display:flex;align-items:flex-start;gap:6px;padding:1px 0;line-height:15px;color:#3f4756}
-.lgk--marks{flex-wrap:wrap;gap:1px 10px}
-.lgk__mark{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
-.lgk__sample{flex:0 0 26px;display:flex;justify-content:center;align-items:center;height:15px}
-.lgk__svg{display:block;overflow:visible}
-.lgk__emoji{font-size:11px;line-height:1}
+.lgk{display:flex;align-items:flex-start;gap:12px;padding:5px 0;line-height:18px}
+.lgk--marks{flex-wrap:wrap;gap:4px 14px}
+.lgk__mark{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.lgk__sample{flex:0 0 32px;display:flex;justify-content:center;align-items:center;height:18px}
+.lgk__svg{display:block;width:32px;height:18px;overflow:visible}
+.lgk__emoji{font-size:14px;line-height:1}
 .lgk__emoji--planned{opacity:.4}
-.lgk__badge{display:inline-flex;align-items:center;height:16px;padding:0 6px;border:1.5px solid var(--warn-strong);border-radius:8px;background:#fff;color:var(--warn);font-size:10px;font-weight:700;line-height:1;white-space:nowrap}
+.lgk__badge{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1.5px solid var(--warn-strong);border-radius:9px;background:#fff;color:var(--warn);font-size:10.5px;font-weight:700;line-height:1;white-space:nowrap}
 .lgk__text{min-width:0}
-/* On the desktop corner a note is the row's hover tip, still read out; the phone sheet shows it. */
-.lgk__note{position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.lgk__note{display:block;margin-top:1px;font-size:11.5px;line-height:1.4;color:var(--ink-3)}
 /* Family lines: where (style) down the side, whether in your save (colour) across the top. */
-.lgk-lines{width:100%;table-layout:fixed;border-collapse:collapse;margin:0 0 2px;color:#3f4756}
-.lgk-lines th,.lgk-lines td{padding:1px 0;line-height:15px}
-.lgk-lines__col{width:34px}
-.lgk-lines thead th{font-size:9px;font-weight:600;color:var(--ink-3);text-align:center;white-space:nowrap}
+.lgk-lines{width:100%;table-layout:fixed;border-collapse:collapse;margin:0 0 4px;color:#3f4756}
+.lgk-lines th,.lgk-lines td{padding:5px 0;line-height:18px}
+.lgk-lines__col{width:56px}
+.lgk-lines thead th{padding-bottom:0;font-size:10.5px;font-weight:600;color:var(--ink-3);text-align:center;white-space:nowrap}
 .lgk-lines thead .lgk-lines__plan{color:#7c3aed}
-.lgk-lines tbody th{font-weight:400;text-align:left;white-space:nowrap}
+.lgk-lines tbody th{font-weight:400;text-align:left}
 .lgk-lines td{text-align:center}
 .lgk-lines td svg{display:inline-block;vertical-align:middle;overflow:visible}
-/* Shapes and couples in pairs: one word each, the full meaning as the tip. */
-.lgk-groups ul.lgk-pairs{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,max-content);justify-content:space-between;column-gap:4px}
-.lgk-pairs .lgk{gap:4px}
-.lgk__counts svg{display:inline-block;width:10px;height:10px;vertical-align:-1px;color:var(--ink-3)}
+.lgk__counts svg{display:inline-block;width:12px;height:12px;vertical-align:-1px;color:var(--ink-3)}
 .lgk-groups h4.lgk__plans{color:#7c3aed}
-.lgk__lead{margin:0 0 3px;font-size:9.5px;line-height:1.35;color:#7a8491}
-@media (prefers-reduced-motion:reduce){ .legend-toggle__caret{transition:none} }
+.lgk__lead{margin:0 0 2px;font-size:11.5px;line-height:1.4;color:var(--ink-3)}
+.lgk__empty{margin:4px 0 0;font-size:12px;line-height:1.5;color:var(--ink-2)}
 /* World rows are buttons: picking one frames that world on the canvas. */
 .lg--world{width:100%;margin:1.5px -4px;padding:1.5px 4px;border:0;border-radius:5px;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .lg--world:hover:not(:disabled){background:var(--hover)}
@@ -1176,7 +1235,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hhmove .movego{white-space:normal;line-height:1.3}
 .hhmove .movego--alt,.editor .movego--alt{background:#fff;border:1px solid var(--rule);color:var(--ink-2)}
 .hhmove .movego--alt:hover,.editor .movego--alt:hover{background:var(--hover);color:var(--ink)}
-.selbar{position:absolute;left:50%;bottom:calc(12px + 40px + 8px + 28px + 8px);transform:translateX(-50%);z-index:7;width:min(440px, calc(100% - 24px));box-sizing:border-box;padding:8px 8px 8px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;line-height:1.35;box-shadow:var(--lift)}
+.selbar{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);bottom:calc(12px + 40px + 8px + 28px + 8px);transform:translateX(-50%);z-index:7;width:min(440px, calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px));box-sizing:border-box;padding:8px 8px 8px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;line-height:1.35;box-shadow:var(--lift)}
 .selbar__row{display:flex;align-items:center;gap:8px}
 .selbar__what{flex:1 1 auto;min-width:0;margin:0;overflow-wrap:anywhere}
 .selbar__go{flex:0 0 auto;height:28px;padding:0 11px;border:1px solid transparent;border-radius:var(--r-control);background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
@@ -1458,28 +1517,22 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .minimap{left:max(12px, env(safe-area-inset-left,0px));bottom:max(12px, env(safe-area-inset-bottom,0px))}
  .legend-chip{right:max(12px, env(safe-area-inset-right,0px));top:12px}
  #legend.legend--sheet{
-  left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;max-width:none;max-height:70dvh;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
+  left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;height:auto;max-width:none;max-height:70dvh;flex-direction:column;align-items:stretch;pointer-events:auto;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
  }
  /* Over the board's own corner controls (minimap, zoom, tips, all at 6–7) while open. */
  #legend.legend--sheet{z-index:9}
  /* Close stays in reach while the key below is scrolled into view. */
  #legend.legend--sheet .legend-close{position:sticky;top:-4px;z-index:1;padding:4px 10px;border-radius:999px;background:var(--chrome);box-shadow:0 0 0 1px var(--line)}
- /* The sheet scrolls as a whole, so neither card is squeezed to fit it. */
- #legend.legend--sheet .legend-card--worlds{flex:0 0 auto;max-height:min(36dvh, 280px)}
- #legend.legend--sheet .legend-card--links{flex:0 0 auto}
+ /* The sheet scrolls as a whole: the world list, the Key button, then the key under them. */
+ #legend.legend--sheet .legend-col{flex:0 0 auto;width:auto;max-height:none}
+ #legend.legend--sheet .legend-card--worlds{flex:0 0 auto;min-height:0;max-height:min(36dvh, 280px)}
+ #legend.legend--sheet .legend-keybtn{min-height:44px}
+ #legend.legend--sheet .legend-key{width:auto;max-height:none;overflow:visible;flex:0 0 auto}
+ #legend.legend--sheet .lgk-groups{overflow:visible}
  /* Phone-sized text: 10px is for the corner of a desktop board. */
  #legend.legend--sheet{font-size:12px}
  #legend.legend--sheet h3{font-size:10.5px}
- #legend.legend--sheet .lgk-groups h4{margin-top:10px;font-size:12px}
- #legend.legend--sheet .lgk{padding:2.5px 0;line-height:18px}
- #legend.legend--sheet .lgk__sample{height:18px}
- #legend.legend--sheet .lgk__note{position:static;display:block;width:auto;height:auto;overflow:visible;clip-path:none;white-space:normal;margin-top:-1px;line-height:1.3;color:#7a8491}
- #legend.legend--sheet .lgk__note,#legend.legend--sheet .lgk__lead{font-size:11px}
- /* The sheet scrolls as a whole, so the key need not scroll on its own. */
- #legend.legend--sheet .legend-card--worlds{min-height:0}
- #legend.legend--sheet .legend-card--links,#legend.legend--sheet .lgk-groups{overflow:visible}
- #legend.legend--sheet .lgk-lines th,#legend.legend--sheet .lgk-lines td{line-height:18px}
- #legend.legend--sheet .lgk__emoji{font-size:13px}
+ #legend.legend--sheet .lgk-head h3{font-size:15px}
  .tool[data-tone=danger]:not(:disabled){background:var(--danger-soft);color:var(--danger)}
 }
 /* Touch: labelled tools lose their labels at 980 and drop to 32px wide; on a
@@ -1612,7 +1665,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 /* Room for the save on the same line as Autosave and Reset on a desktop.
    Phones keep the narrow cue (it sits beside the minimap) and reach the save
    from More instead. */
-@media (min-width:641px){ #autosave-cue{width:max-content;max-width:min(560px, calc(100% - 24px))} }
+@media (min-width:641px){ #autosave-cue{width:max-content;max-width:min(560px, calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px))} }
 @media (max-width:640px){ #autosave-cue .savestatus,#autosave-cue .savestatus-sep{display:none} }
 .savestatus{position:relative;display:inline-flex}
 .savestatus__btn{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;margin:-2px -2px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--ink);font:inherit;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
@@ -1637,7 +1690,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 }
 
 /* Previously on…: the story since the last upload. */
-.recap{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:9;width:min(430px, calc(100% - 24px));max-height:min(72vh, 600px);display:flex;flex-direction:column;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);box-shadow:var(--lift);font-size:12.5px;line-height:1.4}
+.recap{position:absolute;top:12px;left:calc((100% - var(--legend-inset,0px)) / 2);transform:translateX(-50%);z-index:9;width:min(430px, calc(100% - 24px));max-height:min(72vh, 600px);display:flex;flex-direction:column;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);box-shadow:var(--lift);font-size:12.5px;line-height:1.4}
 .recap__head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:12px 12px 8px 14px;border-bottom:1px solid var(--line)}
 .recap__kicker{margin:0;font-size:11px;font-weight:700;font-style:italic;letter-spacing:.2px;color:var(--accent)}
 .recap__head h2{margin:2px 0 0;font-size:15px;font-weight:800}
@@ -1659,7 +1712,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .recap__off{font-size:11.5px;color:var(--warn)}
 /* Looking back (LookBackBar.tsx): the board as it was at an upload, read only. */
 .stage--past svg g{pointer-events:none}
-.lookback{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:8;width:min(520px,calc(100% - 24px));box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);box-shadow:var(--lift);color:var(--ink);font-size:12px}
+.lookback{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);bottom:64px;transform:translateX(-50%);z-index:8;width:min(520px,calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px));box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);box-shadow:var(--lift);color:var(--ink);font-size:12px}
 .lookback__when{margin:0 0 6px;font-size:12.5px}
 .lookback__ctl{display:flex;align-items:center;gap:6px}
 .lookback__range{flex:1 1 auto;min-width:0;accent-color:var(--accent)}

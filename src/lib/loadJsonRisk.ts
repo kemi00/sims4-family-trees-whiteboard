@@ -54,7 +54,7 @@ export function loadJsonRisk(
     ? opts.sourceFileName
     : opts.fromBrowserDraft
       ? 'Browser draft'
-      : 'Built-in board';
+      : 'Example board';
   return {
     needsConfirm,
     fromSaveCards,

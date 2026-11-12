@@ -94,7 +94,7 @@ export function PosterDialog({ model, onClose }: Props) {
         {!!model.story?.length && (
           <label className="poster__opt">
             <input type="checkbox" checked={withStory} onChange={(e) => setWithStory(e.target.checked)} />
-            Add its story so far: {model.story.length === 1 ? '1 moment' : `${model.story.length} moments`} from your uploads
+            Add its story so far: {model.story.length === 1 ? '1 moment' : `${model.story.length} moments`} from your saves
           </label>
         )}
         <p className="poster__lead">Made on this device from your board: nothing is uploaded.</p>

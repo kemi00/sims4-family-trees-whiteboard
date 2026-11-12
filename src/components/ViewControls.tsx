@@ -69,7 +69,7 @@ export function ViewControls({ wb, svgRef }: Props) {
           <span className="viewctl__rule" aria-hidden="true" />
           <ToolButton
             icon={ClockCounterClockwise}
-            label={wb.lookBackAt === null ? 'Look back through your uploads' : 'Back to now'}
+            label={wb.lookBackAt === null ? 'Look back through your saves' : 'Back to now'}
             pressed={wb.lookBackAt !== null}
             onClick={() => wb.setLookBackAt(wb.lookBackAt === null ? wb.chronicle.length - 2 : null)}
           />

@@ -30,6 +30,8 @@ import { householdPlace } from './lib/connectionLog.ts';
 import { householdName, upNext } from './lib/householdPlan.ts';
 import { cardName } from './lib/plan.ts';
 import { WhiteboardStage } from './components/WhiteboardStage.tsx';
+import { Welcome } from './components/Welcome.tsx';
+import { isFirstVisit } from './lib/welcome.ts';
 import { SearchPalette } from './components/SearchPalette.tsx';
 import { findShortcut, type FindAction, type FindResult } from './lib/findPalette.ts';
 import { aKind } from './lib/pets.ts';
@@ -45,10 +47,23 @@ const CHANGELOG = visibleEntries(changelog.entries as ChangelogEntry[]);
 
 export default function App() {
   const wb = useWhiteboard();
-  /** Opens itself on load only for a visitor who has not read the newest entry. */
-  const [devUpdatesOpen, setDevUpdatesOpen] = useState(() =>
-    hasUnseen(CHANGELOG, readSeen()),
+  /** A first visit opens on the welcome, which asks for their save first. */
+  const [welcomeOpen, setWelcomeOpen] = useState(() =>
+    isFirstVisit(wb.fromBrowserDraft || !!wb.sourceFileName || !!wb.saveGame),
   );
+  /**
+   * Opens itself on load only for a returning visitor who has not read the
+   * newest entry: a newcomer gets the welcome, not news of changes.
+   */
+  const [devUpdatesOpen, setDevUpdatesOpen] = useState(() =>
+    !welcomeOpen && hasUnseen(CHANGELOG, readSeen()),
+  );
+  useEffect(() => {
+    // Everything so far is new to a newcomer: only later changes are news.
+    if (welcomeOpen) markSeen(CHANGELOG);
+    // Once, on the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [devUpdatesUnseen, setDevUpdatesUnseen] = useState(devUpdatesOpen);
   /** A household's or dynasty's poster, open to keep or share. */
   const [poster, setPoster] = useState<PosterModel | null>(null);
@@ -261,11 +276,11 @@ export default function App() {
     };
     return [
       {
-        id: 'upload-save',
+        id: 'open-save',
         suggested: true,
-        label: 'Upload a save',
-        detail: 'Bring your game’s newest .save into the board',
-        words: 'load import refresh game file .save',
+        label: 'Open your save',
+        detail: 'Your game’s newest .save: it stays on your computer',
+        words: 'upload load import refresh game file .save',
         run: () => saveFileRef.current?.click(),
       },
       {
@@ -294,7 +309,7 @@ export default function App() {
         id: 'story',
         suggested: true,
         label: 'Read your story',
-        detail: 'What happened in your game, upload by upload',
+        detail: 'What happened in your game, save by save',
         words: 'chronicle history',
         run: () => {
           wb.setRecapOpen(false);
@@ -337,8 +352,8 @@ export default function App() {
         ? [
             {
               id: 'look-back',
-              label: 'Look back through your uploads',
-              detail: 'The board as it was at each upload',
+              label: 'Look back through your saves',
+              detail: 'The board as it was at each save you opened',
               words: 'time lapse history past before',
               run: () => wb.setLookBackAt(wb.chronicle.length - 2),
             },
@@ -427,7 +442,8 @@ export default function App() {
           wb={wb}
           svgRef={svgRef}
           stageRef={stageRef}
-          tipsReady={!devUpdatesOpen && !wb.saveImport && !wb.pendingLoadJson}
+          tipsReady={!welcomeOpen && !devUpdatesOpen && !wb.saveImport && !wb.pendingLoadJson}
+          onOpenSave={() => saveFileRef.current?.click()}
           onPoster={(gid) => {
             const group = wb.groups.find((g) => g.gid === gid);
             if (!group) return;
@@ -669,6 +685,20 @@ export default function App() {
               const r = svgRef.current?.getBoundingClientRect();
               wb.confirmSaveReplace(r?.width ?? 800, r?.height ?? 600, keepStory);
             }}
+          />
+        )}
+        {welcomeOpen && (
+          <Welcome
+            onOpenSave={(f) => {
+              setWelcomeOpen(false);
+              wb.previewSave(f);
+            }}
+            onOpenBoard={(f) => {
+              setWelcomeOpen(false);
+              const { w, h } = boardSize();
+              wb.loadJson(f, w, h);
+            }}
+            onClose={() => setWelcomeOpen(false)}
           />
         )}
         {findOpen && (

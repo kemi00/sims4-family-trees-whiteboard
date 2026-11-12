@@ -366,7 +366,7 @@ export function AppBar({
           id: 'story',
           icon: BookOpenText,
           label: 'Story',
-          note: 'What happened in your game, upload by upload',
+          note: 'What happened in your game, save by save',
           onSelect: openStory,
         },
         {
@@ -578,7 +578,7 @@ export function AppBar({
         <ToolButton
           id="btnStory"
           icon={BookOpenText}
-          label="Story: what happened in your game, upload by upload"
+          label="Story: what happened in your game, save by save"
           pressed={storyOpen}
           expanded={storyOpen}
           className="tool--secondary"

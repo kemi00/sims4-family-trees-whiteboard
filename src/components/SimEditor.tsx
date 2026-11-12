@@ -77,7 +77,7 @@ function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
  * premade the save did not have).
  */
 function noSimIdNote(n: SimNode, boardHasSave: boolean): string {
-  if (!boardHasSave) return 'Upload your save file to see the sim ID';
+  if (!boardHasSave) return 'Open your save to see the sim ID';
   if (n.treeId) return "No sim ID: only in the game's family tree";
   if (n.added) return 'No sim ID: added on the board';
   return 'No sim ID: not in your save';
@@ -1878,7 +1878,7 @@ export function SimEditor({
         <button
           type="button"
           className="eddelete"
-          title={`${n.saveSimId || n.treeId || n.fromSave ? 'They’re in your save, so your next save upload brings them back. ' : ''}Undo takes it back.`}
+          title={`${n.saveSimId || n.treeId || n.fromSave ? 'They’re in your save, so opening your save again brings them back. ' : ''}Undo takes it back.`}
           onClick={onDelete}
         >
           <Trash aria-hidden="true" />

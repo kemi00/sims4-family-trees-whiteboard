@@ -36,7 +36,7 @@ export function LookBackBar({ entries, at, onAt, onNow }: Props) {
     <div
       className="lookback"
       role="group"
-      aria-label="Looking back through your uploads"
+      aria-label="Looking back through your saves"
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         if (e.key !== 'Escape') return;
@@ -45,10 +45,10 @@ export function LookBackBar({ entries, at, onAt, onNow }: Props) {
       }}
     >
       <p className="lookback__when" aria-live="polite">
-        <b>{at >= last ? 'Now' : 'Looking back'}:</b> {chronicleWhen(entry)} · upload {at + 1} of {entries.length}
+        <b>{at >= last ? 'Now' : 'Looking back'}:</b> {chronicleWhen(entry)} · save {at + 1} of {entries.length}
       </p>
       <div className="lookback__ctl">
-        <button type="button" className="lookback__btn" aria-label="An upload earlier" disabled={at <= 0} onClick={() => onAt(at - 1)}>
+        <button type="button" className="lookback__btn" aria-label="An earlier save" disabled={at <= 0} onClick={() => onAt(at - 1)}>
           <CaretLeft aria-hidden="true" weight="bold" />
         </button>
         <input
@@ -58,11 +58,11 @@ export function LookBackBar({ entries, at, onAt, onNow }: Props) {
           max={last}
           step={1}
           value={at}
-          aria-label="Upload"
-          aria-valuetext={`${chronicleWhen(entry)}, upload ${at + 1} of ${entries.length}`}
+          aria-label="Which save"
+          aria-valuetext={`${chronicleWhen(entry)}, save ${at + 1} of ${entries.length}`}
           onChange={(e) => onAt(Number(e.target.value))}
         />
-        <button type="button" className="lookback__btn" aria-label="An upload later" disabled={at >= last} onClick={() => onAt(at + 1)}>
+        <button type="button" className="lookback__btn" aria-label="A later save" disabled={at >= last} onClick={() => onAt(at + 1)}>
           <CaretRight aria-hidden="true" weight="bold" />
         </button>
         <button

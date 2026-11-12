@@ -193,7 +193,7 @@ export function DynastiesPanel({
       <button
         type="button"
         className="dynp__act dynp__act--poster"
-        title="What happened to this dynasty in your uploads"
+        title="What happened to this dynasty in your saves"
         onClick={() => onStory(r.key)}
       >
         <BookOpenText aria-hidden="true" /> Story
@@ -334,7 +334,7 @@ export function DynastiesPanel({
       </div>
       {/* Prestige comes with a save read since the board learned it: say so until then. */}
       {!hasPrestige && rows.some((r) => r.inGame) && (
-        <p className="dynp__note">Each dynasty’s prestige shows here after your next save upload.</p>
+        <p className="dynp__note">Each dynasty’s prestige shows here the next time you open your save.</p>
       )}
       {rows.length > 0 && (
         <input
@@ -387,7 +387,7 @@ export function DynastiesPanel({
       )}
       {!rows.length ? (
         <p className="dynp__empty">
-          No dynasties yet. Upload a save with dynasties in it, or plan one from a sim’s Family tab.
+          No dynasties yet. Open a save with dynasties in it, or plan one from a sim’s Family tab.
         </p>
       ) : !groups.length ? (
         <p className="dynp__empty">
@@ -564,7 +564,7 @@ function LineForecast({
   if (!f.steps.length) return null;
   const aging = game ? agingSummary(game) : '';
   const note = !game
-    ? 'Upload a save to see when each one grows up or grows old.'
+    ? 'Open your save to see when each one grows up or grows old.'
     : [game.lifespan ? `${game.lifespan} lifespan` : '', aging].filter(Boolean).join(' · ');
   // Everyone in line in one household on one clock: said once, under the heading.
   const shared = lineClockText(f.steps);

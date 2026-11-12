@@ -140,7 +140,7 @@ export function OverflowMenu({
             onClick={() => run(onSave)}
           >
             <DownloadSimple aria-hidden="true" />
-            Save .json
+            Download the board (.json)
           </button>
           <button
             type="button"
@@ -148,7 +148,7 @@ export function OverflowMenu({
             onClick={() => fileRef.current?.click()}
           >
             <UploadSimple aria-hidden="true" />
-            Load .json
+            Open a board (.json)
           </button>
           <button
             type="button"
@@ -156,7 +156,7 @@ export function OverflowMenu({
             onClick={() => saveRef.current?.click()}
           >
             <UploadSimple aria-hidden="true" />
-            Load .save
+            Open your save (.save)
           </button>
           <button
             type="button"

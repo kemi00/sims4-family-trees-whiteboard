@@ -64,7 +64,7 @@ export function SaveDetails({ game, onRecap, onStory }: { game: SaveGameInfo; on
       <div className="pop__head">From your save</div>
       {onRecap && (
         <button type="button" className="savechip__recap" onClick={onRecap}>
-          ✨ What happened since the last upload
+          ✨ What happened since your last save
         </button>
       )}
       {onStory && (

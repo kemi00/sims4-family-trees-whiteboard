@@ -79,12 +79,12 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
       <div className="recap__body">
         {!entries.length ? (
           <p className="chron__empty">
-            Your story starts with your next save upload: each one adds what happened in your game since the one
-            before.
+            Your story starts the next time you open your save: each save you open adds what happened in your game
+            since the one before.
           </p>
         ) : !shown.length ? (
           <p className="chron__empty">
-            {query.trim() ? `Nothing in the story matches “${query.trim()}”.` : `Nothing has happened to ${label} in your uploads yet.`}
+            {query.trim() ? `Nothing in the story matches “${query.trim()}”.` : `Nothing has happened to ${label} in your saves yet.`}
           </p>
         ) : (
           shown.map((e) => {
@@ -93,7 +93,7 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
               <article key={e.at} className="chron__entry">
                 <h3 className="chron__when">{chronicleWhen(e)}</h3>
                 <p className="chron__meta">
-                  {[time ? `${time[0]!.toUpperCase()}${time.slice(1)}` : '', e.recap?.seasons ? `${e.recap.seasons.to} arrived` : '', `uploaded ${uploaded(e.at)}`]
+                  {[time ? `${time[0]!.toUpperCase()}${time.slice(1)}` : '', e.recap?.seasons ? `${e.recap.seasons.to} arrived` : '', `opened ${uploaded(e.at)}`]
                     .filter(Boolean)
                     .join(' · ')}
                 </p>

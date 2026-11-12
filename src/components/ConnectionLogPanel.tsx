@@ -412,7 +412,7 @@ export function ConnectionLogPanel({
         </p>
       ) : tab === 'game' && counts.game === 0 ? (
         <p className="connection-log__empty">
-          Nothing from your game yet. Upload a save: the links it finds, and
+          Nothing from your game yet. Open your save: the links it finds, and
           the plans it shows done, show up here.
         </p>
       ) : (
