@@ -48,7 +48,7 @@ export function whyNotAdopt(
   const own = whyCantAdopt(parent);
   if (own) return own;
   if (child.species) return `${child.first} is a pet.`;
-  if (child.state === DECEASED_STATE) return `${child.first} has died.`;
+  if (child.state === DECEASED_STATE) return `${child.first} has passed away.`;
   if (unborn?.has(child.id)) return `${child.first} isn’t born yet.`;
   if (familyOf(parent.id, edges).has(child.id)) return 'They’re family already.';
   const mine = placeInLife(parent);

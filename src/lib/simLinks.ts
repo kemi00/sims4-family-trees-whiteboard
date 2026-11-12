@@ -1,5 +1,5 @@
 import type { Edge } from '../types/whiteboard.ts';
-import { edgeSourceOf, endedByDeath } from './utils.ts';
+import { edgeSourceOf, endedByPassing } from './utils.ts';
 
 /** What taking a link off does: removes it, or plans the end of a couple the game has. */
 export type LinkRemoval = 'remove' | 'divorce' | 'breakup';
@@ -13,7 +13,7 @@ export type SimLinkRow = {
   /** Made on the board, not in your save yet. */
   planned: boolean;
   removal: LinkRemoval;
-  /** A couple a death ended: kept as their history, faded, with nothing to plan. */
+  /** A couple a passing ended: kept as their history, faded, with nothing to plan. */
   ended?: true;
 };
 
@@ -29,8 +29,10 @@ export function simLinkRows(
   id: string,
   edges: readonly Edge[],
   nameOf: (id: string) => string,
-  /** Who has died: a couple one of them died in is over, so there is no divorce to plan. */
+  /** Who has passed away: a couple with a partner who passed is over, so there is no divorce to plan. */
   isDead: (id: string) => boolean = () => false,
+  /** A sim's first name, for "until Imani passed away": a name, never a guessed pronoun. */
+  firstOf: (id: string) => string = nameOf,
 ): SimLinkRow[] {
   const rows: (SimLinkRow & { kind: (typeof ORDER)[number] })[] = [];
   for (const e of edges) {
@@ -39,9 +41,16 @@ export function simLinkRows(
     const other = nameOf(otherId);
     const planned = edgeSourceOf(e) === 'planned';
     const secret = e.secret ? ', secret' : '';
-    // Widowed: "who died" when the other one did, "until death" on the one who died.
-    const ended = !planned && endedByDeath(e, isDead);
-    const death = ended ? (isDead(otherId) ? ', who died' : ' until death') : '';
+    // Gently, with names: "who passed away" when the other one passed,
+    // "until Imani passed away" on the one who did, "until both passed away".
+    const ended = !planned && endedByPassing(e, isDead);
+    const death = !ended
+      ? ''
+      : isDead(id) && isDead(otherId)
+        ? ' until both passed away'
+        : isDead(otherId)
+          ? ', who passed away'
+          : ` until ${firstOf(id)} passed away`;
     let kind: (typeof ORDER)[number];
     let text: string;
     switch (e.type) {
@@ -75,7 +84,7 @@ export function simLinkRows(
         text = `Linked to ${other}`;
     }
     // The game can't unmake a couple it has: taking one off plans its end.
-    // One a death ended has no end left to plan: it comes off like any link.
+    // One a passing ended has no end left to plan: it comes off like any link.
     const couple = (e.type === 'marriage' || e.type === 'romance') && !planned && !e.ending && !ended;
     const removal: LinkRemoval = !couple ? 'remove' : e.type === 'marriage' ? 'divorce' : 'breakup';
     rows.push({ id: e.id, text, other, planned, removal, kind, ...(ended ? { ended: true as const } : {}) });

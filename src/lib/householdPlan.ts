@@ -268,7 +268,7 @@ export function householdPlans(opts: {
     };
     const dead = parents.find((p) => !living(p));
     if (dead) {
-      items.push({ ...base, state: 'offPlan', text: `${cardName(dead)} has died, so ${babiesText(kids)} can’t come`, waits: [] });
+      items.push({ ...base, state: 'offPlan', text: `${cardName(dead)} has passed away, so ${babiesText(kids)} can’t come`, waits: [] });
       continue;
     }
     const waits = parents.map((p) => waitOn(p, GROWN_UP)).filter((w): w is PlanWait => !!w);

@@ -1,7 +1,7 @@
-import { LINK_MARK } from './constants.ts';
+import { DECEASED_STATE, LINK_MARK } from './constants.ts';
 import { simName } from './connectionLog.ts';
 import { coParentNote, romanceWord, type PairIndex } from './pairStatus.ts';
-import { joinNotes, uKey } from './utils.ts';
+import { edgeSourceOf, endedByPassing, joinNotes, uKey } from './utils.ts';
 import type {
   Edge,
   EdgeRenderData,
@@ -483,8 +483,17 @@ export function describeLinkSelection(
     matched.length === 1 && (first.type === 'marriage' || first.type === 'romance')
       ? { id: first.id, type: first.type, ending: !!first.ending }
       : undefined;
-  // A planned end says so after the link's name, as the line draws it.
-  const ended = couple?.ending ? `${label} · ${couple.type === 'marriage' ? 'divorce' : 'breakup'} planned` : label;
+  // A planned end says so after the link's name, as the line draws it; a
+  // couple a passing ended says that instead (endedByPassing).
+  const passed =
+    !!couple &&
+    edgeSourceOf(first) !== 'planned' &&
+    endedByPassing(first, (id) => byid[id]?.state === DECEASED_STATE);
+  const ended = passed
+    ? `${label} until a passing`
+    : couple?.ending
+      ? `${label} · ${couple.type === 'marriage' ? 'divorce' : 'breakup'} planned`
+      : label;
   const yourNote = joinNotes(...matched.map((e) => e.note), first.ending?.note);
   return {
     mark,

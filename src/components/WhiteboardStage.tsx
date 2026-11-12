@@ -60,7 +60,7 @@ import {
   type ChipObstacle,
 } from '../lib/linkLabel.ts';
 import { slug, trackAction } from '../lib/analytics.ts';
-import { edgeSourceOf, endedByDeath, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
+import { edgeSourceOf, endedByPassing, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
@@ -1571,12 +1571,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     w.setAddMenu({ gid, x: ev.clientX - (sr?.left ?? 0), y: ev.clientY - (sr?.top ?? 0) + 14 });
   }, [stageRef]);
 
-  /** Who has died: a couple one of them died in is over (endedByDeath), drawn faded. */
+  /** Who has passed away: a couple with a partner who passed is over (endedByPassing), drawn faded. */
   const deadIds = useMemo(() => new Set(wb.nodes.filter((n) => n.state === DECEASED_STATE).map((n) => n.id)), [wb.nodes]);
-  /** A couple link a death ended: no divorce or breakup to plan for it. */
+  /** A couple link a passing ended: no divorce or breakup to plan for it. */
   const widowedEdge = (id: string) => {
     const e = wb.edges.find((x) => x.id === id);
-    return !!e && edgeSourceOf(e) !== 'planned' && endedByDeath(e, (x) => deadIds.has(x));
+    return !!e && edgeSourceOf(e) !== 'planned' && endedByPassing(e, (x) => deadIds.has(x));
   };
 
   /** The marks the board shows now, for the key to explain. */
@@ -1690,7 +1690,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     wb.multiSel?.kind === 'nodes' ? new Set(wb.multiSel.ids) : undefined;
   /**
    * Every picked link a couple the game has, with no end planned: Delete
-   * plans that end. Not one a death ended (widowed): there is no end to plan.
+   * plans that end. Not one a passing ended: there is no end to plan.
    */
   const gameCoupleIntact = (ids: string[]) => {
     const picked = wb.edges.filter((e) => ids.includes(e.id));
@@ -1701,7 +1701,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           (e.type === 'marriage' || e.type === 'romance') &&
           edgeSourceOf(e) !== 'planned' &&
           !e.ending &&
-          !endedByDeath(e, (id) => deadIds.has(id)),
+          !endedByPassing(e, (id) => deadIds.has(id)),
       )
     );
   };

@@ -647,6 +647,7 @@ export function SimEditor({
           return x ? cardName(x) : 'someone not on the board';
         },
         (id) => byId[id]?.state === DECEASED_STATE,
+        (id) => byId[id]?.first.trim() || 'they',
       ),
     [n.id, edges, byId],
   );

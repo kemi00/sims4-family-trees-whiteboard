@@ -362,7 +362,7 @@ export function SaveImportDialog({
                   <span className="save-import__meta-value">
                     {listPreview([...summary.relativesNamed, ...summary.relatives], 8)}. The
                     game's family tree links them to your sims, though they are no sims
-                    in your save: mostly ancestors who died long ago. Those the game
+                    in your save: mostly ancestors who passed away long ago. Those the game
                     gives no name stay Unknown.
                   </span>
                 </div>

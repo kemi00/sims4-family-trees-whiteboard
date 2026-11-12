@@ -39,7 +39,7 @@ describe('the key’s marks', () => {
     });
     assert.deepEqual(
       [...marks].sort(),
-      ['added', 'closing', 'deceased', 'divorced', 'dynastyRoles', 'freeLots', 'fromSave', 'offPlan', 'otherLink', 'pets', 'plannedRole', 'romance', 'secretLovers', 'secretParent', 'unhoused', 'widowed'].sort(),
+      ['added', 'closing', 'deceased', 'divorced', 'dynastyRoles', 'freeLots', 'fromSave', 'offPlan', 'otherLink', 'pets', 'plannedRole', 'romance', 'secretLovers', 'secretParent', 'partnerPassed', 'unhoused'].sort(),
     );
   });
 });

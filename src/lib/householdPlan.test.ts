@@ -223,7 +223,7 @@ describe('planned babies', () => {
   it('can’t come once a parent has died', () => {
     const gone = [sim('Sergio', 'Romeo', { state: 'Deceased' }), sim('Siobhan', 'Romeo')];
     const i = one(plans([...gone, kid('k1', 'Heir')], parentLinks('k1')), 'baby:Sergio|Siobhan');
-    assert.deepEqual([i.state, i.text], ['offPlan', 'Sergio Romeo has died, so Heir Romeo can’t come']);
+    assert.deepEqual([i.state, i.text], ['offPlan', 'Sergio Romeo has passed away, so Heir Romeo can’t come']);
   });
 });
 

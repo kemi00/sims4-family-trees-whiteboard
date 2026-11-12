@@ -359,13 +359,15 @@ export function canAgeUp(n: SimNode): boolean {
 }
 
 /**
- * A couple the game still has that a death ended: one of the two has died
- * and the other lives on. The one left is single (widowed): there is nothing
- * to divorce or break up, and no plan of theirs it stands in the way of.
- * The board keeps the link, faded, as their history.
+ * A couple the game still has that a passing ended: one of the two, or both,
+ * passed away. A couple link says who is together now, so a passing ends it
+ * (a parent link says whose child someone is, which a passing never changes).
+ * The one left is single (widowed): there is nothing to divorce or break up,
+ * and no plan it stands in the way of. The board keeps the link, very faded,
+ * as their history.
  */
-export function endedByDeath(e: Pick<Edge, 'type' | 'a' | 'b'>, isDead: (id: string) => boolean): boolean {
-  return (e.type === 'marriage' || e.type === 'romance') && isDead(e.a) !== isDead(e.b);
+export function endedByPassing(e: Pick<Edge, 'type' | 'a' | 'b'>, isDead: (id: string) => boolean): boolean {
+  return (e.type === 'marriage' || e.type === 'romance') && (isDead(e.a) || isDead(e.b));
 }
 
 /**

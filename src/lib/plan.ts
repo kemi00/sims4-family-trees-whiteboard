@@ -1,6 +1,6 @@
 import { DECEASED_STATE, GENDERS } from './constants.ts';
 import { petKind } from './pets.ts';
-import { edgeSourceOf, endedByDeath, joinNotes, withNote } from './utils.ts';
+import { edgeSourceOf, endedByPassing, joinNotes, withNote } from './utils.ts';
 import type { ParsedSave, ParsedSaveSim } from './savegame/parseSave.ts';
 import type { Edge, EdgeType, HouseholdMove, SimNode, SimPronouns } from '../types/whiteboard.ts';
 
@@ -154,9 +154,9 @@ export function planConflicts(nodes: SimNode[], edges: Edge[]): PlanConflict[] {
   for (const e of edges) {
     if (e.type === 'parent') {
       parentsOf.set(e.b, [...(parentsOf.get(e.b) ?? []), e]);
-    } else if (!planned(e) && COUPLE.has(e.type) && !e.ending && !endedByDeath(e, dead)) {
+    } else if (!planned(e) && COUPLE.has(e.type) && !e.ending && !endedByPassing(e, dead)) {
       // A couple with a planned divorce or breakup is free in the plan, and
-      // so is one a death ended: the widowed are single.
+      // so is one a passing ended: the widowed are single.
       settledWith.set(e.a, [...(settledWith.get(e.a) ?? []), { type: e.type, other: e.b }]);
       settledWith.set(e.b, [...(settledWith.get(e.b) ?? []), { type: e.type, other: e.a }]);
     }
@@ -656,7 +656,7 @@ export function conflictText(c: PlanConflict, nameOf: (id: string) => string): s
     case 'datingElsewhere':
       return `${nameOf(c.sim!)} is with ${nameOf(c.partner!)}, not ${nameOf(other)} as planned.`;
     case 'deceased':
-      return `${nameOf(c.dead!)} has died, so ${nameOf(c.a)} and ${nameOf(c.b)} can’t be a couple.`;
+      return `${nameOf(c.dead!)} has passed away, so ${nameOf(c.a)} and ${nameOf(c.b)} can’t be a couple.`;
     case 'otherParents':
       return `Your save gives ${nameOf(c.b)} two other parents, not ${nameOf(c.a)}.`;
   }

@@ -275,8 +275,9 @@ type Props = {
   /** Planned couples the game went against: their badge gets an amber ring and a ⚠. */
   offPlanEdgeIds?: ReadonlySet<string>;
   /**
-   * Sims who have died. A couple one of them died in is over (widowed): its
-   * line and badge stay as their history, very faded, with no ＋ for a baby.
+   * Sims who have passed away. A couple with a partner who passed is over
+   * (endedByPassing): its line and badge stay as their history, very faded,
+   * with no ＋ for a baby. Lines to their children are drawn as ever.
    */
   deadIds?: ReadonlySet<string>;
 };
@@ -398,11 +399,11 @@ export const EdgeLayer = memo(function EdgeLayer({
         const sq = isSelLink([u.edgeId]);
         const lc = sq ? '#1b6cd6' : lineCol;
         const pc = sq ? '#1b6cd6' : pillCol;
-        const widowed = !!deadIds && !u.isUser && (u.type === 'marriage' || u.type === 'romance') && deadIds.has(u.a) !== deadIds.has(u.b);
+        const passed = !!deadIds && !u.isUser && (u.type === 'marriage' || u.type === 'romance') && (deadIds.has(u.a) || deadIds.has(u.b));
         return (
           <g
             key={u.edgeId}
-            className={`${linkClass(sq, [u.edgeId], focusEdgeIds)}${widowed ? ' union--widowed' : ''}`}
+            className={`${linkClass(sq, [u.edgeId], focusEdgeIds)}${passed ? ' union--passed' : ''}`}
             data-ends={JSON.stringify([u.a, u.b])}
             {...chromeDataProps([u.a, u.b], worldById, gidById)}
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
@@ -445,7 +446,7 @@ export const EdgeLayer = memo(function EdgeLayer({
                 <RingPill x={u.rx} y={u.ry} color={pc} />
               )}
               {offPlanEdgeIds?.has(u.edgeId) && <OffPlanMark x={u.rx} y={u.ry} />}
-              {!widowed && <AddInfantPlus
+              {!passed && <AddInfantPlus
                 x={u.rx}
                 y={u.ry + PILL_H}
                 onPointerDown={(e) => {
@@ -454,7 +455,7 @@ export const EdgeLayer = memo(function EdgeLayer({
                 }}
               />}
             </g>
-            {widowed && <title>A couple until one of them died: nothing to plan</title>}
+            {passed && <title>Together until a passing: nothing to divorce or plan</title>}
           </g>
         );
       })}

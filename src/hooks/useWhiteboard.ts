@@ -99,7 +99,7 @@ import {
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
 import { aKind, newPetFields, petKindsAvailable, petPack, youngWord } from '../lib/pets.ts';
-import { cleanNote, edgeSourceOf, endedByDeath, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
+import { cleanNote, edgeSourceOf, endedByPassing, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -1324,13 +1324,13 @@ export function useWhiteboard() {
       const e = chosen[0];
       if (!e) return;
       const pair = `${simCalled(e.a)} and ${simCalled(e.b)}`;
-      // A couple a death ended has no end to plan: it comes off like any link.
+      // A couple a passing ended has no end to plan: it comes off like any link.
       const toEnd = chosen.filter(
         (x) =>
           (x.type === 'marriage' || x.type === 'romance') &&
           edgeSourceOf(x) !== 'planned' &&
           !x.ending &&
-          !endedByDeath(x, (id) => !alive(id)),
+          !endedByPassing(x, (id) => !alive(id)),
       );
       const ends = chosen.flatMap((x) => [x.a, x.b]);
       if (toEnd.length && toEnd.length === chosen.length) {
@@ -2470,8 +2470,8 @@ export function useWhiteboard() {
     (id: string, on: boolean): boolean => {
       const e = edges.find((x) => x.id === id);
       if (!e || (e.type !== 'marriage' && e.type !== 'romance') || !!e.ending === on) return false;
-      // Widowed: a death already ended it, so there is no divorce or breakup to plan.
-      if (on && endedByDeath(e, (x) => !alive(x))) return false;
+      // A passing already ended it, so there is no divorce or breakup to plan.
+      if (on && endedByPassing(e, (x) => !alive(x))) return false;
       const end = e.type === 'marriage' ? 'divorce' : 'breakup';
       pushUndo(`${on ? `Plan a ${end}` : `Cancel the ${end}`} of ${simCalled(e.a)} and ${simCalled(e.b)}`);
       trackAction(on ? '/action/plan-ending' : '/action/cancel-ending');

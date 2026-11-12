@@ -378,7 +378,7 @@ function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; shee
               label="Divorced"
             />
           )}
-          {has('widowed') && (
+          {has('partnerPassed') && (
             <KeyRow
               sample={
                 <span className="lgk__faded">
@@ -387,8 +387,8 @@ function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; shee
                   </PillSample>
                 </span>
               }
-              label="Widowed"
-              note="a couple until one of them died: nothing to divorce or plan"
+              label="Partner passed away"
+              note="the couple ended: nothing to divorce or plan"
             />
           )}
         </ul>

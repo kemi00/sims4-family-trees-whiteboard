@@ -24,14 +24,19 @@ describe("a sim's links in the editor", () => {
     assert.deepEqual(rows.map((r) => r.planned), [false, false, false, true]);
   });
 
-  it('keeps a marriage a death ended as history: nothing to divorce, it comes off like any link', () => {
+  it('keeps a marriage a passing ended as history: nothing to divorce, it comes off like any link', () => {
     const dead = (id: string) => id === 'j';
     const mine = simLinkRows('t', edges, nameOf, dead)[0]!;
-    assert.deepEqual([mine.text, mine.removal, mine.ended], ['Married to Juliette Monty, who died', 'remove', true]);
-    const hers = simLinkRows('j', edges, nameOf, dead).find((r) => r.id === 'm1')!;
-    assert.equal(hers.text, 'Married to Tybalt Capp until death');
+    assert.deepEqual([mine.text, mine.removal, mine.ended], ['Married to Juliette Monty, who passed away', 'remove', true]);
+    const firstOf = (id: string) => nameOf(id).split(' ')[0]!;
+    const hers = simLinkRows('j', edges, nameOf, dead, firstOf).find((r) => r.id === 'm1')!;
+    assert.equal(hers.text, 'Married to Tybalt Capp until Juliette passed away');
+    // Both passed away: still over, with nothing to plan.
+    const both = (id: string) => id === 'j' || id === 't';
+    const theirs = simLinkRows('t', edges, nameOf, both)[0]!;
+    assert.deepEqual([theirs.text, theirs.removal, theirs.ended], ['Married to Juliette Monty until both passed away', 'remove', true]);
     // A romance too; with everyone alive, it is a breakup to plan as before.
-    assert.equal(simLinkRows('r', edges, nameOf, dead)[0]!.text, 'In a romance with Juliette Monty, who died');
+    assert.equal(simLinkRows('r', edges, nameOf, dead)[0]!.text, 'In a romance with Juliette Monty, who passed away');
     assert.equal(simLinkRows('r', edges, nameOf)[0]!.removal, 'breakup');
   });
 
