@@ -17,6 +17,7 @@ import { isPlannedSim } from './plan.ts';
 import { successionLine } from './succession.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { edgeSourceOf } from './utils.ts';
+import type { PlanWindow } from './matchClock.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -106,6 +107,8 @@ export type SuccessionForecast = {
   steps: LineStep[];
   /** handovers[i] is between steps[i] and steps[i + 1]. */
   handovers: Handover[];
+  /** Each heir's matchmaking clock with their partner, by heir id (partnerWindows). */
+  windows?: ReadonlyMap<string, PlanWindow>;
 };
 
 /** Their partner on the board: a marriage before a romance, the game's before a plan. */
@@ -124,6 +127,48 @@ function partnerOf(id: string, edges: readonly Edge[], byId: Map<string, SimNode
     : undefined;
 }
 
+/** Where a sim is going in life, on the days that age them (agingClock). */
+export type LifeAhead = {
+  clock: AgingClock;
+  /** A planned sim not in the game yet: grownUpIn counts from birth. */
+  unborn: boolean;
+  /** Days, on the save's lifespan, until they are a young adult: 0 once grown. */
+  grownUpIn?: number;
+  /** Days until they are an elder; absent once one. */
+  elderIn?: number;
+  /** Days until old age can first come for them: 0 from then on. */
+  oldAgeIn?: number;
+};
+
+/**
+ * Where `n` is going in life: the days to young adult, to elder and to the
+ * earliest old age, each on the days that age them. Facts read at an
+ * earlier import count the days since for a sim who ages every day. None
+ * without save facts; a planned baby grows up a set time after birth.
+ */
+export function lifeAhead(n: SimNode, game: SaveGameInfo | null | undefined): LifeAhead {
+  const clock = agingClock(n, game);
+  const lifespan = game?.lifespan;
+  if (isPlannedSim(n) && !factsOf(n)) return { clock, unborn: true, grownUpIn: daysFromBirth(GROWN_UP, lifespan)! };
+  const out: LifeAhead = { clock, unborn: false };
+  const life = factsOf(n);
+  if (!life || !game) return out;
+  const since = clock === 'always' ? Math.max(0, (game.clock - life.at) / TICKS_PER_DAY) : 0;
+  const left = (d: number | null) => (d === null ? undefined : Math.max(0, d - since));
+  const grown = left(daysUntilStage(life.stage, life.stageDays, GROWN_UP, lifespan, life.newborn));
+  if (grown !== undefined) out.grownUpIn = grown;
+  if (life.stage === 'Elder') {
+    const old = left(oldAgeEarliest(life.stageDays, lifespan));
+    if (old !== undefined) out.oldAgeIn = old;
+    return out;
+  }
+  const toElder = daysUntilStage(life.stage, life.stageDays, 'Elder', lifespan, life.newborn);
+  if (toElder === null) return out;
+  out.elderIn = left(toElder)!;
+  out.oldAgeIn = left(toElder + ELDER_MIN_DAYS * scaleOf(lifespan))!;
+  return out;
+}
+
 function stepOf(
   n: SimNode,
   place: LineStep['place'],
@@ -132,39 +177,28 @@ function stepOf(
   edges: readonly Edge[],
   byId: Map<string, SimNode>,
 ): LineStep {
-  const unborn = isPlannedSim(n) && !factsOf(n);
+  const ahead = lifeAhead(n, game);
   const step: LineStep = {
     id: n.id,
     place,
     planned,
-    unborn,
+    unborn: ahead.unborn,
     stage: n.age,
-    home: isUnhousedGid(n.gid) || !n.hh ? 'their household' : `the ${n.hh} household`,
+    home: homeText(n),
     gid: n.gid,
-    clock: agingClock(n, game),
+    clock: ahead.clock,
+    ...(ahead.grownUpIn !== undefined ? { grownUpIn: ahead.grownUpIn } : {}),
+    ...(ahead.elderIn !== undefined ? { elderIn: ahead.elderIn } : {}),
+    ...(ahead.oldAgeIn !== undefined ? { oldAgeIn: ahead.oldAgeIn } : {}),
   };
   const partner = partnerOf(n.id, edges, byId);
   if (partner) step.partner = partner;
-  const lifespan = game?.lifespan;
-  if (unborn) {
-    step.grownUpIn = daysFromBirth(GROWN_UP, lifespan)!;
-    return step;
-  }
-  const life = factsOf(n);
-  if (!life || !game) return step;
-  // Facts read at an earlier import, for a sim who ages every day: the days since count.
-  const since = step.clock === 'always' ? Math.max(0, (game.clock - life.at) / TICKS_PER_DAY) : 0;
-  const left = (d: number | null) => (d === null ? undefined : Math.max(0, d - since));
-  step.grownUpIn = left(daysUntilStage(life.stage, life.stageDays, GROWN_UP, lifespan, life.newborn));
-  if (life.stage === 'Elder') {
-    step.oldAgeIn = left(oldAgeEarliest(life.stageDays, lifespan));
-    return step;
-  }
-  const toElder = daysUntilStage(life.stage, life.stageDays, 'Elder', lifespan, life.newborn);
-  if (toElder === null) return step;
-  step.elderIn = left(toElder);
-  step.oldAgeIn = left(toElder + ELDER_MIN_DAYS * scaleOf(lifespan));
   return step;
+}
+
+/** "the Goth household", or "their household" for one with none. */
+export function homeText(n: Pick<SimNode, 'gid' | 'hh'>): string {
+  return isUnhousedGid(n.gid) || !n.hh ? 'their household' : `the ${n.hh} household`;
 }
 
 /** Where a sim `step` will be in life `days` from now, on the save's lifespan. */
@@ -234,9 +268,17 @@ function days(n: number): string {
 /** " (Day 34, in Summer)": when a count of days lands, for a sim who ages every day. */
 function onDay(step: LineStep, n: number, game: SaveGameInfo | null | undefined): string {
   if (step.clock !== 'always' || !game) return '';
+  return ` (${calendarDay(game, n)})`;
+}
+
+/**
+ * The game day `n` days of play from the save: "Day 34, in Summer", the
+ * season only when the save has Seasons; "Day 34" without.
+ */
+export function calendarDay(game: SaveGameInfo, n: number): string {
   const tick = game.clock + n * TICKS_PER_DAY;
   const season = seasonAt(game, tick);
-  return ` (${dayText(dayOf(tick))}${season ? `, in ${season}` : ''})`;
+  return `${dayText(dayOf(tick))}${season ? `, in ${season}` : ''}`;
 }
 
 /**

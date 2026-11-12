@@ -2325,6 +2325,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
           nameOf={nameOfSim}
           hhOf={hhOf}
           fromSave={!!wb.saveGame}
+          game={wb.saveGame}
           {...(onPoster ? { onPoster: () => onPoster(briefGroup.gid) } : {})}
           onHover={(ids) => wb.setBriefHover(ids ? new Set(ids) : null)}
           onPick={(item) => {

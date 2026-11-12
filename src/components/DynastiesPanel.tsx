@@ -6,6 +6,7 @@ import { DYNASTY_ROLES } from '../lib/constants.ts';
 import { riskText, type DynastyMember, type DynastyRow } from '../lib/dynastyMenu.ts';
 import { handoverText, lineClockText, stepClockText, stepWhen, type Handover, type SuccessionForecast } from '../lib/forecast.ts';
 import { agingSummary } from '../lib/lifeClock.ts';
+import { windowText } from '../lib/matchClock.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
 import { fold } from '../lib/utils.ts';
 
@@ -41,6 +42,8 @@ type Props = {
   game: SaveGameInfo | null;
   /** Make a poster of a dynasty (by key). */
   onPoster: (key: string) => void;
+  /** "the Munch household", for the matchmaking clock's lines. */
+  hhOf: (gid: string) => string;
 };
 
 /** The list's order: by name, or by how many sims each has (the count on its card). */
@@ -117,6 +120,7 @@ export function DynastiesPanel({
   forecastOf,
   game,
   onPoster,
+  hhOf,
 }: Props) {
   const sheet = usePanelSheet();
   const [query, setQuery] = useState('');
@@ -444,7 +448,7 @@ export function DynastiesPanel({
                     </div>
                     {expanded && (
                       <div id={listId}>
-                      <LineForecast f={forecastOf(r.key)} game={game} nameOf={nameOf} onFind={onFind} />
+                      <LineForecast f={forecastOf(r.key)} game={game} nameOf={nameOf} hhOf={hhOf} onFind={onFind} />
                       <ul className="dynp__members" aria-label={`${labelOf(r)} members`}>
                         {r.members.map((m) => (
                           <li key={m.id}>
@@ -506,11 +510,13 @@ function LineForecast({
   f,
   game,
   nameOf,
+  hhOf,
   onFind,
 }: {
   f: SuccessionForecast;
   game: SaveGameInfo | null;
   nameOf: (id: string) => string;
+  hhOf: (gid: string) => string;
   onFind: (id: string) => void;
 }) {
   if (!f.steps.length) return null;
@@ -572,6 +578,16 @@ function LineForecast({
                   {partner}
                 </span>
               )}
+              {(() => {
+                const w = f.windows?.get(s.id);
+                const t = w ? windowText(w, nameOf, hhOf, game, true) : null;
+                return t ? (
+                  <span className={t.tone === 'warn' ? 'dynp__window dynp__window--warn' : 'dynp__window'}>
+                    <span aria-hidden="true">⏳ </span>
+                    {t.text}
+                  </span>
+                ) : null;
+              })()}
               {clock && <span className="dynp__clock">{clock}</span>}
             </li>
           );

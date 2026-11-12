@@ -5,6 +5,7 @@ import { isUnhousedGid } from './unhoused.ts';
 import { edgeSourceOf, joinNotes, theHousehold, uKey } from './utils.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE } from './constants.ts';
 import { dynastyKey, dynastyNames, dynastyPhrase } from './generations.ts';
+import { catchUpText, planWindow, type PlanWindow } from './matchClock.ts';
 import type { Edge, Group, HouseholdMove, PairStatus, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 import { heirAfterReady } from './succession.ts';
 
@@ -64,6 +65,11 @@ export type PlanItem = {
   waits: PlanWait[];
   /** A caution that doesn't block it. */
   note?: string;
+  /**
+   * For a couple or a baby: whether the two will both be grown up while one
+   * who can carry a baby is still not an Elder (the matchmaking clock).
+   */
+  window?: PlanWindow;
   /** Your note on the link or move behind it: why you planned it. */
   yourNote?: string;
 };
@@ -177,6 +183,9 @@ export function householdPlans(opts: {
     return top.includes(kid.gid) ? kid.gid : top[0]!;
   };
 
+  /** Where a sim ages for the matchmaking clock: a planned baby where it is born. */
+  const homeOf = (n: SimNode) => (isPlannedSim(n) ? birthGid(n) : gameGid(n));
+
   const moveOf = (gid: string, life: SimNode['life']): WaitMove => {
     if (life && !life.frozen) return 'time';
     if (!life && saveGame && everyoneAges(saveGame)) return 'time';
@@ -222,6 +231,7 @@ export function householdPlans(opts: {
       text = tags.get(uKey(a.id, b.id))?.includes('engaged') ? `${A} and ${B} are engaged: the wedding is next` : `Marry ${A} and ${B}`;
     } else text = `Get ${A} and ${B} together`;
     inCouple.add(a.id).add(b.id);
+    const window = find.length ? null : planWindow([a, b], saveGame, homeOf);
     items.push({
       id: `couple:${e.id}`,
       kind: 'couple',
@@ -230,6 +240,7 @@ export function householdPlans(opts: {
       sims: [a.id, b.id],
       gids: uniq([a.gid, b.gid]),
       waits,
+      ...(window ? { window } : {}),
       ...noted(e.note),
     });
   }
@@ -262,12 +273,16 @@ export function householdPlans(opts: {
     }
     const waits = parents.map((p) => waitOn(p, GROWN_UP)).filter((w): w is PlanWait => !!w);
     const elder = parents.find((p) => !isPlannedSim(p) && p.age === 'Elder');
+    const findParent = parents.some((p) => isPlannedSim(p) && !plannedChild(p));
+    const window = findParent ? null : planWindow(parents, saveGame, homeOf);
     items.push({
       ...base,
       state: waits.length ? 'waiting' : 'ready',
       text: `${who}: ${babiesText(kids)}`,
       waits,
-      ...(elder ? { note: `${cardName(elder)} is an elder: in the game, elders can’t carry a baby.` } : {}),
+      ...(window ? { window } : {}),
+      // The window says it when every parent who could carry is an Elder.
+      ...(elder && !window?.elders ? { note: `${cardName(elder)} is an elder: in the game, elders can’t carry a baby.` } : {}),
     });
   }
 
@@ -569,6 +584,11 @@ export type UpNextRow = {
   unblocks: PlanItem[];
   /** An elder in one of its plans running low on days. */
   elder?: { id: string; oldAgeIn: number };
+  /**
+   * A plan whose window for babies is closing, where playing this household
+   * grows up the one still too young (the matchmaking clock).
+   */
+  closing?: { item: PlanItem; window: PlanWindow };
   /** The oldest dynasty generation among its sims in a plan. */
   gen?: number;
   /** Imports since it was the active household: 0 for the last one; undefined when the board never saw it played. */
@@ -585,11 +605,13 @@ export type UpNextRow = {
  * (something ready, or a wait that playing them moves along). The order,
  * rule by rule:
  *
- * 1. plays that help other households' plans along, the most first;
- * 2. an elder with a plan left and few days before old age can come;
- * 3. the most ready;
- * 4. the oldest generation;
- * 5. the household played longest ago (never seen played counts as longest);
+ * 1. a plan whose window for babies is closing, where playing here grows
+ *    up the one still too young (the matchmaking clock), the soonest first;
+ * 2. plays that help other households' plans along, the most first;
+ * 3. an elder with a plan left and few days before old age can come;
+ * 4. the most ready;
+ * 5. the oldest generation;
+ * 6. the household played longest ago (never seen played counts as longest);
  *
  * then by name. A household the game doesn't have yet can't be played, so
  * it follows the others; skipped households go to the end. It only suggests.
@@ -620,6 +642,10 @@ export function upNext(opts: {
     );
     const unblocks = unblockedBy(items, gid);
     if (!ready.length && !ownWaits.length && !unblocks.length) continue;
+    // Playing here grows up the one a closing window waits on: the most urgent first.
+    const closing = [...ownWaits, ...unblocks]
+      .filter((i) => i.window?.state === 'closing' && i.window.opens?.gid === gid && !i.window.opens.unborn)
+      .sort((x, y) => x.window!.closes!.days - y.window!.closes!.days)[0];
     const planSims = uniq([...ready, ...ownWaits].flatMap((i) => i.sims)).filter((id) => byId.get(id)?.gid === gid);
     const elder = eldersOf(nodes, gid, saveGame).find((e) => planSims.includes(e.id) && e.oldAgeIn <= ELDER_RUSH_DAYS);
     const gens = planSims.map((id) => generations?.get(id)?.gen).filter((g): g is number => g !== undefined);
@@ -631,6 +657,7 @@ export function upNext(opts: {
       ownWaits,
       unblocks,
       ...(elder ? { elder: { id: elder.id, oldAgeIn: elder.oldAgeIn } } : {}),
+      ...(closing ? { closing: { item: closing, window: closing.window! } } : {}),
       ...(gens.length ? { gen: Math.min(...gens) } : {}),
       ...(at >= 0 ? { playedAgo: at } : {}),
       ...(away ? { notInGame: away } : {}),
@@ -640,6 +667,7 @@ export function upNext(opts: {
   const key = (r: UpNextRow): (number | string)[] => [
     r.skipped ? 1 : 0,
     r.notInGame ? 1 : 0,
+    r.closing ? r.closing.window.closes!.days : Infinity,
     -r.unblocks.length,
     r.elder ? r.elder.oldAgeIn : Infinity,
     -r.ready.length,
@@ -671,6 +699,8 @@ export function upNextReason(
   hhOf: (gid: string) => string,
 ): string {
   if (r.notInGame) return `Not in your game yet: move ${listText(r.notInGame.map(nameOf))} in first`;
+  const catchUp = r.closing ? catchUpText(r.closing.window, nameOf, hhOf) : null;
+  if (catchUp) return catchUp;
   if (r.unblocks.length) {
     const others = uniq(r.unblocks.flatMap((i) => i.gids)).filter((g) => g !== r.gid);
     const whom = others.length > 2 ? `${others.length} other households` : others.map(hhOf).join(' and ');

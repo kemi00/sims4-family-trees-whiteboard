@@ -69,7 +69,10 @@ export function UpNextPanel({ rows, groups, nameOf, hhOf, anchorRect, onOpen, on
                   <b className="upnext__hh">{g?.hh ?? hhOf(r.gid)}</b>
                   {i === first && <span className="upnext__next">Next</span>}
                 </div>
-                <p className="upnext__why">{upNextReason(r, nameOf, hhOf)}</p>
+                <p className={r.closing && !r.notInGame ? 'upnext__why upnext__why--closing' : 'upnext__why'}>
+                  {r.closing && !r.notInGame && <span aria-hidden="true">⏳ </span>}
+                  {upNextReason(r, nameOf, hhOf)}
+                </p>
                 {meta && <p className="upnext__meta">{meta}</p>}
                 <div className="upnext__actions">
                   <button type="button" className="upnext__open" onClick={() => onOpen(r)}>
@@ -85,9 +88,10 @@ export function UpNextPanel({ rows, groups, nameOf, hhOf, anchorRect, onOpen, on
         </ol>
       )}
       <p className="upnext__rules">
-        Plays that help other households’ plans come first, then an elder short on days, the most ready, the oldest
-        generation, and whoever you played longest ago. Households not in your game yet come last. It only suggests:
-        play who you like.
+        A couple running out of time for babies comes first: playing there grows up the one still too young before
+        the other turns Elder. Then plays that help other households’ plans, an elder short on days, the most ready,
+        the oldest generation, and whoever you played longest ago. Households not in your game yet come last. It only
+        suggests: play who you like.
       </p>
     </div>
   );

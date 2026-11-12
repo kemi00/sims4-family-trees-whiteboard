@@ -19,6 +19,7 @@ import { PlayabilityPanel } from './components/PlayabilityPanel.tsx';
 import { UpNextPanel } from './components/UpNextPanel.tsx';
 import { DynastiesPanel } from './components/DynastiesPanel.tsx';
 import { successionForecast } from './lib/forecast.ts';
+import { partnerWindows } from './lib/matchClock.ts';
 import { PosterDialog } from './components/PosterDialog.tsx';
 import { dynastyPoster, householdPoster, type PosterModel } from './lib/poster.ts';
 import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
@@ -379,7 +380,11 @@ export default function App() {
               renameLabel={renamedLabel}
               onRemove={wb.removeDynasty}
               litKey={wb.dynastyFocus}
-              forecastOf={(key) => successionForecast(wb.nodes, wb.edges, key, wb.saveGame)}
+              forecastOf={(key) => {
+                const f = successionForecast(wb.nodes, wb.edges, key, wb.saveGame);
+                return { ...f, windows: partnerWindows(f, wb.nodes, wb.saveGame) };
+              }}
+              hhOf={(gid) => householdName(gid, wb.groups, wb.nodes)}
               onPoster={(key) =>
                 setPoster(
                   dynastyPoster({

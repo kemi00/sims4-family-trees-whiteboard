@@ -6,7 +6,8 @@ import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { livingPlace } from '../lib/connectionLog.ts';
 import { waitText, type ElderTime, type PlanItem, type PlanState } from '../lib/householdPlan.ts';
 import { daysText, oldAgeSoonText } from '../lib/lifeClock.ts';
-import type { Group, SimNode, World } from '../types/whiteboard.ts';
+import { windowText, type PlanWindow } from '../lib/matchClock.ts';
+import type { Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 import { WorldMoveForm } from './WorldMoveForm.tsx';
 import { ImageSquare } from '../icons.ts';
 
@@ -30,6 +31,8 @@ type Props = {
   hhOf: (gid: string) => string;
   /** A save was imported, so ages and countdowns come from it. */
   fromSave: boolean;
+  /** The last save's clock and calendar, for the matchmaking clock's days. */
+  game?: SaveGameInfo | null;
   /** Sims to glow on the board while a line is hovered or focused; null to stop. */
   onHover: (ids: string[] | null) => void;
   /** A line was clicked: show its sims. */
@@ -77,6 +80,7 @@ export function HouseholdBrief({
   nameOf,
   hhOf,
   fromSave,
+  game,
   onHover,
   onPick,
   onPickSim,
@@ -102,6 +106,7 @@ export function HouseholdBrief({
             {waitText(w, nameOf, hhOf)}
           </span>
         ))}
+        {i.window && <WindowLine w={i.window} babies={i.kind === 'baby'} nameOf={nameOf} hhOf={hhOf} game={game} />}
         {i.note && <span className="brief__note">{i.note}</span>}
         {i.yourNote && <span className="brief__yours">{i.yourNote}</span>}
       </button>
@@ -301,3 +306,31 @@ function HomeSection({
   );
 }
 
+
+/**
+ * A couple's or a baby's matchmaking clock under its plan line: when the
+ * one who could carry turns Elder, and whether the one still too young
+ * grows up first. Amber when the window is closing.
+ */
+function WindowLine({
+  w,
+  babies,
+  nameOf,
+  hhOf,
+  game,
+}: {
+  w: PlanWindow;
+  babies: boolean;
+  nameOf: (id: string) => string;
+  hhOf: (gid: string) => string;
+  game?: SaveGameInfo | null;
+}) {
+  const t = windowText(w, nameOf, hhOf, game, babies);
+  if (!t) return null;
+  return (
+    <span className={`brief__window brief__window--${t.tone}`}>
+      <span aria-hidden="true">⏳ </span>
+      {t.text}
+    </span>
+  );
+}
