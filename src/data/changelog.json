@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "5e1b029",
+   "date": "2026-11-12",
+   "text": "Add cats, dogs and horses to the board, edit them, and give them a family: parents, a planned litter and siblings."
+  },
+  {
    "sha": "9b93a3d",
    "date": "2026-11-12",
    "text": "The matchmaking clock: planned couples and babies say when the window for babies closes, and Up next sends you to the household that keeps it open."
