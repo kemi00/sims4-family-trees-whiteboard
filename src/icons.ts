@@ -56,3 +56,7 @@ export { Snowflake } from '@phosphor-icons/react/Snowflake';
 export { ImageSquare } from '@phosphor-icons/react/ImageSquare';
 export { ShareNetwork } from '@phosphor-icons/react/ShareNetwork';
 export { BookOpenText } from '@phosphor-icons/react/BookOpenText';
+export { ClockCounterClockwise } from '@phosphor-icons/react/ClockCounterClockwise';
+export { Play } from '@phosphor-icons/react/Play';
+export { Pause } from '@phosphor-icons/react/Pause';
+export { CaretRight } from '@phosphor-icons/react/CaretRight';

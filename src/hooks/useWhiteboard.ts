@@ -8,6 +8,7 @@ import { placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
 import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
+import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
@@ -695,21 +696,44 @@ export function useWhiteboard() {
     [hiddenPlay],
   );
 
-  /** Combined pack, playability and Hide deceased visibility for canvas rendering. */
-  const nodeVis = useCallback(
-    (n: SimNode) => packVis(n) && playVis(n) && !(hideDeceased && n.state === DECEASED_STATE),
-    [packVis, playVis, hideDeceased],
+  /**
+   * Looking back: the chronicle upload whose board is shown (pastView),
+   * read only; null for now.
+   */
+  const [lookBackAt, setLookBackAtState] = useState<number | null>(null);
+  const past = useMemo(
+    () => (lookBackAt === null ? null : pastView(chronicle, lookBackAt, nodesCore)),
+    [lookBackAt, chronicle, nodesCore],
   );
+
+  /** Combined pack, playability and Hide deceased visibility for canvas rendering; looking back, who was there then. */
+  const nodeVis = useCallback(
+    (n: SimNode) => {
+      if (past?.hidden.has(n.id)) return false;
+      const dead = n.state === DECEASED_STATE && !past?.alive.has(n.id);
+      return packVis(n) && playVis(n) && !(hideDeceased && dead);
+    },
+    [packVis, playVis, hideDeceased, past],
+  );
+  /** Look back at chronicle upload `at` (null: back to now); nothing stays picked or open. */
+  const setLookBackAt = useCallback((at: number | null) => {
+    setLookBackAtState(at);
+    if (at === null) return;
+    setSel(null);
+    setEditNodeId(null);
+    setBriefGid(null);
+  }, [setBriefGid]);
 
   /**
    * Links as the board shows them. Hide secrets drops secret ones here, for
    * drawing, labels, the log and bloodline — but layout still uses every
    * link, so turning the filter on or off never moves a card.
    */
-  const shownEdges = useMemo(
-    () => (hideSecrets ? withoutSecretLinks(edges) : edges),
-    [edges, hideSecrets],
-  );
+  const shownEdges = useMemo(() => {
+    const now = hideSecrets ? withoutSecretLinks(edges) : edges;
+    // Looking back: the game's links as they were then.
+    return past ? pastEdges(now, past) : now;
+  }, [edges, hideSecrets, past]);
   const hasSecrets = useMemo(() => edges.some((e) => e.secret), [edges]);
 
   // Routes from the last pass; an edit re-routes only the links it can reach.
@@ -4123,6 +4147,9 @@ export function useWhiteboard() {
     closePartnerMenu,
     childMenu,
     chronicle,
+    lookBackAt,
+    setLookBackAt,
+    past,
     chronicleView,
     setChronicleView,
     addMenu,

@@ -86,6 +86,8 @@ import { PartnerMenu } from './PartnerMenu.tsx';
 import { ChildMenu } from './ChildMenu.tsx';
 import { AddKindMenu } from './AddKindMenu.tsx';
 import { ChroniclePanel } from './ChroniclePanel.tsx';
+import { LookBackBar } from './LookBackBar.tsx';
+import { pastNode } from '../lib/lookBack.ts';
 import { connectOptions } from '../lib/connectOptions.ts';
 import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
@@ -1742,7 +1744,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
   };
 
   return (
-    <div id="stage" ref={stageRef}>
+    <div id="stage" ref={stageRef} className={wb.lookBackAt !== null ? 'stage--past' : undefined}>
       <svg
         id="svg"
         ref={svgRef}
@@ -1894,7 +1896,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
             {sortedNodes.map((n) => (
               <SimNodeView
                 key={n.id}
-                node={n}
+                node={wb.past ? pastNode(n, wb.past) : n}
                 celebrate={wb.celebrateIds.has(n.id)}
                 selected={
                   (wb.sel?.type === 'node' && wb.sel.id === n.id) ||
@@ -2354,6 +2356,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
       <Hint introReady={tipsReady} />
       <Minimap wb={wb} svgRef={svgRef} camera={liveCamera} />
       <ViewControls wb={wb} svgRef={svgRef} />
+      {wb.lookBackAt !== null && wb.chronicle.length >= 2 && (
+        <LookBackBar
+          entries={wb.chronicle}
+          at={Math.min(wb.lookBackAt, wb.chronicle.length - 1)}
+          onAt={wb.setLookBackAt}
+          onNow={() => wb.setLookBackAt(null)}
+        />
+      )}
       {briefGroup && (
         <HouseholdBrief
           key={briefGroup.gid}

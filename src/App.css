@@ -1642,6 +1642,20 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .recap__met{margin:8px 0 0;color:var(--ink-2)}
 .recap__plans{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0;padding:8px 14px 12px;border-top:1px solid var(--line)}
 .recap__off{font-size:11.5px;color:var(--warn)}
+/* Looking back (LookBackBar.tsx): the board as it was at an upload, read only. */
+.stage--past svg g{pointer-events:none}
+.lookback{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:8;width:min(520px,calc(100% - 24px));box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);box-shadow:var(--lift);color:var(--ink);font-size:12px}
+.lookback__when{margin:0 0 6px;font-size:12.5px}
+.lookback__ctl{display:flex;align-items:center;gap:6px}
+.lookback__range{flex:1 1 auto;min-width:0;accent-color:var(--accent)}
+.lookback .lookback__btn{flex:none;width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);color:var(--ink-2);cursor:pointer}
+.lookback .lookback__btn svg{width:14px;height:14px}
+.lookback .lookback__btn:hover:not(:disabled){background:var(--hover);color:var(--ink)}
+.lookback .lookback__btn:disabled{opacity:.4;cursor:default}
+.lookback .lookback__now{flex:none;height:30px;padding:0 10px;border:none;border-radius:var(--r-control);background:var(--accent);color:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.lookback .lookback__now:hover{background:var(--accent-strong)}
+.lookback__note{margin:6px 0 0;font-size:11px;line-height:1.4;color:var(--ink-3)}
+.lookback button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 /* The Chronicle (ChroniclePanel.tsx): the board's story, upload by upload, newest first. */
 .chron .chron__search{margin:8px 14px 0;padding:6px 8px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;font:inherit;font-size:12px;color:var(--ink)}
 .chron .chron__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}

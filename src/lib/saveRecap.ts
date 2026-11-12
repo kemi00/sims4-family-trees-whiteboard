@@ -25,6 +25,8 @@ export type SaveRecap = {
   died: RecapSim[];
   /** Sims new to the board who weren't born since: townies, visitors. */
   met: number;
+  /** Who they are, so looking back can hide them (absent on older chronicle pages). */
+  metIds?: string[];
   /** Planned births and couples the save shows done. */
   plansDone: number;
   /** Cards to celebrate: a planned birth or couple came true. */
@@ -66,7 +68,10 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
     if (!o) {
       if (!n.saveSimId) continue;
       if (YOUNG.has(n.age) && n.state !== DECEASED_STATE) recap.born.push({ ...sim(n), ...parentsOf(n.id), planned: false });
-      else if (!n.treeId) recap.met += 1;
+      else if (!n.treeId) {
+        recap.met += 1;
+        (recap.metIds ??= []).push(n.id);
+      }
       continue;
     }
     // A planned sim the save filled: the plan came true.
