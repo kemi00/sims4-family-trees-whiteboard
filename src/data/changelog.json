@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "c91d0df",
+   "date": "2026-11-12",
+   "text": "When one of a couple dies, their link stays as history, very faded: the one left is single, so the board no longer asks for a divorce or flags their new plans off plan."
+  },
+  {
    "sha": "32dc1ae",
    "date": "2026-11-12",
    "text": "Reset view is gone from the zoom bar: it jumped to an empty corner on boards from a save. Fit all brings back the whole board."
