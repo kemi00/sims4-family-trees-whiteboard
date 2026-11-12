@@ -9,6 +9,8 @@ type Props = {
   /** Whose story: "the Goth dynasty", "Bella Goth"; the whole board's with null ids. */
   label: string;
   ids: readonly string[] | null;
+  /** A dynasty's story: its key, for its prestige. */
+  dynasties?: readonly string[];
   onGoToSim: (id: string) => void;
   /** Back to the whole story, from one sim's, household's or dynasty's. */
   onShowAll: () => void;
@@ -27,12 +29,13 @@ const uploaded = (iso: string) => {
  * one sim's, household's or dynasty's story, it shows theirs only, with
  * the whole story a click away. A search narrows it to names.
  */
-export function ChroniclePanel({ entries, label, ids, onGoToSim, onShowAll, onClose }: Props) {
+export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onShowAll, onClose }: Props) {
   const [query, setQuery] = useState('');
   const set = useMemo(() => (ids ? new Set(ids) : null), [ids]);
+  const keys = useMemo(() => new Set(dynasties ?? []), [dynasties]);
   const shown = useMemo(
-    () => [...entries].reverse().map((e) => entryAbout(e, set, query)).filter((e): e is ChronicleEntry => !!e),
-    [entries, set, query],
+    () => [...entries].reverse().map((e) => entryAbout(e, set, query, keys)).filter((e): e is ChronicleEntry => !!e),
+    [entries, set, query, keys],
   );
   return (
     <section

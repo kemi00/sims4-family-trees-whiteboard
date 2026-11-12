@@ -132,6 +132,17 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       title: 'Passed away',
       items: recap.died.map((d) => <>{who(d)}</>),
     },
+    {
+      key: 'prestige',
+      mark: '👑',
+      title: 'Prestige',
+      items: (recap.prestige ?? []).map((p) => (
+        <>
+          The {p.name} dynasty {p.to > p.from ? 'gained' : 'lost'} {Math.abs(p.to - p.from).toLocaleString()} prestige (
+          {p.from.toLocaleString()} to {p.to.toLocaleString()})
+        </>
+      )),
+    },
   ].filter((s) => s.items.length > 0);
   return (
     <>

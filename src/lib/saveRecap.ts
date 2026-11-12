@@ -1,5 +1,6 @@
 import { DECEASED_STATE } from './constants.ts';
 import { TICKS_PER_DAY } from './lifeClock.ts';
+import { dynastyKey, dynastyLabelText, dynastyNames } from './generations.ts';
 import { cardName, isPlannedSim } from './plan.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { edgeSourceOf, uKey } from './utils.ts';
@@ -29,6 +30,8 @@ export type SaveRecap = {
   metIds?: string[];
   /** Planned births and couples the save shows done. */
   plansDone: number;
+  /** Dynasties whose prestige changed: the game's dynasty name, before and now. */
+  prestige?: { key: string; name: string; from: number; to: number }[];
   /** Cards to celebrate: a planned birth or couple came true. */
   celebrate: string[];
 };
@@ -131,6 +134,23 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
     const b = now.get(e.b);
     if (a && b) recap.apart.push({ a: sim(a), b: sim(b), type: 'breakup' });
   }
+  // Prestige gained or lost, dynasty by dynasty, as the two saves have it.
+  const p0 = before.saveGame?.prestige;
+  const p1 = after.saveGame?.prestige;
+  if (p0 && p1) {
+    const names = dynastyNames([...after.nodes]);
+    const changes = Object.entries(p1)
+      .filter(([key, to]) => p0[key] !== undefined && p0[key] !== to)
+      .map(([key, to]) => {
+        // Two of one name are told apart by line: "Ngata (Leila’s line)".
+        const known = names.get(key);
+        const name = known ? dynastyLabelText(known) : (after.nodes.find((n) => dynastyKey(n) === key)?.dynasty ?? '');
+        return { key, name, from: p0[key]!, to };
+      })
+      .filter((c) => c.name)
+      .sort((x, y) => Math.abs(y.to - y.from) - Math.abs(x.to - x.from) || x.name.localeCompare(y.name));
+    if (changes.length) recap.prestige = changes;
+  }
   recap.celebrate = [...new Set(recap.celebrate)];
   return recap;
 }
@@ -138,7 +158,7 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
 /** Anything happened that the recap would tell. */
 export function recapHasNews(r: SaveRecap): boolean {
   return (
-    r.born.length + r.together.length + r.apart.length + r.moved.length + r.grew.length + r.died.length + r.met > 0 ||
+    r.born.length + r.together.length + r.apart.length + r.moved.length + r.grew.length + r.died.length + r.met + (r.prestige?.length ?? 0) > 0 ||
     !!r.seasons
   );
 }

@@ -143,6 +143,8 @@ export type ParsedSave = {
    * none in the game. Older saves leave this out and say nothing either way.
    */
   dynasties?: true;
+  /** Each dynasty's prestige as the save stores it, by dynasty id (parseDynastyPrestige). */
+  prestige?: Record<string, number>;
   /** The game clock and aging options; absent when the save has no clock. */
   game?: ParsedGameInfo;
 };
@@ -873,6 +875,38 @@ function parseWorldIndex(saveGame: Uint8Array): {
  */
 type DynastyPlace = { dynasty: string; dynastyId: string; role?: DynastyRole };
 
+/** The dynasty record's tracker (field 12, its id in 12.1) whose value (12.2) is the dynasty's prestige. */
+const PRESTIGE_TRACKER = 294913n;
+
+/**
+ * Each dynasty's prestige, by dynasty id: in its record, one of field 12's
+ * trackers (id 294913) holds it in 12.2, with the items the dynasty has
+ * unlocked (CAS parts) listed in 12.3. Read from saves on 2026-11-12: it
+ * rose by 275 for the Darongs when Beatrice Capp married Adekoya and had
+ * triplets, and by 100 for the Cuthberts and Dreamers between two saves.
+ * The game shows it as Prestige Level 0 to 10; where each level starts
+ * isn't in the save, so the board keeps the points as they are.
+ */
+function parseDynastyPrestige(gameplay: Uint8Array | null): Record<string, number> | null {
+  const list = gameplay ? firstBytes(gameplay, 60) : null;
+  if (!list) return null;
+  const out: Record<string, number> = {};
+  for (const rec of decodeFields(list)) {
+    if (rec.field !== 1 || !rec.bytes) continue;
+    const fields = decodeFields(rec.bytes);
+    const id = idField(fields, 1);
+    if (!id) continue;
+    for (const f of fields) {
+      if (f.field !== 12 || !f.bytes) continue;
+      const t = decodeFields(f.bytes);
+      if (t.find((x) => x.field === 1 && x.wire === 0)?.int !== PRESTIGE_TRACKER) continue;
+      const v = t.find((x) => x.field === 2 && x.wire === 0)?.int;
+      out[id] = v === undefined ? 0 : Number(v);
+    }
+  }
+  return out;
+}
+
 function parseDynasties(gameplay: Uint8Array | null): Map<string, DynastyPlace> | null {
   const list = gameplay ? firstBytes(gameplay, 60) : null;
   if (!list) return null;
@@ -986,6 +1020,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     }
   }
   const game = parseGameInfo(data);
+  const prestige = parseDynastyPrestige(gameplay);
   return {
     sims,
     rels,
@@ -994,6 +1029,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     pairs,
     relatives,
     ...(dynasties ? { dynasties: true as const } : {}),
+    ...(prestige && Object.keys(prestige).length ? { prestige } : {}),
     ...(game ? { game } : {}),
   };
 }

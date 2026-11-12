@@ -53,6 +53,13 @@ describe('the chronicle', () => {
     assert.equal(entryAbout(next, new Set(['nobody'])), null);
   });
 
+  it('keeps a dynasty’s prestige for its own story and the whole one', () => {
+    const withPrestige = chronicleEntry(game(10), { recap: { ...recap, prestige: [{ key: 'id:7', name: 'Darong', from: 350, to: 625 }] } });
+    assert.equal(entryAbout(withPrestige, null)!.recap!.prestige!.length, 1);
+    assert.equal(entryAbout(withPrestige, new Set(['a']), '', new Set(['id:7']))!.recap!.prestige!.length, 1);
+    assert.equal(entryAbout(withPrestige, new Set(['a']))!.recap!.prestige!.length, 0);
+  });
+
   it('finds a name in the story', () => {
     const found = entryAbout(next, null, 'giacomo')!.recap!;
     assert.deepEqual([found.born.length, found.died.map((d) => d.name)], [0, ['Giacomo Capp']]);

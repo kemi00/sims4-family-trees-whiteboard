@@ -386,6 +386,7 @@ export default function App() {
                 return { ...f, windows: partnerWindows(f, wb.nodes, wb.saveGame) };
               }}
               hhOf={(gid) => householdName(gid, wb.groups, wb.nodes)}
+              prestigeOf={(key) => wb.saveGame?.prestige?.[key]}
               {...(wb.chronicle.length
                 ? {
                     onStory: (key: string) => {
@@ -394,6 +395,7 @@ export default function App() {
                       wb.setChronicleView({
                         label: `the ${dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' })} dynasty`,
                         ids: wb.nodes.filter((n) => dynastyKey(n) === key).map((n) => n.id),
+                        dynasties: [key],
                       });
                     },
                   }
@@ -401,6 +403,7 @@ export default function App() {
               onPoster={(key) => {
                 const poster = dynastyPoster({
                   key,
+                  prestige: wb.saveGame?.prestige?.[key],
                   label: dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' }),
                   nodes: wb.nodes,
                   edges: wb.edges,

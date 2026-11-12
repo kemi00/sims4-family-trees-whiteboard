@@ -56,6 +56,15 @@ describe('previously on', () => {
     assert.deepEqual(saveRecap(before, after).celebrate.sort(), ['b', 'j', 'k']);
   });
 
+  it('tells which dynasties gained or lost prestige', () => {
+    const capp = (n: SimNode) => ({ ...n, dynasty: 'Capp', dynastyId: '7' });
+    const r = saveRecap(
+      { ...before, nodes: before.nodes.map(capp), saveGame: { ...before.saveGame, prestige: { 'id:7': 350, 'id:9': 75 } } },
+      { ...after, nodes: after.nodes.map(capp), saveGame: { ...after.saveGame, prestige: { 'id:7': 625, 'id:9': 75 } } },
+    );
+    assert.deepEqual(r.prestige, [{ key: 'id:7', name: 'Capp', from: 350, to: 625 }]);
+  });
+
   it('has no news when nothing changed', () => {
     const r = saveRecap(after, after);
     assert.equal(recapHasNews(r), false);

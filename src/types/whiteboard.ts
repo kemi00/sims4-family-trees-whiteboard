@@ -234,6 +234,11 @@ export interface SaveGameInfo {
   playedBefore?: string[];
   /** Clock of the first import where every household was aging. */
   allAgingSince?: number;
+  /**
+   * Each game dynasty's prestige as the save stores it, by the board's key
+   * for it (dynastyKey). The game shows it as Prestige Level 0 to 10.
+   */
+  prestige?: Record<string, number>;
 }
 
 export type EdgeType =

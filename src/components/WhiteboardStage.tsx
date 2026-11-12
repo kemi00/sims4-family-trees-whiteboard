@@ -2305,6 +2305,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
           entries={wb.chronicle}
           label={wb.chronicleView.label}
           ids={wb.chronicleView.ids}
+          {...(wb.chronicleView.dynasties ? { dynasties: wb.chronicleView.dynasties } : {})}
           onGoToSim={(id) => {
             const r = svgRef.current?.getBoundingClientRect();
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);

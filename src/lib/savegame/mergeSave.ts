@@ -1653,9 +1653,13 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
           .filter((g): g is string => !!g && !isUnhousedGid(g)),
       )
     : undefined;
+  // Each dynasty's prestige, by the board's key for it (dynastyKey: `id:` and the game's id).
+  const prestige = parsed.prestige
+    ? Object.fromEntries(Object.entries(parsed.prestige).map(([id, v]) => [`id:${id}`, v]))
+    : undefined;
   const saveGame =
     saveGameRead && parsed.game
-      ? { ...saveGameRead, ...(lastPlayedGid ? { lastPlayedGid } : {}) }
+      ? { ...saveGameRead, ...(lastPlayedGid ? { lastPlayedGid } : {}), ...(prestige ? { prestige } : {}) }
       : saveGameRead;
 
   const nameOf = (id: string) => {

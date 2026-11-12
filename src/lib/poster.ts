@@ -344,8 +344,10 @@ export function dynastyPoster(opts: {
   /** The links the board shows (without secrets when it hides them); every link by default. */
   links?: readonly Edge[];
   saveGame?: SaveGameInfo | null;
+  /** Its prestige from the save, for a game dynasty. */
+  prestige?: number;
 }): PosterModel {
-  const { key, label, nodes, edges, links = edges, saveGame } = opts;
+  const { key, label, nodes, edges, links = edges, saveGame, prestige } = opts;
   const members = nodes.filter((n) => dynastyKey(n) === key && !isPet(n) && n.dynastyPlan !== 'none');
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const gens = dynastyGenerations(nodes, edges);
@@ -385,6 +387,7 @@ export function dynastyPoster(opts: {
     subtitle: [
       `${living} living ${living === 1 ? 'member' : 'members'}`,
       deceased ? `${deceased} remembered` : '',
+      prestige !== undefined ? `${prestige.toLocaleString('en-US')} prestige` : '',
       head?.world && head.world !== '-' ? `head in ${head.world}` : '',
     ]
       .filter(Boolean)

@@ -46,15 +46,18 @@ type Props = {
   hhOf: (gid: string) => string;
   /** Open the Chronicle on a dynasty's story (by key); absent while the story is empty. */
   onStory?: (key: string) => void;
+  /** A game dynasty's prestige from your last save, by key. */
+  prestigeOf?: (key: string) => number | undefined;
 };
 
-/** The list's order: by name, or by how many sims each has (the count on its card). */
-type Sort = 'name' | 'most' | 'fewest';
+/** The list's order: by name, by how many sims each has (the count on its card), or by prestige. */
+type Sort = 'name' | 'most' | 'fewest' | 'prestige';
 
 const SORTS: { key: Sort; label: string; title: string }[] = [
   { key: 'name', label: 'A–Z', title: 'By name, A to Z' },
   { key: 'most', label: 'Most sims', title: 'The most sims first' },
   { key: 'fewest', label: 'Fewest sims', title: 'The fewest sims first' },
+  { key: 'prestige', label: 'Most prestige', title: 'The most prestige first, as your save has it' },
 ];
 
 /** The order you last picked, kept for this browser only. */
@@ -62,7 +65,7 @@ const SORT_KEY = 'dynasties-sort';
 function readSort(): Sort {
   try {
     const v = localStorage.getItem(SORT_KEY);
-    return v === 'most' || v === 'fewest' ? v : 'name';
+    return v === 'most' || v === 'fewest' || v === 'prestige' ? v : 'name';
   } catch {
     return 'name';
   }
@@ -124,6 +127,7 @@ export function DynastiesPanel({
   onPoster,
   hhOf,
   onStory,
+  prestigeOf,
 }: Props) {
   const sheet = usePanelSheet();
   const [query, setQuery] = useState('');
@@ -160,9 +164,12 @@ export function DynastiesPanel({
       }
       return false;
     });
-    if (sort !== 'name') out.sort((a, b) => (sort === 'most' ? -1 : 1) * (a.members.length - b.members.length));
+    if (sort === 'prestige') out.sort((a, b) => (prestigeOf?.(b.key) ?? -1) - (prestigeOf?.(a.key) ?? -1));
+    else if (sort !== 'name') out.sort((a, b) => (sort === 'most' ? -1 : 1) * (a.members.length - b.members.length));
     return { rows: out, byMember };
-  }, [rows, q, labelOf, nameOf, riskOnly, sort]);
+  }, [rows, q, labelOf, nameOf, riskOnly, sort, prestigeOf]);
+  /** Prestige is in the save (Royalty & Legacy, read since 2026-11-12): only then sort by it. */
+  const hasPrestige = useMemo(() => rows.some((r) => prestigeOf?.(r.key) !== undefined), [rows, prestigeOf]);
 
   const pos = panelPosition(anchorRect, WIDTH);
   if (!pos) return null;
@@ -347,7 +354,7 @@ export function DynastiesPanel({
       {rows.length > 1 && (
         <div className="dynp__tools">
           <div className="dynp__sort" role="group" aria-label="Sort dynasties">
-            {SORTS.map((o) => (
+            {SORTS.filter((o) => o.key !== 'prestige' || hasPrestige).map((o) => (
               <button
                 key={o.key}
                 type="button"
@@ -426,6 +433,14 @@ export function DynastiesPanel({
                     >
                       <span className="dynp__top">
                         <span className="dynp__name">{labelOf(r)}</span>
+                        {prestigeOf?.(r.key) !== undefined && (
+                          <span
+                            className="dynp__prestige"
+                            title="Prestige as your save stores it: the game shows it as Prestige Level 0 to 10"
+                          >
+                            {prestigeOf(r.key)!.toLocaleString()} prestige
+                          </span>
+                        )}
                         <span className="dynp__count">{plural(r.members.length, 'sim')}</span>
                       </span>
                       <span className="dynp__holders">
@@ -508,7 +523,8 @@ export function DynastiesPanel({
         Hover a dynasty to light up its members on the board, in any world, or click its highlighter to keep them
         lit. Open it to see who they are, its line of succession, a poster of it, or to rename or remove a planned one. Counts take
         in the deceased and sims only planned into it. A dynasty is at risk with no heir, or with 2 sims or fewer
-        to carry it on: its living members, planned ones too, but not outcasts or sims planned to leave. The line’s
+        to carry it on: its living members, planned ones too, but not outcasts or sims planned to leave. Prestige is
+        the number your save keeps for a game dynasty; the game shows it as Prestige Level 0 to 10. The line’s
         countdowns are days on your save’s lifespan, counting only the days that age each sim under its aging
         options; old age can come from the day shown, usually a few days after.
       </p>

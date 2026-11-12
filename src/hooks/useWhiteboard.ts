@@ -506,7 +506,7 @@ export function useWhiteboard() {
   /** The board's story, one entry per save upload (the chronicle). */
   const [chronicle, setChronicle] = useState<ChronicleEntry[]>(() => boot.chronicle ?? []);
   /** The Chronicle panel, open on the whole story or on one sim's, household's or dynasty's. */
-  const [chronicleView, setChronicleView] = useState<{ label: string; ids: string[] | null } | null>(null);
+  const [chronicleView, setChronicleView] = useState<{ label: string; ids: string[] | null; dynasties?: string[] } | null>(null);
   /** What the last save upload says happened in the game ("Previously on…"). */
   const [recap, setRecap] = useState<SaveRecap | null>(null);
   const [recapOpen, setRecapOpen] = useState(false);

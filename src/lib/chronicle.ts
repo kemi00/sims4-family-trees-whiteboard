@@ -79,9 +79,16 @@ const says = (q: string, ...names: (string | undefined)[]) => !q || names.some((
 /**
  * An entry's story about `ids` (a sim, a household's sims, a dynasty's
  * members), or everyone with null, matching the search `query`. Null when
- * nothing in it does. A start entry belongs to the whole story only.
+ * nothing in it does. A start entry belongs to the whole story only; a
+ * dynasty's prestige to its own story (`dynasties`) or the whole one.
  */
-export function entryAbout(e: ChronicleEntry, ids: ReadonlySet<string> | null, query = ''): ChronicleEntry | null {
+export function entryAbout(
+  e: ChronicleEntry,
+  ids: ReadonlySet<string> | null,
+  query = '',
+  /** Dynasties (by key) whose prestige belongs to this story. */
+  dynasties?: ReadonlySet<string>,
+): ChronicleEntry | null {
   const q = query.trim().toLowerCase();
   if (!e.recap) return ids || q ? null : e;
   const r = e.recap;
@@ -95,8 +102,13 @@ export function entryAbout(e: ChronicleEntry, ids: ReadonlySet<string> | null, q
     died: r.died.filter((d) => has(ids, d) && says(q, d.name)),
     met: ids || q ? 0 : r.met,
     plansDone: ids || q ? 0 : r.plansDone,
+    // A dynasty's prestige belongs to its story by its members' names, or the whole story.
+    ...(r.prestige
+      ? { prestige: r.prestige.filter((p) => (!ids || !!dynasties?.has(p.key)) && says(q, p.name)) }
+      : {}),
   };
-  const any = recap.born.length + recap.together.length + recap.apart.length + recap.moved.length + recap.grew.length + recap.died.length;
+  const any =
+    recap.born.length + recap.together.length + recap.apart.length + recap.moved.length + recap.grew.length + recap.died.length + (recap.prestige?.length ?? 0);
   if (!any && (ids || q || (!recap.met && !recap.seasons))) return null;
   return { ...e, recap };
 }
