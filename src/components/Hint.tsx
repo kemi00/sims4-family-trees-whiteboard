@@ -89,8 +89,8 @@ type Props = {
 
 /**
  * Quick tips behind the ⓘ button. On a first visit it opens by itself as a
- * short Getting around card: no focus taken, and it stays while the board is
- * tried out, until Got it.
+ * short Getting around card, without taking focus. Like every popup, a press
+ * outside it closes it; the tips stay under ⓘ.
  */
 export function Hint({ introReady = false }: Props) {
   const [open, setOpen] = useState<false | 'tips' | 'intro'>(false);
@@ -130,13 +130,14 @@ export function Hint({ introReady = false }: Props) {
         setOpen(false);
       }
     };
+    // A press outside closes it, as it does every popup; the tips stay under ⓘ.
     const onPointer = (ev: PointerEvent) => {
       if (hintRef.current?.contains(ev.target as Node)) return;
+      markNavIntroSeen();
       setOpen(false);
     };
     document.addEventListener('keydown', onKey, true);
-    // The intro stays put while the board is panned and zoomed to try it.
-    if (open === 'tips') document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('pointerdown', onPointer, true);
     return () => {
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onPointer, true);

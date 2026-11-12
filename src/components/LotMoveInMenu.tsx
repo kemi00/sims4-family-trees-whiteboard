@@ -8,6 +8,7 @@ import { isUnhousedGid } from '../lib/unhoused.ts';
 import { cardName } from '../lib/plan.ts';
 import { fold } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
   lot: GameLot;
@@ -31,6 +32,7 @@ const SHOWN = 8;
  */
 export function LotMoveInMenu({ lot, left, top, nodes, picked, onMove, onClose }: Props) {
   const { compact, ref, style } = useFitMenuInStage(left, top);
+  useLightDismiss(ref, onClose);
   const searchRef = useRef<HTMLInputElement>(null);
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const [ids, setIds] = useState<string[]>(() => picked.filter((id) => byId.get(id)?.state !== DECEASED_STATE));

@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { recapTimeText, type RecapSim, type SaveRecap } from '../lib/saveRecap.ts';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
   recap: SaveRecap;
@@ -20,9 +21,11 @@ const SHOWN = 5;
  * to the sim.
  */
 export function RecapPanel({ recap, offPlan, onGoToSim, onClose }: Props) {
+  const ref = useRef<HTMLElement>(null);
+  useLightDismiss(ref, onClose);
   const time = recapTimeText(recap.days);
   return (
-    <section className="recap" role="dialog" aria-labelledby="recapHead" onPointerDown={(e) => e.stopPropagation()}>
+    <section ref={ref} className="recap" role="dialog" aria-labelledby="recapHead" onPointerDown={(e) => e.stopPropagation()}>
       <div className="recap__head">
         <div>
           <p className="recap__kicker">Previously on…</p>

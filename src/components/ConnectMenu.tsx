@@ -4,6 +4,7 @@ import { COL } from '../lib/constants.ts';
 import type { ConnectChoice } from '../types/whiteboard.ts';
 import type { ConnectOption, connectOptions } from '../lib/connectOptions.ts';
 import { InlineLock } from './LockGlyph.tsx';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
   aName: string;
@@ -71,6 +72,7 @@ function label(opt: ConnectOption, a: string, b: string): ReactNode {
  */
 export function ConnectMenu({ aName, bName, left, top, options, onConfirm, onCancel }: Props) {
   const { compact, ref, style } = useFitMenuInStage(left, top);
+  useLightDismiss(ref, onCancel);
   return (
     <div
       ref={ref}

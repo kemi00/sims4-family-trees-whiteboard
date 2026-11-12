@@ -57,6 +57,10 @@ export function Welcome({ onOpenSave, onOpenBoard, onClose }: Props) {
   return (
     <div
       className="welcome"
+      // A press beside the card, like any popup's outside: look around first.
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
       onKeyDown={(e) => {
         if (e.key !== 'Escape') return;
         e.stopPropagation();

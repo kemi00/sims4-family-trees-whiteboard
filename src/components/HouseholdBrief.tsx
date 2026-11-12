@@ -2,7 +2,8 @@ import type { HomeRoom } from '../lib/homeRoom.ts';
 import { CloseButton, IconButton } from './CloseButton.tsx';
 import { HOUSEHOLD_MAX } from '../lib/homeRoom.ts';
 import { lotKindLabel, lotRoomsLabel, lotSizeLabel, type GameLot } from '../lib/places.ts';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { livingPlace } from '../lib/connectionLog.ts';
 import { waitText, type ElderTime, type PlanItem, type PlanState } from '../lib/householdPlan.ts';
@@ -93,6 +94,9 @@ export function HouseholdBrief({
   move,
 }: Props) {
   const sheet = usePanelSheet();
+  const ref = useRef<HTMLElement>(null);
+  // Its own lot menu ("Move to a lot") is part of it.
+  useLightDismiss(ref, onClose, { keep: '.menu' });
   const [moveOpen, setMoveOpen] = useState(false);
   const place = [lot, livingPlace(group.nb, group.world)].filter(Boolean).join(', ');
   const hover = (ids: string[]) => ({
@@ -119,6 +123,7 @@ export function HouseholdBrief({
 
   return (
     <aside
+      ref={ref}
       className={sheet ? 'brief brief--sheet' : 'brief'}
       role="dialog"
       aria-label={`The ${group.hh} household’s plan`}

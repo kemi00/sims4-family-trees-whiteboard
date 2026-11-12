@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import type { InfantChoices } from '../hooks/useWhiteboard.ts';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = InfantChoices & {
   left: number;
@@ -18,6 +19,7 @@ type Props = InfantChoices & {
  */
 export function InfantHouseMenu({ left, top, title, homes, surnames, surFor, onPick, onCancel }: Props) {
   const { compact, ref, style } = useFitMenuInStage(left, top);
+  useLightDismiss(ref, onCancel);
   const firstRef = useRef<HTMLButtonElement>(null);
   const askHome = homes.length > 1;
   const askSur = surnames.length > 1;

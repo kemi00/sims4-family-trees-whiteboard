@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import { CloseButton } from './CloseButton.tsx';
 import type { ReactNode, Ref } from 'react';
 import type { DynastyRole, World } from '../types/whiteboard.ts';
@@ -519,6 +520,10 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
     if (compact) setExpanded(false);
   }, [compact]);
 
+  // On a phone the legend is a sheet over the board: a press outside closes it.
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useLightDismiss(sheetRef, () => setExpanded(false), { enabled: compact && expanded && !hidden, keep: '.legend-chip' });
+
   // How much of the stage's right side the corner takes (world list, and the
   // key when open), as --legend-inset: the board's centred controls (zoom,
   // status, selection) centre on the rest, so the key never covers them.
@@ -562,7 +567,11 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
   return (
     <div
       id="legend"
-      ref={ref}
+      ref={(el) => {
+        sheetRef.current = el;
+        if (typeof ref === 'function') ref(el);
+        else if (ref) (ref as { current: HTMLDivElement | null }).current = el;
+      }}
       className={compact ? 'legend--sheet' : undefined}
     >
       {compact && (

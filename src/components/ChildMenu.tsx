@@ -10,6 +10,7 @@ import { hasNoHome } from '../lib/partners.ts';
 import { adopteeSearch, whyCantAdopt } from '../lib/adoption.ts';
 import type { ChildMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
   menu: ChildMenuState;
@@ -54,6 +55,7 @@ export function ChildMenu({
   onClose,
 }: Props) {
   const { compact, ref, style } = useFitMenuInStage(menu.x, menu.y);
+  useLightDismiss(ref, onClose);
   const listId = useId();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);

@@ -8,6 +8,7 @@ import { theHousehold } from '../lib/utils.ts';
 import { hasNoHome, partnerSearch } from '../lib/partners.ts';
 import { PARTNER_CHOICES, type PartnerChoice, type PartnerMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 const CHOICE_LABEL: Record<PartnerChoice, string> = {
   marriage: 'Married',
@@ -37,6 +38,8 @@ type Props = {
  */
 export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPick, onMove, onClose }: Props) {
   const { compact, ref, style } = useFitMenuInStage(menu.x, menu.y);
+  // A sim's card is a pick: clicking one on the board makes them the partner.
+  useLightDismiss(ref, onClose, { keep: '.node' });
   const listId = useId();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);

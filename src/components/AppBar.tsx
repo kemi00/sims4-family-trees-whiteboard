@@ -155,6 +155,11 @@ export function AppBar({
     if (!r) return;
     // With a pet pack on: a sim or a pet, from a menu under the button.
     const at = addBtnRef.current?.getBoundingClientRect();
+    // Open from here: the button closes it again.
+    if (wb.addMenu && !wb.addMenu.gid) {
+      wb.setAddMenu(null);
+      return;
+    }
     if (wb.petKinds.length && at) {
       wb.setAddMenu({ x: Math.max(8, at.left - r.left), y: Math.max(8, at.bottom - r.top + 6) });
       return;
@@ -401,6 +406,7 @@ export function AppBar({
         Connect
       </ToolButton>
       <ToolButton
+        id="btnAdd"
         ref={addBtnRef}
         icon={UserPlus}
         label={wb.petKinds.length ? 'Add a sim or a pet' : 'Add a sim'}

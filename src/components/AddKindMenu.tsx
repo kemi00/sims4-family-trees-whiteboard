@@ -3,6 +3,7 @@ import { CloseButton } from './CloseButton.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { SPECIES } from '../lib/constants.ts';
 import type { PetKind } from '../lib/pets.ts';
+import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
   x: number;
@@ -23,6 +24,8 @@ type Props = {
  */
 export function AddKindMenu({ x, y, title, kinds, onPick, onClose }: Props) {
   const { compact, ref, style } = useFitMenuInStage(x, y);
+  // The bar's Add button toggles the menu itself.
+  useLightDismiss(ref, onClose, { keep: '#btnAdd' });
   const firstRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     // A frame later: the menu is hidden while it measures where it fits.
