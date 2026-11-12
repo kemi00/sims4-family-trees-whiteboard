@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "05766f9",
+   "date": "2026-11-12",
+   "text": "Opening your save picks Replace only when the board is still the starter roster as it came. If you've changed it, the board asks whether to merge or replace."
+  },
+  {
    "sha": "a2d4e5c",
    "date": "2026-11-12",
    "text": "A click outside any popup closes it: the Add, partner and child menus, the household plan, Previously on, the Getting around card and the rest."
