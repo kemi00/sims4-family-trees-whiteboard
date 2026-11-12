@@ -51,6 +51,8 @@ const NB_ICON = 18;
 
 /** Badge colors: ready to do, off plan, or only waiting. */
 const BADGE = {
+  // A window for babies closing: amber on white, to play soon.
+  closing: { fill: '#ffffff', stroke: '#b45309', text: '#8a4208' },
   ready: { fill: '#e3f3ea', stroke: '#2f8f5b', text: '#1f6b43' },
   offPlan: { fill: '#fdf0dc', stroke: '#b45309', text: '#8a4208' },
   waiting: { fill: '#ffffff', stroke: '#aeb9c7', text: '#5a6675' },

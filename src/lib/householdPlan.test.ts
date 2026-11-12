@@ -492,6 +492,12 @@ describe('a household’s plan at a glance', () => {
     assert.deepEqual(planBadge({ ready: 0, waiting: 3, offPlan: 0 }), { text: 'waiting', tone: 'waiting', title: '3 waiting' });
     assert.equal(planBadge({ ready: 0, waiting: 0, offPlan: 0 }), null);
     assert.equal(planBadge(undefined), null);
+    // A window for babies closing comes first: play soon.
+    assert.deepEqual(planBadge({ ready: 1, waiting: 1, offPlan: 0, closing: 1 }), {
+      text: '⏳ 1 closing',
+      tone: 'closing',
+      title: '1 window for babies closing, 1 ready, 1 waiting',
+    });
   });
 
   it('names households by their tag, and the unhoused box as such', () => {

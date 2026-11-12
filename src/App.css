@@ -675,6 +675,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lgk__svg{display:block;overflow:visible}
 .lgk__emoji{font-size:11px;line-height:1}
 .lgk__emoji--planned{opacity:.4}
+.lgk__badge{display:inline-flex;align-items:center;height:16px;padding:0 6px;border:1.5px solid var(--warn-strong);border-radius:8px;background:#fff;color:var(--warn);font-size:10px;font-weight:700;line-height:1;white-space:nowrap}
 .lgk__text{min-width:0}
 /* On the desktop corner a note is the row's hover tip, still read out; the phone sheet shows it. */
 .lgk__note{position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -1038,7 +1039,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edsave{width:100%;padding:8px 11px;border:none;background:#1b6cd6;color:#fff;border-radius:8px;font-size:12px;font-weight:600}
 .editor .edsave:hover{background:#155bb8}
 /* Off the board: quiet under Save, red when pointed at, as it can't be missed by a slip. */
-.editor .eddelete{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;margin-top:6px;padding:6px 11px;border:1px solid transparent;border-radius:8px;background:none;color:var(--danger);font-size:11.5px;font-weight:600;cursor:pointer;overflow-wrap:anywhere}
+.editor .eddelete{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;margin-top:6px;padding:6px 11px;border:1px solid transparent;border-radius:8px;background:none;color:var(--danger);font-size:11.5px;font-weight:600;cursor:pointer;overflow-wrap:anywhere;white-space:normal;line-height:1.35;text-align:center}
 .editor .eddelete svg{flex:none;width:13px;height:13px}
 .editor .eddelete:hover{background:var(--danger-soft);border-color:var(--danger)}
 .editor .eddelete:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
@@ -1072,7 +1073,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edlink{flex:none;padding:0;border:none;background:none;color:#1b6cd6;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px}
 .editor .edlink:hover{background:none;color:#155bb8}
 .editor .edlink--more{margin:6px 2px 0}
-.editor .edlink--plan{display:block;margin:10px 2px 0}
+.editor .edlink--plan{display:block;margin:10px 2px 0;max-width:100%;white-space:normal;line-height:1.35;text-align:left;overflow-wrap:anywhere}
 .editor .edhint--warn{color:#8a5a00}
 .editor .edfacts{margin:0;padding:5px 8px}
 .editor .edfacts dt{color:#6b7480}
@@ -1306,6 +1307,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .dynp .dynp__head[aria-expanded=true]{background:var(--recess)}
 .dynp__top{display:flex;align-items:baseline;gap:8px}
 .dynp__name{flex:1 1 auto;min-width:0;font-size:13px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.dynp__note{margin:0 2px 6px;font-size:11.5px;line-height:1.4;color:var(--ink-2)}
 .dynp__prestige{flex:none;font-size:11px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .dynp__count{flex:none;font-size:11px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .dynp__holders{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:11.5px;color:var(--ink)}

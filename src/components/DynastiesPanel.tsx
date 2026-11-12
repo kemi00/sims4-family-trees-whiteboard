@@ -332,6 +332,10 @@ export function DynastiesPanel({
         <b>Dynasties</b>
         <span className="dynp__total">{plural(rows.length, 'dynasty', 'dynasties')}</span>
       </div>
+      {/* Prestige comes with a save read since the board learned it: say so until then. */}
+      {!hasPrestige && rows.some((r) => r.inGame) && (
+        <p className="dynp__note">Each dynasty’s prestige shows here after your next save upload.</p>
+      )}
       {rows.length > 0 && (
         <input
           type="search"

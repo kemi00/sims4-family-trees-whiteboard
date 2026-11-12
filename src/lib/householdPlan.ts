@@ -483,7 +483,13 @@ export function itemsFor(items: PlanItem[], gid: string): PlanItem[] {
   return items.filter((i) => i.gids.includes(gid));
 }
 
-export type PlanTally = { ready: number; waiting: number; offPlan: number };
+export type PlanTally = {
+  ready: number;
+  waiting: number;
+  offPlan: number;
+  /** Couples and babies whose window for babies is closing (the matchmaking clock). */
+  closing?: number;
+};
 
 /** How many items of each state every household has, for the badges on their tags. */
 export function planTallies(items: PlanItem[]): Map<string, PlanTally> {
@@ -492,6 +498,7 @@ export function planTallies(items: PlanItem[]): Map<string, PlanTally> {
     for (const gid of i.gids) {
       const t = out.get(gid) ?? { ready: 0, waiting: 0, offPlan: 0 };
       t[i.state] += 1;
+      if (i.window?.state === 'closing') t.closing = (t.closing ?? 0) + 1;
       out.set(gid, t);
     }
   }
@@ -499,21 +506,24 @@ export function planTallies(items: PlanItem[]): Map<string, PlanTally> {
 }
 
 /**
- * The badge on a household's tag: how many things are ready, else how
+ * The badge on a household's tag: a window for babies closing first (the
+ * matchmaking clock: play soon), then how many things are ready, else how
  * many went off plan, else that something waits; none when nothing is
  * pending, so a big board stays quiet. `title` has the whole count.
  */
 export function planBadge(
   t: PlanTally | undefined,
-): { text: string; tone: 'ready' | 'offPlan' | 'waiting'; title: string } | null {
+): { text: string; tone: 'closing' | 'ready' | 'offPlan' | 'waiting'; title: string } | null {
   if (!t || !(t.ready + t.waiting + t.offPlan)) return null;
   const title = [
+    t.closing && `${t.closing === 1 ? '1 window for babies' : `${t.closing} windows for babies`} closing`,
     t.ready && `${t.ready} ready`,
     t.waiting && `${t.waiting} waiting`,
     t.offPlan && `${t.offPlan} off plan`,
   ]
     .filter(Boolean)
     .join(', ');
+  if (t.closing) return { text: `⏳ ${t.closing} closing`, tone: 'closing', title };
   if (t.ready) return { text: `${t.ready} ready`, tone: 'ready', title };
   if (t.offPlan) return { text: `${t.offPlan} off plan`, tone: 'offPlan', title };
   return { text: 'waiting', tone: 'waiting', title };

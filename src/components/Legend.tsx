@@ -543,6 +543,15 @@ export function Legend({ worlds, liveWorlds, totals, hidden, onPickWorld, ref }:
               note="your game went another way"
             />
             <KeyRow
+              sample={
+                <span className="lgk__badge" aria-label="Amber badge on a household tag">
+                  ⏳ 1
+                </span>
+              }
+              label="Closing"
+              note="a planned couple running out of time for babies: its plan says whom to play"
+            />
+            <KeyRow
               sample={<LineSample label="Violet dotted line" color={UEDIT} dotted />}
               label="Other link, not family"
               note="one you drew with Connect"

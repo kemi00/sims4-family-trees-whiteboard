@@ -1,6 +1,7 @@
 import {
   CalendarBlank,
   Check,
+  BookOpenText,
   Crown,
   EyeSlash,
   Funnel,
@@ -335,6 +336,20 @@ export function AppBar({
     if (next) trackAction('/action/up-next');
     wb.setUpNextOpen(next);
   };
+  /** The Chronicle, the whole board's story: from here as well as the save chip. */
+  const storyOpen = !!wb.chronicleView && wb.chronicleView.ids === null;
+  const openStory = () => {
+    setFiltersOpen(false);
+    closeFilterPanels();
+    if (storyOpen) {
+      wb.setChronicleView(null);
+      return;
+    }
+    trackAction('/action/story');
+    wb.setRecapOpen(false);
+    wb.setChronicleView({ label: 'your board', ids: null });
+  };
+
   const openDynasties = () => {
     setFiltersOpen(false);
     closeFilterPanels();
@@ -413,6 +428,13 @@ export function AppBar({
           label: 'Dynasties',
           note: 'Every dynasty, with its members',
           onSelect: openDynasties,
+        },
+        {
+          id: 'story',
+          icon: BookOpenText,
+          label: 'Story',
+          note: 'What happened in your game, upload by upload',
+          onSelect: openStory,
         },
         {
           id: 'log',
@@ -676,6 +698,19 @@ export function AppBar({
           onClick={openDynasties}
         >
           Dynasties
+        </ToolButton>
+      )}
+      {!compact && (
+        <ToolButton
+          id="btnStory"
+          icon={BookOpenText}
+          label="Story: what happened in your game, upload by upload"
+          pressed={storyOpen}
+          expanded={storyOpen}
+          className="tool--secondary"
+          onClick={openStory}
+        >
+          Story
         </ToolButton>
       )}
 
