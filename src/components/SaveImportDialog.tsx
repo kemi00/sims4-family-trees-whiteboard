@@ -17,8 +17,14 @@ type Props = {
   summary: SaveMergeSummary;
   /** The save's clock and aging options, when it has a clock. */
   game?: SaveGameInfo | null;
-  /** The board is still the starter roster (see isStarterBoard): Replace is picked. */
+  /** The board is still the starter roster (see isStarterBoard): its premade sims aren't the player's. */
   starter: boolean;
+  /**
+   * Nothing on it is the player's yet (boardContentMatchesBuiltIn): Replace
+   * is picked. A starter board they changed asks, with nothing picked; a
+   * board of their own picks Merge, the usual refresh.
+   */
+  untouched: boolean;
   /** Nothing on it is arranged yet (isUntouchedStarter): Merge lays it out afresh. */
   fresh?: boolean;
   /** Your plan against this save: Merge reviews it first when there is anything to. */
@@ -53,6 +59,7 @@ export function SaveImportDialog({
   summary,
   game,
   starter,
+  untouched,
   fresh,
   plan,
   planned,
@@ -61,7 +68,15 @@ export function SaveImportDialog({
   onReplace,
   onCancel,
 }: Props) {
-  const [mode, setMode] = useState<'merge' | 'replace'>(starter ? 'replace' : 'merge');
+  const [mode, setModeState] = useState<'merge' | 'replace' | null>(untouched ? 'replace' : starter ? null : 'merge');
+  /** Proceed with nothing picked asks for a pick, here, instead of guessing. */
+  const [unpicked, setUnpicked] = useState(false);
+  const setMode = (m: 'merge' | 'replace') => {
+    setModeState(m);
+    setUnpicked(false);
+  };
+  /** A starter board with changes of theirs: their call, so neither is picked. */
+  const yourCall = starter && !untouched;
   /** Replace keeps the story by default: a newer save of the same game. */
   const [keepStory, setKeepStory] = useState(true);
   /** Merge has a second step when the save fills planned sims or goes against the plan. */
@@ -121,7 +136,9 @@ export function SaveImportDialog({
           </p>
         ) : (
           <p>
-            Choose how this save meets the board.
+            {yourCall
+              ? 'You’ve changed the starter board since it came: merge your save into it to keep your changes, or replace it to start over from your save.'
+              : 'Choose how this save meets the board.'}
             {reviewable && mode === 'merge' ? ' Next, you’ll review your plan.' : ''}
           </p>
         )}
@@ -187,6 +204,12 @@ export function SaveImportDialog({
                   Updates matching sims and keeps planned violet links.
                   {fresh && ' Nothing here is arranged yet, so the board is laid out afresh.'}
                 </span>
+                {yourCall && (
+                  <span className="save-import__choice-note">
+                    It keeps the starter roster’s {summary.notInSave} premade {sims(summary.notInSave)} your game
+                    doesn't have, mixed in with yours.
+                  </span>
+                )}
                 <ul className="save-import__stats">
                   <li>
                     <b>{summary.matched}</b> cards updated
@@ -296,25 +319,32 @@ export function SaveImportDialog({
                 )}
                 {planned.links + planned.sims > 0 && (
                   <span className="save-import__choice-note planrev__drops">
-                    Drops your plan: {planned.links} planned{' '}
-                    {planned.links === 1 ? 'link' : 'links'}
-                    {planned.sims > 0
-                      ? ` and ${planned.sims} planned ${sims(planned.sims)}`
-                      : ''}
-                    . Merge keeps them.
+                    Drops your plan:{' '}
+                    {[
+                      planned.links ? `${planned.links} planned ${planned.links === 1 ? 'link' : 'links'}` : '',
+                      planned.sims ? `${planned.sims} planned ${sims(planned.sims)}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' and ')}
+                    . Merge keeps {planned.links + planned.sims === 1 ? 'it' : 'them'}.
                   </span>
                 )}
-                {starter && (
+                {untouched ? (
                   <span className="save-import__choice-note save-import__pick">
-                    Picked for you: this board is still the starter roster.
+                    Picked for you: this board is still the starter roster, with nothing of yours on it.
                     Merging would keep its {summary.notInSave} premade{' '}
                     {sims(summary.notInSave)} your game doesn't have mixed in with
                     yours.
                   </span>
-                )}
+                ) : null}
               </span>
             </label>
           </fieldset>
+          {unpicked && (
+            <p className="save-import__unpicked" role="alert">
+              Pick Merge or Replace first.
+            </p>
+          )}
           {hasDetails && (
             <details className="save-import__details" onToggle={showOpened}>
               <summary>Households, worlds, packs, and skipped names</summary>
@@ -405,6 +435,10 @@ export function SaveImportDialog({
             type="button"
             className="save-import__ok"
             onClick={() => {
+              if (!mode) {
+                setUnpicked(true);
+                return;
+              }
               if (mode === 'replace') onReplace(story > 0 && keepStory);
               else if (step === 'choose' && reviewable) setStep('plan');
               else onMerge(step === 'plan' ? { ...choices, matches: effectiveMatches(plan, choices) } : undefined);

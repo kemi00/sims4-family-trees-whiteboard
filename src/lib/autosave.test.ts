@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { LAYOUT_EPOCH } from './constants.ts';
 import {
+  boardContentMatchesBuiltIn,
   AUTOSAVE_KEY,
   boardMatchesBuiltIn,
   persistPayloadFromSeed,
@@ -221,6 +222,26 @@ describe('autosave', () => {
       boardMatchesBuiltIn({ ...payload, sourceFileName: 'mine.json' }, seed),
       false,
     );
+  });
+
+  it('knows an unchanged starter from one the player changed, filters aside', () => {
+    const seed: WhiteboardData = {
+      nodes: [node('Seed'), node('Other')],
+      edges: [{ id: 'e1', a: 'Seed', b: 'Other', type: 'marriage' }],
+      groups,
+      worlds,
+    };
+    const payload = persistPayloadFromSeed(seed);
+    assert.equal(boardContentMatchesBuiltIn(payload, seed), true);
+    // Filters change what shows, not the board.
+    assert.equal(boardContentMatchesBuiltIn({ ...payload, hideDeceased: true, hiAges: ['Teen'] }, seed), true);
+    // A card moved by hand, a planned link or a planned move is theirs.
+    assert.equal(boardContentMatchesBuiltIn({ ...payload, nodes: payload.nodes.map((n) => ({ ...n, ox: 40 })) }, seed), false);
+    assert.equal(
+      boardContentMatchesBuiltIn({ ...payload, edges: [...payload.edges, { id: 'u1', a: 'Seed', b: 'Other', type: 'parent', source: 'planned' }] }, seed),
+      false,
+    );
+    assert.equal(boardContentMatchesBuiltIn({ ...payload, nodes: payload.nodes.map((n, i) => (i ? n : { ...n, first: 'Renamed' })) }, seed), false);
   });
 
   it('ignores an autosave that is still the built-in board', () => {

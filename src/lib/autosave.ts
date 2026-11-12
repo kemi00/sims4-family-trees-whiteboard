@@ -247,6 +247,25 @@ export function boardMatchesBuiltIn(
   return boardIdentity(payload) === builtInIdentity(seed);
 }
 
+/** The view's own settings: they change what the board shows, not the board. */
+const VIEW_FIELDS = ['hiddenPacks', 'hiddenPlay', 'hiAges', 'hiSingle', 'hideSecrets', 'hideDeceased', 'bloodlineId'] as const;
+
+function contentIdentity(identity: string): string {
+  const fields = JSON.parse(identity) as Record<string, unknown>;
+  for (const k of VIEW_FIELDS) delete fields[k];
+  return JSON.stringify(fields);
+}
+
+/**
+ * True when nothing on the board is the player's: the starter roster as it
+ * shipped, every card, link, plan and move as it came. Filters and the like
+ * don't count; they only change what shows. Opening a save into it picks
+ * Replace for them; any change of theirs makes it their call.
+ */
+export function boardContentMatchesBuiltIn(payload: PersistPayload, seed: WhiteboardData): boolean {
+  return contentIdentity(boardIdentity(payload)) === contentIdentity(builtInIdentity(seed));
+}
+
 function storage(): Storage | null {
   try {
     if (typeof localStorage === 'undefined') return null;

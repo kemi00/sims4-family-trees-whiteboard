@@ -12,6 +12,7 @@ import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   AUTOSAVE_KEY,
+  boardContentMatchesBuiltIn,
   boardMatchesBuiltIn,
   bootWhiteboardData,
   buildPersistPayload,
@@ -521,8 +522,10 @@ export function useWhiteboard() {
   const [saveImport, setSaveImport] = useState<{
     merge: SaveMergeResult;
     parsed: ParsedSave;
-    /** The board is still the starter roster, so Replace is picked. */
+    /** The board is still the starter roster: its premade sims aren't the player's. */
     starter: boolean;
+    /** Nothing on it is the player's yet (no edit, plan or move), so Replace is picked. */
+    untouched: boolean;
     /** Nothing on it is arranged yet, so a Merge lays it out afresh too. */
     fresh: boolean;
     /** Your plan against this save, for the import's review step. */
@@ -3490,6 +3493,7 @@ export function useWhiteboard() {
           merge,
           parsed,
           starter: isStarterBoard(nodesCore, seed.nodes),
+          untouched: boardContentMatchesBuiltIn(persistPayload(), seed),
           fresh: isUntouchedStarter(nodesCore, seed.nodes),
           plan: planReview(merge, parsed, nodesCore, edges, householdMoves),
         });
@@ -3499,7 +3503,7 @@ export function useWhiteboard() {
       }
     };
     rd.readAsArrayBuffer(file);
-  }, [nodesCore, edges, groups, worlds, pairStatus, saveGame, seed.nodes, seed.edges, householdMoves]);
+  }, [nodesCore, edges, groups, worlds, pairStatus, saveGame, seed, householdMoves, persistPayload]);
 
   const confirmSaveImport = useCallback(
     (svgWidth: number, svgHeight: number, choices?: PlanChoices) => {
