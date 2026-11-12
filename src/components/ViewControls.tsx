@@ -1,5 +1,4 @@
 import {
-  ArrowCounterClockwise,
   ClockCounterClockwise,
   CornersOut,
   GridFour,
@@ -59,11 +58,6 @@ export function ViewControls({ wb, svgRef }: Props) {
       <ToolButton icon={Plus} label="Zoom in" onClick={() => zoomBy(1.25)} />
       <span className="viewctl__rule" aria-hidden="true" />
       <ToolButton icon={CornersOut} label="Fit all" onClick={fit} />
-      <ToolButton
-        icon={ArrowCounterClockwise}
-        label="Reset view"
-        onClick={wb.resetView}
-      />
       {wb.chronicle.length >= 2 && (
         <>
           <span className="viewctl__rule" aria-hidden="true" />

@@ -2860,8 +2860,6 @@ export function useWhiteboard() {
     [nodes, nodeVis, lotBoxes],
   );
 
-  const resetView = useCallback(() => setViewport(INITIAL_VIEW), []);
-
   const boardBounds = useMemo(
     () => withLots(bbox(nodes, nodeVis), [...lotBoxes.values()]),
     [nodes, nodeVis, lotBoxes],
@@ -4207,7 +4205,6 @@ export function useWhiteboard() {
     confirmConnect,
     fit,
     zoomToWorld,
-    resetView,
     zoomAt,
     minZoom,
     focusLogEntry,
