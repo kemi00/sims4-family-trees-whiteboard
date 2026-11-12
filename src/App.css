@@ -757,6 +757,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lgk--marks{flex-wrap:wrap;gap:4px 14px}
 .lgk__mark{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .lgk__sample{flex:0 0 32px;display:flex;justify-content:center;align-items:center;height:18px}
+.lgk__faded{display:flex;opacity:.25}
 .lgk__svg{display:block;width:32px;height:18px;overflow:visible}
 .lgk__emoji{font-size:14px;line-height:1}
 .lgk__emoji--planned{opacity:.4}
@@ -1149,6 +1150,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edlinks{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
 .editor .edlinks li{display:flex;align-items:center;gap:8px;padding:4px 4px 4px 8px;border:1px solid var(--line);border-radius:7px;background:#fff}
 .editor .edlinks__text{flex:1 1 auto;min-width:0;font-size:11.5px;color:var(--ink);overflow-wrap:anywhere}
+.editor .edlinks li.edlinks__row--ended{background:var(--recess)}
+.editor .edlinks__row--ended .edlinks__text{color:var(--ink-3)}
 .editor .edlinks__tag{display:inline-block;margin-left:6px;padding:0 5px;border-radius:999px;background:#ede9fe;color:#7c3aed;font-size:10px;font-weight:600;vertical-align:1px}
 .editor .edlinks__go{flex:none;padding:3px 8px;border:1px solid var(--rule);border-radius:6px;background:#fff;color:var(--danger);font-size:11px;font-weight:600;cursor:pointer}
 .editor .edlinks__go:hover{background:var(--danger-soft);border-color:var(--danger)}
@@ -1648,6 +1651,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 /* ── deceased sims: their cards fade, so the living stand out ───────────── */
 .node.dead{opacity:.48}
 .node.dead.agedim{opacity:.14}
+/* A couple a death ended (widowed): kept as history, very faded, until picked. */
+.union--widowed:not(.sel){opacity:.22}
+.union--widowed:not(.sel):hover{opacity:.45}
 .node.dead.sel,.node.dead.msel,.node.dead.agehl{opacity:.85}
 
 /* ── highlight count: in the Highlight panel and on the board ──────────── */

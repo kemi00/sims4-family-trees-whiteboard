@@ -1,6 +1,6 @@
 import { DECEASED_STATE } from './constants.ts';
 import { isUnhousedGid } from './unhoused.ts';
-import { isPet } from './utils.ts';
+import { edgeSourceOf, endedByDeath, isPet } from './utils.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -14,6 +14,7 @@ export type KeyMark =
   | 'romance'
   | 'secretLovers'
   | 'divorced'
+  | 'widowed'
   | 'dynastyRoles'
   | 'deceased'
   | 'fromSave'
@@ -31,6 +32,7 @@ export const ALL_KEY_MARKS: ReadonlySet<KeyMark> = new Set<KeyMark>([
   'romance',
   'secretLovers',
   'divorced',
+  'widowed',
   'dynastyRoles',
   'deceased',
   'fromSave',
@@ -56,7 +58,9 @@ export function keyMarks(board: {
   closing: boolean;
 }): Set<KeyMark> {
   const out = new Set<KeyMark>();
+  const dead = new Set(board.nodes.filter((n) => n.state === DECEASED_STATE).map((n) => n.id));
   for (const e of board.edges) {
+    if (edgeSourceOf(e) !== 'planned' && endedByDeath(e, (id) => dead.has(id))) out.add('widowed');
     if (e.type === 'parent' && e.secret) out.add('secretParent');
     else if (e.type === 'romance') out.add(e.secret ? 'secretLovers' : 'romance');
     else if (e.type === 'divorced') out.add('divorced');

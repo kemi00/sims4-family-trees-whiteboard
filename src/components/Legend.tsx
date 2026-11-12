@@ -378,6 +378,19 @@ function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; shee
               label="Divorced"
             />
           )}
+          {has('widowed') && (
+            <KeyRow
+              sample={
+                <span className="lgk__faded">
+                  <PillSample label="Very faded rings">
+                    <RingPill x={0} y={0} color={COL.marriage} />
+                  </PillSample>
+                </span>
+              }
+              label="Widowed"
+              note="a couple until one of them died: nothing to divorce or plan"
+            />
+          )}
         </ul>
         <h4>Cards and tags</h4>
         <ul>

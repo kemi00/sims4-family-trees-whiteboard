@@ -25,14 +25,21 @@ describe('the key’s marks', () => {
         sim('head', { dynastyRole: 'head' }),
         sim('heir', { dynastyRole: 'heir', dynastyPlan: 'role' }),
       ],
-      edges: [link('parent', { secret: true }), link('romance'), link('romance', { secret: true }), link('divorced'), link('custom')],
+      edges: [
+        link('parent', { secret: true }),
+        link('romance'),
+        link('romance', { secret: true }),
+        link('divorced'),
+        link('custom'),
+        { id: 'w', a: 'dead', b: 'head', type: 'marriage' },
+      ],
       freeLots: true,
       offPlan: true,
       closing: true,
     });
     assert.deepEqual(
       [...marks].sort(),
-      ['added', 'closing', 'deceased', 'divorced', 'dynastyRoles', 'freeLots', 'fromSave', 'offPlan', 'otherLink', 'pets', 'plannedRole', 'romance', 'secretLovers', 'secretParent', 'unhoused'].sort(),
+      ['added', 'closing', 'deceased', 'divorced', 'dynastyRoles', 'freeLots', 'fromSave', 'offPlan', 'otherLink', 'pets', 'plannedRole', 'romance', 'secretLovers', 'secretParent', 'unhoused', 'widowed'].sort(),
     );
   });
 });

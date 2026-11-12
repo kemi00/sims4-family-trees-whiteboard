@@ -103,6 +103,15 @@ describe('plans the game went against', () => {
     assert.deepEqual(planConflicts(nodes, divorcing), []);
   });
 
+  it('lets a planned couple be when the other marriage ended in a death: the widowed are single', () => {
+    // Adekoya married Imani in the game; she died, so his planned marriage to Beatrice is open.
+    const nodes2 = [sim('Adekoya', { gender: 'Male' }), sim('Imani', { state: 'Deceased' }), sim('Beatrice')];
+    const edges2 = [link('v1', 'Adekoya', 'Imani', 'marriage'), link('u1', 'Adekoya', 'Beatrice', 'marriage', 'planned')];
+    assert.deepEqual(planConflicts(nodes2, edges2), []);
+    // While Imani lived, it was off plan.
+    assert.equal(planConflicts(nodes2.map((n) => ({ ...n, state: 'Sim' })), edges2)[0]?.kind, 'marriedElsewhere');
+  });
+
   it('calls dating someone else softer, and a death final', () => {
     const dating = edges.map((e) => (e.id === 'v1' ? { ...e, type: 'romance' as const } : e));
     assert.deepEqual(

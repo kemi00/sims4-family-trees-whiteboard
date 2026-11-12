@@ -2,7 +2,7 @@ import { DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
 import { approxLifeDays, lifeDays, scaleOf } from './lifeClock.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { cardName } from './plan.ts';
-import { fold } from './utils.ts';
+import { endedByDeath, fold } from './utils.ts';
 import type { Edge, SaveGameInfo, SimLife, SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -112,9 +112,11 @@ export function partnerCandidates(opts: {
   const blood = bloodRelatives(focus.id, opts.edges);
   const married = new Set<string>();
   const romance = new Set<string>();
+  const dead = new Set(opts.nodes.filter((n) => n.state === DECEASED_STATE).map((n) => n.id));
   for (const e of opts.edges) {
-    // A couple with a planned divorce or breakup is free in the plan.
-    if (e.ending) continue;
+    // A couple with a planned divorce or breakup is free in the plan, and so
+    // is one a death ended: the widowed are single.
+    if (e.ending || endedByDeath(e, (id) => dead.has(id))) continue;
     if (e.type === 'marriage') {
       married.add(e.a);
       married.add(e.b);
@@ -197,7 +199,10 @@ export function partnerSearch(opts: {
   const candidates = partnerCandidates({ id, nodes, edges, game: opts.game });
   const q = fold(opts.query);
   const blood = bloodRelatives(id, edges);
-  const married = new Set(edges.filter((e) => e.type === 'marriage' && !e.ending).flatMap((e) => [e.a, e.b]));
+  const dead = new Set(nodes.filter((n) => n.state === DECEASED_STATE).map((n) => n.id));
+  const married = new Set(
+    edges.filter((e) => e.type === 'marriage' && !e.ending && !endedByDeath(e, (x) => dead.has(x))).flatMap((e) => [e.a, e.b]),
+  );
   const hit = (n: SimNode, candidate?: PartnerCandidate): PartnerHit => ({
     id: n.id,
     ...(candidate ? { candidate } : {}),

@@ -274,6 +274,11 @@ type Props = {
   focusEdgeIds?: ReadonlySet<string> | null;
   /** Planned couples the game went against: their badge gets an amber ring and a ⚠. */
   offPlanEdgeIds?: ReadonlySet<string>;
+  /**
+   * Sims who have died. A couple one of them died in is over (widowed): its
+   * line and badge stay as their history, very faded, with no ＋ for a baby.
+   */
+  deadIds?: ReadonlySet<string>;
 };
 
 const STROKE = LINK_STROKE;
@@ -340,6 +345,7 @@ export const EdgeLayer = memo(function EdgeLayer({
   gidById,
   focusEdgeIds,
   offPlanEdgeIds,
+  deadIds,
 }: Props) {
   return (
     <g id="lEdges">
@@ -392,10 +398,11 @@ export const EdgeLayer = memo(function EdgeLayer({
         const sq = isSelLink([u.edgeId]);
         const lc = sq ? '#1b6cd6' : lineCol;
         const pc = sq ? '#1b6cd6' : pillCol;
+        const widowed = !!deadIds && !u.isUser && (u.type === 'marriage' || u.type === 'romance') && deadIds.has(u.a) !== deadIds.has(u.b);
         return (
           <g
             key={u.edgeId}
-            className={linkClass(sq, [u.edgeId], focusEdgeIds)}
+            className={`${linkClass(sq, [u.edgeId], focusEdgeIds)}${widowed ? ' union--widowed' : ''}`}
             data-ends={JSON.stringify([u.a, u.b])}
             {...chromeDataProps([u.a, u.b], worldById, gidById)}
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
@@ -438,15 +445,16 @@ export const EdgeLayer = memo(function EdgeLayer({
                 <RingPill x={u.rx} y={u.ry} color={pc} />
               )}
               {offPlanEdgeIds?.has(u.edgeId) && <OffPlanMark x={u.rx} y={u.ry} />}
-              <AddInfantPlus
+              {!widowed && <AddInfantPlus
                 x={u.rx}
                 y={u.ry + PILL_H}
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   onAddInfant(u, e);
                 }}
-              />
+              />}
             </g>
+            {widowed && <title>A couple until one of them died: nothing to plan</title>}
           </g>
         );
       })}

@@ -60,7 +60,7 @@ import {
   type ChipObstacle,
 } from '../lib/linkLabel.ts';
 import { slug, trackAction } from '../lib/analytics.ts';
-import { edgeSourceOf, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
+import { edgeSourceOf, endedByDeath, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
@@ -1571,6 +1571,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     w.setAddMenu({ gid, x: ev.clientX - (sr?.left ?? 0), y: ev.clientY - (sr?.top ?? 0) + 14 });
   }, [stageRef]);
 
+  /** Who has died: a couple one of them died in is over (endedByDeath), drawn faded. */
+  const deadIds = useMemo(() => new Set(wb.nodes.filter((n) => n.state === DECEASED_STATE).map((n) => n.id)), [wb.nodes]);
+  /** A couple link a death ended: no divorce or breakup to plan for it. */
+  const widowedEdge = (id: string) => {
+    const e = wb.edges.find((x) => x.id === id);
+    return !!e && edgeSourceOf(e) !== 'planned' && endedByDeath(e, (x) => deadIds.has(x));
+  };
+
   /** The marks the board shows now, for the key to explain. */
   const marksShown = useMemo(
     () =>
@@ -1680,12 +1688,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     wb.multiSel?.kind === 'households' ? new Set(wb.multiSel.gids) : undefined;
   const selectedNodeIds =
     wb.multiSel?.kind === 'nodes' ? new Set(wb.multiSel.ids) : undefined;
-  /** Every picked link a couple the game has, with no end planned: Delete plans that end. */
+  /**
+   * Every picked link a couple the game has, with no end planned: Delete
+   * plans that end. Not one a death ended (widowed): there is no end to plan.
+   */
   const gameCoupleIntact = (ids: string[]) => {
     const picked = wb.edges.filter((e) => ids.includes(e.id));
     return (
       picked.length > 0 &&
-      picked.every((e) => (e.type === 'marriage' || e.type === 'romance') && edgeSourceOf(e) !== 'planned' && !e.ending)
+      picked.every(
+        (e) =>
+          (e.type === 'marriage' || e.type === 'romance') &&
+          edgeSourceOf(e) !== 'planned' &&
+          !e.ending &&
+          !endedByDeath(e, (id) => deadIds.has(id)),
+      )
     );
   };
   const linkChip =
@@ -1846,6 +1863,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             gidById={gidById}
             focusEdgeIds={wb.family?.edgeIds}
             offPlanEdgeIds={wb.offPlan.edges}
+            deadIds={deadIds}
             userEdgeIds={userEdgeIds.current}
             isSelLink={wb.isSelLink}
             connectMode={wb.connectMode}
@@ -2035,7 +2053,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             const r = svgRef.current?.getBoundingClientRect();
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
           }}
-          {...(linkChip.couple
+          {...(linkChip.couple && !widowedEdge(linkChip.couple.id)
             ? {
                 action: (() => {
                   const c = linkChip.couple;

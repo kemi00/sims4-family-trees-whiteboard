@@ -11,7 +11,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from 'react';
-import { AGES, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
+import { AGES, DECEASED_STATE, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { Info, Trash } from '../icons.ts';
 import { trackAction } from '../lib/analytics.ts';
@@ -639,10 +639,15 @@ export function SimEditor({
   /** Their links, to take one off without finding its line (simLinkRows). */
   const links = useMemo(
     () =>
-      simLinkRows(n.id, edges, (id) => {
-        const x = byId[id];
-        return x ? cardName(x) : 'someone not on the board';
-      }),
+      simLinkRows(
+        n.id,
+        edges,
+        (id) => {
+          const x = byId[id];
+          return x ? cardName(x) : 'someone not on the board';
+        },
+        (id) => byId[id]?.state === DECEASED_STATE,
+      ),
     [n.id, edges, byId],
   );
   const nameOf = (id: string | undefined) => {
@@ -1379,7 +1384,7 @@ export function SimEditor({
                 </div>
                 <ul className="edlinks">
                   {links.map((l) => (
-                    <li key={l.id}>
+                    <li key={l.id} className={l.ended ? 'edlinks__row--ended' : undefined}>
                       <span className="edlinks__text">
                         {l.text}
                         {l.planned && <span className="edlinks__tag">planned</span>}
