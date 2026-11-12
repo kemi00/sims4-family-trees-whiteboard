@@ -60,6 +60,21 @@ describe('a household moving to another world', () => {
     }
   });
 
+  it('lands clear of a Free lots box where it would have gone, and the box stays (it is not a card)', () => {
+    const gid = groups.find((g) => g.world === 'Oasis Springs' && seed.nodes.some((n) => n.gid === g.gid))!.gid;
+    const first = move(gid, 'Willow Creek');
+    const where = hhBoxDraw(first.dest.gid, first.after, first.groups, all)!;
+    // A lots box right where it landed: the household goes around it.
+    const lots = { l: where.l, t: where.t, r: where.r, b: where.b };
+    const laid = lay(core);
+    const ids = laid.filter((n) => n.gid === gid).map((n) => n.id);
+    const { patches } = householdMovePlan(laid, ids, first.dest);
+    const newGroup: Group = { gid: first.dest.gid, hh: first.dest.hh, world: first.dest.world, nb: first.dest.nb, color: first.dest.color, x: 0, y: 0, w: 0, h: 0 };
+    const r = landMovedCards({ core, laid, worlds, edges: seed.edges, groups, patches, destGid: first.dest.gid, newGroup, obstacles: [lots] });
+    const box = hhBoxDraw(first.dest.gid, lay(r.core), [...groups, newGroup], all)!;
+    assert.ok(!overlaps(box, lots), 'lands on the lots box');
+  });
+
   it('joins a household already there without moving any other card', () => {
     const laid = lay(core);
     const from = groups.find((g) => g.world === 'Oasis Springs' && laid.some((n) => n.gid === g.gid))!;

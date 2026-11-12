@@ -68,8 +68,10 @@ export function freeHouseholdSpot(opts: {
   label?: Group | null;
   near: Point;
   keepNear?: boolean;
+  /** Room taken by other things on the board (its Free lots boxes): a newcomer goes around it. */
+  obstacles?: readonly Box[];
 }): Point {
-  const { others, groups, world, block, label, near, keepNear } = opts;
+  const { others, groups, world, block, label, near, keepNear, obstacles = [] } = opts;
   const x0 = Math.min(...block.map((n) => n.x));
   const y0 = Math.min(...block.map((n) => n.y));
   const boxAt = (at: Point): Box => {
@@ -83,7 +85,7 @@ export function freeHouseholdSpot(opts: {
   const own = frames.get(world);
   const beside = [...frames].filter(([w]) => w !== world).map(([, f]) => f);
   const elsewhere = beside.map((f) => grown(f, LAYOUT.worldGapY));
-  const clear = households.map((b) => grown(b, LAYOUT.householdGap));
+  const clear = [...households, ...obstacles].map((b) => grown(b, LAYOUT.householdGap));
   const probe = boxAt(tileSnapOrigin(near.x, near.y));
   const bw = probe.r - probe.l;
   const bh = probe.b - probe.t;
@@ -169,8 +171,10 @@ export function householdGrowth(opts: {
   spots: Point[];
   /** The part of the board on screen, in board units; null when unknown. */
   view?: Box | null;
+  /** Room taken by other things on the board (its Free lots boxes): newcomers go around it. */
+  obstacles?: readonly Box[];
 }): { at: Point; outOfView: boolean; crowded: boolean; atSpot: boolean } {
-  const { others, groups, home, block, spots, view } = opts;
+  const { others, groups, home, block, spots, view, obstacles = [] } = opts;
   const from = topLeft(block);
   const first = spots[0] ?? from;
   const rel = block.map((n) => ({ dx: n.x - from.x, dy: n.y - from.y, w: n.w, h: n.h }));
@@ -179,7 +183,9 @@ export function householdGrowth(opts: {
   const reach = NEAR_TILES * TILE;
   const region: Box = { l: first.x - reach - bw, t: first.y - reach - bh, r: first.x + reach + 2 * bw, b: first.y + reach + 2 * bh };
   // Cards keep a tile of air between them, as the layout leaves.
-  const cards = [...others, ...home].map((n) => grown(boxOfRect(n), TILE)).filter((c) => overlapArea(c, region) > 0);
+  const cards = [...[...others, ...home].map((n) => grown(boxOfRect(n), TILE)), ...obstacles.map((o) => grown(o, TILE))].filter(
+    (c) => overlapArea(c, region) > 0,
+  );
   const { households } = boardBoxes(others, groups);
   const nextDoor = households.filter((b) => overlapArea(b, region) > 0);
   const boxesAt = (at: Point) => rel.map((r) => ({ l: at.x + r.dx, t: at.y + r.dy, r: at.x + r.dx + r.w, b: at.y + r.dy + r.h }));
@@ -273,8 +279,9 @@ export function growHousehold(opts: {
   block: SimNode[];
   spots: Point[];
   view?: Box | null;
+  obstacles?: readonly Box[];
 }): { core: SimNode[]; at: Point; box: Box; outOfView: boolean; crowded: boolean; atSpot: boolean } {
-  const { core, laid, worlds, edges, groups, gid, block, spots, view } = opts;
+  const { core, laid, worlds, edges, groups, gid, block, spots, view, obstacles } = opts;
   const ids = new Set(block.map((n) => n.id));
   const home = laid.filter((n) => n.gid === gid && !ids.has(n.id));
   const from = topLeft(block);
@@ -287,6 +294,7 @@ export function growHousehold(opts: {
     block,
     spots: spots.length ? spots : [from],
     view,
+    ...(obstacles ? { obstacles } : {}),
   });
   for (const n of block) placed.set(n.id, { x: n.x - from.x + g.at.x, y: n.y - from.y + g.at.y });
   const box = {
@@ -319,8 +327,10 @@ export function landMovedCards(opts: {
   destGid: string;
   newGroup: Group | null;
   view?: Box | null;
+  /** Room taken by other things on the board (its Free lots boxes): the cards land around it. */
+  obstacles?: readonly Box[];
 }): { core: SimNode[]; joined: boolean; outOfView: boolean; crowded: boolean; box: Box | null } {
-  const { core, laid, worlds, edges, groups, patches, destGid, newGroup, view } = opts;
+  const { core, laid, worlds, edges, groups, patches, destGid, newGroup, view, obstacles } = opts;
   const ids = new Set(patches.keys());
   const byId = new Map(laid.map((n) => [n.id, n]));
   const moved = [...ids].map((id) => byId.get(id)).filter((n): n is SimNode => !!n);
@@ -346,6 +356,7 @@ export function landMovedCards(opts: {
       block: moved.map((n) => ({ ...n, gid: destGid })),
       spots: [under],
       view,
+      ...(obstacles ? { obstacles } : {}),
     });
     return { core: r.core, joined: true, outOfView: r.outOfView, crowded: r.crowded, box: r.box };
   }
@@ -360,6 +371,7 @@ export function landMovedCards(opts: {
     block: moved,
     label: allGroups.find((g) => g.gid === destGid) ?? null,
     near,
+    ...(obstacles ? { obstacles } : {}),
   });
   const from = topLeft(moved);
   const placed = new Map(moved.map((n) => [n.id, { x: n.x - from.x + anchor.x, y: n.y - from.y + anchor.y }]));

@@ -5,6 +5,7 @@ import type {
   Group,
   HouseholdAgeUp,
   HouseholdMove,
+  LotBoxPins,
   PairStatus,
   SaveGameInfo,
   SimAgeUp,
@@ -44,6 +45,8 @@ export type PersistPayload = {
   simAgeUps: SimAgeUp[];
   /** Relationship statuses from the last save import (absent on older files). */
   pairStatus?: PairStatus[];
+  /** Where each world's Free lots box stands (absent on older files). */
+  lotBoxAt?: LotBoxPins;
   /** Game clock and aging options from the last save import (absent on older files). */
   saveGame?: SaveGameInfo | null;
   /** The board's story, one entry per save upload (absent on older files). */
@@ -81,6 +84,7 @@ export function buildPersistPayload(input: {
   deceasedMarks: DeceasedMark[];
   simAgeUps: SimAgeUp[];
   pairStatus?: PairStatus[];
+  lotBoxAt?: LotBoxPins;
   saveGame?: SaveGameInfo | null;
   chronicle?: ChronicleEntry[];
   connectionLog: { text: string }[];
@@ -104,6 +108,7 @@ export function buildPersistPayload(input: {
     deceasedMarks: input.deceasedMarks,
     simAgeUps: input.simAgeUps,
     pairStatus: input.pairStatus ?? [],
+    lotBoxAt: input.lotBoxAt ?? {},
     saveGame: input.saveGame ?? null,
     chronicle: input.chronicle ?? [],
     connectionLog: input.connectionLog.map((entry) => entry.text),
@@ -199,6 +204,10 @@ export function boardIdentity(payload: PersistPayload): string {
     deceasedMarks: payload.deceasedMarks ?? [],
     simAgeUps: payload.simAgeUps ?? [],
     pairStatus: payload.pairStatus ?? [],
+    // Where the board placed a Free lots box is not the player's; where they dragged one is.
+    lotBoxesByHand: Object.entries(payload.lotBoxAt ?? {})
+      .filter(([, p]) => p.byHand)
+      .sort(([a], [b]) => a.localeCompare(b)),
     saveGame: payload.saveGame ?? null,
   });
 }
@@ -445,6 +454,8 @@ export function bootWhiteboardData(
       deceasedMarks: draft.deceasedMarks,
       simAgeUps: draft.simAgeUps,
       pairStatus: draft.pairStatus,
+      // Placed for this layout: a board laid out afresh places them afresh.
+      ...(prepared.repacked ? {} : { lotBoxAt: draft.lotBoxAt ?? {} }),
       saveGame: draft.saveGame ?? null,
       chronicle: draft.chronicle ?? [],
       connectionLog: draft.connectionLog,

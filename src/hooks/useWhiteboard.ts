@@ -4,7 +4,7 @@ import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import { freeLotsIn, householdLots, lotPick, type GameLot } from '../lib/places.ts';
-import { placeLotBoxes } from '../lib/lotBoxes.ts';
+import { lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
 import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
@@ -119,6 +119,7 @@ import type {
   Group,
   HouseholdAgeUp,
   HouseholdMove,
+  LotBoxPins,
   PairStatus,
   SaveGameInfo,
   Selection,
@@ -292,6 +293,7 @@ type BoardSnap = {
   deceasedMarks: DeceasedMark[];
   simAgeUps: SimAgeUp[];
   pairStatus: PairStatus[];
+  lotBoxAt: LotBoxPins;
   saveGame: SaveGameInfo | null;
   /** The board's story: a save merge adds to it, and its undo takes that back. */
   chronicle: ChronicleEntry[];
@@ -493,6 +495,8 @@ export function useWhiteboard() {
   const [householdAgeUps, setHouseholdAgeUps] = useState<HouseholdAgeUp[]>(
     () => boot.householdAgeUps ?? [],
   );
+  /** Where each world's Free lots box stands once placed (LotBoxPin): only a drag or Organise moves it. */
+  const [lotBoxAt, setLotBoxAt] = useState<LotBoxPins>(() => boot.lotBoxAt ?? {});
   const [deceasedMarks, setDeceasedMarks] = useState<DeceasedMark[]>(
     () => boot.deceasedMarks ?? [],
   );
@@ -796,7 +800,11 @@ export function useWhiteboard() {
     }
     return out;
   }, [nodes, nodeVis, worlds, homes]);
-  /** Each world's Free lots box, under its households as they stand. */
+  /**
+   * Each world's Free lots box: where it is pinned, or, the first time it
+   * shows, under its world's households, then pinned there (below). Nothing
+   * but a drag or Organise moves it after that.
+   */
   const lotBoxes = useMemo(() => {
     const bases = layoutBases(nodesCore, worlds, edges);
     const packed = new Map<string, { x: number; y: number }>();
@@ -804,8 +812,20 @@ export function useWhiteboard() {
       const b = bases.get(lotsBaseKey(w));
       if (b) packed.set(w, b);
     }
-    return placeLotBoxes({ laid: nodes.filter(nodeVis), groups, free: freeLots, packed });
-  }, [nodes, nodeVis, groups, freeLots, nodesCore, worlds, edges]);
+    return placeLotBoxes({ laid: nodes.filter(nodeVis), groups, free: freeLots, packed, pins: lotBoxAt });
+  }, [nodes, nodeVis, groups, freeLots, nodesCore, worlds, edges, lotBoxAt]);
+  // A box placed for the first time stays there: pinned with the board.
+  useEffect(() => {
+    const fresh = [...lotBoxes.values()].filter((b) => !lotBoxAt[b.world]);
+    if (!fresh.length) return;
+    setLotBoxAt((pins) => {
+      const next = { ...pins };
+      for (const b of fresh) if (!next[b.world]) next[b.world] = { x: b.l, y: b.t, cols: lotBoxCols(b) };
+      return next;
+    });
+  }, [lotBoxes, lotBoxAt]);
+  /** The room the Free lots boxes take: anything the board places goes around it. */
+  const lotRoom = useMemo(() => [...lotBoxes.values()].map((b) => ({ l: b.l, t: b.t, r: b.r, b: b.b })), [lotBoxes]);
 
   const bloodVertsMemo = useMemo(
     () => bloodVerts(edgeData.blood),
@@ -890,6 +910,7 @@ export function useWhiteboard() {
         deceasedMarks,
         simAgeUps,
         pairStatus,
+        lotBoxAt,
         saveGame,
         chronicle,
         connectionLog,
@@ -911,6 +932,7 @@ export function useWhiteboard() {
       deceasedMarks,
       simAgeUps,
       pairStatus,
+      lotBoxAt,
       saveGame,
       chronicle,
       connectionLog,
@@ -983,6 +1005,7 @@ export function useWhiteboard() {
       deceasedMarks: deceasedMarks.map((d) => ({ ...d })),
       simAgeUps: simAgeUps.map((a) => ({ ...a })),
       pairStatus,
+      lotBoxAt,
       saveGame,
       chronicle,
       filters: filters
@@ -996,7 +1019,7 @@ export function useWhiteboard() {
           }
         : undefined,
     }),
-    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, saveGame, chronicle, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
+    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, lotBoxAt, saveGame, chronicle, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
   );
 
   /** The board as `snap` kept it; nothing stays picked or open over it. */
@@ -1011,6 +1034,7 @@ export function useWhiteboard() {
     setDeceasedMarks(snap.deceasedMarks);
     setSimAgeUps(snap.simAgeUps);
     setPairStatus(snap.pairStatus);
+    setLotBoxAt(snap.lotBoxAt);
     setSaveGame(snap.saveGame);
     setChronicle(snap.chronicle);
     if (snap.filters) {
@@ -1438,14 +1462,12 @@ export function useWhiteboard() {
       size.h,
     );
     const pitch = rowPitch();
-    for (let i = 0; i < nodes.length + 1; i++) {
-      const hit = nodes.some(
-        (o) =>
-          x < o.x + o.w &&
-          x + size.w > o.x &&
-          y < o.y + o.h &&
-          y + size.h > o.y,
-      );
+    // Down from the middle of the screen to the first spot free of cards and
+    // of the Free lots boxes: nothing already on the board moves for it.
+    for (let i = 0; i < nodes.length + lotRoom.length + 1; i++) {
+      const hit =
+        nodes.some((o) => x < o.x + o.w && x + size.w > o.x && y < o.y + o.h && y + size.h > o.y) ||
+        lotRoom.some((o) => x < o.r && x + size.w > o.l && y < o.b && y + size.h > o.t);
       if (!hit) break;
       y += pitch;
     }
@@ -1490,7 +1512,7 @@ export function useWhiteboard() {
     });
     setSel({ type: 'node', id });
     return id;
-  }, [worlds, nodes, nodesCore, groups, nodeVis, viewport, edges, byid, pushUndo, snap]);
+  }, [worlds, nodes, nodesCore, groups, nodeVis, viewport, edges, byid, pushUndo, snap, lotRoom]);
 
   /**
    * The household tag's +: a new sim in that household, beside its last card
@@ -1548,6 +1570,7 @@ export function useWhiteboard() {
         block: [{ ...n, ...spot, ...measureCard(n) }],
         spots: [spot],
         view: viewRect(),
+        obstacles: lotRoom,
       });
       setNodesCore(r.core);
       if (r.outOfView) revealBox(r.box);
@@ -1556,7 +1579,7 @@ export function useWhiteboard() {
       flashStatus(`Added ${aKind(species)} to ${named(g.hh)}: name them, then press Enter.${placeNote(r)}`);
       return id;
     },
-    [groups, nodes, nodesCore, worlds, edges, pushUndo, viewRect, revealBox, flashStatus],
+    [groups, nodes, nodesCore, worlds, edges, pushUndo, viewRect, revealBox, flashStatus, lotRoom],
   );
 
   /**
@@ -2059,6 +2082,7 @@ export function useWhiteboard() {
         block: [{ ...infant, x, y, ...size }],
         spots: [{ x, y }],
         view: viewRect(),
+        obstacles: lotRoom,
       });
       setNodesCore(r.core);
       if (r.outOfView) revealBox(r.box);
@@ -2083,7 +2107,7 @@ export function useWhiteboard() {
           : `Planned a child of ${who}: ${one}, not born yet.${room} Link another parent with Connect if there is one.`,
       );
     },
-    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, viewRect, revealBox],
+    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, viewRect, revealBox, lotRoom],
   );
 
   const addInfantOfCouple = useCallback(
@@ -2361,6 +2385,7 @@ export function useWhiteboard() {
         block: [{ ...m, ...patch }],
         spots: spots.length ? spots : [{ x: m.x, y: m.y }],
         view: viewRect(),
+        obstacles: lotRoom,
       });
       setNodesCore(r.core);
       // The view keeps the sim you acted on where it was; when that's the
@@ -2373,7 +2398,7 @@ export function useWhiteboard() {
       );
       return true;
     },
-    [nodes, nodesCore, groups, worlds, edges, pushUndo, lockViewToSims, viewRect, revealBox, flashStatus],
+    [nodes, nodesCore, groups, worlds, edges, pushUndo, lockViewToSims, viewRect, revealBox, flashStatus, lotRoom],
   );
 
   /**
@@ -2395,11 +2420,11 @@ export function useWhiteboard() {
       destGid: string,
       newGroup: Group | null,
     ): { joined: boolean; outOfView: boolean; crowded: boolean } => {
-      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup, view: viewRect() });
+      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup, view: viewRect(), obstacles: lotRoom });
       setNodesCore(r.core);
       return r;
     },
-    [nodes, nodesCore, groups, worlds, edges, viewRect],
+    [nodes, nodesCore, groups, worlds, edges, viewRect, lotRoom],
   );
 
   /**
@@ -2816,6 +2841,8 @@ export function useWhiteboard() {
       const fresh = nodesCore.map((n) => (n.ox || n.oy ? { ...n, ox: 0, oy: 0 } : n));
       const laid = computeLayout(fresh, worlds, edges);
       releaseLayout();
+      // Organise places everything afresh, the Free lots boxes too.
+      setLotBoxAt({});
       setNodesCore(
         coreOffsetsAfterWorldSeparation(
           fresh,
@@ -2830,6 +2857,23 @@ export function useWhiteboard() {
       );
     },
     [nodesCore, worlds, edges, groups, snap, pushUndo, releaseLayout, fitWhenLaidOut, flashStatus],
+  );
+
+  /**
+   * A world's Free lots box, dragged by its tag: it stays where it is put,
+   * snapped to the grid, with its columns. Nothing else moves for it.
+   */
+  const moveLotBox = useCallback(
+    (world: string, x: number, y: number) => {
+      const box = lotBoxes.get(world);
+      if (!box) return;
+      const at = snap ? tileSnapOrigin(x, y) : { x: Math.round(x), y: Math.round(y) };
+      if (at.x === box.l && at.y === box.t) return;
+      pushUndo(`Move the free lots of ${world}`);
+      trackAction('/action/move-lots');
+      setLotBoxAt((pins) => ({ ...pins, [world]: { x: at.x, y: at.y, cols: lotBoxCols(box), byHand: true } }));
+    },
+    [lotBoxes, snap, pushUndo],
   );
 
   /**
@@ -2978,6 +3022,7 @@ export function useWhiteboard() {
       setDeceasedMarks([]);
       setSimAgeUps([]);
       setPairStatus([]);
+      setLotBoxAt({});
       setSaveGame(null);
       setChronicle([]);
       setSourceFileName(null);
@@ -3071,6 +3116,8 @@ export function useWhiteboard() {
         setDeceasedMarks(loadedDeaths);
         setSimAgeUps(loadedSimAgeUps);
         setPairStatus(d.pairStatus ?? []);
+        // The file's Free lots boxes where it had them, unless its cards were laid out afresh.
+        setLotBoxAt(!keepBoardPositions && !prepared.repacked ? ((d as { lotBoxAt?: LotBoxPins }).lotBoxAt ?? {}) : {});
         setSaveGame(d.saveGame ?? null);
         setChronicle(d.chronicle ?? []);
         eidcRef.current = nextEidc(
@@ -3418,6 +3465,8 @@ export function useWhiteboard() {
         setBloodlineId(null);
         setFromBrowserDraft(false);
         setSourceFileName(null);
+        // A new board: its Free lots boxes are placed afresh, then pinned.
+        setLotBoxAt({});
       } else {
         pushUndo('Merge your save');
       }
@@ -3610,6 +3659,7 @@ export function useWhiteboard() {
           destGid: home.gid,
           newGroup: null,
           view: viewRect(),
+          obstacles: lotRoom,
         });
         setNodesCore(landed.core);
         if (landed.outOfView) revealBox(landed.box);
@@ -3625,7 +3675,7 @@ export function useWhiteboard() {
             : `Following your game${back && home ? `: ${nameOfCore(back.simId)} is back in ${home.hh}` : ''}.${room}`,
       );
     },
-    [planIssues, pushUndo, nodesCore, nodes, worlds, edges, householdMoves, groups, pinCardsToCurrentPlaces, flashStatus, nameOfCore, viewRect, revealBox],
+    [planIssues, pushUndo, nodesCore, nodes, worlds, edges, householdMoves, groups, pinCardsToCurrentPlaces, flashStatus, nameOfCore, viewRect, revealBox, lotRoom],
   );
 
   /** "This is …": a sim from the save fills a planned sim by hand. */
@@ -4134,6 +4184,7 @@ export function useWhiteboard() {
     homes,
     freeLots,
     lotBoxes,
+    moveLotBox,
     visibleAreaRef,
     recap,
     recapOpen,

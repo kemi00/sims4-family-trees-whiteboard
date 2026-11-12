@@ -429,6 +429,8 @@ export interface WhiteboardData {
   simAgeUps?: SimAgeUp[];
   /** Relationship statuses read from the last save import. */
   pairStatus?: PairStatus[];
+  /** Where each world's Free lots box stands (LotBoxPins): it moves only when dragged or on Organise. */
+  lotBoxAt?: LotBoxPins;
   /** Game clock and aging options from the last save import. */
   saveGame?: SaveGameInfo | null;
   /** The board's story, one entry per save upload (absent on older files). */
@@ -606,3 +608,11 @@ export interface Guides {
   gx: number[];
   gy: number[];
 }
+
+/**
+ * Where a world's Free lots box stands, once the board first placed it: its
+ * top-left and its columns, so it keeps its place and width while the lots
+ * in it change. Only a drag (`byHand`) or Organise moves it.
+ */
+export type LotBoxPin = { x: number; y: number; cols: number; byHand?: true };
+export type LotBoxPins = Record<string, LotBoxPin>;

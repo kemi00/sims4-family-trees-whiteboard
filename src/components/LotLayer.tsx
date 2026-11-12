@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useRef, useState } from 'react';
 import { rectsIntersect, type WorldRect } from '../lib/marquee.ts';
 import type { LotBox } from '../lib/lotBoxes.ts';
 import { lotKindLabel, lotRoomsLabel, lotSizeLabel, neighbourhoodIconUrl, type GameLot } from '../lib/places.ts';
@@ -18,6 +18,10 @@ type Props = {
   cull?: WorldRect | null;
   /** A lot's tile, clicked where on screen: move sims in. */
   onPickLot?: (lot: GameLot, clientX: number, clientY: number) => void;
+  /** The board's zoom, for a drag's distance in board units. */
+  k?: number;
+  /** A box dragged by its tag to a new top-left: it stays there (moveLotBox). */
+  onMoveBox?: (world: string, x: number, y: number) => void;
 };
 
 const NAME_SIZE = 12.5;
@@ -60,7 +64,10 @@ function lotTip(lot: GameLot): string {
  * households, like a household with no one in it, with one faded tile per
  * lot: its neighbourhood's icon, its name, what stands on it and its size.
  */
-export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cull, onPickLot }: Props) {
+export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cull, onPickLot, k = 1, onMoveBox }: Props) {
+  /** A box on the move by its tag: how far, in board units, until it's let go. */
+  const [drag, setDrag] = useState<{ world: string; dx: number; dy: number } | null>(null);
+  const from = useRef<{ x: number; y: number } | null>(null);
   if (!show || !boxes.size) return null;
   return (
     <g id="lLots">
@@ -69,8 +76,14 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
         const color = worldColor(box.world, worlds);
         const label = boxLabel(box.tiles.length);
         const pillW = tagPillWidth(label, 22);
+        const moving = drag?.world === box.world;
         return (
-          <g key={box.world} className="lots" data-world={box.world}>
+          <g
+            key={box.world}
+            className={moving ? 'lots lots--moving' : 'lots'}
+            data-world={box.world}
+            transform={moving ? `translate(${drag.dx} ${drag.dy})` : undefined}
+          >
             <rect
               x={box.l}
               y={box.t}
@@ -85,8 +98,31 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
               style={{ pointerEvents: 'none' }}
             />
             {labels && (
-              <g className="lots__tag">
-                <title>{`Lots in ${box.world} that no household on the board lives on. Sims move in from Move to, or click a lot.`}</title>
+              <g
+                className={onMoveBox ? 'lots__tag lots__tag--drag' : 'lots__tag'}
+                // Drag the tag to move the box: only you move it, and it stays where you put it.
+                onPointerDown={(ev) => {
+                  if (!onMoveBox || ev.button !== 0) return;
+                  ev.stopPropagation();
+                  ev.currentTarget.setPointerCapture(ev.pointerId);
+                  from.current = { x: ev.clientX, y: ev.clientY };
+                  setDrag({ world: box.world, dx: 0, dy: 0 });
+                }}
+                onPointerMove={(ev) => {
+                  if (!from.current || drag?.world !== box.world) return;
+                  setDrag({ world: box.world, dx: (ev.clientX - from.current.x) / k, dy: (ev.clientY - from.current.y) / k });
+                }}
+                onPointerUp={() => {
+                  if (drag?.world === box.world && from.current && (drag.dx || drag.dy)) onMoveBox?.(box.world, box.l + drag.dx, box.t + drag.dy);
+                  from.current = null;
+                  setDrag(null);
+                }}
+                onPointerCancel={() => {
+                  from.current = null;
+                  setDrag(null);
+                }}
+              >
+                <title>{`Lots in ${box.world} that no household on the board lives on. Sims move in from Move to, or click a lot. Drag this tag to move the box: nothing else moves it.`}</title>
                 <rect
                   x={box.l + HH_TAG_INSET}
                   y={box.t + HH_TAG_INSET}

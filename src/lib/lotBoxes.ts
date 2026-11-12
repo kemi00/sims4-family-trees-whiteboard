@@ -3,7 +3,7 @@ import { LAYOUT } from './layout.ts';
 import { LOT_HEAD, LOT_MAX_COLS, LOT_PAD, LOT_PITCH_X, LOT_PITCH_Y, LOT_TILE_H, LOT_TILE_W, lotBoxSize, lotCols } from './lotGrid.ts';
 import type { GameLot } from './places.ts';
 import { householdChrome } from './tiles.ts';
-import type { Group, SimNode } from '../types/whiteboard.ts';
+import type { Group, LotBoxPins, SimNode } from '../types/whiteboard.ts';
 
 export type LotTile = { lot: GameLot; x: number; y: number; w: number; h: number };
 
@@ -61,9 +61,12 @@ function tilesAt(lots: readonly GameLot[], cols: number, l: number, t: number): 
  * as wide as its households allow. Packing leaves that room on a new board.
  * A board arranged by hand may not have it; then the box takes the free room
  * in or around its world that makes the world grow least and runs into no
- * other world, as a household moving in would. It is placed afresh from the
- * households every time and moves nothing else: a household that grows into
- * it pushes it on, never the other way.
+ * other world, as a household moving in would.
+ *
+ * That is only where it starts. Once placed it is pinned (`pins`, kept with
+ * the board): it stays at its top-left with its columns, shrinking or
+ * growing down as lots are taken or freed, and only a drag or Organise
+ * moves it. Nothing else on the board moves it, and it moves nothing else.
  *
  * `free`: each world's free lots, in the board's world order. `packed`: where
  * packing put the box of a world with no household on the board.
@@ -73,8 +76,9 @@ export function placeLotBoxes(opts: {
   groups: readonly Group[];
   free: ReadonlyMap<string, readonly GameLot[]>;
   packed?: ReadonlyMap<string, { x: number; y: number }>;
+  pins?: LotBoxPins;
 }): Map<string, LotBox> {
-  const { laid, groups, free, packed } = opts;
+  const { laid, groups, free, packed, pins } = opts;
   const label = new Map(groups.map((g) => [g.gid, g]));
   const byGid = new Map<string, SimNode[]>();
   for (const n of laid) {
@@ -105,8 +109,20 @@ export function placeLotBoxes(opts: {
 
   const out = new Map<string, LotBox>();
   const placed: Box[] = [];
+  // Pinned boxes first, where they stand; the rest are placed around them.
   for (const [world, lots] of free) {
-    if (!lots.length) continue;
+    const pin = pins?.[world];
+    if (!lots.length || !pin) continue;
+    const cols = Math.max(1, Math.min(pin.cols, lots.length));
+    const { w, h } = lotBoxSize(lots.length, cols);
+    const at = { l: pin.x, t: pin.y, r: pin.x + w, b: pin.y + h };
+    placed.push(at);
+    out.set(world, { world, ...at, tiles: tilesAt(lots, cols, at.l, at.t) });
+    const mine = own.get(world);
+    frames.set(world, mine ? union(frames.get(world)!, frameAround(at)) : frameAround(at));
+  }
+  for (const [world, lots] of free) {
+    if (!lots.length || pins?.[world]) continue;
     const mine = own.get(world);
     const start = mine ?? (packed?.get(world) ? { l: packed.get(world)!.x, t: packed.get(world)!.y, r: 0, b: 0 } : null);
     if (!start) continue;
@@ -167,6 +183,11 @@ export function placeLotBoxes(opts: {
     frames.set(world, frameOf(at));
   }
   return out;
+}
+
+/** A box's columns: how many tiles side by side, for its pin. */
+export function lotBoxCols(box: LotBox): number {
+  return Math.max(1, new Set(box.tiles.map((t) => t.x)).size);
 }
 
 /** A world's frame with its Free lots box in it, or the box's alone. */

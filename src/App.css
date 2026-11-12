@@ -789,6 +789,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hh-add{cursor:pointer}
 /* Free lots: faded until you point at one, as a household with no one in it. */
 .lots__tag rect{fill:var(--chrome)}
+.lots__tag--drag{cursor:grab}
+.lots--moving .lots__tag--drag{cursor:grabbing}
+.lots--moving{opacity:.85}
 .lot{cursor:pointer}
 .lot .lot__tile{fill:var(--chrome);fill-opacity:.72;transition:fill-opacity .12s ease,stroke-opacity .12s ease}
 .lot .lot__face{opacity:.72;transition:opacity .12s ease}

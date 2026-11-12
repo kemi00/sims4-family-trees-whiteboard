@@ -1995,6 +1995,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             labels={labels}
             cull={cullWin}
             onPickLot={onPickLot}
+            k={k}
+            onMoveBox={wb.moveLotBox}
           />
           {/* World chips last so they paint above household tags + sim cards. */}
           <WorldLayer

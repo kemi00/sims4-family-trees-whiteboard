@@ -93,3 +93,20 @@ describe('free lots', () => {
     assert.ok('lot' in patches.get('Cassandra Goth')! && patches.get('Cassandra Goth')!.lot === undefined);
   });
 });
+
+describe('a pinned Free lots box', () => {
+  it('stays where it stands while households change around it, shrinking or growing in place', () => {
+    const { laid, free, boxes } = boxesOf(seed.nodes);
+    const box = boxes.get('Willow Creek')!;
+    const cols = new Set(box.tiles.map((t) => t.x)).size;
+    const pins = { 'Willow Creek': { x: box.l + 4 * TILE, y: box.t + 6 * TILE, cols } };
+    // A household moved far down and right: the pinned box doesn't follow.
+    const moved = laid.map((n) => (n.world === 'Willow Creek' ? { ...n, y: n.y + 40 * TILE, x: n.x + 30 * TILE } : n));
+    const again = placeLotBoxes({ laid: moved, groups, free, pins }).get('Willow Creek')!;
+    assert.deepEqual([again.l, again.t], [pins['Willow Creek'].x, pins['Willow Creek'].y]);
+    // A lot taken: one tile fewer, the same top-left.
+    const fewer = new Map(free).set('Willow Creek', free.get('Willow Creek')!.slice(1));
+    const shrunk = placeLotBoxes({ laid, groups, free: fewer, pins }).get('Willow Creek')!;
+    assert.deepEqual([shrunk.l, shrunk.t, shrunk.tiles.length], [again.l, again.t, free.get('Willow Creek')!.length - 1]);
+  });
+});
