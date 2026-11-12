@@ -1607,7 +1607,6 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
   if (wb.editNodeId) keepIds.add(wb.editNodeId);
   if (typeof wb.connSrc === 'string') keepIds.add(wb.connSrc);
   else if (wb.connSrc) wb.connSrc.union.forEach((id) => keepIds.add(id));
-  if (wb.searchCurrentSim) keepIds.add(wb.searchCurrentSim);
   const sortedNodes = cullWin
     ? wb.visibleNodes.filter((n) => keepIds.has(n.id) || nodeInCull(n, cullWin))
     : [...wb.visibleNodes];
@@ -1912,8 +1911,6 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
                 }
                 labels={labels}
                 connectHighlight={connHighlight === n.id}
-                searchHit={wb.searchHitSet.has(n.id)}
-                searchCurrent={wb.searchCurrentSim === n.id}
                 hiAges={wb.hiAges}
                 hiSingle={wb.hiSingle}
                 offPlan={wb.offPlan.sims.get(n.id)}

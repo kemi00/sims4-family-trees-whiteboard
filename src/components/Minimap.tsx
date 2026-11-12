@@ -140,7 +140,6 @@ export function Minimap({ wb, svgRef, camera }: Props) {
   }, [wb.viewport, stageSize.w, stageSize.h, fit]);
 
   const selectedId = wb.sel?.type === 'node' ? wb.sel.id : null;
-  const searchId = wb.searchCurrentSim;
 
   const panFromEvent = useCallback(
     (ev: { clientX: number; clientY: number }) => {
@@ -274,7 +273,7 @@ export function Minimap({ wb, svgRef, camera }: Props) {
         })}
         {blobs.map((n) => {
           const p = worldToMinimap(n.x, n.y, fit);
-          const current = n.id === selectedId || n.id === searchId;
+          const current = n.id === selectedId;
           return (
             <rect
               key={n.id}

@@ -21,7 +21,8 @@ export function panelPosition(
   if (isPanelSheet()) return {};
   if (!anchorRect) return null;
   let left = anchorRect.left;
-  if (left + widthPx > window.innerWidth) left = window.innerWidth - widthPx;
+  // Clear of the window's edge by the same margin as its left, under a control at the far right (More).
+  if (left + widthPx > window.innerWidth - CHROME_EDGE_PAD_PX) left = window.innerWidth - widthPx - CHROME_EDGE_PAD_PX;
   return {
     left: Math.max(CHROME_EDGE_PAD_PX, left),
     top: anchorRect.bottom + CHROME_DROPDOWN_GAP_PX,

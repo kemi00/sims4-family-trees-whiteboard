@@ -30,6 +30,10 @@ import { householdPlace } from './lib/connectionLog.ts';
 import { householdName, upNext } from './lib/householdPlan.ts';
 import { cardName } from './lib/plan.ts';
 import { WhiteboardStage } from './components/WhiteboardStage.tsx';
+import { SearchPalette } from './components/SearchPalette.tsx';
+import { findShortcut, type FindAction, type FindResult } from './lib/findPalette.ts';
+import { aKind } from './lib/pets.ts';
+import { trackAction } from './lib/analytics.ts';
 import { LoadJsonDialog } from './components/LoadJsonDialog.tsx';
 import { SaveImportDialog } from './components/SaveImportDialog.tsx';
 import { useWhiteboard } from './hooks/useWhiteboard.ts';
@@ -67,6 +71,22 @@ export default function App() {
   const upNextPanelRef = useRef<HTMLDivElement>(null);
   const dynastiesBtnRef = useRef<HTMLButtonElement>(null);
   const dynastiesPanelRef = useRef<HTMLDivElement>(null);
+  /** Search, Spotlight-style: ⌘K or Ctrl+K anywhere, or the bar's Search. */
+  const [findOpen, setFindOpen] = useState(false);
+  const findKeys = useMemo(() => findShortcut(), []);
+  const saveFileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (!(ev.metaKey || ev.ctrlKey) || ev.altKey || ev.shiftKey || ev.key.toLowerCase() !== 'k') return;
+      ev.preventDefault();
+      setFindOpen((o) => {
+        if (!o) trackAction('/action/search');
+        return !o;
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -168,7 +188,9 @@ export default function App() {
         wb.logOpen &&
         logPanelRef.current &&
         !logPanelRef.current.contains(t) &&
-        !logBtnRef.current?.contains(t)
+        !logBtnRef.current?.contains(t) &&
+        // Opened from More's menu: its menu item toggles it.
+        !(t as Element).closest?.('.overflow')
       ) {
         wb.setLogOpen(false);
       }
@@ -224,6 +246,165 @@ export default function App() {
     [wb.byid],
   );
 
+  /** The board's size on screen, for framing what search finds. */
+  const boardSize = () => {
+    const r = svgRef.current?.getBoundingClientRect();
+    return { w: r?.width ?? 800, h: r?.height ?? 600 };
+  };
+
+  /** What search can do, by the words a player would type. */
+  const findActions = useMemo((): (FindAction & { run: () => void })[] => {
+    const panels = () => {
+      wb.setLogOpen(false);
+      wb.setUpNextOpen(false);
+      wb.setDynastiesOpen(false);
+    };
+    return [
+      {
+        id: 'upload-save',
+        suggested: true,
+        label: 'Upload a save',
+        detail: 'Bring your game’s newest .save into the board',
+        words: 'load import refresh game file .save',
+        run: () => saveFileRef.current?.click(),
+      },
+      {
+        id: 'up-next',
+        suggested: true,
+        label: 'Open Up next',
+        detail: 'A suggested order to play your households in',
+        words: 'play order household rotation',
+        run: () => {
+          panels();
+          wb.setUpNextOpen(true);
+        },
+      },
+      {
+        id: 'dynasties',
+        suggested: true,
+        label: 'Open Dynasties',
+        detail: 'Every dynasty, with its members',
+        words: 'heir prestige crown family',
+        run: () => {
+          panels();
+          wb.setDynastiesOpen(true);
+        },
+      },
+      {
+        id: 'story',
+        suggested: true,
+        label: 'Read your story',
+        detail: 'What happened in your game, upload by upload',
+        words: 'chronicle history',
+        run: () => {
+          wb.setRecapOpen(false);
+          wb.setChronicleView({ label: 'your board', ids: null });
+        },
+      },
+      {
+        id: 'add-sim',
+        suggested: true,
+        label: 'Add a sim',
+        detail: 'A new card on the board',
+        words: 'new create person card',
+        run: () => {
+          const { w, h } = boardSize();
+          wb.addSim(w, h);
+        },
+      },
+      ...wb.petKinds.map((k) => ({
+        id: `add-${k.species.toLowerCase()}`,
+        label: `Add ${aKind(k.species)}`,
+        detail: `A new ${k.species.toLowerCase()} card on the board`,
+        words: `pet new create ${k.young.toLowerCase()}`,
+        run: () => {
+          const { w, h } = boardSize();
+          wb.addSim(w, h, k.species);
+        },
+      })),
+      {
+        id: 'fit',
+        suggested: true,
+        label: 'Show the whole board',
+        detail: 'Zoom out to every card',
+        words: 'zoom fit all everyone',
+        run: () => {
+          const { w, h } = boardSize();
+          wb.fit(w, h);
+        },
+      },
+      ...(wb.chronicle.length >= 2
+        ? [
+            {
+              id: 'look-back',
+              label: 'Look back through your uploads',
+              detail: 'The board as it was at each upload',
+              words: 'time lapse history past before',
+              run: () => wb.setLookBackAt(wb.chronicle.length - 2),
+            },
+          ]
+        : []),
+      {
+        id: 'log',
+        label: 'Open the Log',
+        detail: 'Links and household moves you added',
+        words: 'history changes connection',
+        run: () => {
+          panels();
+          wb.setLogOpen(true);
+        },
+      },
+      {
+        id: 'organise',
+        label: 'Organise the board',
+        detail: 'Arrange the board like the starter one',
+        words: 'tidy layout arrange sort',
+        run: () => {
+          const { w, h } = boardSize();
+          wb.organiseBoard(w, h);
+        },
+      },
+      {
+        id: 'download',
+        label: 'Download the board',
+        detail: 'Keep a copy as a .json file',
+        words: 'save export backup json file',
+        run: wb.saveJson,
+      },
+    ];
+  }, [wb]);
+
+  /** Go where a search result is: a sim close up, a household or place framed, an action done. */
+  const goFound = (r: FindResult) => {
+    setFindOpen(false);
+    if (r.kind === 'action') {
+      trackAction(`/action/find-do-${r.key}`);
+      findActions.find((a) => a.id === r.key)?.run();
+      return;
+    }
+    trackAction(`/action/find-${r.kind}`);
+    const { w, h } = boardSize();
+    const shown = wb.visibleNodes;
+    if (r.kind === 'sim') {
+      wb.focusSim(r.key, w, h);
+    } else if (r.kind === 'world') {
+      wb.clearSel();
+      // Clear of the Worlds list and key down the right, on a wide screen.
+      wb.zoomToWorld(r.key, w, h, w > 700 ? 210 : 0);
+    } else if (r.kind === 'household') {
+      wb.clearSel();
+      wb.frameSims(shown.filter((n) => n.gid === r.key).map((n) => n.id), w, h);
+    } else if (r.kind === 'neighbourhood') {
+      const [world, nb] = r.key.split('||');
+      wb.clearSel();
+      wb.frameSims(shown.filter((n) => n.world === world && n.nb === nb).map((n) => n.id), w, h);
+    } else if (r.kind === 'dynasty') {
+      wb.clearSel();
+      wb.setDynastyFocus(r.key);
+      wb.frameSims(shown.filter((n) => !n.species && dynastyKey(n) === r.key).map((n) => n.id), w, h);
+    }
+  };
+
   return (
     <IconContext.Provider value={ICONS}>
       <div id="app">
@@ -236,6 +417,11 @@ export default function App() {
           dynastiesBtnRef={dynastiesBtnRef}
           onDevUpdates={() => setDevUpdatesOpen(true)}
           devUpdatesUnseen={devUpdatesUnseen}
+          onOpenFind={() => {
+            trackAction('/action/search');
+            setFindOpen(true);
+          }}
+          findKeys={findKeys}
         />
         <WhiteboardStage
           wb={wb}
@@ -485,6 +671,28 @@ export default function App() {
             }}
           />
         )}
+        {findOpen && (
+          <SearchPalette
+            worlds={wb.worlds}
+            groups={wb.groups}
+            visibleNodes={wb.visibleNodes}
+            dynastyNames={wb.dynastyNames}
+            actions={findActions}
+            onGo={goFound}
+            onClose={() => setFindOpen(false)}
+          />
+        )}
+        <input
+          ref={saveFileRef}
+          type="file"
+          accept=".save"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) wb.previewSave(f);
+            e.target.value = '';
+          }}
+        />
         {devUpdatesOpen && (
           <DevUpdatesDialog entries={CHANGELOG} onClose={closeDevUpdates} />
         )}

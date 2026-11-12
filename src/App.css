@@ -223,18 +223,51 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .segment .tool:hover{background:#ffffffb3;color:var(--ink)}
 .segment .tool:focus-visible{box-shadow:0 0 0 2px var(--accent-ring)}
 
-/* ── search ──────────────────────────────────────────────────────────────── */
-.search{position:relative;display:flex;align-items:center;flex:0 1 240px;min-width:34px}
-.search__icon{position:absolute;left:9px;width:15px;height:15px;color:var(--ink-3);pointer-events:none}
-.search input{width:100%;height:32px;padding:0 72px 0 29px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:12.5px;transition:border-color .13s ease,box-shadow .13s ease}
-.search input::placeholder{color:var(--ink-3)}
-.search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
-.search input::-webkit-search-cancel-button{cursor:pointer}
-.search__nav{position:absolute;right:4px;display:flex;align-items:center;gap:1px}
-.search__count{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--ink-3);padding:0 4px;font-variant-numeric:tabular-nums}
-.search__kind{width:11px;height:11px;flex:0 0 auto}
-.search__step{display:flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:none;background:transparent;color:var(--ink-2);cursor:pointer;border-radius:4px}
-.search__step:hover{background:var(--accent-soft);color:var(--accent-strong)}
+/* ── search: a fixed-size button; it and ⌘K or Ctrl+K open SearchPalette ──── */
+.findbtn{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;width:164px;height:32px;padding:0 5px 0 9px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink-3);font:inherit;font-size:12.5px;line-height:1;cursor:pointer;transition:border-color .13s ease,box-shadow .13s ease,color .13s ease}
+.findbtn svg{width:15px;height:15px;flex:0 0 auto}
+.findbtn__text{flex:1 1 auto;text-align:left}
+.findbtn__keys{font:inherit;font-size:10.5px;font-weight:600;color:var(--ink-2);padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:var(--recess)}
+.findbtn:hover{border-color:var(--rule);color:var(--ink-2)}
+.findbtn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+
+/* ── the search window (SearchPalette.tsx): over the board, near the top ── */
+.find{position:fixed;inset:0;z-index:90;display:flex;justify-content:center;align-items:flex-start;padding:min(13vh,110px) 16px 16px;background:#1b2b3a2e}
+.find__box{display:flex;flex-direction:column;width:min(580px,100%);max-height:min(72vh,580px);background:var(--chrome);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px #1b2b3a3d,0 2px 6px #1b2b3a1a;overflow:hidden}
+.find__field{display:flex;align-items:center;gap:10px;padding:0 8px 0 16px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.find__icon{width:19px;height:19px;color:var(--ink-3);flex:0 0 auto}
+.find__field input{flex:1 1 auto;min-width:0;height:54px;padding:0;border:none;background:transparent;color:var(--ink);font:inherit;font-size:17px;outline:none}
+.find__field input::placeholder{color:var(--ink-3)}
+.find__close{flex:0 0 auto;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.find__close:hover{background:var(--hover);color:var(--ink)}
+.find__close:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.find__list{flex:1 1 auto;overflow:auto;overscroll-behavior:contain;padding:4px 6px 8px}
+.find__title{display:flex;align-items:center;gap:5px;margin:10px 10px 4px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.find__title svg{width:12px;height:12px}
+.find__item{display:grid;grid-template-columns:30px 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;padding:6px 10px;border-radius:9px;color:var(--ink);cursor:pointer}
+.find__item--on{background:var(--accent-soft)}
+.find__kind{grid-row:1 / span 2;width:30px;height:30px;padding:7px;box-sizing:border-box;border-radius:8px;background:var(--recess);color:var(--ink-2)}
+.find__item--on .find__kind{background:#fff;color:var(--accent-strong)}
+.find__label{font-size:13.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.find__detail{font-size:11.5px;line-height:1.35;color:var(--ink-2);overflow-wrap:anywhere}
+.find__more{margin:2px 10px 6px 50px;font-size:11.5px;color:var(--ink-3)}
+.find__empty{margin:0;padding:18px 14px;font-size:13px;line-height:1.45;color:var(--ink-2)}
+.find__foot{margin:0;padding:8px 16px;border-top:1px solid var(--line);background:var(--recess);font-size:11px;color:var(--ink-3);flex:0 0 auto}
+/* A phone: the whole screen, the field under the notch, Close a 44px target. */
+@media (max-width:640px){
+ .find{padding:0;background:var(--chrome)}
+ .find__box{width:100%;height:100dvh;max-height:none;border:none;border-radius:0;box-shadow:none}
+ .find__field{padding:env(safe-area-inset-top,0px) 6px 0 14px}
+ .find__field input{height:56px;font-size:16px}
+ .find__close{height:44px;padding:0 12px;border:none;background:transparent;color:var(--accent-strong);font-size:15px}
+ .find__list{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+ .find__item{padding:9px 10px}
+ .find__foot{display:none}
+}
+@media (prefers-reduced-motion:no-preference){
+ .find__box{animation:find-in .14s ease-out}
+}
+@keyframes find-in{from{opacity:0;transform:translateY(-6px) scale(.985)}to{opacity:1;transform:none}}
 
 /* ── overflow menu ───────────────────────────────────────────────────────── */
 .overflow{position:relative;flex:0 0 auto}
@@ -292,14 +325,13 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .minimap__view{pointer-events:none}
 
 /* Narrow windows shed the wordmark, then padding, then labels, so the bar stays
-   one row and search keeps 150px to type in. Re-measured 2026-11-08, with Up
-   next and Dynasties in the bar: wordmark off by 1460, the secondary tools'
-   labels (Organise, Log, Up next, Dynasties) by 1300, all labels by 980,
-   and at 900 search becomes a button that opens a full-width field. At 640
-   Organise, Log, Up next, Dynasties and the layers fold into More (see the
-   compact block below). */
-@media (max-width:1460px){ .brand__name{display:none} }
-@media (max-width:1300px){
+   one row and nothing is cut off; search is a fixed-size button that opens
+   its own window, so it never grows. Re-measured 2026-11-12: wordmark off by
+   1260, the secondary tools' labels (View, Up next, Dynasties, Story) by 1060,
+   and every label, Search's word too, by 980. At 640 Redo, View, Up next,
+   Dynasties and Story fold into More (see the compact block below). */
+@media (max-width:1260px){ .brand__name{display:none} }
+@media (max-width:1060px){
  .tool--secondary .tool__label{display:none}
  .tool.tool--secondary{width:32px;padding:0;gap:0}
  .tool.tool--secondary .tool__count{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px}
@@ -311,13 +343,14 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  .tool[data-tone=primary]{padding:0 10px}
 }
 @media (max-width:980px){
+ .findbtn{width:auto;gap:6px;padding:0 5px 0 8px}
+ .findbtn__text{display:none}
  .tool__label{display:none}
  .tool{width:32px;padding:0;gap:0}
  .tool .tool__count{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px}
- .search{flex-basis:150px}
 }
 @media (prefers-reduced-motion:reduce){
- .tool,.search input,.gpanel button,.menu button,.editor button,.agechips button{transition:none}
+ .tool,.findbtn,.gpanel button,.menu button,.editor button,.agechips button{transition:none}
  .gpanel button:active,.menu button:active,.editor button:active,.agechips button:active{transform:none}
 }
 #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:var(--canvas);--minimap-w:220px;--minimap-h:140px}
@@ -993,9 +1026,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .edge.edge--faded{opacity:.14}
 .node.agehl>rect:first-of-type{stroke:#f5a300!important;stroke-width:4.5px!important}
 .node.agehl{filter:drop-shadow(0 0 7px rgba(245,163,0,.9))}
-.node.searchhit>rect:first-of-type{fill:#fff3c4;stroke:#f5a300;stroke-width:3.2px}
-.node.searchcur>rect:first-of-type{fill:#ffd27a;stroke:#c05600!important;stroke-width:4.5px!important}
-.node.searchcur{filter:drop-shadow(0 0 7px rgba(192,86,0,.85))}
 .agechips{display:flex;flex-wrap:wrap;gap:5px}
 .agechips button{padding:5px 10px;border:1px solid var(--chip-line);background:var(--chip);color:#3b4757;border-radius:16px;font-weight:600}
 .agechips button.on{background:#f5a300;color:#fff;border-color:#f5a300}
@@ -1169,22 +1199,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edx{position:absolute;top:7px;right:7px;width:24px;height:24px;border:none;background:#eef0f3;color:#5a6673;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;padding:0;z-index:3}
 .editor .edpair--name{padding-right:28px}
 .editor .edx:hover{background:#e0e4e9}
-
-.appbar__compact-only{display:none}
-.appbar__compact-tools{align-items:center;gap:2px;flex:0 0 auto}
-.search-overlay{display:none}
-/* Search becomes a button at sheet widths; see the breakpoint note above. */
-@media (max-width:900px){
- .appbar--searching{flex-wrap:wrap;row-gap:6px;padding-bottom:6px}
- .search--bar{display:none}
- .appbar__compact-only{display:flex}
- .search-overlay{display:block;flex:1 0 100%;position:relative;padding:0 2px 2px}
- .search-overlay input{width:100%;height:36px;padding:0 10px 0 29px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:16px}
- .search-overlay .search__icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--ink-3);pointer-events:none}
- .search-overlay .search__nav{right:8px;top:50%;transform:translateY(-50%)}
- /* Room for the match counter, so the field's clear ✕ sits beside it, not under it. */
- .search-overlay:has(.search__nav) input{padding-right:98px}
-}
 
 .legend-chip{position:absolute;right:12px;top:12px;z-index:6;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--chrome);color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;box-shadow:var(--lift);cursor:pointer}
 .legend-chip:hover{background:var(--hover);color:var(--ink)}
@@ -1473,6 +1487,16 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 @media (pointer:coarse) and (max-width:640px){
  .appbar .tool{width:44px;padding:0}
 }
+/* A phone: Search is a magnifier like the tools beside it, opening a full-screen sheet. */
+@media (max-width:640px){
+ .findbtn{width:32px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--ink-2)}
+ .findbtn:hover{background:var(--hover);color:var(--ink)}
+ .findbtn svg{width:17px;height:17px}
+ .findbtn__keys{display:none}
+}
+@media (pointer:coarse) and (max-width:640px){
+ .findbtn{width:44px;height:44px}
+}
 /* Narrower than any current phone: scroll the bar rather than cut off More. */
 @media (max-width:359px){
  .appbar{overflow-x:auto}
@@ -1573,7 +1597,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 /* ── deceased sims: their cards fade, so the living stand out ───────────── */
 .node.dead{opacity:.48}
 .node.dead.agedim{opacity:.14}
-.node.dead.sel,.node.dead.msel,.node.dead.agehl,.node.dead.searchhit,.node.dead.searchcur{opacity:.85}
+.node.dead.sel,.node.dead.msel,.node.dead.agehl{opacity:.85}
 
 /* ── highlight count: in the Highlight panel and on the board ──────────── */
 .hlsum{margin:0 4px 4px;padding:6px 8px;border-radius:8px;background:var(--recess);font-size:12px;line-height:1.4;color:var(--ink)}
@@ -1601,18 +1625,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .savestatus__btn .savestatus__season--winter{color:var(--season-winter)}
 .savestatus__btn .savestatus__caret{width:9px;height:9px}
 .savestatus__pop{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);text-align:left;letter-spacing:normal;user-select:text;max-width:calc(100vw - 24px)}
-
-/* ── search keeps room to type: the match counter sits beside the field,
-      the field never narrows past what shows a name, and it widens while
-      you type; the board tools give up their labels first to make room. ── */
-.search--bar{flex:0 1 240px;min-width:min-content;gap:4px}
-.search--bar input{flex:1 1 auto;width:auto;min-width:150px;padding-right:8px}
-.search--bar .search__nav{position:static;flex:0 0 auto}
-.search--bar{transition:flex-basis .15s ease}
-.search--bar:focus-within{flex-basis:340px}
-@media (prefers-reduced-motion:reduce){ .search--bar{transition:none} }
-.appbar:has(.search--bar :focus) .tool--secondary .tool__label{display:none}
-.appbar:has(.search--bar :focus) .tool--secondary{width:32px;padding:0;gap:0}
 
 /* A planned birth or couple the save confirmed: a glow and five twinkles. */
 .node__glow{fill:none;stroke:var(--celebrate);stroke-width:4;opacity:0;animation:celebrate-glow 2.8s ease-out 3}

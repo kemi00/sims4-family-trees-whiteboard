@@ -60,3 +60,6 @@ export { ClockCounterClockwise } from '@phosphor-icons/react/ClockCounterClockwi
 export { Play } from '@phosphor-icons/react/Play';
 export { Pause } from '@phosphor-icons/react/Pause';
 export { CaretRight } from '@phosphor-icons/react/CaretRight';
+export { Eye } from '@phosphor-icons/react/Eye';
+export { MapPin } from '@phosphor-icons/react/MapPin';
+export { ArrowRight } from '@phosphor-icons/react/ArrowRight';

@@ -3,6 +3,7 @@ import {
   Check,
   BookOpenText,
   Crown,
+  Eye,
   EyeSlash,
   Funnel,
   GameController,
@@ -16,14 +17,10 @@ import {
   MagicWand,
   MagnifyingGlass,
   Skull,
-  CaretDown,
-  CaretUp,
   ArrowClockwise,
   ArrowCounterClockwise,
   Scroll,
-  Trash,
   TreeStructure,
-  User,
   UserPlus,
   UsersFour,
   UsersThree,
@@ -31,9 +28,7 @@ import {
 } from '../icons.ts';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
-import { useFittingPlaceholder } from '../hooks/useFittingPlaceholder.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
@@ -58,18 +53,6 @@ function bloodlineToolLabel(wb: WhiteboardApi): string {
 }
 
 /** The family-links views, in the menu's order: most shown to least. */
-/** What Find looks through, as its box and button say it. */
-const FIND_LABEL = 'Find a sim, household or world';
-/** The box's placeholder, longest first: a narrow box says less, never half. */
-const FIND_PLACEHOLDERS = [FIND_LABEL, 'Sims, households, worlds', 'Find'] as const;
-
-/** Each kind of Find match, as its mark beside the count says it. */
-const SEARCH_KIND = {
-  world: { icon: Globe, noun: 'World' },
-  household: { icon: House, noun: 'Household' },
-  sim: { icon: User, noun: 'Sim' },
-} as const satisfies Record<string, { icon: Icon; noun: string }>;
-
 const LINK_VIEWS: { view: LinksView; icon: Icon; label: string; note?: string }[] = [
   { view: 'all', icon: TreeStructure, label: 'All' },
   {
@@ -81,17 +64,7 @@ const LINK_VIEWS: { view: LinksView; icon: Icon; label: string; note?: string }[
   { view: 'none', icon: EyeSlash, label: 'Hidden' },
 ];
 
-/** One short line: a tooltip stays on one line, and this is also the button's name. */
-function linksToolLabel(wb: WhiteboardApi): string {
-  if (wb.familyFocus) return 'Family links: highlighting a family';
-  if (wb.linksView === 'inside') return 'Family links: inside households';
-  return wb.linksView === 'none' ? 'Family links: hidden' : 'Family links: all';
-}
-
-/**
- * The canvas layers in words, for their More entry on a phone, where the
- * bar's pressed buttons that show them are folded away.
- */
+/** What the board draws, in words: the View button's name and its More entry on a phone. */
 function layersNote(wb: WhiteboardApi): string {
   const links = wb.familyFocus
     ? 'Highlighting a family'
@@ -154,6 +127,10 @@ type Props = {
   dynastiesBtnRef: RefObject<HTMLButtonElement | null>;
   onDevUpdates: () => void;
   devUpdatesUnseen: boolean;
+  /** Open search (⌘K or Ctrl+K does too). */
+  onOpenFind: () => void;
+  /** "⌘K" or "Ctrl+K", shown on the Search button. */
+  findKeys: string;
 };
 
 export function AppBar({
@@ -165,19 +142,12 @@ export function AppBar({
   dynastiesBtnRef,
   onDevUpdates,
   devUpdatesUnseen,
+  onOpenFind,
+  findKeys,
 }: Props) {
   const compact = useCompactChrome();
-  /**
-   * At sheet widths (900px and under) search is a button that opens a field
-   * the width of the window, as on a phone: squeezed into the bar beside
-   * everything else, it would leave no room to read what you type.
-   */
-  const searchCollapsed = usePanelSheet();
-  const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
-  const compactSearchRef = useRef<HTMLInputElement>(null);
-  const queryRef = useRef('');
   const { popRef: filtersPopRef, style: filtersPopStyle } = useDropdownPosition(
     filtersOpen,
     filtersRef,
@@ -233,53 +203,6 @@ export function AppBar({
     }
     wb.addSim(r.width, r.height);
   };
-
-  const findHint = useFittingPlaceholder(FIND_PLACEHOLDERS);
-  const search = (value: string, cycle: 0 | 1 | -1 = 0) => {
-    queryRef.current = value;
-    const { w, h } = svgSize();
-    wb.searchSim(value, w, h, cycle);
-  };
-
-  /**
-   * Which match is framed, out of how many, and what it is: a world, a
-   * household or a sim, so a step that zooms right out reads as meant.
-   */
-  const hit = wb.searchHits[wb.searchHitIndex];
-  const HitIcon = hit ? SEARCH_KIND[hit.kind].icon : null;
-  const searchNav = hit && HitIcon && (
-    <span className="search__nav">
-      <span className="search__count" title={`${SEARCH_KIND[hit.kind].noun}: ${hit.label}`}>
-        <HitIcon className="search__kind" weight="fill" aria-label={SEARCH_KIND[hit.kind].noun} />
-        {wb.searchHitIndex + 1}/{wb.searchHits.length}
-      </span>
-      <button
-        type="button"
-        className="search__step"
-        aria-label="Previous match"
-        onClick={() => search(queryRef.current, -1)}
-      >
-        <CaretUp aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className="search__step"
-        aria-label="Next match"
-        onClick={() => search(queryRef.current, 1)}
-      >
-        <CaretDown aria-hidden="true" />
-      </button>
-    </span>
-  );
-
-  useEffect(() => {
-    if (!searchOpen || !searchCollapsed) return;
-    compactSearchRef.current?.focus();
-  }, [searchOpen, searchCollapsed]);
-
-  useEffect(() => {
-    if (!searchCollapsed) setSearchOpen(false);
-  }, [searchCollapsed]);
 
   const closeFilters = useCallback(() => setFiltersOpen(false), []);
   useDismiss(filtersOpen, filtersRef, closeFilters);
@@ -390,9 +313,26 @@ export function AppBar({
     setLinksFrom((f) => (f ? null : from));
   };
 
-  // A phone has room for the edit tools, Filters, search and More. The rest
-  // of the bar folds into More, in the bar's order, each with the words its
-  // tooltip or pressed state gives on a wider screen.
+  // Rare tools live in More on every screen: Organise and the Log. A phone
+  // has room for the edit tools, search and More, so the rest of the bar
+  // folds in there too, in the bar's order, each with the words its tooltip
+  // or pressed state gives on a wider screen.
+  const always: FoldedItem[] = [
+    {
+      id: 'organise',
+      icon: MagicWand,
+      label: 'Organise',
+      note: 'Arrange the board like the starter one',
+      onSelect: organise,
+    },
+    {
+      id: 'log',
+      icon: Scroll,
+      label: wb.connectionLog.length ? `Log (${wb.connectionLog.length})` : 'Log',
+      note: 'Links and household moves you added',
+      onSelect: openLog,
+    },
+  ];
   const folded: FoldedItem[] = compact
     ? [
         // Redo has no room in the bar: it waits here while there is
@@ -408,13 +348,6 @@ export function AppBar({
               },
             ]
           : []),
-        {
-          id: 'organise',
-          icon: MagicWand,
-          label: 'Organise',
-          note: 'Arrange the board like the starter one',
-          onSelect: organise,
-        },
         {
           id: 'upnext',
           icon: ListNumbers,
@@ -437,19 +370,13 @@ export function AppBar({
           onSelect: openStory,
         },
         {
-          id: 'log',
-          icon: Scroll,
-          label: wb.connectionLog.length ? `Log (${wb.connectionLog.length})` : 'Log',
-          note: 'Links and household moves you added',
-          onSelect: openLog,
-        },
-        {
           id: 'layers',
-          icon: TreeStructure,
-          label: 'Family links and boxes',
+          icon: Eye,
+          label: 'View',
           note: layersNote(wb),
           onSelect: () => toggleLinks('more'),
         },
+        ...always,
         ...(wb.saveGame
           ? [
               {
@@ -469,14 +396,14 @@ export function AppBar({
             ]
           : []),
       ]
-    : [];
+    : always;
 
   const linksMenu = (
     <div
       ref={linksPopRef}
       className="pop pop--links"
       role="menu"
-      aria-label={linksFrom === 'more' ? 'Family links and boxes' : 'Family links'}
+      aria-label="View: family links and boxes"
       style={linksPopStyle}
     >
       <div className="pop__head" aria-hidden="true">
@@ -521,46 +448,37 @@ export function AppBar({
         </span>
         {wb.familyFocus && <Check className="pop__check" aria-hidden="true" />}
       </button>
-      {/* The bar's box toggles sit beside its links button; on a phone they
-          are folded away with it, so they come along here. */}
-      {linksFrom === 'more' && (
-        <>
-          <span className="pop__rule" aria-hidden="true" />
-          <div className="pop__head" aria-hidden="true">
-            Show boxes
-          </div>
-          {(
-            [
-              ['groups', House, 'Household boxes'],
-              ['worlds', Globe, 'World boxes'],
-            ] as const
-          ).map(([layer, Glyph, label]) => (
-            <button
-              key={layer}
-              type="button"
-              role="menuitemcheckbox"
-              aria-checked={wb.show[layer]}
-              onClick={() => {
-                wb.toggleShow(layer);
-                closeLinks();
-              }}
-            >
-              <Glyph aria-hidden="true" />
-              <span className="pop__text">{label}</span>
-              {wb.show[layer] && <Check className="pop__check" aria-hidden="true" />}
-            </button>
-          ))}
-        </>
-      )}
+      {/* What the board draws, in one place: links, then boxes. */}
+      <span className="pop__rule" aria-hidden="true" />
+      <div className="pop__head" aria-hidden="true">
+        Show boxes
+      </div>
+      {(
+        [
+          ['groups', House, 'Household boxes'],
+          ['worlds', Globe, 'World boxes'],
+        ] as const
+      ).map(([layer, Glyph, label]) => (
+        <button
+          key={layer}
+          type="button"
+          role="menuitemcheckbox"
+          aria-checked={wb.show[layer]}
+          onClick={() => {
+            wb.toggleShow(layer);
+            closeLinks();
+          }}
+        >
+          <Glyph aria-hidden="true" />
+          <span className="pop__text">{label}</span>
+          {wb.show[layer] && <Check className="pop__check" aria-hidden="true" />}
+        </button>
+      ))}
     </div>
   );
 
   return (
-    <header
-      className={
-        searchCollapsed && searchOpen ? 'appbar appbar--searching' : 'appbar'
-      }
-    >
+    <header className="appbar">
       <span className="brand">
         <svg className="plumbob" viewBox="0 0 20 30" aria-hidden="true">
           <path d="M10 0 L4 11 L10 15 L16 11 Z" fill="#7fe04f" />
@@ -594,25 +512,6 @@ export function AppBar({
         Add sim
       </ToolButton>
       <ToolButton
-        icon={MagicWand}
-        label="Arrange the board like the starter one"
-        className="appbar__wide-only tool--secondary"
-        onClick={organise}
-      >
-        Organise
-      </ToolButton>
-      <ToolButton
-        icon={Trash}
-        label={
-          wb.simsToDelete.length > 1
-            ? `Delete the ${wb.simsToDelete.length} selected sims (Delete key)`
-            : 'Delete the selected sim or link (Delete key)'
-        }
-        tone="danger"
-        disabled={!wb.canDelete}
-        onClick={wb.deleteSelected}
-      />
-      <ToolButton
         icon={ArrowCounterClockwise}
         label={undoTip(wb.undoWhat)}
         tip={<StepTip verb="Undo" keys={UNDO_KEYS} what={wb.undoWhat} none="Nothing to undo" />}
@@ -627,47 +526,22 @@ export function AppBar({
         disabled={!wb.redoWhat}
         onClick={wb.redo}
       />
-      <ToolButton
-        id="btnLog"
-        ref={logBtnRef}
-        icon={Scroll}
-        label="Links and household moves you added"
-        pressed={wb.logOpen}
-        count={wb.connectionLog.length}
-        expanded={wb.logOpen}
-        className="appbar__wide-only tool--secondary"
-        onClick={openLog}
-      >
-        Log
-      </ToolButton>
-
       <span className="appbar__rule" aria-hidden="true" />
 
-      <span className="segment appbar__wide-only" role="group" aria-label="Canvas layers">
-        <div className="overflow" ref={linksRef}>
-          <ToolButton
-            icon={TreeStructure}
-            label={linksToolLabel(wb)}
-            menu
-            pressed={wb.linksView !== 'none' || wb.familyFocus}
-            expanded={linksFrom === 'bar'}
-            onClick={() => toggleLinks('bar')}
-          />
-          {linksFrom === 'bar' && linksMenu}
-        </div>
+      <div className="overflow appbar__wide-only" ref={linksRef}>
         <ToolButton
-          icon={House}
-          label="Household boxes"
-          pressed={wb.show.groups}
-          onClick={() => wb.toggleShow('groups')}
-        />
-        <ToolButton
-          icon={Globe}
-          label="World boxes"
-          pressed={wb.show.worlds}
-          onClick={() => wb.toggleShow('worlds')}
-        />
-      </span>
+          icon={Eye}
+          label={`View: ${layersNote(wb)}`}
+          menu
+          pressed={wb.linksView !== 'all' || wb.familyFocus || !wb.show.groups || !wb.show.worlds}
+          expanded={linksFrom === 'bar'}
+          className="tool--secondary"
+          onClick={() => toggleLinks('bar')}
+        >
+          View
+        </ToolButton>
+        {linksFrom === 'bar' && linksMenu}
+      </div>
 
       <span className="appbar__spacer" />
 
@@ -796,33 +670,18 @@ export function AppBar({
         )}
       </div>
 
-      <span className="search search--bar">
-        <MagnifyingGlass className="search__icon" aria-hidden="true" />
-        <input
-          ref={findHint.ref}
-          id="search"
-          type="search"
-          aria-label={FIND_LABEL}
-          placeholder={findHint.text}
-          onInput={(e) => search(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              search(e.currentTarget.value, e.shiftKey ? -1 : 1);
-            }
-          }}
-        />
-        {searchNav}
-      </span>
-
-      <span className="appbar__compact-only appbar__compact-tools">
-        <ToolButton
-          icon={MagnifyingGlass}
-          label={FIND_LABEL}
-          pressed={searchOpen}
-          onClick={() => setSearchOpen((o) => !o)}
-        />
-      </span>
+      {/* Search opens over the board, Spotlight-style, and never changes the bar's size. */}
+      <button
+        type="button"
+        className="findbtn"
+        aria-label={`Search the board (${findKeys})`}
+        aria-haspopup="dialog"
+        onClick={onOpenFind}
+      >
+        <MagnifyingGlass aria-hidden="true" />
+        <span className="findbtn__text">Search</span>
+        <kbd className="findbtn__keys">{findKeys}</kbd>
+      </button>
 
       <OverflowMenu
         onSave={wb.saveJson}
@@ -838,9 +697,14 @@ export function AppBar({
         }}
         onDevUpdates={onDevUpdates}
         devUpdatesUnseen={devUpdatesUnseen}
-        label={compact ? `More: ${wb.redoWhat ? 'redo, ' : ''}organise, log, links, save, load, and credits` : undefined}
+        label={
+          compact
+            ? `More: ${wb.redoWhat ? 'redo, ' : ''}Up next, dynasties, story, view, organise, log, save, load, and credits`
+            : 'More: organise, log, save, load, and credits'
+        }
         folded={folded}
         wrapRef={moreRef}
+        buttonRef={logBtnRef}
       />
       {linksFrom === 'more' && linksMenu}
       {compact && saveOpen && wb.saveGame && (
@@ -870,25 +734,6 @@ export function AppBar({
         </div>
       )}
 
-      {searchCollapsed && searchOpen && (
-        <div className="search-overlay">
-          <MagnifyingGlass className="search__icon" aria-hidden="true" />
-          <input
-            ref={compactSearchRef}
-            type="search"
-            aria-label={FIND_LABEL}
-            placeholder={FIND_LABEL}
-            onInput={(e) => search(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                search(e.currentTarget.value, e.shiftKey ? -1 : 1);
-              }
-            }}
-          />
-          {searchNav}
-        </div>
-      )}
     </header>
   );
 }

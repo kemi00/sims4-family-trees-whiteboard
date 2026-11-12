@@ -16,8 +16,6 @@ type Props = {
   /** False when zoomed out far enough that card type would be sub-pixel. */
   labels: boolean;
   connectHighlight: boolean;
-  searchHit: boolean;
-  searchCurrent: boolean;
   hiAges: Set<string>;
   hiSingle: boolean;
   partneredIds: Set<string>;
@@ -103,8 +101,6 @@ export const SimNodeView = memo(function SimNodeView({
   groupSelected = false,
   labels,
   connectHighlight,
-  searchHit,
-  searchCurrent,
   hiAges,
   hiSingle,
   partneredIds,
@@ -142,11 +138,6 @@ export const SimNodeView = memo(function SimNodeView({
   const match = ageMatch && bloodMatch && familyMatch;
   const dim = (highlighting || !!bloodlineIds || !!familyIds) && !match;
   const ageClass = (highlighting || !!familyIds) && match ? 'agehl' : dim ? 'agedim' : '';
-  const searchClass = searchCurrent
-    ? 'searchcur'
-    : searchHit
-      ? 'searchhit'
-      : '';
   const detail = cardDetailLine(n);
   const h = n.h || CARD_H;
   const role = n.dynastyRole ? DYNASTY_ROLES[n.dynastyRole] : null;
@@ -220,7 +211,7 @@ export const SimNodeView = memo(function SimNodeView({
 
   return (
     <g
-      className={`node ${ageClass} ${searchClass} ${selected ? 'sel' : ''} ${groupSelected && !selected ? 'msel' : ''}${n.state === DECEASED_STATE ? ' dead' : ''}`}
+      className={`node ${ageClass} ${selected ? 'sel' : ''} ${groupSelected && !selected ? 'msel' : ''}${n.state === DECEASED_STATE ? ' dead' : ''}`}
       data-id={n.id}
       transform={`translate(${n.x},${n.y})`}
       onPointerDown={(e) => onPointerDown(e, n)}
