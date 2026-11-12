@@ -72,6 +72,7 @@ import {
 import {
   computeLayout,
   householdAddSpot,
+  petAddSpot,
   laneStrip,
   partnerSpot,
   layoutBases,
@@ -95,6 +96,7 @@ import {
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
 import { findMatches, type SearchHit } from '../lib/findMatches.ts';
+import { aKind, newPetFields, petKindsAvailable, petPack, youngWord } from '../lib/pets.ts';
 import { cleanNote, edgeSourceOf, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
@@ -391,6 +393,8 @@ export function useWhiteboard() {
   const [hiddenPlay, setHiddenPlay] = useState<Set<string>>(
     () => new Set(boot.hiddenPlay || []),
   );
+  /** Pets you can add: those whose pack isn't switched off in Games. */
+  const petKinds = useMemo(() => petKindsAvailable(hiddenPacks), [hiddenPacks]);
   const [show, setShow] = useState<ShowToggles>({
     groups: true,
     worlds: true,
@@ -469,6 +473,8 @@ export function useWhiteboard() {
    */
   const [partnerMenu, setPartnerMenu] = useState<PartnerMenuState | null>(null);
   const [childMenu, setChildMenu] = useState<ChildMenuState | null>(null);
+  /** What to add, a sim or a pet: from the toolbar's Add, or a household's ＋ (`gid`). In stage pixels. */
+  const [addMenu, setAddMenu] = useState<{ gid?: string; x: number; y: number } | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   /** Up next is open, and the households skipped in it until the next save import. */
   const [upNextOpen, setUpNextOpen] = useState(false);
@@ -1336,9 +1342,9 @@ export function useWhiteboard() {
     else if (sel?.type === 'link') deleteLinks(sel.ids);
   }, [simsToDelete, sel, deleteSims, deleteLinks]);
 
-  const addSim = useCallback((svgWidth: number, svgHeight: number) => {
-    pushUndo('Add a new sim');
-    trackAction('/action/create-sim');
+  const addSim = useCallback((svgWidth: number, svgHeight: number, species?: string) => {
+    pushUndo(species ? `Add ${aKind(species)}` : 'Add a new sim');
+    trackAction(species ? '/action/create-pet' : '/action/create-sim');
     const id = 'new' + eidcRef.current++;
     const world =
       dominantWorldInViewport(
@@ -1379,6 +1385,7 @@ export function useWhiteboard() {
       w: 0,
       h: 0,
       added: true,
+      ...(species ? newPetFields(species) : {}),
     };
     const size = measureCard(n);
     let { x, y } = cardOriginAtViewportCenter(
@@ -1440,6 +1447,7 @@ export function useWhiteboard() {
       ];
     });
     setSel({ type: 'node', id });
+    return id;
   }, [worlds, nodes, nodesCore, groups, nodeVis, viewport, edges, byid, pushUndo, snap]);
 
   /**
@@ -1450,13 +1458,13 @@ export function useWhiteboard() {
    * world. Returns the new sim's id.
    */
   const addSimToHousehold = useCallback(
-    (gid: string): string | null => {
+    (gid: string, species?: string): string | null => {
       const g = groups.find((x) => x.gid === gid);
       const home = nodes.filter((n) => n.gid === gid);
       const chrome = householdChrome(home, g);
       if (!g || !chrome) return null;
-      pushUndo(`Add a sim to ${named(g.hh)}`);
-      trackAction('/action/add-household-sim');
+      pushUndo(`Add ${aKind(species)} to ${named(g.hh)}`);
+      trackAction(species ? '/action/add-household-pet' : '/action/add-household-sim');
       const id = 'new' + eidcRef.current++;
       const sur = householdSurnames(home, g.hh)[0] ?? 'Sim';
       const n: SimNode = {
@@ -1484,8 +1492,10 @@ export function useWhiteboard() {
         w: 0,
         h: 0,
         added: true,
+        ...(species ? newPetFields(species) : {}),
       };
-      const spot = householdAddSpot(home, nodes, chrome.boxR);
+      // A pet joins the household's animals, in their lane at its right.
+      const spot = species ? petAddSpot(home, nodes) : householdAddSpot(home, nodes, chrome.boxR);
       const r = growHousehold({
         core: [...nodesCore, toCore(n)],
         laid: nodes,
@@ -1501,7 +1511,7 @@ export function useWhiteboard() {
       if (r.outOfView) revealBox(r.box);
       setSel({ type: 'node', id });
       setEditNodeId(id);
-      flashStatus(`Added a sim to ${named(g.hh)}: name them, then press Enter.${placeNote(r)}`);
+      flashStatus(`Added ${aKind(species)} to ${named(g.hh)}: name them, then press Enter.${placeNote(r)}`);
       return id;
     },
     [groups, nodes, nodesCore, worlds, edges, pushUndo, viewRect, revealBox, flashStatus],
@@ -1937,6 +1947,8 @@ export function useWhiteboard() {
             color: host.color,
           };
       const id = 'new' + eidcRef.current++;
+      // Pets have young of their kind: a planned kitten of two cats.
+      const species = parents.every((p) => p.species && p.species === a.species) ? a.species : undefined;
       // A planned child: no made-up name, gender or stage until the game has them.
       const infant: SimNode = {
         id,
@@ -1963,6 +1975,7 @@ export function useWhiteboard() {
         w: 0,
         h: 0,
         added: true,
+        ...(species ? { species, state: 'Pet', sur: '', pack: petPack(species) } : {}),
       };
       const size = measureCard(infant);
       const siblings = nodes.filter((n) => {
@@ -2015,6 +2028,13 @@ export function useWhiteboard() {
       const room = placeNote(r);
       const name = sur || 'Sim';
       const one = `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${sur ? named(name) : name}`;
+      if (species) {
+        const young = youngWord(species);
+        flashStatus(
+          `Planned a ${young} of ${who}, not born yet.${room}${parentIds.length > 1 ? '' : ` Add its other parent in its editor’s Family tab if there is one.`}`,
+        );
+        return;
+      }
       flashStatus(
         parentIds.length > 1
           ? `Planned a child of ${who}: ${one}, not born yet.${room} Give them a plan label in the editor.`
@@ -2043,6 +2063,19 @@ export function useWhiteboard() {
       addPlannedBaby([id], a.gid, sur, a.x + (a.w || CARD_MIN_W) / 2);
     },
     [byid, addPlannedBaby, babySurnames],
+  );
+
+  /**
+   * A planned kitten, puppy or foal of `parentIds` (one pet, or two of a
+   * kind), born where the first of them lives, under their card.
+   */
+  const planPetYoung = useCallback(
+    (parentIds: string[]) => {
+      const a = byid[parentIds[0] ?? ''];
+      if (!a?.species) return;
+      addPlannedBaby(parentIds, a.gid, '', a.x + (a.w || CARD_MIN_W) / 2);
+    },
+    [byid, addPlannedBaby],
   );
 
   const requestInfantOfCouple = useCallback(
@@ -4057,6 +4090,8 @@ export function useWhiteboard() {
     openPartnerMenu,
     closePartnerMenu,
     childMenu,
+    addMenu,
+    setAddMenu,
     openChildMenu,
     closeChildMenu,
     setChildMenuStep,
@@ -4067,6 +4102,7 @@ export function useWhiteboard() {
     infantHouseChoices,
     requestInfantOfCouple,
     requestInfantOfSim,
+    planPetYoung,
     renameDynasty,
     removeDynasty,
     confirmInfantHouse,
@@ -4127,6 +4163,7 @@ export function useWhiteboard() {
     simsToDelete,
     addSim,
     addSimToHousehold,
+    petKinds,
     organiseBoard,
     updateNode,
     setDynastyGenRoot,

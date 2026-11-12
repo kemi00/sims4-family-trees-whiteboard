@@ -272,7 +272,10 @@ export function householdPlans(opts: {
       continue;
     }
     const waits = parents.map((p) => waitOn(p, GROWN_UP)).filter((w): w is PlanWait => !!w);
-    const elder = parents.find((p) => !isPlannedSim(p) && p.age === 'Elder');
+    // Only when no parent who could carry is younger: the women among them, or all when none is one.
+    const women = parents.filter((p) => p.gender === 'Female');
+    const carriers = women.length ? women : parents;
+    const elder = carriers.every((p) => !isPlannedSim(p) && p.age === 'Elder') ? carriers[0] : undefined;
     const findParent = parents.some((p) => isPlannedSim(p) && !plannedChild(p));
     const window = findParent ? null : planWindow(parents, saveGame, homeOf);
     items.push({

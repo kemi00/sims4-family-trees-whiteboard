@@ -1,4 +1,6 @@
 import { removalLabel, simLinkRows } from '../lib/simLinks.ts';
+import { PET_AGES, PET_GENDERS, PET_KINDS, petAgeLabel, petPack, type PetKind } from '../lib/pets.ts';
+import { PetFamily } from './PetFamily.tsx';
 import {
   useEffect,
   useLayoutEffect,
@@ -233,6 +235,8 @@ const NEW_DYNASTY = '__new';
 const AUTO_ROOT = '__oldest';
 
 const LIFE_STATE_OPTIONS = pinnedAlpha(LIFE_STATES, 'Sim');
+/** A pet is a pet, or has passed away. */
+const PET_STATES: readonly string[] = ['Pet', 'Deceased'];
 const PLAYABILITY_OPTIONS = pinnedAlpha(PLAYABILITY, 'Resident');
 
 /**
@@ -287,6 +291,10 @@ type Props = {
     genRoot?: { key: string; id: string | null };
     /** A planned sim's role in the plan; undefined clears it. */
     planLabel?: string;
+    /** A pet's kind, breed and the pack it comes with. */
+    species?: string;
+    breed?: string;
+    pack?: string;
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   /** Move this sim's whole household to another world (moveHouseholdToWorld). */
@@ -312,6 +320,12 @@ type Props = {
   onOpenPlan: () => void;
   /** Renames a dynasty only the plan has (by key), on all its members: its key now, null when refused. */
   onRenameDynasty: (key: string, to: string) => string | null;
+  /** A pet's parent, linked from its Family tab. */
+  onLinkParent: (parentId: string, childId: string) => void;
+  /** A planned kitten, puppy or foal of these pets. */
+  onPlanYoung: (parentIds: string[]) => void;
+  /** The pets your packs allow, for a pet added on the board to change its kind. */
+  petKinds: readonly PetKind[];
 };
 
 export function SimEditor({
@@ -342,11 +356,14 @@ export function SimEditor({
   onUnlinkPlanned,
   onOpenPlan,
   onRenameDynasty,
+  onLinkParent,
+  onPlanYoung,
+  petKinds,
 }: Props) {
   const compact = useCompactChrome();
   const isPet = !!n.species;
-  // Pets have no dynasty and no partners: no Family tab.
-  const tabs: Tab[] = isPet ? ['sim', 'details'] : ['sim', 'family', 'details'];
+  // Pets have no dynasty and no partners: their Family tab is parents, young and siblings.
+  const tabs: Tab[] = ['sim', 'family', 'details'];
   /** This sim's plans the game went against. */
   const myIssues = planIssues.filter((c) => c.a === n.id || c.b === n.id || c.children.includes(n.id));
   const planned = isPlannedSim(n);
@@ -370,7 +387,7 @@ export function SimEditor({
    * sims go by it. Only a card the game gave none (Mayor Whiskers) may stay
    * without one.
    */
-  const surMissing = !sur.trim() && (!!n.sur.trim() || isPlannedSim(n));
+  const surMissing = !isPet && !sur.trim() && (!!n.sur.trim() || isPlannedSim(n));
   /** A planned sim's role in the plan: "Heir 1". */
   const [planLabel, setPlanLabel] = useState(n.planLabel ?? '');
   const [linkOpen, setLinkOpen] = useState(false);
@@ -383,6 +400,9 @@ export function SimEditor({
   const [age, setAge] = useState(n.age);
   const [gender, setGender] = useState(n.gender);
   const [state, setState] = useState(n.state || 'Sim');
+  /** A pet's kind (changeable while it is only on the board) and breed. */
+  const [species, setSpecies] = useState(n.species ?? '');
+  const [breed, setBreed] = useState(n.breed ?? '');
   const [oplay, setOplay] = useState(n.oplay || 'Resident');
   const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
   /** Heir after whom, for an heir planned generations ahead; '' for none. */
@@ -767,6 +787,7 @@ export function SimEditor({
       dynastyRole: 'dynastyRole' in plan ? plan.dynastyRole : n.dynastyRole,
       ...plan,
       heirAfter: after || undefined,
+      ...(isPet ? { species, breed: breed.trim() || undefined, pack: petPack(species) || n.pack } : {}),
       ...(gen && (genRoot === AUTO_ROOT ? null : genRoot) !== (gen.rootPicked ? gen.rootId : null)
         ? { genRoot: { key: gen.key, id: genRoot === AUTO_ROOT ? null : genRoot } }
         : {}),
@@ -849,6 +870,7 @@ export function SimEditor({
       dynastyRole: 'dynastyRole' in plan ? plan.dynastyRole : n.dynastyRole,
       ...plan,
       heirAfter: after || undefined,
+      ...(isPet ? { species, breed: breed.trim() || undefined, pack: petPack(species) || n.pack } : {}),
     };
     const line = successionLine(withSuccessionChoice(nodes, me), target.key);
     return line.length > 1 ? line : [];
@@ -1035,7 +1057,7 @@ export function SimEditor({
               onClick={() => setTab(t)}
               onKeyDown={onTabKey}
             >
-              {TAB_LABELS[t]}
+              {t === 'sim' && isPet ? 'Pet' : TAB_LABELS[t]}
             </button>
           ))}
         </div>
@@ -1061,6 +1083,36 @@ export function SimEditor({
               </div>
             </>
           )}
+          {isPet && (
+            <div className="edpair">
+              <div>
+                <label htmlFor="edSpecies">Kind</label>
+                {n.added ? (
+                  <select id="edSpecies" value={species} onChange={(e) => setSpecies(e.target.value)}>
+                    {PET_KINDS.filter((k) => k.species === species || petKinds.some((x) => x.species === k.species)).map((k) => (
+                      <option key={k.species} value={k.species}>
+                        {k.species}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="ro" id="edSpecies">
+                    {species}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label htmlFor="edBreed">Breed</label>
+                <input
+                  id="edBreed"
+                  value={breed}
+                  placeholder={species === 'Horse' ? 'e.g. Appaloosa' : species === 'Dog' ? 'e.g. Beagle' : 'e.g. Tabby'}
+                  autoComplete="off"
+                  onChange={(e) => setBreed(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
           <div className="edpair">
             <div>
               <label htmlFor="edAge">Life stage</label>
@@ -1071,26 +1123,25 @@ export function SimEditor({
                 onChange={(e) => setAge(e.target.value)}
               >
                 {planned && <option value={NOT_YET_AGE}>{notYetText(plannedChild)}</option>}
-                {AGES.map((a) => (
+                {(isPet ? PET_AGES : AGES).map((a) => (
                   <option key={a} value={a}>
-                    {a}
+                    {isPet ? petAgeLabel(species, a) : a}
                   </option>
                 ))}
-                {!AGES.includes(age as (typeof AGES)[number]) && !(planned && age === NOT_YET_AGE) && (
-                  <option value={age}>{age}</option>
-                )}
+                {!(isPet ? (PET_AGES as readonly string[]) : (AGES as readonly string[])).includes(age) &&
+                  !(planned && age === NOT_YET_AGE) && <option value={age}>{age}</option>}
               </select>
             </div>
             <div>
               <label htmlFor="edGender">Gender</label>
               <select id="edGender" value={gender} onChange={(e) => setGender(e.target.value)}>
                 {planned && <option value={GENDER_NOT_KNOWN}>Not known yet</option>}
-                {GENDERS.map((g) => (
+                {(isPet ? PET_GENDERS : GENDERS).map((g) => (
                   <option key={g} value={g}>
                     {g}
                   </option>
                 ))}
-                {!GENDERS.includes(gender as (typeof GENDERS)[number]) &&
+                {!(isPet ? (PET_GENDERS as readonly string[]) : (GENDERS as readonly string[])).includes(gender) &&
                   !(planned && gender === GENDER_NOT_KNOWN) && <option value={gender}>{gender}</option>}
               </select>
               {n.pronouns && (
@@ -1118,12 +1169,12 @@ export function SimEditor({
             <div>
               <label htmlFor="edState">Life state</label>
               <select id="edState" value={state} onChange={(e) => setState(e.target.value)}>
-                {LIFE_STATE_OPTIONS.map((s) => (
+                {(isPet ? PET_STATES : LIFE_STATE_OPTIONS).map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
                 ))}
-                {!LIFE_STATES.includes(state as (typeof LIFE_STATES)[number]) && (
+                {!(isPet ? PET_STATES : (LIFE_STATES as readonly string[])).includes(state) && (
                   <option value={state}>{state}</option>
                 )}
               </select>
@@ -1150,7 +1201,7 @@ export function SimEditor({
             onClick={() => setMoveOpen(!moveOpen)}
           >
             <span>
-              ↪ Move <b>sim</b> to another household
+              ↪ Move <b>{isPet ? 'pet' : 'sim'}</b> to another household
             </span>
           </button>
           {moveOpen && (
@@ -1261,6 +1312,18 @@ export function SimEditor({
           )}
         </div>
 
+        {isPet && (
+          <div role="tabpanel" id="edPanel-family" aria-labelledby="edTab-family" hidden={tab !== 'family'}>
+            <PetFamily
+              pet={n}
+              nodes={nodes}
+              edges={edges}
+              onLinkParent={(p) => onLinkParent(p, n.id)}
+              onDeleteLink={onDeleteLink}
+              onPlanYoung={onPlanYoung}
+            />
+          </div>
+        )}
         {!isPet && (
           <div role="tabpanel" id="edPanel-family" aria-labelledby="edTab-family" hidden={tab !== 'family'}>
             {(myIssues.length > 0 || n.plannedAs) && (

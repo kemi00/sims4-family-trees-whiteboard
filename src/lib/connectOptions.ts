@@ -1,4 +1,5 @@
 import { whyNotAdopt } from './adoption.ts';
+import { petLinkWhy } from './pets.ts';
 import { uKey } from './utils.ts';
 import type { ConnectChoice, Edge, SimNode } from '../types/whiteboard.ts';
 
@@ -14,7 +15,9 @@ export type ConnectSection = { title: string | null; options: ConnectOption[] };
  * adoption follows the ＋ menu's rule (whyNotAdopt), and on a parent link
  * already there it marks that link adopted, as a secret one is marked
  * secret. `cycle`: why a parent link either way would make a sim their own
- * ancestor. `now` says where the two stand, for the menu's head.
+ * ancestor. `now` says where the two stand, for the menu's head. A pet
+ * links only to a pet of its kind, as a parent, child, co-parent or
+ * sibling; a pet and a sim keep only the menu's other link.
  */
 export function connectOptions(opts: {
   a: SimNode;
@@ -93,6 +96,17 @@ export function connectOptions(opts: {
     ...(opts.hideSibling ? [] : [{ choice: 'sibling' as const }]),
   ];
 
+  // Pets: family only to pets of their kind, without couples, secrets or adoption.
+  const notKin = petLinkWhy(a, b);
+  const pets = !!a.species && !!b.species;
+  const petRule = (o: ConnectOption): ConnectOption => {
+    if (o.why || (!notKin && !pets)) return o;
+    if (notKin) return { choice: o.choice, why: notKin };
+    if (couple.includes(o)) return { choice: o.choice, why: 'Pets don’t marry or date' };
+    if (['secretparent', 'secretchildof', 'adoptive', 'adoptedby'].includes(o.choice)) return { choice: o.choice, why: 'Not for pets' };
+    return o;
+  };
+
   const parentNow = (link: Edge | undefined, p: SimNode, c: SimNode) =>
     link ? `${p.first} is ${c.first}’s ${link.adopted ? 'adoptive ' : link.secret ? 'secret ' : ''}parent` : null;
   const now = marriage
@@ -105,8 +119,8 @@ export function connectOptions(opts: {
   return {
     now,
     sections: [
-      { title: 'Couple', options: couple },
-      { title: 'Family', options: family },
+      { title: 'Couple', options: couple.map(petRule) },
+      { title: 'Family', options: family.map(petRule) },
       { title: null, options: [{ choice: 'custom' }] },
     ],
   };

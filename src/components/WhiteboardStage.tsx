@@ -84,6 +84,7 @@ import { Hint } from './Hint.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { PartnerMenu } from './PartnerMenu.tsx';
 import { ChildMenu } from './ChildMenu.tsx';
+import { AddKindMenu } from './AddKindMenu.tsx';
 import { connectOptions } from '../lib/connectOptions.ts';
 import { Legend } from './Legend.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
@@ -1276,6 +1277,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
       wb.openPartnerMenu(n.id, partner, x + (partner === 'right' ? 14 : -14), y);
       return;
     }
+    if (baby && n.species) {
+      // A pet's ＋: a planned kitten, puppy or foal of theirs; no adoption to choose.
+      lastClickRef.current = null;
+      wb.requestInfantOfSim(n.id);
+      return;
+    }
     if (baby) {
       // The ＋ on the card's foot: a new sim (a planned baby) or one to adopt.
       lastClickRef.current = null;
@@ -1547,9 +1554,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
 
   /** A sim added with a household's + opens to its name, ready to type. */
   const [nameFocusId, setNameFocusId] = useState<string | null>(null);
-  const onAddSim = useCallback((gid: string) => {
-    setNameFocusId(wbRef.current.addSimToHousehold(gid));
-  }, []);
+  const onAddSim = useCallback((gid: string, ev: { clientX: number; clientY: number }) => {
+    const w = wbRef.current;
+    // With no pet pack on there is nothing to choose: a sim, as before.
+    if (!w.petKinds.length) {
+      setNameFocusId(w.addSimToHousehold(gid));
+      return;
+    }
+    const sr = stageRef.current?.getBoundingClientRect();
+    w.setAddMenu({ gid, x: ev.clientX - (sr?.left ?? 0), y: ev.clientY - (sr?.top ?? 0) + 14 });
+  }, [stageRef]);
 
   // What of the board is on screen, for new sims to land where you can see
   // them: the stage, less the legend column beside it.
@@ -1907,7 +1921,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
                 dynastyTag={n.dynasty ? wb.dynastyNames.get(dynastyKey(n) ?? '')?.tag : undefined}
                 dynastyRisk={dynastyRiskOf(n)}
                 heirAfter={heirAfterOf(n)}
-                babyPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
+                babyPlus={!wb.connectMode && n.state !== DECEASED_STATE && (!n.species || !isPlannedSim(n))}
                 partnerPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}
                 parentIds={wb.parentIds}
@@ -2219,6 +2233,26 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
           onClose={wb.closePartnerMenu}
         />
       )}
+      {wb.addMenu && (
+        <AddKindMenu
+          x={wb.addMenu.x}
+          y={wb.addMenu.y}
+          title={wb.addMenu.gid ? `Add to ${hhOf(wb.addMenu.gid)}` : 'Add to the board'}
+          kinds={wb.petKinds}
+          onPick={(species) => {
+            const at = wb.addMenu!;
+            wb.setAddMenu(null);
+            if (at.gid) setNameFocusId(wb.addSimToHousehold(at.gid, species));
+            else {
+              const r = svgRef.current?.getBoundingClientRect();
+              const id = wb.addSim(r?.width ?? 800, r?.height ?? 600, species);
+              wb.setEditNodeId(id);
+              setNameFocusId(id);
+            }
+          }}
+          onClose={() => wb.setAddMenu(null)}
+        />
+      )}
       {wb.childMenu && (
         <ChildMenu
           key={wb.childMenu.parents.join('|')}
@@ -2398,6 +2432,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onPoster }: P
             wb.setBriefGid(editNode.gid);
           }}
           onRenameDynasty={wb.renameDynasty}
+          onLinkParent={(p, c) => wb.addEdge(p, c, 'parent')}
+          onPlanYoung={(ids) => {
+            wb.setEditNodeId(null);
+            wb.planPetYoung(ids);
+          }}
+          petKinds={wb.petKinds}
         />
       )}
     </div>

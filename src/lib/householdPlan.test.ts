@@ -204,11 +204,14 @@ describe('planned babies', () => {
     assert.equal(items.length, 1);
   });
 
-  it('warn, without blocking, when a parent is an elder', () => {
-    const old = [sim('Sergio', 'Romeo', { age: 'Elder' }), sim('Siobhan', 'Romeo')];
+  it('warn, without blocking, when every parent who could carry is an elder', () => {
+    const old = [sim('Sergio', 'Romeo', { age: 'Elder' }), sim('Siobhan', 'Romeo', { gender: 'Male' })];
     const i = one(plans([...old, kid('k1', 'Heir')], parentLinks('k1')), 'baby:Sergio|Siobhan');
     assert.equal(i.state, 'ready');
     assert.equal(i.note, 'Sergio Romeo is an elder: in the game, elders can’t carry a baby.');
+    // A younger one who could carry: no warning.
+    const young = [sim('Sergio', 'Romeo', { age: 'Elder', gender: 'Male' }), sim('Siobhan', 'Romeo')];
+    assert.equal(one(plans([...young, kid('k1', 'Heir')], parentLinks('k1')), 'baby:Sergio|Siobhan').note, undefined);
   });
 
   it('wait on a parent too young', () => {

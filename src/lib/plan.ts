@@ -1,4 +1,5 @@
 import { DECEASED_STATE, GENDERS } from './constants.ts';
+import { petKind } from './pets.ts';
 import { edgeSourceOf, joinNotes, withNote } from './utils.ts';
 import type { ParsedSave, ParsedSaveSim } from './savegame/parseSave.ts';
 import type { Edge, EdgeType, HouseholdMove, SimNode, SimPronouns } from '../types/whiteboard.ts';
@@ -324,7 +325,9 @@ export function slotSuggestions(opts: {
   const { nodes, edges, parsed } = opts;
   const picks = opts.picks ?? new Map<string, string>();
   const onBoard = new Set(nodes.flatMap((n) => (n.saveSimId ? [n.saveSimId] : [])));
-  const fresh = parsed.sims.filter((s) => !onBoard.has(s.saveSimId) && !s.species);
+  // New in this save, of the planned sim's kind: a planned kitten is a cat.
+  const freshOf = (slot: SimNode) =>
+    parsed.sims.filter((s) => !onBoard.has(s.saveSimId) && (s.species ?? '') === (slot.species ?? ''));
   const sim = new Map(parsed.sims.map((s) => [s.saveSimId, s]));
   const saveParents = new Map<string, string[]>();
   const savePartners = new Map<string, { id: string; married: boolean }[]>();
@@ -355,7 +358,7 @@ export function slotSuggestions(opts: {
     const plannedParents = new Set(parentIds.map(saveIdOf).filter((id): id is string => !!id));
     const knownGender = (GENDERS as readonly string[]).includes(slot.gender) ? slot.gender : '';
     if (plannedParents.size) {
-      const scored = fresh
+      const scored = freshOf(slot)
         .map((s) => {
           const parents = saveParents.get(s.saveSimId) ?? [];
           return { s, parents, overlap: parents.filter((p) => plannedParents.has(p)).length };
@@ -380,7 +383,7 @@ export function slotSuggestions(opts: {
         candidates: scored.map((x) => ({
           saveSimId: x.s.saveSimId,
           name: fullName(x.s),
-          why: `${x.s.gender === 'Female' ? 'Daughter' : x.s.gender === 'Male' ? 'Son' : 'Child'} of ${firstNames(x.parents)}`,
+          why: `${slot.species ? petKind(slot.species)?.young ?? 'Young' : x.s.gender === 'Female' ? 'Daughter' : x.s.gender === 'Male' ? 'Son' : 'Child'} of ${firstNames(x.parents)}`,
           sure: sureOne && x === top[0],
           gender: x.s.gender,
           ...(x.s.pronouns ? { pronouns: x.s.pronouns } : {}),

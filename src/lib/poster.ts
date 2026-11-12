@@ -264,6 +264,26 @@ function boardRows(sims: SimNode[]): SimNode[][] {
   return rows.map((r) => r.sort((a, b) => a.x - b.x));
 }
 
+/** Pets in rows by generation: those with no parent among them first, their young under them. */
+function petGenerations(pets: SimNode[], links: readonly Edge[]): SimNode[][] {
+  const ids = new Set(pets.map((p) => p.id));
+  const parents = new Map<string, string[]>();
+  for (const e of links) if (e.type === 'parent' && ids.has(e.a) && ids.has(e.b)) parents.set(e.b, [...(parents.get(e.b) ?? []), e.a]);
+  const depth = new Map<string, number>();
+  const of = (id: string, seen: Set<string>): number => {
+    const known = depth.get(id);
+    if (known !== undefined) return known;
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const d = Math.max(-1, ...(parents.get(id) ?? []).map((p) => of(p, seen))) + 1;
+    depth.set(id, d);
+    return d;
+  };
+  const rows: SimNode[][] = [];
+  for (const p of pets) (rows[of(p.id, new Set())] ??= []).push(p);
+  return rows.filter((r) => r?.length);
+}
+
 /** A household's poster: its sims in their board rows, then its pets. */
 export function householdPoster(opts: {
   group: Group;
@@ -279,7 +299,10 @@ export function householdPoster(opts: {
   const people = members.filter((n) => !isPet(n));
   const pets = members.filter(isPet).sort(byPlace);
   const sims: { label?: string; sims: SimNode[] }[] = boardRows(people).map((r) => ({ sims: r }));
-  if (pets.length) sims.push({ label: pets.length === 1 ? 'Pet' : 'Pets', sims: pets });
+  // Pets by generation among them, so a litter sits under its parents.
+  petGenerations(pets, links).forEach((row, i) =>
+    sims.push(i ? { sims: row } : { label: pets.length === 1 ? 'Pet' : 'Pets', sims: row }),
+  );
   const { rows, couples, families } = posterRows(sims, links, nodes, false);
   return {
     kind: 'household',

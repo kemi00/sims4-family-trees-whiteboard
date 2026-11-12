@@ -220,9 +220,16 @@ export function AppBar({
     return { w: r?.width ?? 800, h: r?.height ?? 600 };
   };
 
+  const addBtnRef = useRef<HTMLButtonElement>(null);
   const addNewSim = () => {
     const r = svgRef.current?.getBoundingClientRect();
     if (!r) return;
+    // With a pet pack on: a sim or a pet, from a menu under the button.
+    const at = addBtnRef.current?.getBoundingClientRect();
+    if (wb.petKinds.length && at) {
+      wb.setAddMenu({ x: Math.max(8, at.left - r.left), y: Math.max(8, at.bottom - r.top + 6) });
+      return;
+    }
     wb.addSim(r.width, r.height);
   };
 
@@ -554,7 +561,14 @@ export function AppBar({
       >
         Connect
       </ToolButton>
-      <ToolButton icon={UserPlus} label="Add a sim" onClick={addNewSim}>
+      <ToolButton
+        ref={addBtnRef}
+        icon={UserPlus}
+        label={wb.petKinds.length ? 'Add a sim or a pet' : 'Add a sim'}
+        menu={wb.petKinds.length > 0}
+        expanded={wb.petKinds.length ? !!wb.addMenu && !wb.addMenu.gid : undefined}
+        onClick={addNewSim}
+      >
         Add sim
       </ToolButton>
       <ToolButton

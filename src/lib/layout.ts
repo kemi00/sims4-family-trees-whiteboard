@@ -3067,6 +3067,33 @@ export function householdAddSpot(
 }
 
 /**
+ * Where a new pet joins a household: under its animals in their lane, or,
+ * with none yet, a lane of its own at the household's right, an empty
+ * column apart from its sims, as the layout keeps animals.
+ */
+export function petAddSpot(
+  household: (SpawnRect & { species?: string; state?: string })[],
+  occupied: SpawnRect[],
+): { x: number; y: number } {
+  const size = { w: CARD_MIN_W, h: CARD_H };
+  const free = (x: number, y: number) => !occupied.some((o) => rectsOverlap({ x, y, ...size }, o));
+  const animals = household.filter(animalCard);
+  const sims = household.filter((n) => !animalCard(n));
+  let x: number;
+  let y: number;
+  if (animals.length) {
+    x = Math.min(...animals.map((n) => n.x));
+    y = Math.max(...animals.map((n) => n.y + (n.h || CARD_H))) + LAYOUT.gapYExtra;
+  } else {
+    const from = sims.length ? sims : household;
+    x = Math.max(...from.map((n) => n.x + (n.w || CARD_MIN_W))) + LAYOUT.gapX + TILE;
+    y = Math.min(...from.map((n) => n.y));
+  }
+  for (let i = 0; i <= occupied.length && !free(x, y); i++) y += rowPitch();
+  return tileSnapOrigin(x, y);
+}
+
+/**
  * Where a partner who moves in lands: beside the sim they move in with, on
  * the side picked (else the other), as couples sit on the board. Null when
  * neither side is free of other cards, with a little room around them: then

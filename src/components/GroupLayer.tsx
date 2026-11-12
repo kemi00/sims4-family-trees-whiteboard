@@ -34,7 +34,8 @@ type Props = {
   ) => void;
   onAgeUp: (gid: string) => void;
   /** The household's + : add a new sim to it. */
-  onAddSim?: (gid: string) => void;
+  /** The household tag's ＋, with where it was clicked. */
+  onAddSim?: (gid: string, ev: { clientX: number; clientY: number }) => void;
   /** Each household's plan items by state, for the badge beside its +. */
   tallies?: ReadonlyMap<string, PlanTally>;
   /** The badge: open the household's plan. */
@@ -326,13 +327,13 @@ export const GroupLayer = memo(function GroupLayer({
               <g
                 className="hh-add"
                 role="button"
-                aria-label={`Add a sim to ${g0.hh}`}
+                aria-label={`Add a sim or a pet to ${g0.hh}`}
                 // Acts on click, not press, so a press that turns into a pan
                 // or a stray tap while zooming adds nobody.
                 onPointerDown={(ev) => ev.stopPropagation()}
-                onClick={() => onAddSim(g0.gid)}
+                onClick={(ev) => onAddSim(g0.gid, ev)}
               >
-                <title>Add a sim to this household</title>
+                <title>Add a sim or a pet to this household</title>
                 <rect
                   x={addX}
                   y={ageY}

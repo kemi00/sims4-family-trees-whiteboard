@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { youngWord } from '../lib/pets.ts';
 import { CARD_H, CARD_MIN_W, COL, DECEASED_STATE, DYNASTY_ROLES, OCC, PILL_H, SPECIES, UEDIT } from '../lib/constants.ts';
 import { dynastyPhrase } from '../lib/generations.ts';
 import { cardDetailLine } from '../lib/layout.ts';
@@ -362,7 +363,9 @@ export const SimNodeView = memo(function SimNodeView({
           below"; the same ＋ as a couple's. Clicked through WhiteboardStage. */}
       {labels && babyPlus && (
         <g className="node__baby" transform={`translate(${(n.w || CARD_MIN_W) / 2},${h})`}>
-          <title>Add a child of {cardName(n)}: a new sim, or one to adopt</title>
+          <title>
+            {n.species ? `Plan a ${youngWord(n.species)} of ${cardName(n)}` : `Add a child of ${cardName(n)}: a new sim, or one to adopt`}
+          </title>
           <circle r={PILL_H / 2} fill={UEDIT} stroke="#fff" strokeWidth={1.4} />
           <text y={4.5} fontSize={13} fontWeight={700} textAnchor="middle" fill="#fff">
             ＋
