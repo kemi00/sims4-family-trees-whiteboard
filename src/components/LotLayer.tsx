@@ -78,7 +78,7 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
         const pillW = tagPillWidth(label, 22);
         const moving = drag?.world === box.world;
         return (
-          <g
+            <g
             key={box.world}
             className={moving ? 'lots lots--moving' : 'lots'}
             data-world={box.world}
@@ -97,42 +97,44 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
               strokeLinecap="round"
               style={{ pointerEvents: 'none' }}
             />
-            {labels && (
-              <g
-                className={onMoveBox ? 'lots__tag lots__tag--drag' : 'lots__tag'}
-                // Drag the tag to move the box: only you move it, and it stays where you put it.
-                onPointerDown={(ev) => {
-                  if (!onMoveBox || ev.button !== 0) return;
-                  ev.stopPropagation();
-                  ev.currentTarget.setPointerCapture(ev.pointerId);
-                  from.current = { x: ev.clientX, y: ev.clientY };
-                  setDrag({ world: box.world, dx: 0, dy: 0 });
-                }}
-                onPointerMove={(ev) => {
-                  if (!from.current || drag?.world !== box.world) return;
-                  setDrag({ world: box.world, dx: (ev.clientX - from.current.x) / k, dy: (ev.clientY - from.current.y) / k });
-                }}
-                onPointerUp={() => {
-                  if (drag?.world === box.world && from.current && (drag.dx || drag.dy)) onMoveBox?.(box.world, box.l + drag.dx, box.t + drag.dy);
-                  from.current = null;
-                  setDrag(null);
-                }}
-                onPointerCancel={() => {
-                  from.current = null;
-                  setDrag(null);
-                }}
-              >
-                <title>{`Lots in ${box.world} that no household on the board lives on. Sims move in from Move to, or click a lot. Drag this tag to move the box: nothing else moves it.`}</title>
-                <rect
-                  x={box.l + HH_TAG_INSET}
-                  y={box.t + HH_TAG_INSET}
-                  width={pillW}
-                  height={HH_TAG_PILL_H}
-                  rx={8}
-                  stroke={color + '77'}
-                  strokeWidth={1.25}
-                  strokeDasharray="4 3"
-                />
+            {/* The tag is always there to grab, as a household's is: zoomed
+                out it is a bar in the world's colour, its words hidden. */}
+            <g
+              className={onMoveBox ? 'lots__tag lots__tag--drag' : 'lots__tag'}
+              // Drag the tag to move the box: only you move it, and it stays where you put it.
+              onPointerDown={(ev) => {
+                if (!onMoveBox || ev.button !== 0) return;
+                ev.stopPropagation();
+                ev.currentTarget.setPointerCapture(ev.pointerId);
+                from.current = { x: ev.clientX, y: ev.clientY };
+                setDrag({ world: box.world, dx: 0, dy: 0 });
+              }}
+              onPointerMove={(ev) => {
+                if (!from.current || drag?.world !== box.world) return;
+                setDrag({ world: box.world, dx: (ev.clientX - from.current.x) / k, dy: (ev.clientY - from.current.y) / k });
+              }}
+              onPointerUp={() => {
+                if (drag?.world === box.world && from.current && (drag.dx || drag.dy)) onMoveBox?.(box.world, box.l + drag.dx, box.t + drag.dy);
+                from.current = null;
+                setDrag(null);
+              }}
+              onPointerCancel={() => {
+                from.current = null;
+                setDrag(null);
+              }}
+            >
+              <title>{`Lots in ${box.world} that no household on the board lives on. Sims move in from Move to, or click a lot. Drag this tag to move the box: nothing else moves it.`}</title>
+              <rect
+                x={box.l + HH_TAG_INSET}
+                y={box.t + HH_TAG_INSET}
+                width={pillW}
+                height={HH_TAG_PILL_H}
+                rx={8}
+                {...(labels
+                  ? { stroke: color + '77', strokeWidth: 1.25, strokeDasharray: '4 3' }
+                  : { style: { fill: color + '22' } })}
+              />
+              {labels && (
                 <text
                   x={box.l + HH_TAG_INSET + 11}
                   y={box.t + HH_TAG_INSET + HH_TAG_PILL_H / 2}
@@ -143,8 +145,8 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
                 >
                   {label}
                 </text>
-              </g>
-            )}
+              )}
+            </g>
             {box.tiles.map(({ lot, x, y, w, h }) => {
               const icon = neighbourhoodIconUrl(lot.world, lot.nb);
               const textX = x + PAD + ICON + 7;
