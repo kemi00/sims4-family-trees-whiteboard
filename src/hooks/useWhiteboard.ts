@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { growHousehold, landMovedCards } from '../lib/landing.ts';
+import { growHousehold, landMovedCards, type Box as LandBox } from '../lib/landing.ts';
 import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
@@ -1851,6 +1851,25 @@ export function useWhiteboard() {
     [pushUndo, groups],
   );
 
+  /**
+   * A world's Free lots box belongs to the world: when the world moves, its
+   * pinned box moves the same distance, in the same step (one undo). A box
+   * not pinned yet sits under the world's households and follows them anyway.
+   */
+  const shiftLotBoxes = useCallback((moved: readonly string[], dx: number, dy: number) => {
+    if (!moved.length || (!dx && !dy)) return;
+    setLotBoxAt((pins) => {
+      let next: LotBoxPins | null = null;
+      for (const w of moved) {
+        const pin = pins[w];
+        if (!pin) continue;
+        next ??= { ...pins };
+        next[w] = { ...pin, x: pin.x + dx, y: pin.y + dy };
+      }
+      return next ?? pins;
+    });
+  }, []);
+
   const moveNodesByWorld = useCallback(
     (
       world: string,
@@ -1867,19 +1886,33 @@ export function useWhiteboard() {
           return n;
         }),
       );
+      shiftLotBoxes([world], dx, dy);
     },
-    [pushUndo],
+    [pushUndo, shiftLotBoxes],
   );
 
-  /** Rigid move for a multi-selection (worlds, households, or cards). */
+  /**
+   * Rigid move for a multi-selection (worlds, households, or cards).
+   * `worlds`: the worlds selected, whose Free lots boxes go along.
+   */
   const moveNodesByIds = useCallback(
     (
       ids: string[],
       dx: number,
       dy: number,
       base: Record<string, { ox: number; oy: number }>,
+      worlds: readonly string[] = [],
     ) => {
-      if (dx || dy) pushUndo(ids.length === 1 ? `Move ${simCalled(ids[0]!)}` : `Move ${ids.length} sims`);
+      if (dx || dy)
+        pushUndo(
+          worlds.length === 1
+            ? `Move ${named(worlds[0]!)}`
+            : worlds.length > 1
+              ? `Move ${worlds.length} worlds`
+              : ids.length === 1
+                ? `Move ${simCalled(ids[0]!)}`
+                : `Move ${ids.length} sims`,
+        );
       const set = new Set(ids);
       setNodesCore((ns) =>
         ns.map((n) => {
@@ -1889,8 +1922,9 @@ export function useWhiteboard() {
           return n;
         }),
       );
+      shiftLotBoxes(worlds, dx, dy);
     },
-    [pushUndo, simCalled],
+    [pushUndo, simCalled, shiftLotBoxes],
   );
 
   const snapDragPosition = useCallback(
@@ -2419,12 +2453,12 @@ export function useWhiteboard() {
       patches: Map<string, Partial<SimNode>>,
       destGid: string,
       newGroup: Group | null,
-    ): { joined: boolean; outOfView: boolean; crowded: boolean } => {
-      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup, view: viewRect(), obstacles: lotRoom });
+    ): { joined: boolean; outOfView: boolean; crowded: boolean; box: LandBox | null } => {
+      const r = landMovedCards({ core: nodesCore, laid: nodes, worlds, edges, groups, patches, destGid, newGroup, view: viewRect(), obstacles: lotRoom, alive });
       setNodesCore(r.core);
       return r;
     },
-    [nodes, nodesCore, groups, worlds, edges, viewRect, lotRoom],
+    [nodes, nodesCore, groups, worlds, edges, viewRect, lotRoom, alive],
   );
 
   /**
@@ -3806,40 +3840,22 @@ export function useWhiteboard() {
       pushUndo(
         `Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${dest.isNew && dest.lot ? named(dest.lot) : theHousehold(dest.hh, named)}`,
       );
-      if (dest.isNew) {
-        setGroups((gs) =>
-          gs.some((g) => g.gid === dest.gid)
-            ? gs
-            : [
-                ...gs,
-                {
-                  gid: dest.gid,
-                  hh: dest.hh,
-                  world: dest.world,
-                  nb: dest.nb,
-                  ...(dest.lot ? { lot: dest.lot } : {}),
-                  color: dest.color,
-                  x: 0,
-                  y: 0,
-                  w: 0,
-                  h: 0,
-                },
-              ],
-        );
-      }
+      const newGroup: Group | null = dest.isNew
+        ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, ...(dest.lot ? { lot: dest.lot } : {}), color: dest.color, x: 0, y: 0, w: 0, h: 0 }
+        : null;
+      if (newGroup) setGroups((gs) => (gs.some((g) => g.gid === newGroup.gid) ? gs : [...gs, newGroup]));
       const createdAt = new Date().toISOString();
       setHouseholdMoves((ms) => [...ms, ...moves.map((m) => ({ ...m, id: 'h' + eidcRef.current++, createdAt }))]);
-      // One pass for every card: patching them one by one would each start
-      // from the same old board and keep only the last.
-      const apply = (ns: SimNode[]) =>
-        ns.map((n) => {
-          const patch = patches.get(n.id);
-          return patch ? toCore({ ...n, ...patch }) : n;
-        });
-      pinCardsToCurrentPlaces(edges, apply(nodesCore));
+      // Like a household moving: the cards land in their new household, where
+      // their family stands, and nothing else on the board moves. The view
+      // keeps them where they were on screen, gliding along.
+      const landed = landCards(patches, dest.gid, newGroup);
+      const moved = [...patches.keys()];
+      lockViewToSims(moved);
+      if (landed.outOfView && landed.box) revealBox(landed.box);
       return { dest, moved: patches.size, back };
     },
-    [groups, nodes, nodesCore, worlds, edges, householdMoves, pushUndo, pinCardsToCurrentPlaces, simCalled],
+    [groups, nodes, worlds, householdMoves, pushUndo, landCards, lockViewToSims, revealBox, simCalled],
   );
 
   /**
@@ -3878,7 +3894,7 @@ export function useWhiteboard() {
       setMultiSel({ kind: 'nodes', ids: movers.map((n) => n.id) });
       const who = done.moved === 1 ? cardName(movers[0]!) : `${done.moved} sims`;
       flashStatus(
-        `${named(who)} ${done.moved === 1 ? 'moves' : 'move'} to ${named(lot.name)} in ${lot.nb}, the ${named(done.dest.hh)} household. Their cards stay put: drag them into place. Undo with ⌘Z.`,
+        `${named(who)} ${done.moved === 1 ? 'moves' : 'move'} to ${named(lot.name)} in ${lot.nb}, the ${named(done.dest.hh)} household. Undo with ⌘Z.`,
       );
     },
     [byid, groups, nodes, nodesCore, edges, homes, pushUndo, pinCardsToCurrentPlaces, flashStatus, moveHouseholdToWorld, moveSimsToHousehold],
@@ -3890,11 +3906,14 @@ export function useWhiteboard() {
       if (!done) return;
       setEditNodeId(null);
       const n = byid[nodeId];
-      if (done.back && n) {
-        flashStatus(
-          `${named(cardName(n))} moves back to the ${named(done.dest.hh)} household: a new step in your plan. To drop their earlier move instead, use the bin on it in the Log.`,
-        );
-      }
+      if (!done.moved || !n) return;
+      // Picked where they landed, as after any move.
+      setSel({ type: 'node', id: nodeId });
+      flashStatus(
+        done.back
+          ? `${named(cardName(n))} moves back to the ${named(done.dest.hh)} household: a new step in your plan. To drop their earlier move instead, use the bin on it in the Log.`
+          : `${named(cardName(n))} moves to the ${named(done.dest.hh)} household in ${named(done.dest.world)}. Undo with ⌘Z.`,
+      );
     },
     [moveSimsToHousehold, byid, flashStatus],
   );

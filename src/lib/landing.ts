@@ -1,6 +1,6 @@
 import { HH_TAG_BAND, TILE } from './constants.ts';
 import { toCore } from './autosave.ts';
-import { LAYOUT, layoutBases } from './layout.ts';
+import { householdAddSpot, LAYOUT, laneStrip, layoutBases, partnerSpot, petAddSpot, spawnChildOrigin } from './layout.ts';
 import { householdChrome, tileSnapOrigin } from './tiles.ts';
 import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 
@@ -306,15 +306,87 @@ export function growHousehold(opts: {
   return { core: pinCards(core, laid, worlds, edges, placed), box, ...g };
 }
 
+const isAnimal = (n: { species?: string; state?: string }): boolean => !!n.species || n.state === 'Pet';
+
 /**
- * Cards a move sends to household `destGid` (their `patches`) land there as
- * a block, keeping their places among themselves. Joining cards already
- * there, they go in rows under that household where it has room
- * (growHousehold). As a household of their own, they go in free room beside
- * the world's households (freeHouseholdSpot). Either way no other card
- * moves: a hand-arranged board stays as it was. Returns the cards' new
- * core, whether they joined cards already there, and for those, where they
- * went (see growHousehold).
+ * Where cards joining a household (`block`, keeping their arrangement) would
+ * stand by family, as top-left places for the whole block, best first:
+ * - beside a partner already there, or the other parent of their child:
+ *   couples and co-parents level;
+ * - under their parents already there, beside full siblings;
+ * - animals in the household's animal lane;
+ * - the household's next free spot, as the + button adds one.
+ * householdGrowth takes the first that is free, else the free place nearest
+ * the first. `alive` leaves out partners who passed away.
+ */
+export function joinSpots(opts: {
+  /** The household's cards, laid out. */
+  home: SimNode[];
+  /** Every card on the board but the block, laid out. */
+  others: SimNode[];
+  block: SimNode[];
+  edges: Edge[];
+  alive: (id: string) => boolean;
+  label?: Group | null;
+}): Point[] {
+  const { home, others, block, edges, alive, label } = opts;
+  if (!home.length || !block.length) return [];
+  const from = topLeft(block);
+  const byId = new Map(home.map((n) => [n.id, n]));
+  const strip = laneStrip(home);
+  const taken = strip ? [...others, strip] : others;
+  const out: Point[] = [];
+  /** The block's top-left that puts `m` at `p`. */
+  const put = (m: SimNode, p: Point | null) => {
+    if (p) out.push({ x: p.x - (m.x - from.x), y: p.y - (m.y - from.y) });
+  };
+  const parentsOf = (id: string) => edges.filter((e) => e.type === 'parent' && e.b === id).map((e) => e.a);
+  for (const m of block) {
+    if (isAnimal(m)) continue;
+    const partners = edges
+      .filter((e) => (e.type === 'marriage' || e.type === 'romance') && !e.ending && (e.a === m.id || e.b === m.id))
+      .map((e) => (e.a === m.id ? e.b : e.a))
+      .filter((id) => alive(id) && alive(m.id) && byId.has(id));
+    const kids = edges.filter((e) => e.type === 'parent' && e.a === m.id).map((e) => e.b);
+    const coParents = kids.flatMap(parentsOf).filter((id) => id !== m.id && byId.has(id));
+    for (const id of [...partners, ...coParents]) {
+      const host = byId.get(id)!;
+      put(m, partnerSpot(host, taken, 'right'));
+      put(m, { x: host.x + host.w + LAYOUT.partnerGap, y: host.y });
+    }
+    const parents = parentsOf(m.id)
+      .map((id) => byId.get(id))
+      .filter((n): n is SimNode => !!n);
+    if (parents.length) {
+      const mine = new Set(parents.map((n) => n.id));
+      const siblings = home.filter((n) => {
+        const theirs = parentsOf(n.id);
+        return theirs.length === mine.size && theirs.every((id) => mine.has(id));
+      });
+      const l = Math.min(...parents.map((n) => n.x));
+      const r = Math.max(...parents.map((n) => n.x + n.w));
+      put(m, spawnChildOrigin(Math.max(...parents.map((n) => n.y)), (l + r) / 2, m.w, siblings, taken));
+    }
+  }
+  const lead = block[0]!;
+  if (block.every(isAnimal)) put(lead, petAddSpot(home, others));
+  else {
+    const chrome = householdChrome(home, label);
+    if (chrome) put(lead, householdAddSpot(home, others, chrome.boxR));
+  }
+  return out;
+}
+
+/**
+ * Cards a move sends to household `destGid` (their `patches`) land there,
+ * a block per household they come from, each keeping its places among
+ * itself. Joining cards already there, they go where their family stands
+ * when `alive` is given (joinSpots), else in rows under that household,
+ * where it has room (growHousehold). As a household of their own, they go
+ * in free room beside the world's households (freeHouseholdSpot). Either
+ * way no other card moves: a hand-arranged board stays as it was. Returns
+ * the cards' new core, whether they joined cards already there, and where
+ * they went (see growHousehold).
  */
 export function landMovedCards(opts: {
   core: SimNode[];
@@ -329,51 +401,98 @@ export function landMovedCards(opts: {
   view?: Box | null;
   /** Room taken by other things on the board (its Free lots boxes): the cards land around it. */
   obstacles?: readonly Box[];
+  /** Who is alive: with it, joining cards go where their family stands (joinSpots). */
+  alive?: (id: string) => boolean;
 }): { core: SimNode[]; joined: boolean; outOfView: boolean; crowded: boolean; box: Box | null } {
-  const { core, laid, worlds, edges, groups, patches, destGid, newGroup, view, obstacles } = opts;
+  const { core, worlds, edges, groups, patches, destGid, newGroup, view, obstacles, alive } = opts;
+  let { laid } = opts;
   const ids = new Set(patches.keys());
   const byId = new Map(laid.map((n) => [n.id, n]));
   const moved = [...ids].map((id) => byId.get(id)).filter((n): n is SimNode => !!n);
-  const nextCore = core.map((x) => {
+  let nextCore = core.map((x) => {
     const patch = patches.get(x.id);
     return patch ? toCore({ ...x, ...patch, ox: 0, oy: 0 }) : x;
   });
-  const joined = laid.filter((n) => n.gid === destGid && !ids.has(n.id));
-  if (!moved.length) return { core: nextCore, joined: joined.length > 0, outOfView: false, crowded: false, box: null };
+  const already = laid.filter((n) => n.gid === destGid && !ids.has(n.id));
+  if (!moved.length) return { core: nextCore, joined: already.length > 0, outOfView: false, crowded: false, box: null };
   const allGroups = newGroup ? [...groups, newGroup] : groups;
-  if (joined.length) {
-    const under = tileSnapOrigin(
-      Math.min(...joined.map((n) => n.x)),
-      Math.max(...joined.map((n) => n.y + n.h)) + LAYOUT.gapYExtra,
-    );
-    const r = growHousehold({
-      core: nextCore,
-      laid,
-      worlds,
-      edges,
-      groups: allGroups,
-      gid: destGid,
-      block: moved.map((n) => ({ ...n, gid: destGid })),
-      spots: [under],
-      view,
-      ...(obstacles ? { obstacles } : {}),
-    });
-    return { core: r.core, joined: true, outOfView: r.outOfView, crowded: r.crowded, box: r.box };
+  // A block per household they come from: sims picked far apart don't
+  // carry the board's distances between them into their new home.
+  const blocks = new Map<string, SimNode[]>();
+  for (const n of moved) blocks.set(n.gid, [...(blocks.get(n.gid) ?? []), n]);
+  const label = allGroups.find((g) => g.gid === destGid) ?? null;
+  let outOfView = false;
+  let crowded = false;
+  let box: Box | null = null;
+  for (const block of blocks.values()) {
+    const inBlock = new Set(block.map((n) => n.id));
+    const from = topLeft(block);
+    // The household as it stands: its own cards, and blocks landed before.
+    const home = laid.filter((n) => n.gid === destGid && !inBlock.has(n.id));
+    let at: Point;
+    if (!home.length) {
+      at = asNewHousehold({ core: nextCore, laid, worlds, edges, groups: allGroups, label, block, inBlock, obstacles });
+      const placed = new Map(block.map((n) => [n.id, { x: n.x - from.x + at.x, y: n.y - from.y + at.y }]));
+      nextCore = pinCards(nextCore, laid, worlds, edges, placed);
+    } else {
+      const under = tileSnapOrigin(
+        Math.min(...home.map((n) => n.x)),
+        Math.max(...home.map((n) => n.y + n.h)) + LAYOUT.gapYExtra,
+      );
+      const family = alive
+        ? joinSpots({ home, others: laid.filter((n) => !inBlock.has(n.id)), block, edges, alive, label })
+        : [];
+      const r = growHousehold({
+        core: nextCore,
+        laid,
+        worlds,
+        edges,
+        groups: allGroups,
+        gid: destGid,
+        block: block.map((n) => ({ ...n, gid: destGid })),
+        spots: [...family, under],
+        view,
+        ...(obstacles ? { obstacles } : {}),
+      });
+      nextCore = r.core;
+      at = r.at;
+      outOfView ||= r.outOfView;
+      crowded ||= r.crowded;
+      box = box ? union(box, r.box) : r.box;
+    }
+    laid = laid.map((n) => (inBlock.has(n.id) ? { ...n, x: n.x - from.x + at.x, y: n.y - from.y + at.y, gid: destGid } : n));
   }
-  const bases = layoutBases(nextCore, worlds, edges);
-  const own = [...ids].map((id) => bases.get(id)).filter((b) => b !== undefined);
+  return { core: nextCore, joined: already.length > 0, outOfView, crowded, box };
+}
+
+/**
+ * Where the first block of a household of its own lands, as its top-left:
+ * free room beside the world's households (freeHouseholdSpot), searched
+ * from where the layout would put it.
+ */
+function asNewHousehold(opts: {
+  core: SimNode[];
+  laid: SimNode[];
+  worlds: World[];
+  edges: Edge[];
+  groups: Group[];
+  label: Group | null;
+  block: SimNode[];
+  inBlock: ReadonlySet<string>;
+  obstacles?: readonly Box[] | undefined;
+}): Point {
+  const { core, laid, worlds, edges, groups, label, block, inBlock, obstacles } = opts;
+  const bases = layoutBases(core, worlds, edges);
+  const own = [...inBlock].map((id) => bases.get(id)).filter((b) => b !== undefined);
   const near = { x: Math.min(...own.map((b) => b!.x)), y: Math.min(...own.map((b) => b!.y)) };
-  const world = patches.get(moved[0]!.id)?.world ?? moved[0]!.world;
-  const anchor = freeHouseholdSpot({
-    others: laid.filter((n) => !ids.has(n.id)),
-    groups: allGroups,
+  const world = core.find((n) => inBlock.has(n.id))?.world ?? block[0]!.world;
+  return freeHouseholdSpot({
+    others: laid.filter((n) => !inBlock.has(n.id)),
+    groups,
     world,
-    block: moved,
-    label: allGroups.find((g) => g.gid === destGid) ?? null,
+    block,
+    label,
     near,
     ...(obstacles ? { obstacles } : {}),
   });
-  const from = topLeft(moved);
-  const placed = new Map(moved.map((n) => [n.id, { x: n.x - from.x + anchor.x, y: n.y - from.y + anchor.y }]));
-  return { core: pinCards(nextCore, laid, worlds, edges, placed), joined: false, outOfView: false, crowded: false, box: null };
 }

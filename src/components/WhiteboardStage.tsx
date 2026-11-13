@@ -126,9 +126,14 @@ type Props = {
   onPoster?: (gid: string) => void;
 };
 
-/** Chrome on #stage that owns its own wheel (scroll), not board zoom. */
-const STAGE_WHEEL_SCROLL_SEL =
-  '#legend, #hint, .legend-chip, .editor, .menu, .bloodline-banner, .minimap';
+/**
+ * The board's own gestures (wheel and pinch zoom, touch panning) belong to
+ * the board itself: the svg. Everything drawn over it, every panel, menu,
+ * card, bar or banner, today's and any added later, keeps the wheel and the
+ * finger to itself: it scrolls when it can, and nothing happens when it can't.
+ */
+const onBoardSvg = (svg: SVGSVGElement | null, t: EventTarget | null): boolean =>
+  !!svg && t instanceof Node && svg.contains(t);
 
 export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, onPoster }: Props) {
   const compact = useCompactChrome();
@@ -631,11 +636,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
   }, [wb.connSrc, wb.connectMenu]);
 
   useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
     const onWheel = (ev: WheelEvent) => {
-      const t = ev.target as Element | null;
-      if (t?.closest?.(STAGE_WHEEL_SCROLL_SEL)) return;
+      if (!onBoardSvg(svgRef.current, ev.target)) {
+        // Over a panel: it scrolls, or nothing happens. A pinch (a wheel
+        // with Ctrl) never zooms the page or the board from there.
+        if (ev.ctrlKey) ev.preventDefault();
+        return;
+      }
       ev.preventDefault();
       const r = svgRef.current!.getBoundingClientRect();
       const next = wheelViewport(
@@ -647,40 +654,41 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       if (next === viewportLiveRef.current) return;
       scheduleWheelViewport(next);
     };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [stageRef, svgRef, scheduleWheelViewport]);
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, [svgRef, scheduleWheelViewport]);
 
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
-    const chromeSel =
-      '.viewctl, #legend, #hint, #hintIcon, .editor, .menu, #status, #autosave-cue, .legend-chip, .bloodline-banner, .selbar, .minimap';
+    // A finger on a panel scrolls it natively; only the board's own touches
+    // are taken over (pan, pinch, drag).
     const onTouchStart = (ev: TouchEvent) => {
-      const t = ev.target as Element | null;
-      if (t?.closest?.(chromeSel)) return;
+      if (!onBoardSvg(svgRef.current, ev.target)) return;
       ev.preventDefault();
     };
     el.addEventListener('touchstart', onTouchStart, { passive: false });
     return () => el.removeEventListener('touchstart', onTouchStart);
-  }, [stageRef]);
+  }, [stageRef, svgRef]);
 
   useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
     type SafariGestureEvent = Event & {
       scale: number;
       clientX: number;
       clientY: number;
     };
     let gscale = 1;
+    // Safari's pinch: it zooms the board only when it starts over the board.
+    // Over a panel nothing zooms, not the page either.
+    let onBoard = false;
     const onStart = (ev: Event) => {
       ev.preventDefault();
+      onBoard = onBoardSvg(svgRef.current, ev.target);
       gscale = (ev as SafariGestureEvent).scale || 1;
     };
     const onChange = (ev: Event) => {
       ev.preventDefault();
-      if (pointersRef.current.size >= 2) return;
+      if (!onBoard || pointersRef.current.size >= 2) return;
       const gev = ev as SafariGestureEvent;
       const s = gev.scale || 1;
       if (gscale > 0) {
@@ -700,15 +708,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       gscale = s;
     };
     const onEnd = (ev: Event) => ev.preventDefault();
-    el.addEventListener('gesturestart', onStart, { passive: false });
-    el.addEventListener('gesturechange', onChange, { passive: false });
-    el.addEventListener('gestureend', onEnd, { passive: false });
+    window.addEventListener('gesturestart', onStart, { passive: false });
+    window.addEventListener('gesturechange', onChange, { passive: false });
+    window.addEventListener('gestureend', onEnd, { passive: false });
     return () => {
-      el.removeEventListener('gesturestart', onStart);
-      el.removeEventListener('gesturechange', onChange);
-      el.removeEventListener('gestureend', onEnd);
+      window.removeEventListener('gesturestart', onStart);
+      window.removeEventListener('gesturechange', onChange);
+      window.removeEventListener('gestureend', onEnd);
     };
-  }, [stageRef, svgRef, scheduleWheelViewport]);
+  }, [svgRef, scheduleWheelViewport]);
 
   // Fit exactly once, as soon as the stage has been laid out. This must not
   // depend on wb.fit: that identity changes on every node edit, and observing
@@ -1407,7 +1415,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       const d = multiDragRef.current;
       if (d.armed) {
         endDragPreview();
-        wb.moveNodesByIds(d.ids, d.lastDx, d.lastDy, d.base);
+        wb.moveNodesByIds(d.ids, d.lastDx, d.lastDy, d.base, d.sel.kind === 'worlds' ? d.sel.worlds : []);
       } else if (d.toggleId) {
         wb.toggleSimInSelection(d.toggleId);
       }
@@ -2213,7 +2221,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             const ids = selectedSims.map((n) => n.id);
             const done = wb.moveSimsToHousehold(ids, world, house, name);
             if (!done) return;
-            // Keep the sims picked, so their cards can be dragged into place.
+            // They stay picked where they landed: a nudge is one drag away.
             wb.setMultiSel({ kind: 'nodes', ids });
             const { dest, moved, back } = done;
             const where = `the ${dest.hh} household in ${dest.world}`;
@@ -2223,7 +2231,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             wb.flashStatus(
               moved === 0
                 ? `They already live in ${where}.`
-                : `Moved ${moved === 1 ? '1 sim' : `${moved} sims`} to ${where}${dest.isNew ? ' (new)' : ''}.${cancels} Their cards stay put: drag them into place. Undo with ⌘Z.`,
+                : `Moved ${moved === 1 ? '1 sim' : `${moved} sims`} to ${where}${dest.isNew ? ' (new)' : ''}.${cancels} Undo with ⌘Z.`,
             );
           }}
           onClear={() => wb.clearMultiSel()}

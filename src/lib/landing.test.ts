@@ -7,7 +7,7 @@ import { freeHouseholdSpot, growHousehold, householdGrowth, landMovedCards } fro
 import { computeLayout } from './layout.ts';
 import { householdChrome, snapNodesToTiles } from './tiles.ts';
 import { migrateWhiteboardData } from './utils.ts';
-import type { Group, HhBoxDraw, SimNode, WhiteboardData } from '../types/whiteboard.ts';
+import type { Edge, Group, HhBoxDraw, SimNode, WhiteboardData } from '../types/whiteboard.ts';
 import seedRoster from '../data/whiteboard.json' with { type: 'json' };
 
 const overlaps = (a: HhBoxDraw, b: HhBoxDraw) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
@@ -91,6 +91,69 @@ describe('a household moving to another world', () => {
         assert.ok(now.x === n.x && now.y === n.y, `joining ${to.gid}: ${n.id} moved`);
       }
     }
+  });
+});
+
+describe('sims moving into another household', () => {
+  const seed = migrateWhiteboardData(seedRoster as unknown as WhiteboardData);
+  const worlds = seed.worlds!;
+  const groups = seed.groups!;
+  const lay = (core: SimNode[], edges: Edge[]) => snapNodesToTiles(computeLayout(core, worlds, edges));
+  const laid0 = lay(seed.nodes, seed.edges);
+  const sims = (gid: string) => laid0.filter((n) => n.gid === gid && !n.species && n.state !== 'Pet');
+  // A household of a few sims in Willow Creek, and sims from other worlds.
+  const home = groups.find((g) => g.world === 'Willow Creek' && sims(g.gid).length >= 2)!;
+  const host = sims(home.gid)[0]!;
+  const outsiders = groups.filter((g) => g.world !== 'Willow Creek' && sims(g.gid).length >= 1).map((g) => sims(g.gid)[0]!);
+  const move = (ids: string[], edges: Edge[]) => {
+    const laid = lay(seed.nodes, edges);
+    const dest = moveDestination(groups, laid, worlds, 'Willow Creek', home.gid)!;
+    const { patches } = householdMovePlan(laid, ids, dest);
+    const r = landMovedCards({ core: seed.nodes, laid, worlds, edges, groups, patches, destGid: home.gid, newGroup: null, alive: all });
+    return { laid, after: new Map(lay(r.core, edges).map((n) => [n.id, n])) };
+  };
+  const stayed = (laid: SimNode[], after: Map<string, SimNode>, ids: string[]) => {
+    for (const n of laid) {
+      if (ids.includes(n.id)) continue;
+      const now = after.get(n.id)!;
+      assert.ok(now.x === n.x && now.y === n.y, `${n.id} moved`);
+    }
+  };
+
+  it('lands beside a partner already there, level with them, and moves no one else', () => {
+    const mover = outsiders[0]!;
+    const edges: Edge[] = [...seed.edges, { id: 'tl1', a: host.id, b: mover.id, type: 'romance' }];
+    const { laid, after } = move([mover.id], edges);
+    const now = after.get(mover.id)!;
+    const h = after.get(host.id)!;
+    assert.equal(now.gid, home.gid);
+    assert.equal(now.y, h.y, 'level with their partner');
+    assert.ok(Math.abs(now.x - h.x) <= h.w + CARD_MIN_W + 4 * TILE, `beside their partner: ${now.x} vs ${h.x}`);
+    stayed(laid, after, [mover.id]);
+  });
+
+  it('lands under a parent already there', () => {
+    const mover = outsiders[1]!;
+    const edges: Edge[] = [...seed.edges, { id: 'tl2', a: host.id, b: mover.id, type: 'parent' }];
+    const { laid, after } = move([mover.id], edges);
+    const now = after.get(mover.id)!;
+    const h = after.get(host.id)!;
+    assert.ok(now.y > h.y, 'below their parent');
+    stayed(laid, after, [mover.id]);
+  });
+
+  it('sims picked far apart land together, not as far apart as they were', () => {
+    const a = outsiders[0]!;
+    const b = outsiders.find((n) => Math.abs(n.x - a.x) + Math.abs(n.y - a.y) > 3000)!;
+    const { laid, after } = move([a.id, b.id], seed.edges);
+    const na = after.get(a.id)!;
+    const nb = after.get(b.id)!;
+    const box = hhBoxDraw(home.gid, [...after.values()], groups, all)!;
+    for (const n of [na, nb]) {
+      assert.ok(n.x >= box.l - 1 && n.x + n.w <= box.r + 1 && n.y >= box.t - 1 && n.y + n.h <= box.b + 1, `${n.id} in the household`);
+    }
+    assert.ok(box.r - box.l < 3000 && box.b - box.t < 3000, `household stays compact: ${box.r - box.l}×${box.b - box.t}`);
+    stayed(laid, after, [a.id, b.id]);
   });
 });
 
