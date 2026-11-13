@@ -60,6 +60,28 @@ describe('the chronicle', () => {
     assert.equal(entryAbout(withPrestige, new Set(['a']))!.recap!.prestige!.length, 0);
   });
 
+  it('tells a dynasty or family moment in the story of everyone it names', () => {
+    const page = chronicleEntry(game(11), {
+      recap: {
+        ...recap,
+        born: [],
+        together: [],
+        moved: [],
+        died: [],
+        dynasty: [{ kind: 'heir', sim: { id: 'c6', name: 'Cordelia Thebe VI' }, replaced: { id: 'th', name: 'Thiago Abrantes' }, dynasty: { key: 'id:7', name: 'Thebe' } }],
+        family: [{ kind: 'adopted', parents: [{ id: 'm', name: 'Miko Ojo' }], child: { id: 'd', name: 'Darling Walsh' } }],
+      },
+    });
+    assert.equal(entryAbout(page, new Set(['th']))!.recap!.dynasty!.length, 1);
+    assert.equal(entryAbout(page, new Set(['nobody']), '', new Set(['id:7']))!.recap!.dynasty!.length, 1);
+    assert.equal(entryAbout(page, new Set(['d']))!.recap!.family!.length, 1);
+    assert.equal(entryAbout(page, new Set(['m']))!.recap!.family!.length, 1);
+    assert.deepEqual(
+      storyLines([page], new Set(['m', 'd', 'th'])).map((l) => l.text),
+      ['Miko Ojo adopted Darling Walsh', 'Cordelia Thebe VI became heir of the Thebe dynasty, in place of Thiago Abrantes'],
+    );
+  });
+
   it('finds a name in the story', () => {
     const found = entryAbout(next, null, 'giacomo')!.recap!;
     assert.deepEqual([found.born.length, found.died.map((d) => d.name)], [0, ['Giacomo Capp']]);

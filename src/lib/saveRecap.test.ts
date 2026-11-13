@@ -71,3 +71,70 @@ describe('previously on', () => {
     assert.equal(recapTimeText(r.days), null);
   });
 });
+
+describe('everything else a save changed, planned or not', () => {
+  const thebe = { dynasty: 'Thebe', dynastyId: '7' };
+  const cordelia = sim('c5', 'Cordelia', { sur: 'Thebe', ...thebe, dynastyRole: 'head' });
+  const thiago = sim('th', 'Thiago', { sur: 'Abrantes', ...thebe, dynastyRole: 'heir' });
+  const baby = sim('c6', 'Cordelia VI', { sur: 'Thebe', added: true, saveSimId: undefined, age: 'Unknown', ...thebe, dynastyRole: 'heir', dynastyPlan: 'member' });
+  const miko = sim('m', 'Miko', { sur: 'Ojo', gid: 'Ondarion||Ojo', hh: 'Ojo' });
+  const darling = sim('d', 'Darling', { sur: 'Walsh', gid: 'Ondarion||Walsh', hh: 'Walsh', age: 'Child' });
+  const kai = sim('k', 'Kai', { sur: 'Ojo', gid: 'Ondarion||Ojo', hh: 'Ojo', age: 'Teen' });
+  const before = { nodes: [cordelia, thiago, baby, miko, darling, kai], edges: [] as Edge[], saveGame: { importedAt: 'x', clock: day } };
+  const after = {
+    nodes: [
+      cordelia,
+      { ...thiago, dynastyRole: undefined },
+      { ...baby, added: undefined, saveSimId: 's-c6', age: 'Newborn', dynastyPlan: undefined },
+      { ...miko, state: 'Vampire', marriedSur: 'Capp' },
+      { ...darling, gid: 'Ondarion||Ojo', hh: 'Ojo' },
+      kai,
+    ],
+    edges: [
+      { id: 'a', a: 'm', b: 'd', type: 'parent', source: 'save', adopted: true },
+      { id: 'f', a: 'm', b: 'k', type: 'parent', source: 'save', secret: true },
+    ] as Edge[],
+    saveGame: { importedAt: 'y', clock: 2 * day },
+  };
+  const r = saveRecap(before, after);
+
+  it('tells a new heir in place of the old one, as planned, in both their stories', () => {
+    const heir = r.dynasty!.find((d) => d.kind === 'heir')!;
+    assert.deepEqual([heir.sim.id, heir.replaced?.id, heir.planned], ['c6', 'th', true]);
+    // One line for both: no separate "no longer heir" for Thiago.
+    assert.equal(r.dynasty!.filter((d) => d.kind === 'noLongerHeir').length, 0);
+  });
+
+  it('tells an heir dropped with no one in their place', () => {
+    const r2 = saveRecap(before, { ...after, nodes: after.nodes.map((n) => (n.id === 'c6' ? { ...n, dynastyRole: undefined } : n)) });
+    const gone = r2.dynasty!.find((d) => d.kind === 'noLongerHeir')!;
+    assert.equal(gone.sim.id, 'th');
+  });
+
+  it('tells an unplanned adoption, a parent the tree now shows, a new life state and a new name', () => {
+    assert.deepEqual(
+      r.family!.map((f) => (f.kind === 'adopted' ? ['adopted', f.parents.map((p) => p.id), f.child.id, !!f.planned] : ['found', f.parent.id, f.child.id, !!f.secret])),
+      [
+        ['adopted', ['m'], 'd', false],
+        ['found', 'm', 'k', true],
+      ],
+    );
+    assert.deepEqual(
+      r.life!.map((l) => [l.kind, l.sim.id, l.to]),
+      [
+        ['state', 'm', 'Vampire'],
+        ['name', 'm', 'Capp'],
+      ],
+    );
+  });
+
+  it('tells a household moving home together as one move', () => {
+    const r3 = saveRecap(before, {
+      ...before,
+      nodes: before.nodes.map((n) => (n.hh === 'Ojo' ? { ...n, world: 'Willow Creek', gid: 'Willow Creek||Ojo', lot: 'Ophelia Villa' } : n)),
+      saveGame: after.saveGame,
+    });
+    assert.deepEqual(r3.homes, [{ hh: 'Ojo', ids: ['m', 'k'], to: 'Ophelia Villa in Willow Creek' }]);
+    assert.equal(r3.moved.length, 0);
+  });
+});

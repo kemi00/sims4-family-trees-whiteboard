@@ -1,5 +1,5 @@
 import { dayOf, dayText, seasonNow, yearOf } from './lifeClock.ts';
-import type { RecapSim, SaveRecap } from './saveRecap.ts';
+import { dynastyText, familyText, homeText, lifeText, type RecapSim, type SaveRecap } from './saveRecap.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
 
 /**
@@ -106,9 +106,38 @@ export function entryAbout(
     ...(r.prestige
       ? { prestige: r.prestige.filter((p) => (!ids || !!dynasties?.has(p.key)) && says(q, p.name)) }
       : {}),
+    // Each moment belongs to the story of every sim it names, and a dynasty's to that dynasty's.
+    ...(r.dynasty
+      ? {
+          dynasty: r.dynasty.filter(
+            (d) => (has(ids, d.sim, d.replaced) || !!dynasties?.has(d.dynasty.key)) && says(q, d.sim.name, d.replaced?.name, d.dynasty.name, d.dynasty.tag),
+          ),
+        }
+      : {}),
+    ...(r.family
+      ? {
+          family: r.family.filter((f) =>
+            f.kind === 'adopted'
+              ? has(ids, f.child, ...f.parents) && says(q, f.child.name, ...f.parents.map((p) => p.name))
+              : has(ids, f.child, f.parent) && says(q, f.child.name, f.parent.name),
+          ),
+        }
+      : {}),
+    ...(r.life ? { life: r.life.filter((l) => has(ids, l.sim) && says(q, l.sim.name, l.from, l.to)) } : {}),
+    ...(r.homes ? { homes: r.homes.filter((h) => has(ids, ...h.ids) && says(q, h.hh, h.to)) } : {}),
   };
   const any =
-    recap.born.length + recap.together.length + recap.apart.length + recap.moved.length + recap.grew.length + recap.died.length + (recap.prestige?.length ?? 0);
+    recap.born.length +
+    recap.together.length +
+    recap.apart.length +
+    recap.moved.length +
+    recap.grew.length +
+    recap.died.length +
+    (recap.prestige?.length ?? 0) +
+    (recap.dynasty?.length ?? 0) +
+    (recap.family?.length ?? 0) +
+    (recap.life?.length ?? 0) +
+    (recap.homes?.length ?? 0);
   if (!any && (ids || q || (!recap.met && !recap.seasons))) return null;
   return { ...e, recap };
 }
@@ -131,6 +160,11 @@ export function storyLines(entries: readonly ChronicleEntry[], ids: ReadonlySet<
     for (const t of r.together) out.push({ when, text: `${t.a.name} ${t.type === 'marriage' ? 'married' : 'fell for'} ${t.b.name}` });
     for (const t of r.apart) out.push({ when, text: `${t.a.name} and ${t.b.name} ${t.type === 'divorced' ? 'divorced' : 'broke up'}` });
     for (const d of r.died) out.push({ when, text: `${d.name} passed away` });
+    // The dynasty's milestones and the family's adoptions: its big moments too.
+    for (const f of r.family ?? []) if (f.kind === 'adopted') out.push({ when, text: familyText(f) });
+    for (const d of r.dynasty ?? []) if (d.kind === 'head' || d.kind === 'heir' || d.kind === 'founded') out.push({ when, text: dynastyText(d) });
+    for (const h of r.homes ?? []) out.push({ when, text: homeText(h) });
+    for (const l of r.life ?? []) if (l.kind === 'state') out.push({ when, text: lifeText(l) });
   }
   return out;
 }

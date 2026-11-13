@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { CloseButton } from './CloseButton.tsx';
-import { recapTimeText, type RecapSim, type SaveRecap } from '../lib/saveRecap.ts';
+import { lifeText, recapTimeText, theDynasty, type DynastyNews, type LifeNews, type RecapSim, type SaveRecap } from '../lib/saveRecap.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
@@ -73,6 +73,47 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       {s.name}
     </button>
   );
+  const planned = (on?: boolean) => on && <span className="recap__done">as planned</span>;
+  const and = (sims: RecapSim[]) =>
+    sims.map((p, i) => (
+      <span key={p.id}>
+        {i > 0 && ' and '}
+        {who(p)}
+      </span>
+    ));
+  const dynastyItem = (d: DynastyNews): ReactNode => {
+    const the = theDynasty(d.dynasty);
+    const instead = d.replaced ? <>, in place of {who(d.replaced)}</> : null;
+    const said: Record<DynastyNews['kind'], ReactNode> = {
+      head: <>became head of {the}{instead}</>,
+      heir: <>became heir of {the}{instead}</>,
+      outcast: <>was made an outcast of {the}</>,
+      noLongerHead: <>is no longer head of {the}</>,
+      noLongerHeir: <>is no longer heir of {the}</>,
+      noLongerOutcast: <>is no longer an outcast of {the}</>,
+      joined: <>joined {the}</>,
+      left: <>left {the}</>,
+      founded: <>founded {the}</>,
+    };
+    return (
+      <>
+        {who(d.sim)} {said[d.kind]}
+        {planned(d.planned)}
+      </>
+    );
+  };
+  const lifeItem = (l: LifeNews): ReactNode => {
+    if (l.kind === 'name') return <>{who(l.sim)} took the name {l.to}</>;
+    if (l.kind === 'renamed') return <>{l.from} is now called {who(l.sim)}</>;
+    // The sentence the board tells everywhere, the name to click in it.
+    const text = lifeText(l);
+    return (
+      <>
+        {who(l.sim)}
+        {text.slice(l.sim.name.length)}
+      </>
+    );
+  };
   const sections: { key: string; mark: string; title: string; items: ReactNode[] }[] = [
     {
       key: 'born',
@@ -98,6 +139,29 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       )),
     },
     {
+      key: 'family',
+      mark: '👪',
+      title: 'Family',
+      items: (recap.family ?? []).map((f) =>
+        f.kind === 'adopted' ? (
+          <>
+            {and(f.parents)} adopted {who(f.child)}
+            {planned(f.planned)}
+          </>
+        ) : (
+          <>
+            The family tree shows {who(f.parent)} as {f.secret ? 'a secret parent' : 'a parent'} of {who(f.child)}
+          </>
+        ),
+      ),
+    },
+    {
+      key: 'dynasty',
+      mark: '⚜️',
+      title: 'Dynasty',
+      items: (recap.dynasty ?? []).map(dynastyItem),
+    },
+    {
       key: 'apart',
       mark: '💔',
       title: 'Apart',
@@ -111,11 +175,22 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       key: 'moved',
       mark: '🏠',
       title: 'Moved',
-      items: recap.moved.map((m) => (
-        <>
-          {who(m)} moved to {m.to}
-        </>
-      )),
+      items: [
+        ...(recap.homes ?? []).map((h) => (
+          <>
+            The{' '}
+            <button type="button" className="recap__sim" onClick={() => onGoToSim(h.ids[0]!)}>
+              {h.hh}
+            </button>{' '}
+            household moved to {h.to}
+          </>
+        )),
+        ...recap.moved.map((m) => (
+          <>
+            {who(m)} moved to {m.to}
+          </>
+        )),
+      ],
     },
     {
       key: 'grew',
@@ -126,6 +201,12 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
           {who(g)}: {g.from} to {g.to}
         </>
       )),
+    },
+    {
+      key: 'life',
+      mark: '🔮',
+      title: 'Life',
+      items: (recap.life ?? []).map(lifeItem),
     },
     {
       key: 'died',
