@@ -77,6 +77,27 @@ export function hasNoHome(n: Pick<SimNode, 'world' | 'gid'>): boolean {
   return n.world === NOT_IN_WORLD || isUnhousedGid(n.gid);
 }
 
+/**
+ * Two sims in different households, one of them at least with a home to
+ * move into: a couple just linked is asked whether one moves in.
+ */
+export function livesApart(a: Pick<SimNode, 'world' | 'gid'>, b: Pick<SimNode, 'world' | 'gid'>): boolean {
+  return a.gid !== b.gid && (!hasNoHome(a) || !hasNoHome(b));
+}
+
+/**
+ * Who could move in with whom when `first` and `second` live apart: the
+ * second into the first's home, then the first into the second's, each
+ * only when the host has a home.
+ */
+export function moveInChoices<T extends Pick<SimNode, 'world' | 'gid'>>(first: T, second: T): { mover: T; host: T }[] {
+  if (first.gid === second.gid) return [];
+  return [
+    ...(!hasNoHome(first) ? [{ mover: second, host: first }] : []),
+    ...(!hasNoHome(second) ? [{ mover: first, host: second }] : []),
+  ];
+}
+
 /** Days a card has lived as far as the board can tell, in Normal days. */
 export function placeInLife(n: SimNode): { days: number; approx: boolean } | null {
   if (n.life && n.life.stage === n.age) {

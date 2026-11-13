@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode, SimLife } from '../types/whiteboard.ts';
-import { bloodRelatives, gapText, partnerCandidates, partnerSearch } from './partners.ts';
+import { bloodRelatives, gapText, livesApart, moveInChoices, partnerCandidates, partnerSearch } from './partners.ts';
+import { NOT_IN_WORLD } from './constants.ts';
+import { unhousedGid } from './unhoused.ts';
 
 const life = (stage: string, stageDays: number, extra: Partial<SimLife> = {}): SimLife => ({ born: 0, stage, stageDays, at: 0, ...extra });
 const sim = (id: string, age: string, extra: Partial<SimNode> = {}): SimNode =>
@@ -124,5 +126,39 @@ describe('the partner menu’s search', () => {
       ],
     );
     assert.deepEqual(search('summer').map((h) => h.id), ['Mara']);
+  });
+});
+
+describe('a couple who live apart', () => {
+  const iris = sim('iris', 'Young Adult', { world: 'Brindleton Bay', gid: 'Brindleton Bay||Ladipo', hh: 'Ladipo' });
+  const glen = sim('glen', 'Young Adult', { world: 'Willow Creek', gid: 'Willow Creek||Nhoam', hh: 'Nhoam' });
+  const flora = sim('flora', 'Adult', { world: 'Brindleton Bay', gid: 'Brindleton Bay||Ladipo', hh: 'Ladipo' });
+  const drifter = sim('drifter', 'Adult', { world: 'Willow Creek', gid: unhousedGid('Willow Creek') });
+  const away = sim('away', 'Adult', { world: NOT_IN_WORLD, gid: `${NOT_IN_WORLD}||Away`, hh: 'Away' });
+
+  it('are in different households, one at least with a home', () => {
+    assert.equal(livesApart(iris, glen), true);
+    assert.equal(livesApart(iris, flora), false);
+    assert.equal(livesApart(drifter, glen), true);
+    assert.equal(livesApart(drifter, away), false);
+  });
+
+  it('are offered the second sim moving in with the first, then the other way', () => {
+    assert.deepEqual(
+      moveInChoices(iris, glen).map((m) => `${m.mover.id}>${m.host.id}`),
+      ['glen>iris', 'iris>glen'],
+    );
+  });
+
+  it('only move into a home', () => {
+    assert.deepEqual(
+      moveInChoices(iris, drifter).map((m) => `${m.mover.id}>${m.host.id}`),
+      ['drifter>iris'],
+    );
+    assert.deepEqual(
+      moveInChoices(away, glen).map((m) => `${m.mover.id}>${m.host.id}`),
+      ['away>glen'],
+    );
+    assert.deepEqual(moveInChoices(iris, flora), []);
   });
 });

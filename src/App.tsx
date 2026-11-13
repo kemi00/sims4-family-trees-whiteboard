@@ -107,7 +107,8 @@ export default function App() {
         else if (wb.infantHouseMenu) wb.setInfantHouseMenu(null);
         else if (wb.connectMenu) {
           wb.setConnectMenu(null);
-          wb.cancelConnect();
+          // Asked about moving in, Esc keeps them apart: the link stays made.
+          if (!wb.connectMenu.linked) wb.cancelConnect();
         } else if (wb.connSrc) {
           wb.cancelConnect();
           wb.setStatus(

@@ -4,19 +4,12 @@ import { dynastyNames } from '../lib/generations.ts';
 import { SimCard } from './SimCard.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
-import { theHousehold } from '../lib/utils.ts';
-import { hasNoHome, partnerSearch } from '../lib/partners.ts';
+import { moveInChoices, partnerSearch } from '../lib/partners.ts';
+import { MoveInAsk } from './MoveInAsk.tsx';
 import { simCardClass } from '../lib/simCard.ts';
-import { PARTNER_CHOICES, type PartnerChoice, type PartnerMenuState } from '../hooks/useWhiteboard.ts';
+import { PARTNER_CHOICES, PARTNER_LABEL, type PartnerChoice, type PartnerMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
-
-const CHOICE_LABEL: Record<PartnerChoice, string> = {
-  marriage: 'Married',
-  romance: 'Romance',
-  secretromance: 'Secret lovers',
-  divorced: 'Divorced',
-};
 
 type Props = {
   menu: PartnerMenuState;
@@ -34,13 +27,14 @@ type Props = {
 /**
  * The partner menu, from the ♥ on a card's side. Pick the link, then the
  * partner: type a name (suggested partners first, closest in life), or
- * click them on the board. Picked by name, two who live apart are asked
- * about one household: the reason to type is that they're far away.
+ * click them on the board. For a marriage or a romance, two who live apart
+ * are then asked about one household (MoveInAsk), as Connect asks.
  */
 export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPick, onMove, onClose }: Props) {
   const { compact, ref, style } = useFitMenuInStage(menu.x, menu.y);
   // A sim's card is a pick: clicking one on the board makes them the partner.
-  useLightDismiss(ref, onClose, { keep: '.node' });
+  // Once picked, a press anywhere else keeps them apart and closes the menu.
+  useLightDismiss(ref, onClose, menu.picked ? {} : { keep: '.node' });
   const listId = useId();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -73,11 +67,6 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
 
   if (picked) {
     const pickedName = cardName(picked);
-    const into = [
-      // The one typed moves in with the sim whose ♥ was clicked: Lucas into Mara's.
-      ...(!hasNoHome(me) ? [{ mover: picked, host: me }] : []),
-      ...(!hasNoHome(picked) ? [{ mover: me, host: picked }] : []),
-    ];
     return (
       <div
         ref={ref}
@@ -88,25 +77,15 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
         style={style}
         onKeyDown={close}
       >
-        <p className="pmenu__done">
-          ✓ {CHOICE_LABEL[menu.choice]}: {name} and {pickedName}
-        </p>
-        <p className="pmenu__ask">They live apart. Will one move in with the other?</p>
-        {into.map(({ mover, host }, i) => (
-          <button
-            key={mover.id}
-            ref={i === 0 ? firstMoveRef : undefined}
-            type="button"
-            className={i === 0 ? 'pmenu__move pmenu__move--first' : 'pmenu__move'}
-            onClick={() => onMove(mover.id, host.id)}
-          >
-            {cardName(mover)} moves into {theHousehold(host.hh)}
-          </button>
-        ))}
-        <button type="button" className="pmenu__move pmenu__keep" onClick={onClose}>
-          Keep them apart
-        </button>
-        <p className="pmenu__hint">A move is part of your plan until a save shows it.</p>
+        <MoveInAsk
+          done={`✓ ${PARTNER_LABEL[menu.choice]}: ${name} and ${pickedName}`}
+          ask="They live apart. Will one move in with the other?"
+          // The one picked moves in with the sim whose ♥ was clicked: Lucas into Mara's.
+          moves={moveInChoices(me, picked)}
+          firstRef={firstMoveRef}
+          onMove={onMove}
+          onKeep={onClose}
+        />
       </div>
     );
   }
@@ -137,7 +116,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
             className="pmenu__kind"
             onClick={() => onChoice(c)}
           >
-            {CHOICE_LABEL[c]}
+            {PARTNER_LABEL[c]}
           </button>
         ))}
       </div>

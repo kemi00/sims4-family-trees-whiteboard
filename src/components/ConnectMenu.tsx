@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { COL } from '../lib/constants.ts';
-import type { ConnectChoice } from '../types/whiteboard.ts';
+import type { ConnectChoice, SimNode } from '../types/whiteboard.ts';
 import type { ConnectOption, connectOptions } from '../lib/connectOptions.ts';
 import { InlineLock } from './LockGlyph.tsx';
+import { MoveInAsk } from './MoveInAsk.tsx';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
@@ -14,6 +15,14 @@ type Props = {
   /** What to offer, from connectOptions. */
   options: ReturnType<typeof connectOptions>;
   onConfirm: (type: ConnectChoice) => void;
+  /**
+   * Set once a marriage or a romance is made between two who live apart:
+   * the menu asks whether one moves in with the other, as the ♥ menu does.
+   */
+  ask?: { done: string; moves: { mover: SimNode; host: SimNode }[] };
+  /** One of the two moves into the other's household. */
+  onMove: (mover: string, host: string) => void;
+  /** Cancel, or keep them apart once asked. */
   onCancel: () => void;
 };
 
@@ -68,11 +77,41 @@ function label(opt: ConnectOption, a: string, b: string): ReactNode {
  * Grouped so the longer list scans: what the two are to each other, then
  * family. Each secret or adoptive option sits under its plain one. Links the
  * two have already are off, with why; a couple's end is planned here as on
- * the board (connectOptions).
+ * the board (connectOptions). A marriage or a romance between two who live
+ * apart then asks about one household (MoveInAsk).
  */
-export function ConnectMenu({ aName, bName, left, top, options, onConfirm, onCancel }: Props) {
+export function ConnectMenu({ aName, bName, left, top, options, onConfirm, ask, onMove, onCancel }: Props) {
   const { compact, ref, style } = useFitMenuInStage(left, top);
   useLightDismiss(ref, onCancel);
+  const firstMoveRef = useRef<HTMLButtonElement>(null);
+  const asking = !!ask;
+  useEffect(() => {
+    if (!asking) return;
+    // A frame later, as the ♥ menu does: the menu settles where it fits first.
+    const f = requestAnimationFrame(() => firstMoveRef.current?.focus());
+    return () => cancelAnimationFrame(f);
+  }, [asking]);
+  if (ask) {
+    return (
+      <div
+        ref={ref}
+        id="menu"
+        className={compact ? 'menu menu--sheet pmenu' : 'menu pmenu'}
+        role="dialog"
+        aria-label={`Move ${bName} and ${aName} into one household?`}
+        style={style}
+      >
+        <MoveInAsk
+          done={ask.done}
+          ask="They live apart. Will one move in with the other?"
+          moves={ask.moves}
+          firstRef={firstMoveRef}
+          onMove={onMove}
+          onKeep={onCancel}
+        />
+      </div>
+    );
+  }
   return (
     <div
       ref={ref}

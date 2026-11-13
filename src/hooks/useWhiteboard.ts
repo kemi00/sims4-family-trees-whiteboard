@@ -89,7 +89,7 @@ import {
 import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
 import { holdUntouchedCards } from '../lib/holdLayout.ts';
 import { lineageIds } from '../lib/bloodline.ts';
-import { hasNoHome } from '../lib/partners.ts';
+import { hasNoHome, livesApart } from '../lib/partners.ts';
 import { whyNotAdopt } from '../lib/adoption.ts';
 import {
   buildConnectionLog,
@@ -153,6 +153,30 @@ const FAMILY_SCOPE_KEY = 'sims4-family-trees:family-scope:v1';
 /** The couple links the partner menu makes. */
 export type PartnerChoice = 'marriage' | 'romance' | 'secretromance' | 'divorced';
 export const PARTNER_CHOICES: readonly PartnerChoice[] = ['marriage', 'romance', 'secretromance', 'divorced'];
+/** Each couple link as the partner menu names it, and as "✓ Married: …" says it once made. */
+export const PARTNER_LABEL: Record<PartnerChoice, string> = {
+  marriage: 'Married',
+  romance: 'Romance',
+  secretromance: 'Secret lovers',
+  divorced: 'Divorced',
+};
+
+/** A couple link that may bring two households together: asked whether one moves in. */
+export type TogetherChoice = 'marriage' | 'romance';
+const isTogether = (c: string): c is TogetherChoice => c === 'marriage' || c === 'romance';
+
+/**
+ * Connect's menu, between the two sims clicked (`a` first), where it opens.
+ * `linked`: a marriage or a romance just made between two who live apart,
+ * so it asks whether one moves in with the other, as the ♥ menu does.
+ */
+export type ConnectMenuState = {
+  a: string;
+  b: string;
+  x: number;
+  y: number;
+  linked?: TogetherChoice;
+};
 
 /** The partner menu: whose, the side clicked, where it opens, the link, and a partner picked by name. */
 export type PartnerMenuState = {
@@ -469,12 +493,7 @@ export function useWhiteboard() {
   const [gamesOpen, setGamesOpen] = useState(false);
   const [agesOpen, setAgesOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
-  const [connectMenu, setConnectMenu] = useState<{
-    a: string;
-    b: string;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [connectMenu, setConnectMenu] = useState<ConnectMenuState | null>(null);
   /**
    * The partner menu, opened from a ♥ on a card's side: the sim, the side
    * clicked (where a partner who moves in lands), and where it opens.
@@ -2320,7 +2339,11 @@ export function useWhiteboard() {
       }
       addEdge(from, to, link.type, !!link.secret, !!link.adopted);
       if (link.adopted) trackAction('/action/adopt');
-      setConnectMenu(null);
+      // Married or partnered and living apart: the menu asks whether one
+      // moves in with the other, as the ♥ menu does.
+      const [A, B] = [byid[a], byid[b]];
+      if (isTogether(choice) && A && B && livesApart(A, B)) setConnectMenu({ ...connectMenu, linked: choice });
+      else setConnectMenu(null);
       flashStatus(
         link.secret && hideSecrets
           ? 'Linked ✓ — it is secret, so Hide secrets keeps it off the board. Click a sim for the next link'
@@ -2817,20 +2840,17 @@ export function useWhiteboard() {
   );
 
   /**
-   * A partner picked in the menu. Clicked on the board, the link is all:
-   * you can see where they are. Picked by name for a marriage or a romance,
-   * with the two in different households, the menu then asks whether one
-   * moves in with the other.
+   * A partner picked in the menu, by name or on the board. For a marriage
+   * or a romance, with the two in different households, the menu then asks
+   * whether one moves in with the other, as Connect does.
    */
   const pickPartner = useCallback(
-    (b: string, by: 'name' | 'board') => {
+    (b: string) => {
       const menu = partnerMenu;
       if (!menu || menu.picked || b === menu.id) return;
       if (!linkPartner(menu.id, b, menu.choice)) return;
       const [A, B] = [byid[menu.id], byid[b]];
-      const together = menu.choice === 'marriage' || menu.choice === 'romance';
-      const apart = !!A && !!B && A.gid !== B.gid && (!hasNoHome(A) || !hasNoHome(B));
-      if (by === 'name' && together && apart) setPartnerMenu({ ...menu, picked: b });
+      if (isTogether(menu.choice) && A && B && livesApart(A, B)) setPartnerMenu({ ...menu, picked: b });
       else setPartnerMenu(null);
     },
     [partnerMenu, linkPartner, byid],

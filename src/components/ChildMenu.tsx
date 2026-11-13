@@ -1,11 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
+import { MoveInAsk } from './MoveInAsk.tsx';
 import { SimCard } from './SimCard.tsx';
 import { CaretLeft } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
-import { theHousehold } from '../lib/utils.ts';
 import { hasNoHome } from '../lib/partners.ts';
 import { adopteeSearch, whyCantAdopt } from '../lib/adoption.ts';
 import { simCardClass } from '../lib/simCard.ts';
@@ -131,25 +131,14 @@ export function ChildMenu({
     return shell(
       `Move ${cardName(picked)} in with ${name}?`,
       <>
-        <p className="pmenu__done">
-          ✓ Adoption planned: {name} {adopt} {cardName(picked)}
-        </p>
-        <p className="pmenu__ask">They live apart. Will {picked.first} move in?</p>
-        {hosts.map((host, i) => (
-          <button
-            key={host.id}
-            ref={i === 0 ? firstRef : undefined}
-            type="button"
-            className={i === 0 ? 'pmenu__move pmenu__move--first' : 'pmenu__move'}
-            onClick={() => onMoveIn(picked.id, host.id)}
-          >
-            {cardName(picked)} moves into {theHousehold(host.hh)}
-          </button>
-        ))}
-        <button type="button" className="pmenu__move pmenu__keep" onClick={onClose}>
-          Keep them apart
-        </button>
-        <p className="pmenu__hint">A move is part of your plan until a save shows it.</p>
+        <MoveInAsk
+          done={`✓ Adoption planned: ${name} ${adopt} ${cardName(picked)}`}
+          ask={`They live apart. Will ${picked.first} move in?`}
+          moves={hosts.map((host) => ({ mover: picked, host }))}
+          firstRef={firstRef}
+          onMove={onMoveIn}
+          onKeep={onClose}
+        />
       </>,
     );
   }

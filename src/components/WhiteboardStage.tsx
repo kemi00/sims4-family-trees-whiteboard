@@ -61,7 +61,7 @@ import {
 } from '../lib/linkLabel.ts';
 import { slug, trackAction } from '../lib/analytics.ts';
 import { edgeSourceOf, endedByPassing, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
-import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
+import { PARTNER_LABEL, type WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
@@ -96,6 +96,7 @@ import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
 import { cardName, isPlannedSim, notYetText, parentsLines } from '../lib/plan.ts';
+import { moveInChoices } from '../lib/partners.ts';
 import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/householdPlan.ts';
 import { HouseholdBrief } from './HouseholdBrief.tsx';
 import { isUnhousedGid } from '../lib/unhoused.ts';
@@ -1502,7 +1503,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       // The partner menu is open: a click on another sim picks them.
       const pm = wbNow.partnerMenu;
       if (pm && !pm.picked && n.id !== pm.id && !wbNow.connectMode) {
-        wbNow.pickPartner(n.id, 'board');
+        wbNow.pickPartner(n.id);
         return;
       }
       if (wbNow.connectMode) {
@@ -2250,10 +2251,26 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       )}
       {menu && wb.byid[menu.a] && wb.byid[menu.b] && (
         <ConnectMenu
+          key={`${menu.a}|${menu.b}`}
           aName={wb.byid[menu.a]!.first}
           bName={wb.byid[menu.b]!.first}
           left={menu.x}
           top={menu.y}
+          ask={
+            menu.linked
+              ? {
+                  done: `✓ ${PARTNER_LABEL[menu.linked]}: ${cardName(wb.byid[menu.a]!)} and ${cardName(wb.byid[menu.b]!)}`,
+                  // The second sim clicked moves in with the first, then the other way.
+                  moves: moveInChoices(wb.byid[menu.a]!, wb.byid[menu.b]!),
+                }
+              : undefined
+          }
+          onMove={(mover, host) => {
+            // The view stays with the second sim clicked, where the menu
+            // opened, wherever they go.
+            wb.moveInWith(mover, host, 'right', menu.b);
+            wb.setConnectMenu(null);
+          }}
           options={connectOptions({
             a: wb.byid[menu.a]!,
             b: wb.byid[menu.b]!,
@@ -2281,7 +2298,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           }}
           onCancel={() => {
             wb.setConnectMenu(null);
-            wb.cancelConnect();
+            // Kept apart, the link stays made and its "Linked ✓" stays to be read.
+            if (!menu.linked) wb.cancelConnect();
           }}
         />
       )}
@@ -2294,7 +2312,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           edges={wb.edges}
           saveGame={wb.saveGame}
           onChoice={wb.setPartnerChoice}
-          onPick={(id) => wb.pickPartner(id, 'name')}
+          onPick={wb.pickPartner}
           onMove={(mover, host) => {
             const me = wb.partnerMenu?.id;
             // The view stays with the sim whose ♥ you clicked, wherever they go.
