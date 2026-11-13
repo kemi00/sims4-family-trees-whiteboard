@@ -1391,8 +1391,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .dynp__who--planned{color:var(--ink-3)}
 .dynp__who--none{color:#8a5a00}
 .dynp__parts{font-size:11px;color:var(--ink-3)}
-.dynp__risk{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--warn)}
-.dynp__risk svg{flex:none;width:13px;height:13px;display:inline-block;color:var(--warn-strong)}
+.dynp__risk,.slist__risk{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--warn)}
+.dynp__risk svg,.slist__risk svg{flex:none;width:13px;height:13px;display:inline-block;color:var(--warn-strong)}
+.slist__risk{margin-top:3px}
 .dynp__tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin:4px 0 2px}
 .dynp__sort{display:inline-flex;padding:2px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
 .dynp .dynp__sortopt{padding:3px 8px;border:none;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11px;font-weight:600;white-space:nowrap}
@@ -1626,6 +1627,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .simcard__name{font-size:12px;font-weight:600;color:#22304a}
 .simcard__meta{font-size:10.5px;font-weight:400;color:#5c6673}
 .simcard__flags{font-size:10px;font-weight:400;color:var(--warn)}
+.simcard__risk{font-weight:600;color:var(--warn-strong)}
 /* Age and gender: two ways of narrowing the partner list, side by side. */
 .editor .edfilters{display:flex;gap:8px}
 .editor .edfilters select{flex:1 1 0;min-width:0}

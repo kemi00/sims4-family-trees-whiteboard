@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
+import { dynastyRiskMap } from '../lib/dynastyMenu.ts';
 import { MoveInAsk } from './MoveInAsk.tsx';
 import { SimCard } from './SimCard.tsx';
 import { CaretLeft } from '../icons.ts';
@@ -80,6 +81,7 @@ export function ChildMenu({
     [adopting, me, menu.parents, nodes, edges, query, saveGame, unborn],
   );
   const dynasties = useMemo(() => dynastyNames(nodes), [nodes]);
+  const risks = useMemo(() => dynastyRiskMap(nodes), [nodes]);
   useEffect(() => {
     // A frame later: the menu is hidden while it measures where it fits.
     // On a phone the keyboard would cover the board.
@@ -235,7 +237,7 @@ export function ChildMenu({
                   onMouseEnter={() => setActive(i)}
                   onClick={() => onAdopt(h.id)}
                 >
-                  <SimCard sim={p} candidate={h.candidate} dynasties={dynasties} extra={parentsFlag(h.parents)} />
+                  <SimCard sim={p} candidate={h.candidate} dynasties={dynasties} risks={risks} extra={parentsFlag(h.parents)} />
                 </button>
               </li>
             );

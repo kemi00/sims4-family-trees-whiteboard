@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { DynastyRisk } from '../lib/dynastyMenu.ts';
 import type { DynastyName } from '../lib/generations.ts';
 import { worldIconUrl } from '../lib/places.ts';
 import { cardName } from '../lib/plan.ts';
@@ -19,6 +20,8 @@ type Props = {
   list: SimList;
   /** Every dynasty's name on the board, for the cards' "Watson dynasty". */
   dynasties: Map<string, DynastyName>;
+  /** The dynasties at risk: "at risk" follows theirs on the cards. */
+  risks: ReadonlyMap<string, DynastyRisk>;
   /** A dynasty's own list: its cards don't repeat the dynasty its title names. */
   noDynasty?: boolean;
   /** Said when no one is listed. */
@@ -42,7 +45,7 @@ const SHOWN = 4;
  * there. It stays open while you move around the board, like the Key: you
  * read one against the other.
  */
-export function SimListPanel({ title, description, tools, list, dynasties, noDynasty, empty, onPick, onHover, onClose }: Props) {
+export function SimListPanel({ title, description, tools, list, dynasties, risks, noDynasty, empty, onPick, onHover, onClose }: Props) {
   const [sort, setSort] = useState<Sort>('world');
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -72,7 +75,7 @@ export function SimListPanel({ title, description, tools, list, dynasties, noDyn
         onFocus={() => onHover(new Set([r.sim.id]))}
         onBlur={() => onHover(null)}
       >
-        <SimCard sim={r.sim} what={r.what} dynasties={dynasties} world={world} noDynasty={noDynasty} />
+        <SimCard sim={r.sim} what={r.what} dynasties={dynasties} risks={risks} world={world} noDynasty={noDynasty} />
       </button>
     </li>
   );

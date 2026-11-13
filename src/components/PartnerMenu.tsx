@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
+import { dynastyRiskMap } from '../lib/dynastyMenu.ts';
 import { SimCard } from './SimCard.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
@@ -48,6 +49,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
     [me, nodes, edges, query, saveGame],
   );
   const dynasties = useMemo(() => dynastyNames(nodes), [nodes]);
+  const risks = useMemo(() => dynastyRiskMap(nodes), [nodes]);
   useEffect(() => {
     // A frame later: the menu is hidden while it measures where it fits.
     // On a phone the keyboard would cover the board, where you can also pick.
@@ -174,7 +176,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
                   onMouseEnter={() => setActive(i)}
                   onClick={() => onPick(h.id)}
                 >
-                  <SimCard sim={p} {...(h.candidate ? { candidate: h.candidate } : {})} dynasties={dynasties} related={h.related} married={h.married} />
+                  <SimCard sim={p} {...(h.candidate ? { candidate: h.candidate } : {})} dynasties={dynasties} risks={risks} related={h.related} married={h.married} />
                 </button>
               </li>
             );

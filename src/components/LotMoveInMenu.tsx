@@ -7,6 +7,7 @@ import { lotKindLabel, lotRoomsLabel, lotSizeLabel, neighbourhoodIconUrl, type G
 import { isUnhousedGid } from '../lib/unhoused.ts';
 import { cardName } from '../lib/plan.ts';
 import { dynastyNames } from '../lib/generations.ts';
+import { dynastyRiskMap } from '../lib/dynastyMenu.ts';
 import { simCardClass } from '../lib/simCard.ts';
 import { fold } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
@@ -39,6 +40,7 @@ export function LotMoveInMenu({ lot, left, top, nodes, picked, onMove, onClose }
   const searchRef = useRef<HTMLInputElement>(null);
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const dynasties = useMemo(() => dynastyNames(nodes), [nodes]);
+  const risks = useMemo(() => dynastyRiskMap(nodes), [nodes]);
   const [ids, setIds] = useState<string[]>(() => picked.filter((id) => byId.get(id)?.state !== DECEASED_STATE));
   const [query, setQuery] = useState('');
   const [name, setName] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export function LotMoveInMenu({ lot, left, top, nodes, picked, onMove, onClose }
             {matches.map((n) => (
               <li key={n.id}>
                 <button type="button" className={simCardClass(n)} onClick={() => add(n)}>
-                  <SimCard sim={n} dynasties={dynasties} world />
+                  <SimCard sim={n} dynasties={dynasties} risks={risks} world />
                 </button>
               </li>
             ))}

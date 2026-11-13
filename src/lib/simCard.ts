@@ -1,4 +1,5 @@
 import { DECEASED_STATE, DYNASTY_ROLES } from './constants.ts';
+import { simDynastyRisk, type DynastyRisk } from './dynastyMenu.ts';
 import { dynastyKey, dynastyPhrase, type DynastyName } from './generations.ts';
 import { gapText, type PartnerCandidate } from './partners.ts';
 import { cardName } from './plan.ts';
@@ -7,6 +8,8 @@ import type { SimNode } from '../types/whiteboard.ts';
 export type SimCardOptions = {
   /** Every dynasty's name on the board (dynastyNames), for "Watson dynasty". */
   dynasties: Map<string, DynastyName>;
+  /** The dynasties at risk (dynastyRiskMap): "at risk" follows theirs, as on the board. */
+  risks: ReadonlyMap<string, DynastyRisk>;
   /** Set for a suggested partner: how close in life they are. */
   candidate?: PartnerCandidate;
   /**
@@ -25,6 +28,9 @@ export type SimCardOptions = {
   extra?: string[];
 };
 
+/** One thing to weigh on a card's amber line; `risk` is "at risk", set apart as on the board. */
+export type SimCardFlag = { text: string; risk?: true };
+
 /** A sim card's three lines. */
 export type SimCardLines = {
   /** Their dynasty role's mark (👑 ⚜️ 🥀), or nothing. */
@@ -33,14 +39,17 @@ export type SimCardLines = {
   /** Grey: what they are, then where they live. */
   meta: string;
   /** Amber: what to weigh. Empty for none. */
-  flags: string[];
+  flags: SimCardFlag[];
+  /** Why their dynasty is at risk, as the board card's tip says it: "The Kim dynasty is at risk: no heir". */
+  riskTitle?: string;
 };
 
 /**
  * One sim in any list on the board, the same everywhere: their dynasty
  * role's mark and name; what they are and where they live, in grey; then
  * what to weigh, in amber (related, married or in a romance, not aging now,
- * their dynasty). A sim who passed away says so on the grey line.
+ * their dynasty, and "at risk" after it when it could die out, as the board
+ * card says it). A sim who passed away says so on the grey line.
  */
 export function simCardLines(p: SimNode, o: SimCardOptions): SimCardLines {
   const c = o.candidate;
@@ -54,18 +63,22 @@ export function simCardLines(p: SimNode, o: SimCardOptions): SimCardLines {
     p.hh || 'no household',
     o.world ? p.world : '',
   ];
-  const flags = [
-    o.related ? 'related' : '',
-    o.married ? 'married' : c?.taken ? 'in a romance' : '',
-    frozen ? 'not aging now' : '',
-    p.dynasty && !o.noDynasty ? dynastyPhrase(o.dynasties.get(dynastyKey(p) ?? '') ?? { name: p.dynasty }) : '',
-    ...(o.extra ?? []),
+  const phrase = p.dynasty && !o.noDynasty ? dynastyPhrase(o.dynasties.get(dynastyKey(p) ?? '') ?? { name: p.dynasty }) : '';
+  // A dynasty's own list says it once, under its title, not on each card.
+  const risk = phrase ? simDynastyRisk(p, o.risks) : undefined;
+  const flags: SimCardFlag[] = [
+    ...[o.related ? 'related' : '', o.married ? 'married' : c?.taken ? 'in a romance' : '', frozen ? 'not aging now' : '', phrase]
+      .filter(Boolean)
+      .map((text) => ({ text })),
+    ...(risk ? [{ text: 'at risk', risk: true as const }] : []),
+    ...(o.extra ?? []).filter(Boolean).map((text) => ({ text })),
   ];
   return {
     mark: p.dynastyRole ? DYNASTY_ROLES[p.dynastyRole].mark : '',
     name: cardName(p),
     meta: meta.filter(Boolean).join(' · '),
-    flags: flags.filter(Boolean),
+    flags,
+    ...(risk ? { riskTitle: `The ${phrase} is at risk: ${risk}` } : {}),
   };
 }
 

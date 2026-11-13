@@ -158,6 +158,23 @@ export function dynastyRisk(members: DynastyMember[]): DynastyRisk | undefined {
   return noHeir || carry.length <= AT_RISK_SIMS ? { noHeir, sims: carry.length } : undefined;
 }
 
+/** Every dynasty that could die out as planned (dynastyRisk), by key. */
+export function dynastyRiskMap(nodes: SimNode[]): Map<string, DynastyRisk> {
+  return new Map(dynastyIndex(nodes).flatMap((r): [string, DynastyRisk][] => (r.risk ? [[r.key, r.risk]] : [])));
+}
+
+/**
+ * Why a sim's dynasty is at risk ("no heir"), for "at risk" after the
+ * dynasty on their card, on the board and in every list alike. None when it
+ * is safe, and none for a pet, a sim who passed away, or one planned to
+ * leave it: its end isn't theirs to weigh.
+ */
+export function simDynastyRisk(n: SimNode, risks: ReadonlyMap<string, DynastyRisk>): string | undefined {
+  if (!n.dynasty || n.species || n.state === DECEASED_STATE || n.dynastyPlan === 'none') return undefined;
+  const risk = risks.get(dynastyKey(n) ?? '');
+  return risk ? riskText(risk) : undefined;
+}
+
 /** "no heir", "only 2 sims", "no heir, and only 1 sim", "no sims left". */
 export function riskText(r: DynastyRisk): string {
   const few = r.sims === 0 ? 'no sims left' : r.sims <= AT_RISK_SIMS ? `only ${r.sims} ${r.sims === 1 ? 'sim' : 'sims'}` : '';

@@ -1,5 +1,7 @@
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
+import { Warning } from '../icons.ts';
 import { DECEASED_STATE } from '../lib/constants.ts';
+import { riskText } from '../lib/dynastyMenu.ts';
 import { familyRoleWord } from '../lib/family.ts';
 import { dynastyPhrase } from '../lib/generations.ts';
 import { highlightSummary } from '../lib/highlight.ts';
@@ -35,17 +37,29 @@ const spread = (list: SimList) => `${plural(list.count, 'sim')} in ${plural(home
 export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: Props) {
   const unborn = (id: string) => wb.plannedChildIds.has(id);
   const base = { nodes: wb.nodes, shown: wb.nodeVis, worlds: wb.worlds };
-  const common = { onHover: wb.setBriefHover, onClose, dynasties: wb.dynastyNames };
+  const common = { onHover: wb.setBriefHover, onClose, dynasties: wb.dynastyNames, risks: wb.dynastyRisks };
 
   if (of === 'dynasty') {
     const ids = wb.dynastyFocusIds ?? new Set<string>();
     const d = wb.dynastyFocus ? wb.dynastyNames.get(wb.dynastyFocus) : undefined;
+    // Its cards leave the dynasty off, so its risk is said once, as the Dynasties panel says it.
+    const risk = wb.dynastyFocus ? wb.dynastyRisks.get(wb.dynastyFocus) : undefined;
     const list = simList({ ...base, pick: (n) => ids.has(n.id), what: (n) => dynastyWhat(n, unborn(n.id)) });
     return (
       <SimListPanel
         {...common}
         title={`The ${d ? dynastyPhrase(d) : 'dynasty'}`}
-        description={`${spread(list)}, lit on the board`}
+        description={
+          <>
+            {spread(list)}, lit on the board
+            {risk && (
+              <span className="slist__risk">
+                <Warning size={13} weight="fill" aria-hidden />
+                At risk: {riskText(risk)}
+              </span>
+            )}
+          </>
+        }
         list={list}
         noDynasty
         empty="No one in this dynasty is shown on the board. Check Filters."

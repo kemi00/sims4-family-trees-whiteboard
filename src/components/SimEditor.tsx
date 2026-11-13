@@ -51,6 +51,7 @@ import { isUnhousedGid } from '../lib/unhoused.ts';
 import {
   dynastiesNamed,
   dynastyIndex,
+  dynastyRiskMap,
   familyDynasties,
   isPlannedOnlyDynasty,
   newDynastyFields,
@@ -428,6 +429,8 @@ export function SimEditor({
   const life = useMemo(() => lifeView(n, saveGame), [n, saveGame]);
   /** What each dynasty is called: two of one name carry their founder's tag ("Ngata (Oliana’s line)"). */
   const names = useMemo(() => dynastyNames(nodes), [nodes]);
+  /** The dynasties at risk, for "at risk" on the sim cards, as on the board. */
+  const risks = useMemo(() => dynastyRiskMap(nodes), [nodes]);
   /** The board's dynasties, to plan a sim into one, by key. */
   const dynasties = useMemo(() => {
     const out = new Map<
@@ -1302,7 +1305,7 @@ export function SimEditor({
                       {linkChoices.map(({ sim: x, likely }) => (
                         <li key={x.id}>
                           <button type="button" className={simCardClass(x)} onClick={() => onLinkPlanned(x.id)}>
-                            <SimCard sim={x} dynasties={names} extra={likely ? ['likely'] : []} />
+                            <SimCard sim={x} dynasties={names} risks={risks} extra={likely ? ['likely'] : []} />
                           </button>
                         </li>
                       ))}
@@ -1777,7 +1780,7 @@ export function SimEditor({
                   return (
                     <li key={c.id}>
                       <button type="button" className={simCardClass(p)} onClick={() => onPickPartner(c.id)}>
-                        <SimCard sim={p} candidate={c} dynasties={names} />
+                        <SimCard sim={p} candidate={c} dynasties={names} risks={risks} />
                       </button>
                     </li>
                   );

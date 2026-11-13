@@ -101,7 +101,7 @@ import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/household
 import { HouseholdBrief } from './HouseholdBrief.tsx';
 import { isUnhousedGid } from '../lib/unhoused.ts';
 import { dynastyKey, dynastyPhrase, type DynastyGeneration } from '../lib/generations.ts';
-import { riskText } from '../lib/dynastyMenu.ts';
+import { simDynastyRisk } from '../lib/dynastyMenu.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { SimNodeView } from './SimNode.tsx';
 import { StepText } from './StepText.tsx';
@@ -1682,11 +1682,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     return { lines: parentsLines(list), title: `Child of ${list.map(cardName).join(' and ')}` };
   };
   /** "no heir" when the sim's dynasty is at risk; nothing for the deceased or one planned to leave it. */
-  const dynastyRiskOf = (n: SimNode) => {
-    if (!n.dynasty || n.species || n.state === DECEASED_STATE || n.dynastyPlan === 'none') return undefined;
-    const risk = wb.dynastyRisks.get(dynastyKey(n) ?? '');
-    return risk ? riskText(risk) : undefined;
-  };
+  const dynastyRiskOf = (n: SimNode) => simDynastyRisk(n, wb.dynastyRisks);
   /** The sim a card is planned as heir after, named; none when they are gone from the board. */
   const heirAfterOf = (n: SimNode) => {
     const before = n.heirAfter ? wb.byid[n.heirAfter] : undefined;
