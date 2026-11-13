@@ -1,6 +1,16 @@
 {
  "entries": [
   {
+   "sha": "539fd6f",
+   "date": "2026-11-13",
+   "text": "Bringing in your game is now called Upload your save, and a board file Upload a board."
+  },
+  {
+   "sha": "df1d489",
+   "date": "2026-11-13",
+   "text": "Zoomed out, a Free lots box shows a bar like a household's, so you can still drag it."
+  },
+  {
    "sha": "eecfb1c",
    "date": "2026-11-13",
    "text": "Scrolling over any panel scrolls it and never zooms the board; dragging a world takes its Free lots box along; and sims moved to another household land in it, beside their family, with the view following them."
