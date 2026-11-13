@@ -2103,7 +2103,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             </span>
             {/* The step that makes the board theirs, in reach until a save is on it. */}
             <button type="button" className="autosave-cue__open" onClick={onOpenSave}>
-              Open your save
+              Upload your save
             </button>
           </>
         )}

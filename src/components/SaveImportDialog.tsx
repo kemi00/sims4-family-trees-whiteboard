@@ -128,7 +128,7 @@ export function SaveImportDialog({
       onClick={onCancel}
     >
       <div className="save-import__card" onClick={(e) => e.stopPropagation()}>
-        <h2 id="save-import-title">Open your save</h2>
+        <h2 id="save-import-title">Upload your save</h2>
         {step === 'plan' ? (
           <p>
             Step 2 of 2 · <b>Your plan</b>: how your plan meets this save. Nothing changes until

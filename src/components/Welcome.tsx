@@ -4,7 +4,7 @@ import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { markWelcomeSeen } from '../lib/welcome.ts';
 
 type Props = {
-  /** A .save picked or dropped: the board reads it (the Open your save dialog follows). */
+  /** A .save picked or dropped: the board reads it (the Upload your save dialog follows). */
   onOpenSave: (file: File) => void;
   /** A board file (.json) picked or dropped. */
   onOpenBoard: (file: File) => void;
@@ -17,7 +17,7 @@ type Props = {
  * makes the board theirs is opening their save, so it asks for that first,
  * says where the file is, that it never leaves their computer, and that
  * only games set to English work for now. Looking around first is a click
- * away, and the board's status line keeps "Open your save" in reach after.
+ * away, and the board's status line keeps "Upload your save" in reach after.
  */
 export function Welcome({ onOpenSave, onOpenBoard, onClose }: Props) {
   const compact = useCompactChrome();
@@ -84,12 +84,12 @@ export function Welcome({ onOpenSave, onOpenBoard, onClose }: Props) {
         <p className="welcome__kicker">Welcome</p>
         <h2 id="welcome-title">Start with your save</h2>
         <p className="welcome__lead">
-          Open your Sims 4 save, and its sims, households and family ties land on the board, ready for your plans.
+          Upload your Sims 4 save, and its sims, households and family ties land on the board, ready for your plans.
         </p>
         <div className="welcome__drop">
           <button ref={openRef} type="button" className="welcome__open" onClick={() => saveRef.current?.click()}>
             <FolderOpen aria-hidden="true" />
-            Open your save file
+            Upload your save file
           </button>
           {!compact && <p className="welcome__droptext">or drop the .save file here</p>}
           {wrongFile && (
@@ -126,7 +126,7 @@ export function Welcome({ onOpenSave, onOpenBoard, onClose }: Props) {
             Look around the example board first
           </button>
           <button type="button" className="welcome__board" onClick={() => boardRef.current?.click()}>
-            Have a board file? Open a .json
+            Have a board file? Upload a .json
           </button>
         </div>
         <input

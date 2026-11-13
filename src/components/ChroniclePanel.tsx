@@ -79,7 +79,7 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
     >
         {!entries.length ? (
           <p className="chron__empty">
-            Your story starts the next time you open your save: each save you open adds what happened in your game
+            Your story starts the next time you upload your save: each save you upload adds what happened in your game
             since the one before.
           </p>
         ) : !shown.length ? (
@@ -93,7 +93,7 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
               <article key={e.at} className="chron__entry">
                 <h3 className="chron__when">{chronicleWhen(e)}</h3>
                 <p className="chron__meta">
-                  {[time ? `${time[0]!.toUpperCase()}${time.slice(1)}` : '', e.recap?.seasons ? `${e.recap.seasons.to} arrived` : '', `opened ${uploaded(e.at)}`]
+                  {[time ? `${time[0]!.toUpperCase()}${time.slice(1)}` : '', e.recap?.seasons ? `${e.recap.seasons.to} arrived` : '', `uploaded ${uploaded(e.at)}`]
                     .filter(Boolean)
                     .join(' · ')}
                 </p>

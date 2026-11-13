@@ -377,11 +377,11 @@ export function DynastiesPanel({
     >
       {/* Prestige comes with a save read since the board learned it: say so until then. */}
       {!hasPrestige && rows.some((r) => r.inGame) && (
-        <p className="dynp__note">Each dynasty’s prestige shows here the next time you open your save.</p>
+        <p className="dynp__note">Each dynasty’s prestige shows here the next time you upload your save.</p>
       )}
       {!rows.length ? (
         <p className="dynp__empty">
-          No dynasties yet. Open a save with dynasties in it, or plan one from a sim’s Family tab.
+          No dynasties yet. Upload a save with dynasties in it, or plan one from a sim’s Family tab.
         </p>
       ) : !groups.length ? (
         <p className="dynp__empty">
@@ -558,7 +558,7 @@ function LineForecast({
   if (!f.steps.length) return null;
   const aging = game ? agingSummary(game) : '';
   const note = !game
-    ? 'Open your save to see when each one grows up or grows old.'
+    ? 'Upload your save to see when each one grows up or grows old.'
     : [game.lifespan ? `${game.lifespan} lifespan` : '', aging].filter(Boolean).join(' · ');
   // Everyone in line in one household on one clock: said once, under the heading.
   const shared = lineClockText(f.steps);

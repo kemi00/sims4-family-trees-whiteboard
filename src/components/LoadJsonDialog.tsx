@@ -70,7 +70,7 @@ export function LoadJsonDialog({
       <div className="save-import__card" onClick={(e) => e.stopPropagation()}>
         <h2 id="load-json-title">Load a board file</h2>
         <p>
-          You're opening <b>{pendingFileName}</b>. Choose what ends up on the
+          You're uploading <b>{pendingFileName}</b>. Choose what ends up on the
           board, then where the cards go.
         </p>
         {/* Scrolls on its own, so the title and the buttons stay in view. */}

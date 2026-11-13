@@ -183,7 +183,7 @@ export function HouseholdBrief({
       )}
       {notInGame && (
         <p className="brief__away">
-          <b>Not in your game yet.</b> Move {listNames(notInGame.map(nameOf))} in, then open your save: until then there’s no
+          <b>Not in your game yet.</b> Move {listNames(notInGame.map(nameOf))} in, then upload your save: until then there’s no
           household to play.
         </p>
       )}
@@ -238,8 +238,8 @@ export function HouseholdBrief({
       )}
       <p className="brief__foot">
         {fromSave
-          ? 'Ages come from the last save you opened. Open a newer save to refresh them.'
-          : 'No save opened yet: countdowns appear once you open one.'}
+          ? 'Ages come from the last save you uploaded. Upload a newer save to refresh them.'
+          : 'No save uploaded yet: countdowns appear once you upload one.'}
       </p>
     </aside>
   );

@@ -277,10 +277,10 @@ export function Hint({ introReady = false }: Props) {
       </section>
 
       <section className="hint__section">
-        <h3 className="hint__heading">Save and open</h3>
+        <h3 className="hint__heading">Download and upload</h3>
         <p className="hint__body">
           Open the <b>⋮</b> menu: <b>Download the board</b> keeps a copy of it,{' '}
-          <b>Open a board</b> opens one you downloaded, and <b>Open your save</b>{' '}
+          <b>Upload a board</b> brings back one you downloaded, and <b>Upload your save</b>{' '}
           brings Sims in from your Sims 4 game file without wiping links you
           already drew. Your save is read in your browser and never sent anywhere.
         </p>

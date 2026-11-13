@@ -1328,10 +1328,10 @@ export function useWhiteboard() {
       const back = !fromGame
         ? ''
         : gone.size === 1
-          ? ' They’re in your save, so opening your save again brings them back.'
+          ? ' They’re in your save, so uploading your save again brings them back.'
           : fromGame === gone.size
-            ? ' They’re in your save, so opening your save again brings them back.'
-            : ` ${fromGame} of them are in your save, so opening your save again brings those back.`;
+            ? ' They’re in your save, so uploading your save again brings them back.'
+            : ` ${fromGame} of them are in your save, so uploading your save again brings those back.`;
       flashStatus(`Deleted ${what} from the board.${back} Undo takes it back.`);
     },
     [byid, nodesCore, edges, editNodeId, bloodlineId, pushUndo, simCalled, pinCardsToCurrentPlaces, flashStatus],

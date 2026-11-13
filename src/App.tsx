@@ -248,9 +248,9 @@ export default function App() {
       {
         id: 'open-save',
         suggested: true,
-        label: 'Open your save',
+        label: 'Upload your save',
         detail: 'Your game’s newest .save: it stays on your computer',
-        words: 'upload load import refresh game file .save',
+        words: 'open load import refresh game file .save',
         run: () => saveFileRef.current?.click(),
       },
       {
@@ -323,7 +323,7 @@ export default function App() {
             {
               id: 'look-back',
               label: 'Look back through your saves',
-              detail: 'The board as it was at each save you opened',
+              detail: 'The board as it was at each save you uploaded',
               words: 'time lapse history past before',
               run: () => wb.setLookBackAt(wb.chronicle.length - 2),
             },
