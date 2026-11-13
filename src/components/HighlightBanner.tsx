@@ -5,6 +5,8 @@ type Props = {
   /** Open the Highlight panel to change the chips. */
   onChange: () => void;
   onClear: () => void;
+  /** Show who they are, as a list beside the board. */
+  onList?: () => void;
 };
 
 /**
@@ -12,7 +14,7 @@ type Props = {
  * picks out, so the count stays in view on the board. The deceased don't
  * count: the chips never pick them.
  */
-export function HighlightBanner({ summary, onChange, onClear }: Props) {
+export function HighlightBanner({ summary, onChange, onClear, onList }: Props) {
   return (
     <div
       className="bloodline-banner highlight-banner"
@@ -22,6 +24,11 @@ export function HighlightBanner({ summary, onChange, onClear }: Props) {
       <p>
         Highlighting <b>{summary.count}</b> {summary.phrase} of {summary.living} living on the board.
       </p>
+      {onList && (
+        <button type="button" className="banner__alt" onClick={onList}>
+          List
+        </button>
+      )}
       <button type="button" className="highlight-banner__change" onClick={onChange}>
         Change
       </button>

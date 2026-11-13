@@ -63,7 +63,7 @@ function ViewRow({ icon: Glyph, label, note, onClick }: { icon: Icon; label: str
  * Filters, in the bar's panel: the on/off filters first, then Games and
  * packs, Play and Highlight, each opening inside the panel with a way back.
  */
-export function FiltersPanel({ wb }: { wb: WhiteboardApi }) {
+export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList?: () => void }) {
   const counts = filterCounts(wb);
   const close = () => {
     wb.setFiltersOpen(false);
@@ -133,7 +133,8 @@ export function FiltersPanel({ wb }: { wb: WhiteboardApi }) {
         className="gpanel fpanel"
         title="Highlight"
         description="Light up the sims you pick; the rest dim"
-        back={back(wb.setAgesOpen)}
+        // Opened from the highlight's list: back goes to the list.
+        back={backToList ? { label: 'Back to the list', onBack: backToList } : back(wb.setAgesOpen)}
         onClose={close}
       >
         <AgesPanel

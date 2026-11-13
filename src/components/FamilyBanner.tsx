@@ -11,6 +11,8 @@ type Props = {
   scope: FamilyScope;
   onScope: (scope: FamilyScope) => void;
   onDone: () => void;
+  /** Show who they are, as a list beside the board. */
+  onList?: () => void;
 };
 
 const SCOPES: { scope: FamilyScope; label: string; hint: string }[] = [
@@ -27,7 +29,7 @@ const SCOPES: { scope: FamilyScope; label: string; hint: string }[] = [
  * A status region, so a screen reader hears the counts change as the
  * selection moves from sim to sim.
  */
-export function FamilyBanner({ family, byid, shown, scope, onScope, onDone }: Props) {
+export function FamilyBanner({ family, byid, shown, scope, onScope, onDone, onList }: Props) {
   const node = family ? byid[family.id] : undefined;
   const which = scope === 'extended' ? 'extended family' : 'close family';
   let text;
@@ -70,6 +72,11 @@ export function FamilyBanner({ family, byid, shown, scope, onScope, onDone }: Pr
           </button>
         ))}
       </span>
+      {onList && (
+        <button type="button" className="banner__alt" onClick={onList}>
+          List
+        </button>
+      )}
       <button type="button" onClick={onDone}>
         Done
       </button>

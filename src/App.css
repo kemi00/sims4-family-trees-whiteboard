@@ -699,6 +699,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .bloodline-banner .banner__alt{background:transparent;color:var(--accent-strong);border-color:var(--line)}
 .bloodline-banner .banner__alt:hover{background:var(--hover)}
 .bloodline-banner .banner__alt + button{margin-left:0}
+.family-banner .family-banner__scope + .banner__alt{margin-left:0}
 /*
  * Legend column on the right: two cards sharing its height. The world list
  * is how you get about, so it gives way first but always keeps room for six
@@ -1439,6 +1440,34 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .dynp__empty{margin:6px 2px;font-size:12px;color:var(--ink-2)}
 .dynp__rowhead{display:flex;align-items:stretch}
 .dynp__rowhead .dynp__head{flex:1 1 auto;min-width:0}
+/* A highlight as a list beside the board (SimListPanel): who the glowing
+   cards are, by world and household or A to Z. */
+.slist__tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px;width:100%}
+.slist__tools>.slist__sort{margin-left:auto}
+.slist__scope{display:inline-flex;gap:4px}
+.slist .slist__act{padding:4px 10px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);color:var(--ink);font-size:12px;font-weight:600;white-space:nowrap}
+.slist .slist__act:hover{background:var(--hover)}
+.slist .slist__act[aria-pressed=true]{border-color:var(--ink-3);background:#fff}
+.slist .slist__sortopt{padding:3px 8px;border:none;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11px;font-weight:600;white-space:nowrap}
+.slist .slist__sortopt:hover{background:var(--hover);color:var(--ink)}
+.slist .slist__sortopt[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1f}
+.slist__world{margin:0 0 10px}
+.slist__worldhead{display:flex;align-items:center;gap:6px;margin:10px 2px 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.slist__worldhead img{flex:none;width:16px;height:16px;border-radius:50%}
+.slist__noicon{flex:none;width:14px;height:14px;border:1.5px solid var(--line);border-radius:50%}
+.slist__worldname{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.slist__count{flex:none;font-variant-numeric:tabular-nums;color:var(--ink-3)}
+.slist__home{margin:0 0 4px}
+.slist__homehead{margin:4px 2px 2px;font-size:11.5px;font-weight:600;color:var(--ink-3);overflow-wrap:anywhere}
+.slist__rows{display:flex;flex-direction:column;gap:1px;margin:0;padding:0;list-style:none}
+.slist .slist__sim{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:6px 8px;border:none;border-radius:6px;background:transparent;text-align:left;white-space:normal;line-height:1.3;font-weight:400}
+.slist .slist__sim:hover,.slist .slist__sim:focus-visible{background:var(--hover)}
+.slist__name{font-size:12.5px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.slist__detail{font-size:11px;color:var(--ink-2);overflow-wrap:anywhere}
+.slist .slist__more{margin:2px 0 0;padding:5px 8px;border:none;border-radius:6px;background:transparent;color:var(--accent-strong);font-size:11.5px;font-weight:600;text-align:left}
+.slist .slist__more:hover{background:var(--hover)}
+.slist__empty{margin:8px 2px;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.slist__hidden{margin:10px 2px 0;font-size:11px;line-height:1.4;color:var(--ink-3)}
 .dynp .dynp__lite{flex:none;width:38px;padding:0;border:none;border-left:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink-3)}
 .dynp .dynp__lite svg{width:16px;height:16px}
 .dynp .dynp__lite:hover{background:var(--hover);color:var(--ink)}

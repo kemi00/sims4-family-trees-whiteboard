@@ -212,6 +212,11 @@ function wordFor(role: FamilyRole, n: SimNode): string {
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+/** What a relative is to the sim, in one word or two: "parent", "aunt", "step-sibling". */
+export function familyRoleWord(role: FamilyRole, n: SimNode): string {
+  return WORDS[wordFor(role, n)]?.[0] ?? role;
+}
+
 /**
  * The banner's counts for a family, over the relatives the filters show:
  * sims, the households they live in (the Unhoused sims box is not one), and

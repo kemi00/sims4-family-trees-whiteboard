@@ -3013,11 +3013,15 @@ export function useWhiteboard() {
     frameSims(next.ids, next.w, next.h);
   }, [frameSims]);
 
+  /**
+   * The view goes to a sim, and selects them. `select: false` only moves the
+   * view: a family highlight follows the selection, so its list must not.
+   */
   const focusSim = useCallback(
-    (id: string, svgWidth: number, svgHeight: number) => {
+    (id: string, svgWidth: number, svgHeight: number, select = true) => {
       const n = byid[id];
       if (!n) return;
-      setSel({ type: 'node', id });
+      if (select) setSel({ type: 'node', id });
       frameSim(n, svgWidth, svgHeight);
     },
     [byid, frameSim],

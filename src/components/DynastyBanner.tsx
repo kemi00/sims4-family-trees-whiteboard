@@ -8,6 +8,8 @@ type Props = {
   phrase?: string;
   onShowAll: () => void;
   onDone: () => void;
+  /** Show who they are, as a list beside the board. */
+  onList?: () => void;
 };
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -17,7 +19,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * members are spread, while the highlight is on. Its members can live in
  * several worlds, so Show all fits them on screen together.
  */
-export function DynastyBanner({ ids, byid, phrase, onShowAll, onDone }: Props) {
+export function DynastyBanner({ ids, byid, phrase, onShowAll, onDone, onList }: Props) {
   const members = [...ids].map((id) => byid[id]).filter((n): n is SimNode => !!n);
   const name = phrase ?? `${members.find((n) => n.dynasty)?.dynasty ?? 'This'} dynasty`;
   const homes = new Set(members.map((n) => n.gid)).size;
@@ -37,6 +39,11 @@ export function DynastyBanner({ ids, byid, phrase, onShowAll, onDone }: Props) {
         ) : null}
         <span className="family-banner__roles">Its members glow; everyone else is dimmed. Esc also ends it.</span>
       </p>
+      {onList && (
+        <button type="button" className="banner__alt" onClick={onList}>
+          List
+        </button>
+      )}
       <button type="button" className="banner__alt" onClick={onShowAll}>
         Show all
       </button>

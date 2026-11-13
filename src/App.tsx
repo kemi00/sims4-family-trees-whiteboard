@@ -16,6 +16,8 @@ import { DevUpdatesDialog } from './components/DevUpdatesDialog.tsx';
 import { UpNextPanel } from './components/UpNextPanel.tsx';
 import { DynastiesPanel } from './components/DynastiesPanel.tsx';
 import { FiltersPanel } from './components/FiltersPanel.tsx';
+import { HighlightList, type ListOf } from './components/HighlightList.tsx';
+import { highlightActive } from './lib/highlight.ts';
 import { successionForecast } from './lib/forecast.ts';
 import { partnerWindows } from './lib/matchClock.ts';
 import { storyLines } from './lib/chronicle.ts';
@@ -160,7 +162,11 @@ export default function App() {
    * one panel: one open at a time. The one opened last swaps in for the
    * other, in the same place, before it paints.
    */
+  /** A highlight's list beside the board, and whether Change came from it. */
+  const [listOf, setListOf] = useState<ListOf | null>(null);
+  const [hiFromList, setHiFromList] = useState(false);
   const barOpen = {
+    list: listOf !== null,
     upnext: wb.upNextOpen,
     dynasties: wb.dynastiesOpen,
     story: !!wb.chronicleView,
@@ -170,6 +176,7 @@ export default function App() {
   const barWas = useRef(barOpen);
   const closeBar = useCallback(
     (keep?: keyof typeof barOpen) => {
+      if (keep !== 'list') setListOf(null);
       if (keep !== 'upnext') wb.setUpNextOpen(false);
       if (keep !== 'dynasties') wb.setDynastiesOpen(false);
       if (keep !== 'story') wb.setChronicleView(null);
@@ -195,6 +202,9 @@ export default function App() {
     // A press on the board closes it. The panel, the bar (whose buttons
     // toggle and swap it) and anything over it (a dialog, a menu, the sim
     // editor, search) keep it.
+    // A highlight's list stays: you read it against the board, moving
+    // around and picking cards, as you do with the Key.
+    if (listOf) return;
     const onPointer = (ev: PointerEvent) => {
       const t = ev.target as Element | null;
       if (!t?.closest || t.closest('.barpanel, .appbar, [aria-modal="true"], .menu, .editor, .find, .poster, .pop')) return;
@@ -202,7 +212,23 @@ export default function App() {
     };
     document.addEventListener('pointerdown', onPointer, true);
     return () => document.removeEventListener('pointerdown', onPointer, true);
-  }, [anyBarOpen, closeBar]);
+  }, [anyBarOpen, closeBar, listOf]);
+
+  // A list goes with its highlight: cleared, ended, or taken over by another.
+  const listLit =
+    listOf === 'highlight'
+      ? highlightActive(wb.hiAges, wb.hiSingle) && !wb.familyFocus && !wb.dynastyFocusIds && !wb.bloodlineId
+      : listOf === 'dynasty'
+        ? !!wb.dynastyFocusIds
+        : listOf === 'family'
+          ? wb.familyFocus
+          : true;
+  useEffect(() => {
+    if (listOf && !listLit) setListOf(null);
+  }, [listOf, listLit]);
+  useEffect(() => {
+    if (!wb.agesOpen) setHiFromList(false);
+  }, [wb.agesOpen]);
 
   /** Every dynasty on the board, for the Dynasties panel: worked out only while it is open. */
   const dynastyRows = useMemo(() => (wb.dynastiesOpen ? dynastyIndex(wb.nodes) : []), [wb.dynastiesOpen, wb.nodes]);
@@ -230,6 +256,18 @@ export default function App() {
     },
     [wb.byid],
   );
+
+  /**
+   * The board left of a highlight's list, where a sim it goes to should land:
+   * the list stays open over the right of the board.
+   */
+  const besideList = () => {
+    const r = svgRef.current?.getBoundingClientRect();
+    const panel = document.getElementById('simlist')?.getBoundingClientRect();
+    if (!r) return { w: 800, h: 600 };
+    const w = panel && !isPanelSheet() ? Math.max(240, panel.left - r.left) : r.width;
+    return { w, h: r.height };
+  };
 
   /** The board's size on screen, for framing what search finds. */
   const boardSize = () => {
@@ -410,6 +448,11 @@ export default function App() {
           stageRef={stageRef}
           tipsReady={!welcomeOpen && !devUpdatesOpen && !wb.saveImport && !wb.pendingLoadJson}
           onOpenSave={() => saveFileRef.current?.click()}
+          listOf={listOf}
+          onList={(of) => {
+            trackAction(`/action/list/${of}`);
+            setListOf(of);
+          }}
           onPoster={(gid) => {
             const group = wb.groups.find((g) => g.gid === gid);
             if (!group) return;
@@ -419,7 +462,42 @@ export default function App() {
           }}
         />
         {poster && <PosterDialog model={poster} onClose={() => setPoster(null)} />}
-        {barOpen.filters && <FiltersPanel wb={wb} />}
+        {barOpen.filters && (
+          <FiltersPanel
+            wb={wb}
+            {...(hiFromList
+              ? {
+                  backToList: () => {
+                    setListOf('highlight');
+                    wb.setAgesOpen(false);
+                  },
+                }
+              : {})}
+          />
+        )}
+        {listOf && (
+          <HighlightList
+            key={listOf}
+            wb={wb}
+            of={listOf}
+            onPick={(id, select) => {
+              // A phone's sheet covers the board: it gets out of the way.
+              if (isPanelSheet()) setListOf(null);
+              const { w, h } = besideList();
+              wb.focusSim(id, w, h, select);
+            }}
+            onChange={() => {
+              setHiFromList(true);
+              wb.setAgesOpen(true);
+            }}
+            onShowAll={() => {
+              const { w, h } = besideList();
+              // frameSims keeps clear of the Key's column; the list covers it.
+              wb.frameSims(wb.dynastyFocusIds ?? [], w + (isPanelSheet() ? 0 : 210), h);
+            }}
+            onClose={() => setListOf(null)}
+          />
+        )}
         {wb.upNextOpen && (
             <UpNextPanel
               rows={upNext({

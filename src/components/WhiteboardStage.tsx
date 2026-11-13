@@ -68,6 +68,7 @@ import { BloodlineBanner } from './BloodlineBanner.tsx';
 import { DynastyBanner } from './DynastyBanner.tsx';
 import { FamilyBanner } from './FamilyBanner.tsx';
 import { HighlightBanner } from './HighlightBanner.tsx';
+import type { ListOf } from './HighlightList.tsx';
 import { SaveStatus } from './SaveStatus.tsx';
 import { SelectionBar } from './SelectionBar.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
@@ -124,6 +125,10 @@ type Props = {
   onOpenSave?: () => void;
   /** Make a poster of a household (by gid). */
   onPoster?: (gid: string) => void;
+  /** Which highlight's list is open beside the board: its banner steps aside. */
+  listOf?: ListOf | null;
+  /** Open a highlight's list. */
+  onList?: (of: ListOf) => void;
 };
 
 /**
@@ -135,7 +140,7 @@ type Props = {
 const onBoardSvg = (svg: SVGSVGElement | null, t: EventTarget | null): boolean =>
   !!svg && t instanceof Node && svg.contains(t);
 
-export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, onPoster }: Props) {
+export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, onPoster, listOf, onList }: Props) {
   const compact = useCompactChrome();
   const [tempLine, setTempLine] = useState<{
     x1: number;
@@ -2161,8 +2166,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
         !wb.familyFocus &&
         !wb.dynastyFocusIds &&
         !wb.agesOpen &&
+        listOf !== 'highlight' &&
         highlightActive(wb.hiAges, wb.hiSingle) && (
           <HighlightBanner
+            {...(onList ? { onList: () => onList('highlight') } : {})}
             summary={highlightSummary({
               nodes: wb.nodes,
               shown: wb.nodeVis,
@@ -2184,8 +2191,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             }}
           />
         )}
-      {!wb.staleTab && wb.dynastyFocusIds && (
+      {!wb.staleTab && wb.dynastyFocusIds && listOf !== 'dynasty' && (
         <DynastyBanner
+          {...(onList ? { onList: () => onList('dynasty') } : {})}
           ids={wb.dynastyFocusIds}
           byid={wb.byid}
           phrase={(() => {
@@ -2199,8 +2207,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           onDone={() => wb.setDynastyFocus(null)}
         />
       )}
-      {wb.familyFocus && (
+      {wb.familyFocus && listOf !== 'family' && (
         <FamilyBanner
+          {...(onList ? { onList: () => onList('family') } : {})}
           family={wb.family}
           byid={wb.byid}
           shown={wb.nodeVis}
