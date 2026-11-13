@@ -1,13 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
-import { PartnerRow } from './PartnerRow.tsx';
+import { SimCard } from './SimCard.tsx';
 import { CaretLeft } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
 import { theHousehold } from '../lib/utils.ts';
 import { hasNoHome } from '../lib/partners.ts';
 import { adopteeSearch, whyCantAdopt } from '../lib/adoption.ts';
+import { simCardClass } from '../lib/simCard.ts';
 import type { ChildMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
@@ -232,7 +233,7 @@ export function ChildMenu({
             : ''}
       </p>
       {hits.length > 0 ? (
-        <ul id={listId} className="partners pmenu__list" role="listbox" aria-label="Sims to adopt">
+        <ul id={listId} className="simcards pmenu__list" role="listbox" aria-label="Sims to adopt">
           {hits.map((h, i) => {
             const p = byid[h.id];
             if (!p) return null;
@@ -241,11 +242,11 @@ export function ChildMenu({
                 <button
                   type="button"
                   tabIndex={-1}
-                  className={i === active ? 'partners__on' : undefined}
+                  className={simCardClass(p, i === active)}
                   onMouseEnter={() => setActive(i)}
                   onClick={() => onAdopt(h.id)}
                 >
-                  <PartnerRow sim={p} candidate={h.candidate} dynasties={dynasties} extra={parentsFlag(h.parents)} />
+                  <SimCard sim={p} candidate={h.candidate} dynasties={dynasties} extra={parentsFlag(h.parents)} />
                 </button>
               </li>
             );

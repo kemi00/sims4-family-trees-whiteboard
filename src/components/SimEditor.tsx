@@ -58,10 +58,11 @@ import {
 } from '../lib/dynastyMenu.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
 import { WorldMoveForm } from './WorldMoveForm.tsx';
-import { PartnerRow } from './PartnerRow.tsx';
+import { SimCard } from './SimCard.tsx';
 import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
 import { fold, pronounsLabel } from '../lib/utils.ts';
 import { heirAfterChoices, heirAfterHolder, successionLine, withSuccessionChoice, type LinePlace } from '../lib/succession.ts';
+import { simCardClass } from '../lib/simCard.ts';
 import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
@@ -1297,15 +1298,11 @@ export function SimEditor({
                     onChange={(e) => setLinkQuery(e.target.value)}
                   />
                   {linkChoices.length ? (
-                    <ul className="partners">
+                    <ul className="simcards">
                       {linkChoices.map(({ sim: x, likely }) => (
                         <li key={x.id}>
-                          <button type="button" onClick={() => onLinkPlanned(x.id)}>
-                            <span className="partners__name">{cardName(x)}</span>
-                            <span className="partners__meta">
-                              {x.age} · {x.hh}
-                              {likely ? ' · likely' : ''}
-                            </span>
+                          <button type="button" className={simCardClass(x)} onClick={() => onLinkPlanned(x.id)}>
+                            <SimCard sim={x} dynasties={names} extra={likely ? ['likely'] : []} />
                           </button>
                         </li>
                       ))}
@@ -1773,14 +1770,14 @@ export function SimEditor({
               </div>
             )}
             {stagePartners.length ? (
-              <ul className="partners" aria-labelledby="edPartnersLabel" aria-describedby="edPartnersOrder">
+              <ul className="simcards" aria-labelledby="edPartnersLabel" aria-describedby="edPartnersOrder">
                 {shownPartners.map((c) => {
                   const p = byId[c.id];
                   if (!p) return null;
                   return (
                     <li key={c.id}>
-                      <button type="button" onClick={() => onPickPartner(c.id)}>
-                        <PartnerRow sim={p} candidate={c} dynasties={names} />
+                      <button type="button" className={simCardClass(p)} onClick={() => onPickPartner(c.id)}>
+                        <SimCard sim={p} candidate={c} dynasties={names} />
                       </button>
                     </li>
                   );

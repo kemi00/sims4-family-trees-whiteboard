@@ -1,11 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
-import { PartnerRow } from './PartnerRow.tsx';
+import { SimCard } from './SimCard.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
 import { theHousehold } from '../lib/utils.ts';
 import { hasNoHome, partnerSearch } from '../lib/partners.ts';
+import { simCardClass } from '../lib/simCard.ts';
 import { PARTNER_CHOICES, type PartnerChoice, type PartnerMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
@@ -181,7 +182,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
             : ''}
       </p>
       {hits.length > 0 ? (
-        <ul id={listId} className="partners pmenu__list" role="listbox" aria-label="Partners">
+        <ul id={listId} className="simcards pmenu__list" role="listbox" aria-label="Partners">
           {hits.map((h, i) => {
             const p = byid[h.id];
             if (!p) return null;
@@ -190,11 +191,11 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
                 <button
                   type="button"
                   tabIndex={-1}
-                  className={i === active ? 'partners__on' : undefined}
+                  className={simCardClass(p, i === active)}
                   onMouseEnter={() => setActive(i)}
                   onClick={() => onPick(h.id)}
                 >
-                  <PartnerRow sim={p} {...(h.candidate ? { candidate: h.candidate } : {})} dynasties={dynasties} related={h.related} married={h.married} />
+                  <SimCard sim={p} {...(h.candidate ? { candidate: h.candidate } : {})} dynasties={dynasties} related={h.related} married={h.married} />
                 </button>
               </li>
             );

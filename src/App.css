@@ -77,10 +77,10 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  --danger:#b8352a;
  --danger-soft:#fceceb;
  --warn:#8a5a00;
- /* Possible partners: a soft rose card, as in the editor and the ♥ menu. */
- --partner-line:#eadde3;
- --partner-hover:#fdf1f6;
- --partner-hover-line:#e3b3c8;
+ /* A sim in any list (SimCard): a soft rose card, as Possible partners began. */
+ --simcard-line:#eadde3;
+ --simcard-hover:#fdf1f6;
+ --simcard-hover-line:#e3b3c8;
  --warn-strong:#b45309;
  --warn-soft:#fdf3e3;
  --warn-line:#f0d3a8;
@@ -836,8 +836,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu .pmenu__kind{margin:0;padding:5px 8px;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11.5px;font-weight:600;text-align:center}
 .menu .pmenu__kind:hover{background:var(--hover);color:var(--ink)}
 .menu .pmenu__kind[aria-checked=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1f}
-.pmenu__search{display:block;box-sizing:border-box;width:100%;height:32px;padding:0 10px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:12.5px}
-.pmenu__search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.pmenu__search,.slist__find{display:block;box-sizing:border-box;width:100%;height:32px;padding:0 10px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:12.5px}
+.pmenu__search:focus,.slist__find:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
 .pmenu__label{min-height:4px;margin:6px 2px 2px;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-3)}
 .pmenu .pmenu__list{max-height:240px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
 .pmenu__empty{margin:4px 2px;color:var(--ink-2)}
@@ -1179,9 +1179,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edsum{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-top:5px;padding:5px 8px;border-radius:6px;background:#f2f4f7;font-size:11px;line-height:1.35;color:#33415a}
 .editor .edsum__text{min-width:0}
 .editor .edsum__frozen{display:block;font-size:10.5px;color:#8a5a00}
-.editor .edlink{flex:none;padding:0;border:none;background:none;color:#1b6cd6;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px}
-.editor .edlink:hover{background:none;color:#155bb8}
-.editor .edlink--more{margin:6px 2px 0}
+.editor .edlink,.slist .edlink{flex:none;padding:0;border:none;background:none;color:#1b6cd6;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.editor .edlink:hover,.slist .edlink:hover{background:none;color:#155bb8}
+.editor .edlink--more,.slist .edlink--more{margin:6px 2px 0}
 .editor .edlink--plan{display:block;margin:10px 2px 0;max-width:100%;white-space:normal;line-height:1.35;text-align:left;overflow-wrap:anywhere}
 .editor .edhint--warn{color:#8a5a00}
 .editor .edfacts{margin:0;padding:5px 8px}
@@ -1243,11 +1243,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu .lotmenu__movers button{width:18px;height:18px;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:var(--ink-3);cursor:pointer}
 .menu .lotmenu__movers button:hover{background:var(--hover);color:var(--ink)}
 .lotmenu__movers svg{width:11px;height:11px}
-.lotmenu__found{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto;overscroll-behavior:contain}
-.menu .lotmenu__found button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;margin:0;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--chrome);text-align:left;font:inherit;cursor:pointer;white-space:normal}
-.menu .lotmenu__found button:hover{background:var(--hover);border-color:var(--rule)}
-.lotmenu__name{font-size:12px;font-weight:600;color:var(--ink)}
-.lotmenu__where{font-size:10.5px;color:var(--ink-2)}
+.lotmenu__found{max-height:220px;overflow-y:auto;overscroll-behavior:contain}
 /* Their own household's name in another world: moving it whole comes first. */
 .hhmove__whole{margin-top:8px;padding:8px;border:1px solid var(--chip-line);border-radius:8px;background:var(--accent-soft)}
 .hhmove__whole p{margin:0;font-size:11px;line-height:1.4;color:var(--ink-2)}
@@ -1457,15 +1453,12 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .slist__noicon{flex:none;width:14px;height:14px;border:1.5px solid var(--line);border-radius:50%}
 .slist__worldname{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
 .slist__count{flex:none;font-variant-numeric:tabular-nums;color:var(--ink-3)}
-.slist__home{margin:0 0 4px}
-.slist__homehead{margin:4px 2px 2px;font-size:11.5px;font-weight:600;color:var(--ink-3);overflow-wrap:anywhere}
-.slist__rows{display:flex;flex-direction:column;gap:1px;margin:0;padding:0;list-style:none}
-.slist .slist__sim{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:6px 8px;border:none;border-radius:6px;background:transparent;text-align:left;white-space:normal;line-height:1.3;font-weight:400}
-.slist .slist__sim:hover,.slist .slist__sim:focus-visible{background:var(--hover)}
-.slist__name{font-size:12.5px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
-.slist__detail{font-size:11px;color:var(--ink-2);overflow-wrap:anywhere}
-.slist .slist__more{margin:2px 0 0;padding:5px 8px;border:none;border-radius:6px;background:transparent;color:var(--accent-strong);font-size:11.5px;font-weight:600;text-align:left}
-.slist .slist__more:hover{background:var(--hover)}
+/* The highlight list's search and order line, as Possible partners has them. */
+.slist__find{flex:1 1 100%;margin:2px 0 0}
+.slist__order + .simcards{margin-top:6px}
+.slist__order{margin:8px 2px 0;font-size:10.5px;color:var(--ink-3)}
+.slist .simcards{margin:0}
+.slist .edlink{cursor:pointer;font-family:inherit}
 .slist__empty{margin:8px 2px;font-size:12px;line-height:1.45;color:var(--ink-2)}
 .slist__hidden{margin:10px 2px 0;font-size:11px;line-height:1.4;color:var(--ink-3)}
 .dynp .dynp__lite{flex:none;width:38px;padding:0;border:none;border-left:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink-3)}
@@ -1619,14 +1612,20 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edline__name{font-weight:600;color:var(--ink);overflow-wrap:anywhere}
 .editor .edline__what{color:var(--ink-3);font-size:10.5px;white-space:nowrap}
 .editor .edline__row--me .edline__name{color:var(--accent-strong)}
-/* Possible partners (PartnerRow): the editor's list and the ♥ menu's, alike. */
-.editor .partners,.pmenu .partners{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
-.editor .partners button,.pmenu .partners button{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:1px;width:100%;min-width:0;margin:0;padding:5px 7px;border:1px solid var(--partner-line);border-radius:7px;background:#fff;text-align:left;cursor:pointer;font:inherit;white-space:normal;overflow-wrap:anywhere}
-.editor .partners button:hover,.pmenu .partners button:hover,.pmenu .partners button.partners__on{background:var(--partner-hover);border-color:var(--partner-hover-line)}
-.editor .partners button:focus-visible,.pmenu .partners button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
-.editor .partners__name,.pmenu .partners__name{font-size:12px;font-weight:600;color:#22304a}
-.editor .partners__meta,.pmenu .partners__meta{font-size:10.5px;font-weight:400;color:#5c6673}
-.editor .partners__flags,.pmenu .partners__flags{font-size:10px;font-weight:400;color:var(--warn)}
+/*
+ * A sim in any list (SimCard): Possible partners, the ♥ and adoption menus,
+ * a highlight's list, Move in. One card everywhere, so a list of sims reads
+ * the same wherever it is.
+ */
+.simcards{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.simcards .simcard{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:1px;width:100%;min-width:0;margin:0;padding:5px 7px;border:1px solid var(--simcard-line);border-radius:7px;background:#fff;color:inherit;text-align:left;cursor:pointer;font:inherit;line-height:1;white-space:normal;overflow-wrap:anywhere}
+.simcards .simcard:hover,.simcards .simcard.simcard--on{background:var(--simcard-hover);border-color:var(--simcard-hover-line)}
+.simcards .simcard:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.simcards .simcard--passed{opacity:.55}
+.simcards .simcard--passed:hover,.simcards .simcard--passed:focus-visible{opacity:.85}
+.simcard__name{font-size:12px;font-weight:600;color:#22304a}
+.simcard__meta{font-size:10.5px;font-weight:400;color:#5c6673}
+.simcard__flags{font-size:10px;font-weight:400;color:var(--warn)}
 /* Age and gender: two ways of narrowing the partner list, side by side. */
 .editor .edfilters{display:flex;gap:8px}
 .editor .edfilters select{flex:1 1 0;min-width:0}

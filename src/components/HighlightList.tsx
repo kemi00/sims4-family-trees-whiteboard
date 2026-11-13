@@ -4,7 +4,7 @@ import { familyRoleWord } from '../lib/family.ts';
 import { dynastyPhrase } from '../lib/generations.ts';
 import { highlightSummary } from '../lib/highlight.ts';
 import { cardName } from '../lib/plan.ts';
-import { dynastyDetail, familyDetail, highlightDetail, simList, type SimList } from '../lib/simList.ts';
+import { dynastyWhat, familyWhat, simList, stageWord, type SimList } from '../lib/simList.ts';
 import { isHighlightMatch } from '../lib/utils.ts';
 import { SimListPanel } from './SimListPanel.tsx';
 
@@ -34,19 +34,20 @@ const spread = (list: SimList) => `${plural(list.count, 'sim')} in ${plural(home
  */
 export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: Props) {
   const unborn = (id: string) => wb.plannedChildIds.has(id);
-  const base = { nodes: wb.nodes, shown: wb.nodeVis, groups: wb.groups, worlds: wb.worlds };
-  const common = { onHover: wb.setBriefHover, onClose };
+  const base = { nodes: wb.nodes, shown: wb.nodeVis, worlds: wb.worlds };
+  const common = { onHover: wb.setBriefHover, onClose, dynasties: wb.dynastyNames };
 
   if (of === 'dynasty') {
     const ids = wb.dynastyFocusIds ?? new Set<string>();
     const d = wb.dynastyFocus ? wb.dynastyNames.get(wb.dynastyFocus) : undefined;
-    const list = simList({ ...base, pick: (n) => ids.has(n.id), detail: (n) => dynastyDetail(n, unborn(n.id)) });
+    const list = simList({ ...base, pick: (n) => ids.has(n.id), what: (n) => dynastyWhat(n, unborn(n.id)) });
     return (
       <SimListPanel
         {...common}
         title={`The ${d ? dynastyPhrase(d) : 'dynasty'}`}
         description={`${spread(list)}, lit on the board`}
         list={list}
+        noDynasty
         empty="No one in this dynasty is shown on the board. Check Filters."
         onPick={(id) => onPick(id, true)}
         tools={
@@ -70,7 +71,7 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
     const list = simList({
       ...base,
       pick: (n) => !!family?.roles.has(n.id),
-      detail: (n) => familyDetail(n, family ? familyRoleWord(family.roles.get(n.id)!, n) : '', unborn(n.id)),
+      what: (n) => familyWhat(n, family ? familyRoleWord(family.roles.get(n.id)!, n) : '', unborn(n.id)),
     });
     return (
       <SimListPanel
@@ -109,7 +110,7 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
   const list = simList({
     ...base,
     pick: (n) => n.state !== DECEASED_STATE && isHighlightMatch(n, wb.hiAges, wb.hiSingle, sets),
-    detail: (n) => highlightDetail(n, unborn(n.id)),
+    what: (n) => stageWord(n, unborn(n.id)),
   });
   return (
     <SimListPanel
