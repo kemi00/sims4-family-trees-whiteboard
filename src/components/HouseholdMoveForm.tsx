@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { NEW_HOUSEHOLD, householdNamed, householdOptions } from '../lib/householdMove.ts';
-import { freeLotsIn, householdLots, lotOfPick, lotPick, lotsIn, lotKindLabel, lotRoomsLabel } from '../lib/places.ts';
+import { freeLotsIn, householdLots, lotOfPick, lotOptionLabel, lotPick, lotsIn } from '../lib/places.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 
 type Props = {
@@ -28,12 +28,6 @@ type Props = {
   /** The whole household moves to `world`: onto the lot `house` picks, when it picks one. */
   onMoveHousehold?: (world: string, house?: string) => void;
 };
-
-/** "Brook Bungalow · Courtyard Lane · 3 bed, 2 bath", a free lot in the list. */
-function lotOption(lot: ReturnType<typeof lotsIn>[number]): string {
-  const rooms = lotRoomsLabel(lot);
-  return [lot.name, lot.nb, rooms ? rooms.replace(' · ', ', ') : lotKindLabel(lot)].join(' · ');
-}
 
 /**
  * World, then household, then a name for a new one: from the broad choice to
@@ -144,7 +138,7 @@ export function HouseholdMoveForm({
           <optgroup label={`Free lots (${free.length})`}>
             {free.map((l) => (
               <option key={l.name} value={lotPick(l)}>
-                {lotOption(l)}
+                {lotOptionLabel(l)}
               </option>
             ))}
           </optgroup>

@@ -1,7 +1,8 @@
-import type { ReactNode, Ref } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { cardName } from '../lib/plan.ts';
 import { theHousehold } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
+import { MoveToLotForm, type CoupleLots } from './MoveToLotForm.tsx';
 
 type Props = {
   /** What was just planned, in green: "✓ Married: Iris Ladipo and Glen Nhoam". */
@@ -10,6 +11,11 @@ type Props = {
   ask: string;
   /** Each move offered, first the one most likely. */
   moves: { mover: SimNode; host: SimNode }[];
+  /**
+   * A couple can also move together onto a free lot, as a new household:
+   * offered when some world on the board has one. `who` names them both.
+   */
+  lots?: CoupleLots & { who: string };
   /** The first move, focused when the step opens. */
   firstRef?: Ref<HTMLButtonElement>;
   onMove: (mover: string, host: string) => void;
@@ -19,10 +25,31 @@ type Props = {
 /**
  * The step after a link that could bring two households together: a
  * marriage or a romance (the ♥ menu, Connect) or an adoption (the ＋ menu).
- * Each move into one household, or keep them apart. The same step wherever
- * the link was made, so it reads the same.
+ * Each move into one household, both onto a free lot for a couple, or keep
+ * them apart. The same step wherever the link was made, so it reads the same.
  */
-export function MoveInAsk({ done, ask, moves, firstRef, onMove, onKeep }: Props) {
+export function MoveInAsk({ done, ask, moves, lots, firstRef, onMove, onKeep }: Props) {
+  const [toLot, setToLot] = useState(false);
+  const lotRef = useRef<HTMLButtonElement>(null);
+  const back = useRef(false);
+  useEffect(() => {
+    // Back from the lots: the button that went there has the focus again.
+    if (toLot || !back.current) return;
+    back.current = false;
+    lotRef.current?.focus();
+  }, [toLot]);
+
+  if (lots && toLot) {
+    return (
+      <MoveToLotForm
+        {...lots}
+        onBack={() => {
+          back.current = true;
+          setToLot(false);
+        }}
+      />
+    );
+  }
   return (
     <>
       <p className="pmenu__done">{done}</p>
@@ -38,6 +65,11 @@ export function MoveInAsk({ done, ask, moves, firstRef, onMove, onKeep }: Props)
           {cardName(mover)} moves into {theHousehold(host.hh)}
         </button>
       ))}
+      {lots && (
+        <button ref={lotRef} type="button" className="pmenu__move" onClick={() => setToLot(true)}>
+          Both move to a free lot
+        </button>
+      )}
       <button type="button" className="pmenu__move pmenu__keep" onClick={onKeep}>
         Keep them apart
       </button>

@@ -5,6 +5,7 @@ import type { ConnectChoice, SimNode } from '../types/whiteboard.ts';
 import type { ConnectOption, connectOptions } from '../lib/connectOptions.ts';
 import { InlineLock } from './LockGlyph.tsx';
 import { MoveInAsk } from './MoveInAsk.tsx';
+import type { CoupleLots } from './MoveToLotForm.tsx';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
@@ -19,7 +20,7 @@ type Props = {
    * Set once a marriage or a romance is made between two who live apart:
    * the menu asks whether one moves in with the other, as the ♥ menu does.
    */
-  ask?: { done: string; moves: { mover: SimNode; host: SimNode }[] };
+  ask?: { done: string; moves: { mover: SimNode; host: SimNode }[]; lots?: CoupleLots & { who: string } };
   /** One of the two moves into the other's household. */
   onMove: (mover: string, host: string) => void;
   /** Cancel, or keep them apart once asked. */
@@ -105,6 +106,7 @@ export function ConnectMenu({ aName, bName, left, top, options, onConfirm, ask, 
           done={ask.done}
           ask="They live apart. Will one move in with the other?"
           moves={ask.moves}
+          {...(ask.lots ? { lots: ask.lots } : {})}
           firstRef={firstMoveRef}
           onMove={onMove}
           onKeep={onCancel}

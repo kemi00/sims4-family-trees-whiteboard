@@ -7,6 +7,7 @@ import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
 import { moveInChoices, partnerSearch } from '../lib/partners.ts';
 import { MoveInAsk } from './MoveInAsk.tsx';
+import type { CoupleLots } from './MoveToLotForm.tsx';
 import { simCardClass } from '../lib/simCard.ts';
 import { PARTNER_CHOICES, PARTNER_LABEL, type PartnerChoice, type PartnerMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
@@ -22,6 +23,8 @@ type Props = {
   onPick: (id: string) => void;
   /** One partner moves into the other's household. */
   onMove: (mover: string, host: string) => void;
+  /** Once picked, both can move onto a free lot instead (none when no world has one). */
+  lots?: CoupleLots & { who: string };
   onClose: () => void;
 };
 
@@ -31,7 +34,7 @@ type Props = {
  * click them on the board. For a marriage or a romance, two who live apart
  * are then asked about one household (MoveInAsk), as Connect asks.
  */
-export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPick, onMove, onClose }: Props) {
+export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPick, onMove, lots, onClose }: Props) {
   const { compact, ref, style } = useFitMenuInStage(menu.x, menu.y);
   // A sim's card is a pick: clicking one on the board makes them the partner.
   // Once picked, a press anywhere else keeps them apart and closes the menu.
@@ -84,6 +87,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
           ask="They live apart. Will one move in with the other?"
           // The one picked moves in with the sim whose ♥ was clicked: Lucas into Mara's.
           moves={moveInChoices(me, picked)}
+          {...(lots ? { lots } : {})}
           firstRef={firstMoveRef}
           onMove={onMove}
           onKeep={onClose}

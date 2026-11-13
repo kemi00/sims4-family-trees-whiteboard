@@ -78,7 +78,9 @@ import { LotLayer } from './LotLayer.tsx';
 import { BlankHatchPattern } from './BlankDisc.tsx';
 import { LotMoveInMenu } from './LotMoveInMenu.tsx';
 import { RecapPanel } from './RecapPanel.tsx';
-import { freeLotsIn, type GameLot } from '../lib/places.ts';
+import { coupleLotChoices, freeLotsIn, type GameLot } from '../lib/places.ts';
+import { householdNamed } from '../lib/householdMove.ts';
+import type { CoupleLots } from './MoveToLotForm.tsx';
 import { homeRoom } from '../lib/homeRoom.ts';
 import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
@@ -1683,6 +1685,30 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
   };
   /** "no heir" when the sim's dynasty is at risk; nothing for the deceased or one planned to leave it. */
   const dynastyRiskOf = (n: SimNode) => simDynastyRisk(n, wb.dynastyRisks);
+  /**
+   * A couple just linked who live apart can also move together onto a free
+   * lot, as a new household named after the first to start with; offered
+   * when some world on the board has one. `after` closes the menu.
+   */
+  const coupleLots = (aId: string, bId: string, after: () => void): (CoupleLots & { who: string }) | undefined => {
+    const a = wb.byid[aId];
+    const b = wb.byid[bId];
+    if (!a || !b) return undefined;
+    const choices = coupleLotChoices(wb.worlds.map((w) => w.name), wb.homes, [a.world, b.world]);
+    if (!choices.length) return undefined;
+    return {
+      choices,
+      who: `${cardName(a)} and ${cardName(b)}`,
+      suggested: a.sur.trim() || a.hh,
+      // A household only the two live in empties as they go: no twin is left behind.
+      twin: (world, name) =>
+        householdNamed(wb.groups, wb.nodes.filter((n) => n.id !== a.id && n.id !== b.id), world, name)?.hh,
+      onMove: (lot, name) => {
+        wb.moveIntoLot([a.id, b.id], lot, name);
+        after();
+      },
+    };
+  };
   /** The sim a card is planned as heir after, named; none when they are gone from the board. */
   const heirAfterOf = (n: SimNode) => {
     const before = n.heirAfter ? wb.byid[n.heirAfter] : undefined;
@@ -2258,6 +2284,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                   done: `✓ ${PARTNER_LABEL[menu.linked]}: ${cardName(wb.byid[menu.a]!)} and ${cardName(wb.byid[menu.b]!)}`,
                   // The second sim clicked moves in with the first, then the other way.
                   moves: moveInChoices(wb.byid[menu.a]!, wb.byid[menu.b]!),
+                  lots: coupleLots(menu.a, menu.b, () => wb.setConnectMenu(null)),
                 }
               : undefined
           }
@@ -2309,6 +2336,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           saveGame={wb.saveGame}
           onChoice={wb.setPartnerChoice}
           onPick={wb.pickPartner}
+          lots={wb.partnerMenu.picked ? coupleLots(wb.partnerMenu.id, wb.partnerMenu.picked, wb.closePartnerMenu) : undefined}
           onMove={(mover, host) => {
             const me = wb.partnerMenu?.id;
             // The view stays with the sim whose ♥ you clicked, wherever they go.

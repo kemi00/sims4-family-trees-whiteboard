@@ -151,6 +151,27 @@ export function freeLotsIn(world: string, homes: ReadonlyMap<string, GameLot>): 
   return lotsIn(world).filter((l) => !held.has(lotKey(l)));
 }
 
+/**
+ * Where a couple could make a home together: each world's free lots (empty
+ * lots and empty houses), the couple's own worlds first, then the board's
+ * others in order. Worlds with no free lot are left out.
+ */
+export function coupleLotChoices(
+  worlds: readonly string[],
+  homes: ReadonlyMap<string, GameLot>,
+  theirs: readonly string[],
+): { world: string; lots: GameLot[] }[] {
+  return [...new Set([...theirs, ...worlds])]
+    .map((world) => ({ world, lots: freeLotsIn(world, homes) }))
+    .filter((c) => c.lots.length > 0);
+}
+
+/** "Brook Bungalow · Courtyard Lane · 3 bed, 2 bath", a free lot in a picker. */
+export function lotOptionLabel(lot: GameLot): string {
+  const rooms = lotRoomsLabel(lot);
+  return [lot.name, lot.nb, rooms ? rooms.replace(' · ', ', ') : lotKindLabel(lot)].join(' · ');
+}
+
 /** Free lots of every world on the board, by world. */
 export function freeLotsByWorld(nodes: readonly HomeCard[], worlds: readonly string[]): Map<string, GameLot[]> {
   const homes = householdLots(nodes);
