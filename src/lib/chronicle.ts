@@ -1,5 +1,5 @@
 import { dayOf, dayText, seasonNow, yearOf } from './lifeClock.ts';
-import { dynastyText, familyText, homeText, lifeText, type RecapSim, type SaveRecap } from './saveRecap.ts';
+import { arrivalText, dynastyText, familyText, homeText, lifeText, relationshipText, type RecapSim, type SaveRecap } from './saveRecap.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
 
 /**
@@ -110,7 +110,9 @@ export function entryAbout(
     ...(r.dynasty
       ? {
           dynasty: r.dynasty.filter(
-            (d) => (has(ids, d.sim, d.replaced) || !!dynasties?.has(d.dynasty.key)) && says(q, d.sim.name, d.replaced?.name, d.dynasty.name, d.dynasty.tag),
+            (d) =>
+              (has(ids, d.sim, d.replaced, d.heir, ...(d.members ?? [])) || !!dynasties?.has(d.dynasty.key)) &&
+              says(q, d.sim.name, d.replaced?.name, d.heir?.name, ...(d.members ?? []).map((m) => m.name), d.dynasty.name, d.dynasty.tag),
           ),
         }
       : {}),
@@ -124,7 +126,12 @@ export function entryAbout(
         }
       : {}),
     ...(r.life ? { life: r.life.filter((l) => has(ids, l.sim) && says(q, l.sim.name, l.from, l.to)) } : {}),
-    ...(r.homes ? { homes: r.homes.filter((h) => has(ids, ...h.ids) && says(q, h.hh, h.to)) } : {}),
+    ...(r.homes ? { homes: r.homes.filter((h) => has(ids, ...h.ids) && says(q, h.hh, h.to, h.renamedFrom)) } : {}),
+    // An arrival is the story of everyone in the home it joined.
+    ...(r.arrivals ? { arrivals: r.arrivals.filter((a) => has(ids, a.sim, ...a.ids) && says(q, a.sim.name, a.hh)) } : {}),
+    ...(r.relationships ? { relationships: r.relationships.filter((x) => has(ids, x.a, x.b) && says(q, x.a.name, x.b.name)) } : {}),
+    // Whose session it was: told with the whole story, or the story of someone in that household.
+    ...(r.played && (!ids || has(ids, ...r.played.ids)) && !q ? { played: r.played } : { played: undefined }),
   };
   const any =
     recap.born.length +
@@ -137,7 +144,9 @@ export function entryAbout(
     (recap.dynasty?.length ?? 0) +
     (recap.family?.length ?? 0) +
     (recap.life?.length ?? 0) +
-    (recap.homes?.length ?? 0);
+    (recap.homes?.length ?? 0) +
+    (recap.arrivals?.length ?? 0) +
+    (recap.relationships?.length ?? 0);
   if (!any && (ids || q || (!recap.met && !recap.seasons))) return null;
   return { ...e, recap };
 }
@@ -165,6 +174,8 @@ export function storyLines(entries: readonly ChronicleEntry[], ids: ReadonlySet<
     for (const d of r.dynasty ?? []) if (d.kind === 'head' || d.kind === 'heir' || d.kind === 'founded') out.push({ when, text: dynastyText(d) });
     for (const h of r.homes ?? []) out.push({ when, text: homeText(h) });
     for (const l of r.life ?? []) if (l.kind === 'state') out.push({ when, text: lifeText(l) });
+    for (const a of r.arrivals ?? []) out.push({ when, text: arrivalText(a) });
+    for (const x of r.relationships ?? []) if (x.kind === 'engaged') out.push({ when, text: relationshipText(x) });
   }
   return out;
 }

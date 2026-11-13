@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { CloseButton } from './CloseButton.tsx';
-import { lifeText, recapTimeText, theDynasty, type DynastyNews, type LifeNews, type RecapSim, type SaveRecap } from '../lib/saveRecap.ts';
+import { lifeText, recapTimeText, relationshipText, theDynasty, type DynastyNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
@@ -93,7 +93,18 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       noLongerOutcast: <>is no longer an outcast of {the}</>,
       joined: <>joined {the}</>,
       left: <>left {the}</>,
-      founded: <>founded {the}</>,
+      founded: (
+        <>
+          founded {the}
+          {d.members?.length ? <> with {and(d.members)}</> : null}
+          {d.heir ? (
+            <>
+              , {d.members?.length ? 'and ' : 'with '}
+              {who(d.heir)} as heir
+            </>
+          ) : null}
+        </>
+      ),
     };
     return (
       <>
@@ -111,6 +122,24 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       <>
         {who(l.sim)}
         {text.slice(l.sim.name.length)}
+      </>
+    );
+  };
+  /** A relationship's step, the board's sentence with both names to click. */
+  const relationshipItem = (x: RelationshipNews): ReactNode => {
+    const text = relationshipText(x);
+    if (x.kind === 'secretKnown' && x.link === 'parent') {
+      return (
+        <>
+          {who(x.a)} is no longer a secret parent of {who(x.b)}
+        </>
+      );
+    }
+    const rest = text.slice(`${x.a.name} and ${x.b.name}`.length);
+    return (
+      <>
+        {who(x.a)} and {who(x.b)}
+        {rest}
       </>
     );
   };
@@ -139,6 +168,17 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       )),
     },
     {
+      key: 'arrivals',
+      mark: '🧳',
+      title: 'Moved in',
+      items: (recap.arrivals ?? []).map((a) => (
+        <>
+          {who(a.sim)}
+          {a.as ? `, ${a.as},` : ''} joined the {a.hh} household
+        </>
+      )),
+    },
+    {
       key: 'family',
       mark: '👪',
       title: 'Family',
@@ -162,6 +202,12 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       items: (recap.dynasty ?? []).map(dynastyItem),
     },
     {
+      key: 'relationships',
+      mark: '🤝',
+      title: 'Relationships',
+      items: (recap.relationships ?? []).map(relationshipItem),
+    },
+    {
       key: 'apart',
       mark: '💔',
       title: 'Apart',
@@ -176,18 +222,26 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
       mark: '🏠',
       title: 'Moved',
       items: [
-        ...(recap.homes ?? []).map((h) => (
-          <>
-            The{' '}
+        ...(recap.homes ?? []).map((h) => {
+          const name = (
             <button type="button" className="recap__sim" onClick={() => onGoToSim(h.ids[0]!)}>
               {h.hh}
-            </button>{' '}
-            household moved to {h.to}
-          </>
-        )),
+            </button>
+          );
+          return h.renamedFrom ? (
+            <>
+              The {h.renamedFrom} household is now called the {name} household
+            </>
+          ) : (
+            <>
+              The {name} household moved to {h.to}
+            </>
+          );
+        }),
         ...recap.moved.map((m) => (
           <>
-            {who(m)} moved to {m.to}
+            {/* Out of every household: left it, rather than "moved to Unhoused sims". */}
+            {who(m)} {m.to === 'Unhoused sims' ? <>left {m.from}</> : <>moved to {m.to}</>}
           </>
         )),
       ],
@@ -228,6 +282,7 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
   ].filter((s) => s.items.length > 0);
   return (
     <>
+      {recap.played && <p className="recap__played">You played the {recap.played.hh} household.</p>}
       {sections.map((s) => (
         <RecapSection key={s.key} mark={s.mark} title={s.title} items={s.items} />
       ))}

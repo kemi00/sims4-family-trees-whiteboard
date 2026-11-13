@@ -3424,7 +3424,10 @@ export function useWhiteboard() {
       const goesOn = mode === 'merge' || keepStory;
       const told =
         goesOn && saveGame
-          ? saveRecap({ nodes: nodesCore, edges, saveGame }, { nodes: result.nodes, edges: result.edges, saveGame: result.saveGame })
+          ? saveRecap(
+              { nodes: nodesCore, edges, saveGame, pairStatus },
+              { nodes: result.nodes, edges: result.edges, saveGame: result.saveGame, pairStatus: result.pairStatus },
+            )
           : null;
       // The chronicle: this upload's story, or the start of one.
       if (result.saveGame) {
@@ -3517,7 +3520,7 @@ export function useWhiteboard() {
       );
       fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, edges, saveGame, releaseLayout, seed.nodes],
+    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, edges, saveGame, pairStatus, releaseLayout, seed.nodes],
   );
 
   const previewSave = useCallback((file: File) => {

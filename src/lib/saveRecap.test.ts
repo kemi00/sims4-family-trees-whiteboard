@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { recapHasNews, recapTimeText, saveRecap } from './saveRecap.ts';
-import type { Edge, SimNode } from '../types/whiteboard.ts';
+import { arrivalText, dynastyText, homeText, recapHasNews, recapTimeText, relationshipText, saveRecap } from './saveRecap.ts';
+import type { Edge, PairStatus, SimNode } from '../types/whiteboard.ts';
 
 const sim = (id: string, first: string, extra: Partial<SimNode> = {}): SimNode =>
   ({
@@ -136,5 +136,92 @@ describe('everything else a save changed, planned or not', () => {
     });
     assert.deepEqual(r3.homes, [{ hh: 'Ojo', ids: ['m', 'k'], to: 'Ophelia Villa in Willow Creek' }]);
     assert.equal(r3.moved.length, 0);
+  });
+});
+
+describe('what the first round missed', () => {
+  const marilla = sim('ma', 'Marilla', { sur: 'Cuthbert', gid: 'Chestnut Ridge||Green Gables', hh: 'Green Gables', world: 'Chestnut Ridge' });
+  const matthew = sim('mt', 'Matthew', { sur: 'Cuthbert', gid: 'Chestnut Ridge||Green Gables', hh: 'Green Gables', world: 'Chestnut Ridge', gender: 'Male' });
+  const anne = sim('an', 'Anne-Shirley', { sur: 'Cuthbert', gid: 'Chestnut Ridge||Green Gables', hh: 'Green Gables', world: 'Chestnut Ridge', age: 'Teen' });
+  const cuthbert = { dynasty: 'Cuthbert', dynastyId: '9' };
+  const horse = (id: string, age: string, extra: Partial<SimNode> = {}) =>
+    sim(id, 'Hurricane', { species: 'Horse', state: 'Pet', age, gid: 'Chestnut Ridge||Green Gables', hh: 'Green Gables', world: 'Chestnut Ridge', ...extra });
+  const before = {
+    nodes: [marilla, matthew, anne],
+    edges: [] as Edge[],
+    saveGame: { importedAt: 'x', clock: day },
+    pairStatus: [{ a: 'ma', b: 'mt', tags: ['friends'] }] as PairStatus[],
+  };
+  const after = (extra: SimNode[] = [], edges: Edge[] = [], pairStatus: PairStatus[] = before.pairStatus) => ({
+    nodes: [
+      { ...marilla, ...cuthbert, dynastyRole: 'head' as const },
+      { ...matthew, ...cuthbert },
+      { ...anne, ...cuthbert, dynastyRole: 'heir' as const },
+      ...extra,
+    ],
+    edges,
+    saveGame: { importedAt: 'y', clock: 2 * day, lastPlayedGid: 'Chestnut Ridge||Green Gables' },
+    pairStatus,
+  });
+
+  it('names everyone in a dynasty founded: one line for all their stories', () => {
+    const r = saveRecap(before, after());
+    assert.deepEqual(r.dynasty!.map(dynastyText), ['Marilla Cuthbert founded the Cuthbert dynasty with Matthew Cuthbert, and Anne-Shirley Cuthbert as heir']);
+    assert.deepEqual(r.played, { hh: 'Green Gables', ids: ['ma', 'mt', 'an'] });
+  });
+
+  it('names a pet or sim who joined a household, at any age, in everyone there’s story', () => {
+    for (const [age, as] of [
+      ['Child', 'a foal'],
+      ['Adult', 'a horse'],
+      ['Elder', 'an elder horse'],
+    ] as const) {
+      const r = saveRecap(before, after([horse('h', age)]));
+      assert.deepEqual(r.arrivals!.map(arrivalText), [`Hurricane Capp, ${as}, joined the Green Gables household`]);
+      assert.deepEqual(r.arrivals![0]!.ids, ['ma', 'mt', 'an']);
+      assert.equal(r.met, 0);
+    }
+  });
+
+  it('counts a foal born to parents on the board as born', () => {
+    const mare = horse('m', 'Adult', { first: 'Mare' });
+    const r = saveRecap(
+      { ...before, nodes: [...before.nodes, mare] },
+      after([mare, horse('f', 'Child')], [{ id: 'p', a: 'm', b: 'f', type: 'parent', source: 'save' }]),
+    );
+    assert.deepEqual(r.born.map((b) => b.id), ['f']);
+    assert.equal(r.arrivals, undefined);
+  });
+
+  it('tells relationships taking a step, up or down, and secrets coming out', () => {
+    const r = saveRecap(
+      { ...before, edges: [{ id: 's', a: 'ma', b: 'an', type: 'parent', source: 'save', secret: true }] },
+      after(
+        [],
+        [{ id: 's', a: 'ma', b: 'an', type: 'parent', source: 'save' }],
+        [
+          { a: 'ma', b: 'mt', tags: ['goodFriends'] },
+          { a: 'an', b: 'mt', tags: ['enemies', 'disliked'] },
+          { a: 'an', b: 'ma', tags: ['engaged'] },
+        ] as PairStatus[],
+      ),
+    );
+    assert.deepEqual(r.relationships!.map(relationshipText), [
+      'Marilla Cuthbert and Matthew Cuthbert became good friends',
+      'Anne-Shirley Cuthbert and Matthew Cuthbert started to dislike each other',
+      'Anne-Shirley Cuthbert and Matthew Cuthbert became enemies',
+      'Anne-Shirley Cuthbert and Marilla Cuthbert got engaged',
+      'Marilla Cuthbert is no longer a secret parent of Anne-Shirley Cuthbert',
+    ]);
+  });
+
+  it('tells a household renamed in the game as one line', () => {
+    const r = saveRecap(before, {
+      ...before,
+      nodes: before.nodes.map((n) => ({ ...n, gid: 'Chestnut Ridge||Cuthbert', hh: 'Cuthbert' })),
+      saveGame: { importedAt: 'y', clock: 2 * day },
+    });
+    assert.deepEqual(r.homes!.map(homeText), ['The Green Gables household is now called the Cuthbert household']);
+    assert.equal(r.moved.length, 0);
   });
 });

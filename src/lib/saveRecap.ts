@@ -3,8 +3,9 @@ import { TICKS_PER_DAY } from './lifeClock.ts';
 import { dynastyKey, dynastyLabelText, dynastyNames } from './generations.ts';
 import { cardName, isPlannedSim } from './plan.ts';
 import { isUnhousedGid } from './unhoused.ts';
-import { edgeSourceOf, uKey } from './utils.ts';
-import type { DynastyRole, Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
+import { petKind } from './pets.ts';
+import { edgeSourceOf, isPet, pronounsLabel, uKey } from './utils.ts';
+import type { DynastyRole, Edge, PairStatus, PairTag, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 export type RecapSim = { id: string; name: string };
 
@@ -27,7 +28,34 @@ export type DynastyNews = {
   dynasty: RecapDynasty;
   /** Who held the role before, for "in place of". */
   replaced?: RecapSim;
+  /** A dynasty founded: everyone else in it, and its heir, so each of their stories tells it. */
+  members?: RecapSim[];
+  heir?: RecapSim;
   planned?: boolean;
+};
+
+/**
+ * Someone new to the board who joined a household already on it, at any
+ * age: a pet rescued or adopted, a sim moving in. `ids`: who lived there
+ * already, whose story it is too.
+ */
+export type ArrivalNews = { sim: RecapSim; hh: string; ids: string[]; as?: string };
+
+/**
+ * Two sims' relationship taking a step, as the save's relationship panel has
+ * it: friendship (1 friends, 2 good friends, 3 best friends) or dislike
+ * (1 dislike, 2 despise) going up or down, enemies, engaged, partners, and
+ * a secret parent or secret lovers no longer secret.
+ */
+export type RelationshipNews = {
+  kind: 'friendship' | 'rivalry' | 'enemies' | 'engaged' | 'partners' | 'secretKnown';
+  a: RecapSim;
+  b: RecapSim;
+  from?: number;
+  to?: number;
+  on?: boolean;
+  /** For secretKnown: a parent (a of b) or lovers. */
+  link?: 'parent' | 'romance';
 };
 
 /** Family news: an adoption, or a parent the family tree now shows. */
@@ -36,10 +64,10 @@ export type FamilyNews =
   | { kind: 'parentFound'; parent: RecapSim; child: RecapSim; secret?: boolean };
 
 /** A sim's life changing: a new life state, or a new name. */
-export type LifeNews = { kind: 'state' | 'name' | 'renamed'; sim: RecapSim; from: string; to: string };
+export type LifeNews = { kind: 'state' | 'name' | 'renamed' | 'pronouns'; sim: RecapSim; from: string; to: string };
 
 /** A household moving home together: to another lot, or another world. */
-export type HomeNews = { hh: string; ids: string[]; to: string; from?: string };
+export type HomeNews = { hh: string; ids: string[]; to: string; from?: string; renamedFrom?: string };
 
 /**
  * What a save upload says happened in the game since the last one, as a
@@ -71,13 +99,19 @@ export type SaveRecap = {
   family?: FamilyNews[];
   /** New life states and names. */
   life?: LifeNews[];
-  /** Households that moved home together. */
+  /** Households that moved home together, or were renamed. */
   homes?: HomeNews[];
+  /** Sims and pets new to the board who joined a household on it. */
+  arrivals?: ArrivalNews[];
+  /** Relationships that took a step. */
+  relationships?: RelationshipNews[];
+  /** The household you played last, as the save has it: whose session this was. */
+  played?: { hh: string; ids: string[] };
   /** Cards to celebrate: a planned birth or couple came true. */
   celebrate: string[];
 };
 
-type Board = { nodes: readonly SimNode[]; edges: readonly Edge[]; saveGame?: SaveGameInfo | null };
+type Board = { nodes: readonly SimNode[]; edges: readonly Edge[]; saveGame?: SaveGameInfo | null; pairStatus?: readonly PairStatus[] };
 
 /** Stages a sim can be born into between two saves. */
 const YOUNG = new Set(['Newborn', 'Infant', 'Baby', 'Toddler']);
@@ -111,7 +145,9 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
     const o = was.get(n.id);
     if (!o) {
       if (!n.saveSimId) continue;
-      if (YOUNG.has(n.age) && n.state !== DECEASED_STATE) recap.born.push({ ...sim(n), ...parentsOf(n.id), planned: false });
+      // A kitten, puppy or foal is born young as "Child": born when its parents are on the board.
+      const young = YOUNG.has(n.age) || (isPet(n) && n.age === 'Child' && parentNodes(n.id).length > 0);
+      if (young && n.state !== DECEASED_STATE) recap.born.push({ ...sim(n), ...parentsOf(n.id), planned: false });
       else if (!n.treeId) {
         recap.met += 1;
         (recap.metIds ??= []).push(n.id);
@@ -206,6 +242,7 @@ function aState(state: string): string {
 /** The life states the story tells, as a sentence about `name`. */
 export function lifeText(n: LifeNews): string {
   const name = n.sim.name;
+  if (n.kind === 'pronouns') return `${name} now uses ${n.to}`;
   if (n.kind === 'name') return `${name} took the name ${n.to}`;
   if (n.kind === 'renamed') return `${n.from} is now called ${n.to}`;
   if (n.from === DECEASED_STATE && n.to !== 'Ghost') return `${name} came back to life`;
@@ -235,7 +272,48 @@ export function dynastyText(d: DynastyNews): string {
     case 'left':
       return `${d.sim.name} left ${the}`;
     case 'founded':
-      return `${d.sim.name} founded ${the}`;
+      return `${d.sim.name} founded ${the}${foundedWith(d)}`;
+  }
+}
+
+/** "A, B and C". */
+export function listNames(names: readonly string[]): string {
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+}
+
+/** " with Matthew Cuthbert, and Anne-Shirley Cuthbert as heir": the rest of a founding. */
+function foundedWith(d: DynastyNews): string {
+  const with_ = d.members?.length ? ` with ${listNames(d.members.map((m) => m.name))}` : '';
+  const heir = d.heir ? `, ${with_ ? 'and ' : 'with '}${d.heir.name} as heir` : '';
+  return `${with_}${heir}`;
+}
+
+/** "Hurricane Cuthbert, a foal, joined the Green Gables household". */
+export function arrivalText(a: ArrivalNews): string {
+  return `${a.sim.name}${a.as ? `, ${a.as},` : ''} joined the ${a.hh} household`;
+}
+
+/** Friendship and dislike, by level. */
+const FRIENDS = ['', 'friends', 'good friends', 'best friends'];
+
+/** A relationship's step as a sentence: "Anne-Shirley Cuthbert and Marilla Cuthbert became good friends". */
+export function relationshipText(r: RelationshipNews): string {
+  const both = `${r.a.name} and ${r.b.name}`;
+  const up = (r.to ?? 0) > (r.from ?? 0);
+  switch (r.kind) {
+    case 'friendship':
+      return up ? `${both} became ${FRIENDS[r.to!]}` : r.to ? `${both} are now ${FRIENDS[r.to]}` : `${both} are no longer friends`;
+    case 'rivalry':
+      if (up) return r.to === 2 ? `${both} now despise each other` : `${both} started to dislike each other`;
+      return r.to ? `${both} now only dislike each other` : `${both} no longer dislike each other`;
+    case 'enemies':
+      return r.on ? `${both} became enemies` : `${both} are no longer enemies`;
+    case 'engaged':
+      return `${both} got engaged`;
+    case 'partners':
+      return `${both} became partners`;
+    case 'secretKnown':
+      return r.link === 'parent' ? `${r.a.name} is no longer a secret parent of ${r.b.name}` : `${both} are no longer secret lovers`;
   }
 }
 
@@ -247,7 +325,16 @@ export function familyText(f: FamilyNews): string {
 
 /** A household's move as a sentence: "The Capp household moved to 17 Bright Cliff in Ondarion". */
 export function homeText(h: HomeNews): string {
+  if (h.renamedFrom) return `The ${h.renamedFrom} household is now called the ${h.hh} household`;
   return `The ${h.hh} household moved to ${h.to}`;
+}
+
+/** A pet's kind and age in a sentence: "a foal", "a horse", "an elder horse". */
+function petAs(n: SimNode): string | undefined {
+  if (!isPet(n)) return undefined;
+  const kind = (n.species ?? 'pet').toLowerCase();
+  if (n.age === 'Child') return `a ${(petKind(n.species)?.young ?? 'young').toLowerCase()}`;
+  return n.age === 'Elder' ? `an elder ${kind}` : /^[aeiou]/.test(kind) ? `an ${kind}` : `a ${kind}`;
 }
 
 /** A sim's role in a dynasty as the game has it, or undefined while a plan stands in for it. */
@@ -308,11 +395,21 @@ function tellTheRest(
       dynasty.push({ kind: 'founded', sim: sim(n), dynasty: dynastyOf(r.key, r.name), ...(wasPlanned(was.get(n.id)) ? { planned: true } : {}) });
     }
   }
+  // A founding names everyone in the new dynasty, so each of their stories tells it.
+  for (const d of dynasty) {
+    if (d.kind !== 'founded') continue;
+    for (const n of now.values()) {
+      const r = gameRole(n);
+      if (!r || r.key !== d.dynasty.key || n.id === d.sim.id || isPet(n)) continue;
+      if (r.role === 'heir') d.heir = sim(n);
+      else (d.members ??= []).push(sim(n));
+    }
+  }
   for (const role of ['head', 'heir'] as const) {
     const then = holders(was, role);
     const nowHeld = holders(now, role);
     for (const [key, n] of nowHeld) {
-      if (founded.has(key) && role === 'head') continue;
+      if (founded.has(key)) continue;
       const old = then.get(key) ?? [...then.entries()].find(([k, o]) => o.dynasty?.toLowerCase() === n.dynasty?.toLowerCase() && !nowHeld.has(k))?.[1];
       if (old?.id === n.id) continue;
       // A newborn heir is told with the birth too; the heir news says whose place they took.
@@ -423,12 +520,105 @@ function tellTheRest(
     const to = n.lot ? `${n.lot} in ${n.world}` : n.world;
     homes.push({ hh: n.hh, ids: mem.map((m) => m.id), to, ...(o.lot ? { from: `${o.lot} in ${o.world}` } : {}) });
   }
+  // A household renamed in the game: its sims all went from one name to another, in the same world.
+  const renames = new Map<string, { from: SimNode; to: SimNode; ids: string[] }>();
+  for (const n of now.values()) {
+    const o = was.get(n.id);
+    if (!o || o.gid === n.gid || o.world !== n.world || o.hh === n.hh || isUnhousedGid(o.gid) || isUnhousedGid(n.gid)) continue;
+    const key = `${o.gid}>${n.gid}`;
+    const r = renames.get(key) ?? { from: o, to: n, ids: [] };
+    r.ids.push(n.id);
+    renames.set(key, r);
+  }
+  for (const r of renames.values()) {
+    const stayed = [...now.values()].some((n) => n.gid === r.from.gid);
+    const hadSims = [...was.values()].some((o) => o.gid === r.to.gid);
+    const all = [...was.values()].filter((o) => o.gid === r.from.gid && now.has(o.id) && !isPlannedSim(o)).every((o) => now.get(o.id)!.gid === r.to.gid);
+    if (stayed || hadSims || !all) continue;
+    homes.push({ hh: r.to.hh, ids: r.ids, to: '', renamedFrom: r.from.hh });
+  }
   if (homes.length) {
     recap.homes = homes;
-    // A household that moved together is told as one move, not one per sim.
+    // A household that moved together, or was renamed, is told as one, not one move per sim.
     const together = new Set(homes.flatMap((h) => h.ids));
     recap.moved = recap.moved.filter((m) => !together.has(m.id));
   }
+
+  // Pronouns the game changed: worded plainly, with the board's own label for them.
+  for (const n of now.values()) {
+    const o = was.get(n.id);
+    if (!o?.pronouns || !n.pronouns || isPlannedSim(n)) continue;
+    const from = pronounsLabel(o.pronouns);
+    const to = pronounsLabel(n.pronouns);
+    if (from !== to) (recap.life ??= []).push({ kind: 'pronouns', sim: sim(n), from, to });
+  }
+
+  // Arrivals: someone new, of any age, who joined a household already on the board.
+  const arrivals: ArrivalNews[] = [];
+  for (const id of recap.metIds ?? []) {
+    const n = now.get(id);
+    if (!n || isUnhousedGid(n.gid)) continue;
+    const home = [...now.values()].filter((m) => m.gid === n.gid && m.id !== n.id && was.has(m.id) && !isPlannedSim(m));
+    if (!home.length) continue;
+    const as = petAs(n);
+    arrivals.push({ sim: sim(n), hh: n.hh, ids: home.map((m) => m.id), ...(as ? { as } : {}) });
+  }
+  if (arrivals.length) {
+    recap.arrivals = arrivals;
+    const named = new Set(arrivals.map((a) => a.sim.id));
+    recap.metIds = recap.metIds!.filter((id) => !named.has(id));
+    recap.met = recap.metIds.length;
+  }
+
+  // Relationships: each pair's step, as the save's relationship panel has it.
+  const tagsOf = (list: readonly PairStatus[] | undefined) => new Map((list ?? []).map((p) => [uKey(p.a, p.b), p] as const));
+  const t0 = tagsOf(before.pairStatus);
+  const t1 = tagsOf(after.pairStatus);
+  const level = (tags: readonly PairTag[], ladder: PairTag[]) => {
+    for (let i = ladder.length - 1; i >= 0; i--) if (tags.includes(ladder[i]!)) return i + 1;
+    return 0;
+  };
+  const relationships: RelationshipNews[] = [];
+  if (before.pairStatus && after.pairStatus) {
+    for (const key of new Set([...t0.keys(), ...t1.keys()])) {
+      const p = t1.get(key) ?? t0.get(key)!;
+      const a = now.get(p.a);
+      const b = now.get(p.b);
+      // Between two sims living on the board: a friendship fading after a passing isn't news.
+      if (!a || !b || isPlannedSim(a) || isPlannedSim(b) || a.state === DECEASED_STATE || b.state === DECEASED_STATE) continue;
+      const t = t0.get(key)?.tags ?? [];
+      const u = t1.get(key)?.tags ?? [];
+      const pair = { a: sim(a), b: sim(b) };
+      const f0 = level(t, ['friends', 'goodFriends', 'bestFriends']);
+      const f1 = level(u, ['friends', 'goodFriends', 'bestFriends']);
+      if (f0 !== f1) relationships.push({ kind: 'friendship', ...pair, from: f0, to: f1 });
+      const r0 = level(t, ['disliked', 'despised']);
+      const r1 = level(u, ['disliked', 'despised']);
+      if (r0 !== r1) relationships.push({ kind: 'rivalry', ...pair, from: r0, to: r1 });
+      if (t.includes('enemies') !== u.includes('enemies')) relationships.push({ kind: 'enemies', ...pair, on: u.includes('enemies') });
+      // Engaged, then married, is told as the marriage.
+      if (u.includes('engaged') && !t.includes('engaged') && !u.includes('married')) relationships.push({ kind: 'engaged', ...pair });
+      if (u.includes('partners') && !t.includes('partners') && !u.includes('engaged') && !u.includes('married'))
+        relationships.push({ kind: 'partners', ...pair });
+    }
+  }
+  // Secrets coming out: a secret parent, or secret lovers, the save no longer keeps secret.
+  const secretThen = new Map(
+    before.edges.filter((e) => e.secret && edgeSourceOf(e) !== 'planned').map((e) => [`${e.type}:${e.a}>${e.b}`, e] as const),
+  );
+  for (const e of after.edges) {
+    if (e.secret || edgeSourceOf(e) === 'planned' || !secretThen.has(`${e.type}:${e.a}>${e.b}`)) continue;
+    const a = now.get(e.a);
+    const b = now.get(e.b);
+    if (a && b && (e.type === 'parent' || e.type === 'romance'))
+      relationships.push({ kind: 'secretKnown', a: sim(a), b: sim(b), link: e.type === 'parent' ? 'parent' : 'romance' });
+  }
+  if (relationships.length) recap.relationships = relationships;
+
+  // Whose session it was: the household the save has you playing.
+  const gid = after.saveGame?.lastPlayedGid;
+  const playedHome = gid ? [...now.values()].filter((n) => n.gid === gid && !isPlannedSim(n)) : [];
+  if (playedHome.length) recap.played = { hh: playedHome[0]!.hh, ids: playedHome.map((n) => n.id) };
 }
 
 /** Anything happened that the recap would tell. */
@@ -445,7 +635,9 @@ export function recapHasNews(r: SaveRecap): boolean {
       (r.dynasty?.length ?? 0) +
       (r.family?.length ?? 0) +
       (r.life?.length ?? 0) +
-      (r.homes?.length ?? 0) >
+      (r.homes?.length ?? 0) +
+      (r.arrivals?.length ?? 0) +
+      (r.relationships?.length ?? 0) >
       0 ||
     !!r.seasons
   );

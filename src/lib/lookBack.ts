@@ -42,6 +42,8 @@ export function pastView(entries: readonly ChronicleEntry[], at: number, nodes: 
     if (!r) continue;
     for (const b of r.born) view.hidden.add(b.id);
     for (const id of r.metIds ?? []) view.hidden.add(id);
+    // Sims and pets who joined a household since weren't on the board yet.
+    for (const a of r.arrivals ?? []) view.hidden.add(a.sim.id);
     for (const g of r.grew) view.ageOf.set(g.id, g.from);
     for (const d of r.died) view.alive.add(d.id);
     for (const t of r.together) view.laterCouples.add(coupleKey(t.a.id, t.b.id, t.type));
