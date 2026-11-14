@@ -447,6 +447,8 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .link-sel-chip__sim:focus-visible{box-shadow:0 0 0 3px var(--accent-ring)}
 .link-sel-chip__acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
 .link-sel-chip__acts .link-sel-chip__act{margin-top:0}
+.link-sel-chip__act.link-sel-chip__act--add{display:inline-flex;align-items:center;gap:3px}
+.link-sel-chip__act--add svg{width:11px;height:11px;flex:none}
 .link-sel-chip__act.link-sel-chip__act--del{color:var(--danger)}
 .link-sel-chip__act.link-sel-chip__act--del:hover{background:var(--danger-soft);border-color:var(--danger)}
 .link-sel-chip__act{pointer-events:auto;align-self:flex-start;margin-top:5px;padding:3px 9px;border:1px solid var(--rule);border-radius:999px;background:#fff;color:var(--accent);font:inherit;font-size:11px;font-weight:600;cursor:pointer}

@@ -19,6 +19,8 @@ import {
   EDGE_SEL_SCREEN_PX,
   LABEL_MIN_K,
   LONG_PRESS_MS,
+  PILL_H,
+  SEL_BADGE_MIN_SCREEN_PX,
   TILE,
   ZOOM_MAX,
 } from '../lib/constants.ts';
@@ -63,7 +65,7 @@ import { slug, trackAction } from '../lib/analytics.ts';
 import { edgeSourceOf, endedByPassing, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
 import { PARTNER_LABEL, type WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import type { BoardMultiSel, SimNode } from '../types/whiteboard.ts';
+import type { BoardMultiSel, SimNode, UnionRender } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
 import { DynastyBanner } from './DynastyBanner.tsx';
 import { FamilyBanner } from './FamilyBanner.tsx';
@@ -73,7 +75,7 @@ import { SaveStatus } from './SaveStatus.tsx';
 import { SelectionBar } from './SelectionBar.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
-import { EdgeLayer } from './EdgeLayer.tsx';
+import { EdgeLayer, PickedUnionBadge } from './EdgeLayer.tsx';
 import { LotLayer } from './LotLayer.tsx';
 import { BlankHatchPattern } from './BlankDisc.tsx';
 import { LotMoveInMenu } from './LotMoveInMenu.tsx';
@@ -1741,6 +1743,25 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       )
     );
   };
+  /** The one couple picked, by its line or badge: its badge is drawn above the cards. */
+  const pickedId = wb.sel?.type === 'link' && wb.sel.ids.length === 1 ? wb.sel.ids[0] : undefined;
+  const pickedUnion = pickedId ? wb.edgeData.unions.find((u) => u.edgeId === pickedId) : undefined;
+  /** A couple's line or badge pressed: Connect links to it, otherwise it's picked. */
+  const onUnionClick = (a: string, b: string, ev: ReactPointerEvent, edgeId: string) => {
+    onHandlePointer(ev);
+    if (pinchRef.current || pointersRef.current.size >= 2) return;
+    if (wb.connectMode) wb.handleConnectUnion(a, b);
+    // The link drawn where you pressed: a planned marriage over the
+    // save's romance is the marriage, so Delete cancels the plan.
+    else wb.selectLink([edgeId]);
+  };
+  /** The couple's ＋: a new sim, or one they adopt together. */
+  const onAddInfant = (u: UnionRender, ev: ReactPointerEvent) => {
+    onHandlePointer(ev);
+    if (pinchRef.current || pointersRef.current.size >= 2) return;
+    const sr = stageRef.current?.getBoundingClientRect();
+    wb.openChildMenu([u.a, u.b], ev.clientX - (sr?.left ?? 0), ev.clientY - (sr?.top ?? 0) + 14, { rx: u.rx, ry: u.ry });
+  };
   const linkChip =
     wb.sel?.type === 'link'
       ? describeLinkSelection(
@@ -1751,6 +1772,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           wb.pairIndex,
         )
       : null;
+
+  /**
+   * The one couple picked, when its line has a ＋ for a baby (not a couple a
+   * passing ended): the chip offers the same, so it's in reach at any zoom.
+   */
+  const chipUnion =
+    linkChip && pickedUnion && (pickedUnion.isUser || !endedByPassing(pickedUnion, (x) => deadIds.has(x)))
+      ? pickedUnion
+      : undefined;
 
   const linkChipObstacles: ChipObstacle[] = [];
   if (linkChip) {
@@ -1905,31 +1935,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             connectMode={wb.connectMode}
             hitStroke={EDGE_HIT_SCREEN_PX / k}
             selStroke={EDGE_SEL_SCREEN_PX / k}
+            liftedUnionId={pickedUnion?.edgeId}
             onLinkClick={(ids, ev) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
               wb.selectLink(ids);
             }}
-            onUnionClick={(a, b, ev, edgeId) => {
-              onHandlePointer(ev);
-              if (pinchRef.current || pointersRef.current.size >= 2) return;
-              if (wb.connectMode) wb.handleConnectUnion(a, b);
-              // The link drawn where you pressed: a planned marriage over the
-              // save's romance is the marriage, so Delete cancels the plan.
-              else wb.selectLink([edgeId]);
-            }}
-            onAddInfant={(u, ev) => {
-              onHandlePointer(ev);
-              if (pinchRef.current || pointersRef.current.size >= 2) return;
-              // The couple's ＋: a new sim, or one they adopt together.
-              const sr = stageRef.current?.getBoundingClientRect();
-              wb.openChildMenu(
-                [u.a, u.b],
-                ev.clientX - (sr?.left ?? 0),
-                ev.clientY - (sr?.top ?? 0) + 14,
-                { rx: u.rx, ry: u.ry },
-              );
-            }}
+            onUnionClick={onUnionClick}
+            onAddInfant={onAddInfant}
           />
           <g id="lTemp">
             {tempLine && (
@@ -2005,6 +2018,18 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           </g>
           {/* Household name / Age up above edges so a selected link does not
               steal drags from tags the path crosses. */}
+          {pickedUnion && (
+            <PickedUnionBadge
+              u={pickedUnion}
+              scale={Math.max(1, SEL_BADGE_MIN_SCREEN_PX / (PILL_H * k))}
+              deadIds={deadIds}
+              offPlan={wb.offPlan.edges.has(pickedUnion.edgeId)}
+              worldById={worldById}
+              gidById={gidById}
+              onUnionClick={onUnionClick}
+              onAddInfant={onAddInfant}
+            />
+          )}
           <GroupLayer
             mode="handles"
             groups={wb.groups}
@@ -2091,6 +2116,21 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             const r = svgRef.current?.getBoundingClientRect();
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
           }}
+          {...(chipUnion
+            ? {
+                onAddChild: (button: HTMLElement) => {
+                  // The couple's ＋ menu, opened under the button that asked.
+                  const sr = stageRef.current?.getBoundingClientRect();
+                  const br = button.getBoundingClientRect();
+                  wb.openChildMenu(
+                    [chipUnion.a, chipUnion.b],
+                    br.left - (sr?.left ?? 0),
+                    br.bottom - (sr?.top ?? 0) + 6,
+                    { rx: chipUnion.rx, ry: chipUnion.ry },
+                  );
+                },
+              }
+            : {})}
           {...(linkChip.couple && !widowedEdge(linkChip.couple.id)
             ? {
                 action: (() => {

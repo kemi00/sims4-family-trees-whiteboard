@@ -264,6 +264,8 @@ type Props = {
   hitStroke: number;
   /** Visible stroke for a selected link (thicker than the default 2.3). */
   selStroke: number;
+  /** The picked couple whose badge PickedUnionBadge draws above the cards: not drawn here. */
+  liftedUnionId?: string;
   onLinkClick: (ids: string[], e: ReactPointerEvent) => void;
   /** A couple's line was pressed: `edgeId` is the one drawn there, on top of any other between them. */
   onUnionClick: (a: string, b: string, e: ReactPointerEvent, edgeId: string) => void;
@@ -281,6 +283,116 @@ type Props = {
    */
   deadIds?: ReadonlySet<string>;
 };
+
+/**
+ * A couple's line and badge colours. Violet means planned, not in the save
+ * yet, for divorces as for every couple: a divorce from the save is gray like
+ * a marriage. A planned divorce or breakup is violet too, drawn as it will be.
+ */
+function unionColors(u: UnionRender, picked: boolean): { line: string; pill: string } {
+  if (picked) return { line: '#1b6cd6', pill: '#1b6cd6' };
+  const line = u.isUser || u.ending ? UEDIT : COL.marriage;
+  return { line, pill: u.type === 'romance' && !u.ending ? COL.romance : line };
+}
+
+/** A couple a passing ended (endedByPassing): very faded, with no ＋ for a baby. */
+function unionPassed(u: UnionRender, deadIds: ReadonlySet<string> | undefined): boolean {
+  return !!deadIds && !u.isUser && (u.type === 'marriage' || u.type === 'romance') && (deadIds.has(u.a) || deadIds.has(u.b));
+}
+
+/** A couple's badge on its line, with the ＋ for a baby under it (shown on hover, or when picked). */
+function UnionBadge({
+  u,
+  picked,
+  color,
+  passed,
+  offPlan,
+  scale = 1,
+  onAddInfant,
+}: {
+  u: UnionRender;
+  picked: boolean;
+  color: string;
+  passed: boolean;
+  offPlan: boolean;
+  /** Grown about the badge's centre, to keep its size on screen when zoomed out. */
+  scale?: number;
+  onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
+}) {
+  const { rx: x, ry: y } = u;
+  return (
+    <g
+      className={picked ? 'union-pill union-pill--plus' : 'union-pill'}
+      transform={scale > 1 ? `translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})` : undefined}
+    >
+      {(u.type === 'divorced' || (u.type === 'marriage' && u.ending)) && <DivorcePill x={x} y={y} color={color} />}
+      {u.type === 'romance' && u.ending && <BreakupPill x={x} y={y} color={color} />}
+      {u.type === 'romance' &&
+        !u.ending &&
+        (u.secret ? <SecretLoversPill x={x} y={y} color={color} /> : <HeartPill x={x} y={y} color={color} />)}
+      {u.type === 'marriage' && !u.ending && <RingPill x={x} y={y} color={color} />}
+      {offPlan && <OffPlanMark x={x} y={y} />}
+      {!passed && (
+        <AddInfantPlus
+          x={x}
+          y={y + PILL_H}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onAddInfant(u, e);
+          }}
+        />
+      )}
+    </g>
+  );
+}
+
+/**
+ * The picked couple's badge and ＋, drawn above the cards. Zoomed out it
+ * grows (`scale`) to stay as easy to see and tap as its bold line, and its
+ * partners' cards would hide its sides. A link group (data-ends), so a live
+ * drag carries it along with its line.
+ */
+export function PickedUnionBadge({
+  u,
+  scale,
+  deadIds,
+  offPlan,
+  worldById,
+  gidById,
+  onUnionClick,
+  onAddInfant,
+}: {
+  u: UnionRender;
+  scale: number;
+  deadIds?: ReadonlySet<string>;
+  offPlan: boolean;
+  worldById?: ReadonlyMap<string, string>;
+  gidById?: ReadonlyMap<string, string>;
+  onUnionClick: (a: string, b: string, e: ReactPointerEvent, edgeId: string) => void;
+  onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
+}) {
+  return (
+    <g
+      className="link edge sel"
+      data-ends={JSON.stringify([u.a, u.b])}
+      {...chromeDataProps([u.a, u.b], worldById, gidById)}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onUnionClick(u.a, u.b, e, u.edgeId);
+      }}
+    >
+      <UnionBadge
+        u={u}
+        picked
+        color={unionColors(u, true).pill}
+        passed={unionPassed(u, deadIds)}
+        offPlan={offPlan}
+        scale={scale}
+        onAddInfant={onAddInfant}
+      />
+    </g>
+  );
+}
 
 const STROKE = LINK_STROKE;
 const STROKE_ACROSS = LINK_STROKE_ACROSS;
@@ -339,6 +451,7 @@ export const EdgeLayer = memo(function EdgeLayer({
   connectMode,
   hitStroke,
   selStroke,
+  liftedUnionId,
   onLinkClick,
   onUnionClick,
   onAddInfant,
@@ -391,15 +504,9 @@ export const EdgeLayer = memo(function EdgeLayer({
         );
       })}
       {unions.map((u) => {
-        // Violet means planned, not in the save yet, for divorces as for
-        // every couple: a divorce from the save is gray like a marriage.
-        // A planned divorce or breakup is violet too, drawn as it will be.
-        const lineCol = u.isUser || u.ending ? UEDIT : COL.marriage;
-        const pillCol = u.type === 'romance' && !u.ending ? COL.romance : lineCol;
         const sq = isSelLink([u.edgeId]);
-        const lc = sq ? '#1b6cd6' : lineCol;
-        const pc = sq ? '#1b6cd6' : pillCol;
-        const passed = !!deadIds && !u.isUser && (u.type === 'marriage' || u.type === 'romance') && (deadIds.has(u.a) || deadIds.has(u.b));
+        const { line: lc, pill: pc } = unionColors(u, sq);
+        const passed = unionPassed(u, deadIds);
         return (
           <g
             key={u.edgeId}
@@ -428,33 +535,16 @@ export const EdgeLayer = memo(function EdgeLayer({
               strokeLinecap={u.cross ? 'butt' : 'round'}
             />
             <ArrowHeads arrows={u.arrows} color={lc} />
-            <g
-              className={sq ? 'union-pill union-pill--plus' : 'union-pill'}
-            >
-              {(u.type === 'divorced' || (u.type === 'marriage' && u.ending)) && (
-                <DivorcePill x={u.rx} y={u.ry} color={pc} />
-              )}
-              {u.type === 'romance' && u.ending && <BreakupPill x={u.rx} y={u.ry} color={pc} />}
-              {u.type === 'romance' &&
-                !u.ending &&
-                (u.secret ? (
-                  <SecretLoversPill x={u.rx} y={u.ry} color={pc} />
-                ) : (
-                  <HeartPill x={u.rx} y={u.ry} color={pc} />
-                ))}
-              {u.type === 'marriage' && !u.ending && (
-                <RingPill x={u.rx} y={u.ry} color={pc} />
-              )}
-              {offPlanEdgeIds?.has(u.edgeId) && <OffPlanMark x={u.rx} y={u.ry} />}
-              {!passed && <AddInfantPlus
-                x={u.rx}
-                y={u.ry + PILL_H}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onAddInfant(u, e);
-                }}
-              />}
-            </g>
+            {u.edgeId !== liftedUnionId && (
+              <UnionBadge
+                u={u}
+                picked={sq}
+                color={pc}
+                passed={passed}
+                offPlan={!!offPlanEdgeIds?.has(u.edgeId)}
+                onAddInfant={onAddInfant}
+              />
+            )}
             {passed && <title>Together until a passing: nothing to divorce or plan</title>}
           </g>
         );

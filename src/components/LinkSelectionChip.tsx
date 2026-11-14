@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ChipObstacle, ChipSim, LinkSelectionInfo } from '../lib/linkLabel.ts';
 import { placeChipOnVisiblePath } from '../lib/linkLabel.ts';
+import { Plus } from '../icons.ts';
 
 type Props = {
   info: LinkSelectionInfo;
@@ -14,6 +15,12 @@ type Props = {
   obstacles?: ChipObstacle[];
   /** A name was clicked: select that sim and bring their card into view. */
   onGoToSim?: (id: string) => void;
+  /**
+   * The picked couple's ＋, here too: a new sim, or one they adopt. Offered
+   * whenever the line has a ＋, so it is in reach at any zoom and when the
+   * couple's badge is off screen. Gets the button, for the menu to open under.
+   */
+  onAddChild?: (button: HTMLElement) => void;
   /** What to do with the picked couple: plan its end, or cancel that plan. */
   action?: { label: string; onClick: () => void };
   /** Take the picked link off the board (the Delete key's job too). */
@@ -86,6 +93,7 @@ export function LinkSelectionChip({
   stageH,
   obstacles = [],
   onGoToSim,
+  onAddChild,
   action,
   onDelete,
 }: Props) {
@@ -123,7 +131,9 @@ export function LinkSelectionChip({
   return (
     <div
       ref={ref}
-      className={directed || info.yourNote || action || onDelete ? 'link-sel-chip link-sel-chip--tall' : 'link-sel-chip'}
+      className={
+        directed || info.yourNote || onAddChild || action || onDelete ? 'link-sel-chip link-sel-chip--tall' : 'link-sel-chip'
+      }
       data-side={placement.side}
       style={{ left, top }}
       role="status"
@@ -171,8 +181,20 @@ export function LinkSelectionChip({
         ) : null}
         {info.note && <span className="link-sel-chip__note">{info.note}</span>}
         {info.yourNote && <span className="link-sel-chip__yours">{info.yourNote}</span>}
-        {(action || onDelete) && (
+        {(onAddChild || action || onDelete) && (
           <span className="link-sel-chip__acts">
+            {onAddChild && (
+              <button
+                type="button"
+                className="link-sel-chip__act link-sel-chip__act--add"
+                title="Add a child of this couple: a new sim, or one they adopt"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => onAddChild(e.currentTarget)}
+              >
+                <Plus size={11} weight="bold" aria-hidden="true" />
+                Add a child
+              </button>
+            )}
             {action && (
               <button
                 type="button"

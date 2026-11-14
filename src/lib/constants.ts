@@ -359,3 +359,8 @@ export const STATUS_FLASH_MS = 2800;
 export const EDGE_HIT_SCREEN_PX = 16;
 /** Selected-link stroke thickness in screen pixels (`/ k` → world). */
 export const EDGE_SEL_SCREEN_PX = 5;
+/**
+ * A picked couple's badge (and its ＋) is never shorter than this on screen:
+ * zoomed out, it stays as easy to see and tap as its bold line.
+ */
+export const SEL_BADGE_MIN_SCREEN_PX = 28;
