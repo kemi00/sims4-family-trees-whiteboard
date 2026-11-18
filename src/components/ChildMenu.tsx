@@ -67,11 +67,12 @@ export function ChildMenu({
   const me = adopters.length === menu.parents.length ? adopters[0] : undefined;
   const couple = adopters.length > 1;
   const picked = menu.picked ? byid[menu.picked] : undefined;
+  const choosing = menu.step === 'choose';
   const adopting = menu.step === 'adopt';
 
   const all = useMemo(
-    () => (me ? adopteeSearch({ ids: menu.parents, nodes, edges, game: saveGame, unborn }) : []),
-    [me, menu.parents, nodes, edges, saveGame, unborn],
+    () => (choosing && me ? adopteeSearch({ ids: menu.parents, nodes, edges, game: saveGame, unborn }) : []),
+    [choosing, me, menu.parents, nodes, edges, saveGame, unborn],
   );
   const hits = useMemo(
     () =>
@@ -182,7 +183,7 @@ export function ChildMenu({
   return shell(
     `Plan an adoption by ${name}`,
     <>
-      {head(`${couple ? firsts : name} ${adopt}…`, true)}
+      {head(`${couple ? firsts : name} ${adopt}…`, menu.entryStep === 'choose')}
       <input
         ref={inputRef}
         className="pmenu__search"

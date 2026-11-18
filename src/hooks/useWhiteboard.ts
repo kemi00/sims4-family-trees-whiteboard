@@ -200,6 +200,7 @@ export type ChildMenuState = {
   couple?: { rx: number; ry: number };
   x: number;
   y: number;
+  entryStep: 'choose' | 'adopt';
   step: 'choose' | 'adopt' | 'move';
   /** The sim just adopted, asked about moving in. */
   picked?: string;
@@ -2769,15 +2770,15 @@ export function useWhiteboard() {
     setStatus((cur) => (cur.startsWith(PARTNER_HINT) ? '' : cur));
   }, []);
 
-  /** A ＋ (a card's, or a couple's): a new sim, or one to adopt. */
+  /** Open the child chooser or go straight to its adoption picker. */
   const openChildMenu = useCallback(
-    (parents: string[], x: number, y: number, couple?: { rx: number; ry: number }) => {
+    (parents: string[], x: number, y: number, couple?: { rx: number; ry: number }, entryStep: ChildMenuState['entryStep'] = 'choose') => {
       if (!parents.length || parents.some((id) => !byid[id])) return;
       setConnectMenu(null);
       setConnSrc(null);
       setPartnerMenu(null);
       if (parents.length === 1) setSel({ type: 'node', id: parents[0]! });
-      setChildMenu({ parents, x, y, step: 'choose', ...(couple ? { couple } : {}) });
+      setChildMenu({ parents, x, y, entryStep, step: entryStep, ...(couple ? { couple } : {}) });
     },
     [byid],
   );

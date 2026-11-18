@@ -26,6 +26,7 @@ export { Highlighter } from '@phosphor-icons/react/Highlighter';
 export { House } from '@phosphor-icons/react/House';
 export { IdentificationBadge } from '@phosphor-icons/react/IdentificationBadge';
 export { Info } from '@phosphor-icons/react/Info';
+export { LinkBreak } from '@phosphor-icons/react/LinkBreak';
 export { LinkSimple } from '@phosphor-icons/react/LinkSimple';
 export { ListNumbers } from '@phosphor-icons/react/ListNumbers';
 export { LockSimple } from '@phosphor-icons/react/LockSimple';

@@ -1,7 +1,7 @@
 import { useCallback, useId, useRef, useState } from 'react';
 import type { ChipObstacle, ChipSim, LinkSelectionInfo } from '../lib/linkLabel.ts';
 import { placeChipOnVisiblePath } from '../lib/linkLabel.ts';
-import { CaretDown, NotePencil, Plus } from '../icons.ts';
+import { CaretDown, LinkBreak, NotePencil, Plus, UserPlus } from '../icons.ts';
 import { NoteEditor } from './NoteEditor.tsx';
 
 type Props = {
@@ -17,11 +17,11 @@ type Props = {
   /** A name was clicked: select that sim and bring their card into view. */
   onGoToSim?: (id: string) => void;
   /**
-   * The picked couple's ＋, here too: a new sim, or one they adopt. Offered
-   * whenever the line has a ＋, so it is in reach at any zoom and when the
-   * couple's badge is off screen. Gets the button, for the menu to open under.
+   * The picked couple's child chooser and direct adoption picker.
+   * Gets the button so the menu can open underneath it.
    */
-  onAddChild?: (button: HTMLElement) => void;
+  onChildMenu?: (button: HTMLElement, step: 'choose' | 'adopt') => void;
+  adoptDisabledReason?: string;
   /** What to do with the picked couple: plan its end, or cancel that plan. */
   action?: { label: string; onClick: () => void };
   onSaveNote?: (text: string) => void;
@@ -95,7 +95,8 @@ export function LinkSelectionChip({
   stageH,
   obstacles = [],
   onGoToSim,
-  onAddChild,
+  onChildMenu,
+  adoptDisabledReason,
   action,
   onSaveNote,
   onDelete,
@@ -107,6 +108,12 @@ export function LinkSelectionChip({
   const closeNote = () => {
     setEditingNote(false);
     noteButton.current?.focus({ preventScroll: true });
+  };
+  const noteVisible = editingNote || (!!info.yourNote && noteExpanded);
+  const toggleNote = () => {
+    if (editingNote) setEditingNote(false);
+    if (info.yourNote) setNoteExpanded(!noteVisible);
+    else if (!editingNote) setEditingNote(true);
   };
   // A note can widen the chip and a big family can add lines.
   const [size, setSize] = useState<{ width: number; height: number }>();
@@ -142,12 +149,13 @@ export function LinkSelectionChip({
   const left = Math.max(half, Math.min(stageW - half, tx + placement.at[0] * k));
   const top = ty + placement.at[1] * k;
   const directed = !!(info.nameFrom && info.nameTo);
-  const hasActions = onAddChild || action || info.yourNote || onSaveNote || onDelete;
+  const hasPlans = !!(onChildMenu || action);
+  const hasNoteControl = !!(info.yourNote || onSaveNote);
 
   return (
     <div
       ref={ref}
-      className={`link-sel-chip${directed || hasActions ? ' link-sel-chip--tall' : ''}${editingNote ? ' link-sel-chip--editing' : ''}`}
+      className={`link-sel-chip${directed || hasPlans || hasNoteControl || onDelete ? ' link-sel-chip--tall' : ''}${editingNote ? ' link-sel-chip--editing' : ''}`}
       data-side={placement.side}
       style={{ left, top }}
       role="status"
@@ -193,54 +201,63 @@ export function LinkSelectionChip({
           </span>
         ) : null}
         {info.note && <span className="link-sel-chip__note">{info.note}</span>}
-        {hasActions && (
-          <span className="link-sel-chip__acts">
-            {onAddChild && (
-              <button
-                type="button"
-                className="link-sel-chip__act link-sel-chip__act--icon"
-                title="Add a child of this couple: a new sim, or one they adopt"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => onAddChild(e.currentTarget)}
-              >
-                <Plus size={11} weight="bold" aria-hidden="true" />
-                Add a child
-              </button>
+        {hasPlans && (
+          <div className="link-sel-chip__plans" role="group" aria-label="Relationship plans">
+            {onChildMenu && (
+              <>
+                <button
+                  type="button"
+                  className="link-sel-chip__act link-sel-chip__act--plan"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => onChildMenu(e.currentTarget, 'choose')}
+                >
+                  <Plus weight="bold" aria-hidden="true" />
+                  Add a child
+                </button>
+                <button
+                  type="button"
+                  className="link-sel-chip__act link-sel-chip__act--plan"
+                  disabled={!!adoptDisabledReason}
+                  title={adoptDisabledReason}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => onChildMenu(e.currentTarget, 'adopt')}
+                >
+                  <UserPlus weight="bold" aria-hidden="true" />
+                  Adopt a sim
+                </button>
+              </>
             )}
             {action && (
               <button
                 type="button"
-                className="link-sel-chip__act"
+                className="link-sel-chip__act link-sel-chip__act--plan"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={action.onClick}
               >
+                <LinkBreak weight="bold" aria-hidden="true" />
                 {action.label}
               </button>
             )}
-            {info.yourNote && !editingNote && (
-              <button
-                type="button"
-                className="link-sel-chip__act link-sel-chip__act--icon"
-                aria-expanded={noteExpanded}
-                aria-controls={noteId}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => setNoteExpanded((expanded) => !expanded)}
-              >
-                <CaretDown className="link-sel-chip__note-caret" weight="bold" aria-hidden="true" />
-                {noteExpanded ? 'Hide note' : 'Show note'}
-              </button>
-            )}
-            {onSaveNote && (
+          </div>
+        )}
+        {(hasNoteControl || onDelete) && (
+          <div className="link-sel-chip__utility">
+            {hasNoteControl && (
               <button
                 ref={noteButton}
                 type="button"
-                className="link-sel-chip__act link-sel-chip__act--icon"
-                aria-expanded={editingNote}
+                className="link-sel-chip__act link-sel-chip__act--note"
+                aria-expanded={noteVisible}
+                aria-controls={noteId}
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => setEditingNote((open) => !open)}
+                onClick={toggleNote}
               >
-                <NotePencil size={11} weight="bold" aria-hidden="true" />
-                {info.noteTarget.note ? 'Edit note' : 'Add a note'}
+                {info.yourNote ? (
+                  <CaretDown className="link-sel-chip__note-caret" weight="bold" aria-hidden="true" />
+                ) : (
+                  <NotePencil weight="bold" aria-hidden="true" />
+                )}
+                {info.yourNote ? (noteVisible ? 'Hide note' : 'Show note') : 'Add a note'}
               </button>
             )}
             {onDelete && (
@@ -254,30 +271,43 @@ export function LinkSelectionChip({
                 Delete link
               </button>
             )}
-          </span>
+          </div>
         )}
-        {info.yourNote && !editingNote && (
+        {hasNoteControl && (
           <div
             id={noteId}
-            className="link-sel-chip__yours"
-            hidden={!noteExpanded}
-            tabIndex={0}
+            className="link-sel-chip__note-panel"
+            hidden={!noteVisible}
             role="region"
             aria-label="Relationship note"
           >
-            {info.yourNote}
+            {editingNote && onSaveNote ? (
+              <NoteEditor
+                initial={info.noteTarget.note ?? ''}
+                onCancel={closeNote}
+                onSave={(text) => {
+                  onSaveNote(text);
+                  if (!text.trim()) setNoteExpanded(false);
+                  closeNote();
+                }}
+              />
+            ) : noteVisible && info.yourNote ? (
+              <>
+                <div className="link-sel-chip__yours" tabIndex={0}>{info.yourNote}</div>
+                {onSaveNote && (
+                  <button
+                    type="button"
+                    className="link-sel-chip__act link-sel-chip__act--note link-sel-chip__edit-note"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => setEditingNote(true)}
+                  >
+                    <NotePencil weight="bold" aria-hidden="true" />
+                    {info.noteTarget.note ? 'Edit note' : 'Add a note'}
+                  </button>
+                )}
+              </>
+            ) : null}
           </div>
-        )}
-        {editingNote && onSaveNote && (
-          <NoteEditor
-            initial={info.noteTarget.note ?? ''}
-            onCancel={closeNote}
-            onSave={(text) => {
-              onSaveNote(text);
-              if (!text.trim()) setNoteExpanded(false);
-              closeNote();
-            }}
-          />
         )}
       </div>
     </div>

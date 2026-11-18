@@ -62,6 +62,7 @@ import {
   type ChipObstacle,
 } from '../lib/linkLabel.ts';
 import { slug, trackAction } from '../lib/analytics.ts';
+import { whyCantAdopt } from '../lib/adoption.ts';
 import { edgeSourceOf, endedByPassing, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
 import { PARTNER_LABEL, type WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
@@ -1781,6 +1782,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     linkChip && pickedUnion && (pickedUnion.isUser || !endedByPassing(pickedUnion, (x) => deadIds.has(x)))
       ? pickedUnion
       : undefined;
+  const adoptDisabledReason = chipUnion
+    ? [wb.byid[chipUnion.a], wb.byid[chipUnion.b]].map((sim) => {
+        const why = sim && whyCantAdopt(sim);
+        return why ? `${sim.first}: ${why}` : undefined;
+      }).find(Boolean)
+    : undefined;
 
   const linkChipObstacles: ChipObstacle[] = [];
   if (linkChip) {
@@ -2120,7 +2127,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           }}
           {...(chipUnion
             ? {
-                onAddChild: (button: HTMLElement) => {
+                adoptDisabledReason,
+                onChildMenu: (button: HTMLElement, step: 'choose' | 'adopt') => {
                   // The couple's ＋ menu, opened under the button that asked.
                   const sr = stageRef.current?.getBoundingClientRect();
                   const br = button.getBoundingClientRect();
@@ -2129,6 +2137,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                     br.left - (sr?.left ?? 0),
                     br.bottom - (sr?.top ?? 0) + 6,
                     { rx: chipUnion.rx, ry: chipUnion.ry },
+                    step,
                   );
                 },
               }
