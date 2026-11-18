@@ -605,7 +605,7 @@ export default function App() {
             <ConnectionLogPanel
               entries={wb.connectionLog}
               offPlanEdgeIds={wb.offPlan.edges}
-              onNote={wb.setLogNote}
+              onNote={wb.setNote}
               onCancel={(entry) => {
                 const r = svgRef.current?.getBoundingClientRect();
                 wb.cancelPlan(entry, r ? { w: r.width, h: r.height } : undefined);

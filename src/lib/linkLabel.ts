@@ -55,6 +55,8 @@ export type LinkSelectionInfo = {
   note?: string;
   /** Your note on the link: why you planned it. */
   yourNote?: string;
+  /** The links the chip can edit and their current relationship note. */
+  noteTarget: { edgeIds: string[]; note?: string };
   /** One couple picked: its planned end, or what Delete would plan. */
   couple?: { id: string; type: 'marriage' | 'romance'; ending: boolean };
   /**
@@ -502,6 +504,7 @@ export function describeLinkSelection(
     ...parties,
     note: copy.note,
     ...(yourNote ? { yourNote } : {}),
+    noteTarget: { edgeIds: matched.map((e) => e.id), note: matched.find((e) => e.note?.trim())?.note },
     ...(couple ? { couple } : {}),
     path,
   };

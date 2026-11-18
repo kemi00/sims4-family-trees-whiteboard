@@ -302,6 +302,17 @@ describe('describeLinkSelection', () => {
     assert.equal(describeLinkSelection(['e1'], edges, byid, edgeData)!.yourNote, undefined);
   });
 
+  it('keeps the planned ending note out of the relationship editor', () => {
+    const link: Edge = {
+      ...edges[0]!,
+      note: 'Relationship note',
+      ending: { createdAt: '2026-11-18T12:00:00.000Z', note: 'Breakup note' },
+    };
+    const chip = describeLinkSelection(['e1'], [link], byid, edgeData)!;
+    assert.deepEqual(chip.noteTarget, { edgeIds: ['e1'], note: 'Relationship note' });
+    assert.equal(chip.yourNote, 'Relationship note\nBreakup note');
+  });
+
   it('keeps sibling bar and stems as separate ink chunks', () => {
     const sib: Edge = {
       id: 's1',

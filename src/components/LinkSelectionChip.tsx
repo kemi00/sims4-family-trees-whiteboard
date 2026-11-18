@@ -1,7 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 import type { ChipObstacle, ChipSim, LinkSelectionInfo } from '../lib/linkLabel.ts';
 import { placeChipOnVisiblePath } from '../lib/linkLabel.ts';
-import { Plus } from '../icons.ts';
+import { CaretDown, NotePencil, Plus } from '../icons.ts';
+import { NoteEditor } from './NoteEditor.tsx';
 
 type Props = {
   info: LinkSelectionInfo;
@@ -23,6 +24,7 @@ type Props = {
   onAddChild?: (button: HTMLElement) => void;
   /** What to do with the picked couple: plan its end, or cancel that plan. */
   action?: { label: string; onClick: () => void };
+  onSaveNote?: (text: string) => void;
   /** Take the picked link off the board (the Delete key's job too). */
   onDelete?: () => void;
 };
@@ -95,17 +97,29 @@ export function LinkSelectionChip({
   onGoToSim,
   onAddChild,
   action,
+  onSaveNote,
   onDelete,
 }: Props) {
-  // The chip's real height (a big family or a note takes more lines), so
-  // it's placed where all of it stays on screen.
-  const [height, setHeight] = useState<number>();
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const noteId = useId();
+  const noteButton = useRef<HTMLButtonElement>(null);
+  const closeNote = () => {
+    setEditingNote(false);
+    noteButton.current?.focus({ preventScroll: true });
+  };
+  // A note can widen the chip and a big family can add lines.
+  const [size, setSize] = useState<{ width: number; height: number }>();
   const watching = useRef<ResizeObserver | null>(null);
   const ref = useCallback((el: HTMLDivElement | null) => {
     watching.current?.disconnect();
     watching.current = null;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setHeight(el.offsetHeight || undefined));
+    const ro = new ResizeObserver(() => {
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+      setSize((prev) => prev?.width === width && prev.height === height ? prev : { width, height });
+    });
     ro.observe(el);
     watching.current = ro;
   }, []);
@@ -120,28 +134,27 @@ export function LinkSelectionChip({
     },
     40,
     obstacles,
-    height,
+    size?.height,
   );
   if (!placement) return null;
 
-  const left = tx + placement.at[0] * k;
+  const half = Math.min(stageW / 2, (size?.width ?? 0) / 2 + 8);
+  const left = Math.max(half, Math.min(stageW - half, tx + placement.at[0] * k));
   const top = ty + placement.at[1] * k;
   const directed = !!(info.nameFrom && info.nameTo);
+  const hasActions = onAddChild || action || info.yourNote || onSaveNote || onDelete;
 
   return (
     <div
       ref={ref}
-      className={
-        directed || info.yourNote || onAddChild || action || onDelete ? 'link-sel-chip link-sel-chip--tall' : 'link-sel-chip'
-      }
+      className={`link-sel-chip${directed || hasActions ? ' link-sel-chip--tall' : ''}${editingNote ? ' link-sel-chip--editing' : ''}`}
       data-side={placement.side}
       style={{ left, top }}
       role="status"
-      aria-live="polite"
+      aria-live={editingNote ? 'off' : 'polite'}
       aria-label={[
         [info.tag ? `${info.label} (${info.tag})` : info.label, info.names].filter(Boolean).join(': '),
         info.note,
-        info.yourNote && `Your note: ${info.yourNote}`,
       ]
         .filter(Boolean)
         .join('. ')}
@@ -149,7 +162,7 @@ export function LinkSelectionChip({
       <span className="link-sel-chip__mark" aria-hidden="true">
         {info.mark}
       </span>
-      <span className="link-sel-chip__body">
+      <div className="link-sel-chip__body">
         <span className="link-sel-chip__label">
           {info.label}
           {info.tag && <span className="link-sel-chip__tag"> ({info.tag})</span>}
@@ -180,13 +193,12 @@ export function LinkSelectionChip({
           </span>
         ) : null}
         {info.note && <span className="link-sel-chip__note">{info.note}</span>}
-        {info.yourNote && <span className="link-sel-chip__yours">{info.yourNote}</span>}
-        {(onAddChild || action || onDelete) && (
+        {hasActions && (
           <span className="link-sel-chip__acts">
             {onAddChild && (
               <button
                 type="button"
-                className="link-sel-chip__act link-sel-chip__act--add"
+                className="link-sel-chip__act link-sel-chip__act--icon"
                 title="Add a child of this couple: a new sim, or one they adopt"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => onAddChild(e.currentTarget)}
@@ -205,6 +217,32 @@ export function LinkSelectionChip({
                 {action.label}
               </button>
             )}
+            {info.yourNote && !editingNote && (
+              <button
+                type="button"
+                className="link-sel-chip__act link-sel-chip__act--icon"
+                aria-expanded={noteExpanded}
+                aria-controls={noteId}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setNoteExpanded((expanded) => !expanded)}
+              >
+                <CaretDown className="link-sel-chip__note-caret" weight="bold" aria-hidden="true" />
+                {noteExpanded ? 'Hide note' : 'Show note'}
+              </button>
+            )}
+            {onSaveNote && (
+              <button
+                ref={noteButton}
+                type="button"
+                className="link-sel-chip__act link-sel-chip__act--icon"
+                aria-expanded={editingNote}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setEditingNote((open) => !open)}
+              >
+                <NotePencil size={11} weight="bold" aria-hidden="true" />
+                {info.noteTarget.note ? 'Edit note' : 'Add a note'}
+              </button>
+            )}
             {onDelete && (
               <button
                 type="button"
@@ -218,7 +256,30 @@ export function LinkSelectionChip({
             )}
           </span>
         )}
-      </span>
+        {info.yourNote && !editingNote && (
+          <div
+            id={noteId}
+            className="link-sel-chip__yours"
+            hidden={!noteExpanded}
+            tabIndex={0}
+            role="region"
+            aria-label="Relationship note"
+          >
+            {info.yourNote}
+          </div>
+        )}
+        {editingNote && onSaveNote && (
+          <NoteEditor
+            initial={info.noteTarget.note ?? ''}
+            onCancel={closeNote}
+            onSave={(text) => {
+              onSaveNote(text);
+              if (!text.trim()) setNoteExpanded(false);
+              closeNote();
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }

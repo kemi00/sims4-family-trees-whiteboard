@@ -1722,14 +1722,14 @@ export function useWhiteboard() {
   // A new save import is a fresh start for what was skipped in Up next.
   useEffect(() => setUpNextSkipped(new Set()), [saveGame?.importedAt]);
   /**
-   * Your note on a log line: on every link of the line (both parents of a
-   * child) or on the move. An empty note takes it off.
+   * Your note on the selected links, planned ending or household move.
+   * An empty note takes it off.
    */
-  const setLogNote = useCallback(
+  const setNote = useCallback(
     (entry: Pick<ConnectionLogEntry, 'kind' | 'edgeIds' | 'moveId' | 'moveIds' | 'note'>, text: string) => {
       const note = cleanNote(text);
       if (note === cleanNote(entry.note)) return;
-      pushUndo(note ? (cleanNote(entry.note) ? 'Edit a note in the Log' : 'Add a note in the Log') : 'Remove a note from the Log');
+      pushUndo(note ? (cleanNote(entry.note) ? 'Edit a note' : 'Add a note') : 'Remove a note');
       const put = <T extends { note?: string }>(x: T): T => {
         const { note: _old, ...rest } = x;
         return (note ? { ...rest, note } : rest) as T;
@@ -4286,7 +4286,7 @@ export function useWhiteboard() {
     familyGens,
     generationOf,
     plannedCounts,
-    setLogNote,
+    setNote,
     resolvePlanItem,
     linkPlanned,
     unlinkPlanned,

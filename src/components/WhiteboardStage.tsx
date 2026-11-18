@@ -2105,6 +2105,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       )}
       {linkChip && (
         <LinkSelectionChip
+          key={JSON.stringify(linkChip.noteTarget.edgeIds)}
           info={linkChip}
           tx={tx}
           ty={ty}
@@ -2112,6 +2113,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           stageW={stageSize.w}
           stageH={stageSize.h}
           obstacles={linkChipObstacles}
+          onSaveNote={wb.lookBackAt === null ? (text) => wb.setNote({ kind: 'link', ...linkChip.noteTarget }, text) : undefined}
           onGoToSim={(id) => {
             const r = svgRef.current?.getBoundingClientRect();
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);

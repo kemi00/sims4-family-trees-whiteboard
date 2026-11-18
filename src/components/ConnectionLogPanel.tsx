@@ -1,5 +1,5 @@
 import { ArrowsDownUp, Check, NotePencil, Trash, Warning } from '../icons.ts';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BarPanel } from './BarPanel.tsx';
 import { IconButton } from './CloseButton.tsx';
 import {
@@ -12,7 +12,7 @@ import {
   type ConnectionLogEntry,
   type LogPart,
 } from '../lib/connectionLog.ts';
-import { NOTE_MAX } from '../lib/utils.ts';
+import { NoteEditor } from './NoteEditor.tsx';
 
 type Props = {
   entries: ConnectionLogEntry[];
@@ -88,67 +88,6 @@ function LogParts({
     }
     return <span key={i}>{part.value}</span>;
   });
-}
-
-/** Inline note box: Enter saves, Shift+Enter starts a new line, Esc cancels. */
-function NoteEditor({
-  initial,
-  onSave,
-  onCancel,
-}: {
-  initial: string;
-  onSave: (text: string) => void;
-  onCancel: () => void;
-}) {
-  const [text, setText] = useState(initial);
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.focus();
-    el.setSelectionRange(el.value.length, el.value.length);
-  }, []);
-  return (
-    <div
-      className="connection-log__noteedit"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <textarea
-        ref={ref}
-        rows={2}
-        maxLength={NOTE_MAX}
-        value={text}
-        aria-label="Note"
-        placeholder="Why this plan? For example: so the Fyres line gets an heir."
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            // Esc leaves the note, not the log.
-            e.stopPropagation();
-            onCancel();
-          } else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            onSave(text);
-          }
-        }}
-      />
-      <div className="connection-log__noteactions">
-        <span className="connection-log__notehint">
-          {initial && !text.trim() ? 'Save an empty note to remove it' : 'Enter to save · Shift+Enter for a new line'}
-        </span>
-        <button type="button" onClick={onCancel}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="connection-log__notesave"
-          onClick={() => onSave(text)}
-        >
-          Save
-        </button>
-      </div>
-    </div>
-  );
 }
 
 export function ConnectionLogPanel({
@@ -247,6 +186,7 @@ export function ConnectionLogPanel({
             {isEditing ? (
               <NoteEditor
                 initial={entry.note ?? ''}
+                placeholder="Why this plan? For example: so the Fyres line gets an heir."
                 onCancel={() => setEditing(null)}
                 onSave={(text) => {
                   onNote(entry, text);
