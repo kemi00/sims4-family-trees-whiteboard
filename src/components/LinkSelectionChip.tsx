@@ -17,10 +17,10 @@ type Props = {
   /** A name was clicked: select that sim and bring their card into view. */
   onGoToSim?: (id: string) => void;
   /**
-   * The picked couple's child chooser and direct adoption picker.
+   * The picked couple's new-child action and direct adoption picker.
    * Gets the button so the menu can open underneath it.
    */
-  onChildMenu?: (button: HTMLElement, step: 'choose' | 'adopt') => void;
+  onChildMenu?: (button: HTMLElement, step: 'new' | 'adopt') => void;
   adoptDisabledReason?: string;
   /** What to do with the picked couple: plan its end, or cancel that plan. */
   action?: { label: string; onClick: () => void };
@@ -209,7 +209,7 @@ export function LinkSelectionChip({
                   type="button"
                   className="link-sel-chip__act link-sel-chip__act--plan"
                   onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => onChildMenu(e.currentTarget, 'choose')}
+                  onClick={(e) => onChildMenu(e.currentTarget, 'new')}
                 >
                   <Plus weight="bold" aria-hidden="true" />
                   Add a child

@@ -2128,14 +2128,20 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           {...(chipUnion
             ? {
                 adoptDisabledReason,
-                onChildMenu: (button: HTMLElement, step: 'choose' | 'adopt') => {
-                  // The couple's ＋ menu, opened under the button that asked.
+                onChildMenu: (button: HTMLElement, step: 'new' | 'adopt') => {
                   const sr = stageRef.current?.getBoundingClientRect();
                   const br = button.getBoundingClientRect();
+                  const x = br.left - (sr?.left ?? 0);
+                  const y = br.bottom - (sr?.top ?? 0) + 6;
+                  if (step === 'new') {
+                    wb.closeChildMenu();
+                    wb.requestInfantOfCouple(chipUnion.a, chipUnion.b, chipUnion.rx, chipUnion.ry, x, y);
+                    return;
+                  }
                   wb.openChildMenu(
                     [chipUnion.a, chipUnion.b],
-                    br.left - (sr?.left ?? 0),
-                    br.bottom - (sr?.top ?? 0) + 6,
+                    x,
+                    y,
                     { rx: chipUnion.rx, ry: chipUnion.ry },
                     step,
                   );
