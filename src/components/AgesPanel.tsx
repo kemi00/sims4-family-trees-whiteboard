@@ -14,7 +14,7 @@ const sectionLabel = {
 /** The dynasty chips: the card's mark, then the game's word. */
 const ROLE_CHIP: Record<HiDynastyRole, { text: string; title: string }> = {
   head: { text: `${DYNASTY_ROLES.head.mark} Head`, title: 'Heads of a dynasty' },
-  heir: { text: `${DYNASTY_ROLES.heir.mark} Heir`, title: 'Heirs of a dynasty' },
+  heir: { text: `${DYNASTY_ROLES.heir.mark} Heir`, title: 'Current and planned heirs, including heirs after another sim' },
   member: { text: 'Member', title: 'In a dynasty, but not its head, heir or outcast' },
   outcast: { text: `${DYNASTY_ROLES.outcast.mark} Outcast`, title: 'Outcasts of a dynasty' },
 };

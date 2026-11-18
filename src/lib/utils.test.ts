@@ -131,6 +131,23 @@ describe('isHighlightMatch', () => {
     assert.deepEqual(glow([HI_NOT_BORN, 'Male']), []);
   });
 
+  it('includes future generations in the heir filter and leaves them out of members with no role', () => {
+    const heir = { ...sim('current', 'Adult', 'Male'), dynasty: 'Goth', dynastyRole: 'heir' } as SimNode;
+    const next = { ...sim('next', 'Teen', 'Female'), dynasty: 'Goth', heirAfter: heir.id } as SimNode;
+    const later = { ...sim('later', 'Unknown', '-'), dynasty: 'Goth', heirAfter: next.id, dynastyPlan: 'member', added: true } as SimNode;
+    const member = { ...sim('member', 'Young Adult', 'Female'), dynasty: 'Goth' } as SimNode;
+    const leaving = { ...next, id: 'leaving', dynastyPlan: 'none' } as SimNode;
+    const dead = { ...next, id: 'dead', state: 'Deceased' } as SimNode;
+    const nodes = [heir, next, later, member, leaving, dead];
+    const glow = (hi: string[]) => nodes
+      .filter((n) => isHighlightMatch(n, new Set(hi), false, { partnered, unborn: new Set([later.id]) }))
+      .map((n) => n.id);
+    assert.deepEqual(glow([hiDynastyChip('heir')]), ['current', 'next', 'later']);
+    assert.deepEqual(glow([hiDynastyChip('member')]), ['member']);
+    assert.deepEqual(glow([hiDynastyChip('heir'), 'Teen']), ['next']);
+    assert.deepEqual(glow([hiDynastyChip('heir'), HI_NOT_BORN]), ['later']);
+  });
+
   it('never picks the deceased, pets included', () => {
     const dead = { ...sim('dead', 'Elder', 'Female'), state: 'Deceased' } as SimNode;
     const deadCat = { ...sim('deadCat', 'Adult', 'Female', 'Cat'), state: 'Deceased' } as SimNode;

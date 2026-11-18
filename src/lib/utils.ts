@@ -401,12 +401,13 @@ export function parentIdSet(edges: Edge[], alive: (id: string) => boolean = () =
 }
 
 /**
- * A sim's place in a dynasty as the board has it, plan included: their role,
+ * A sim's place in a dynasty as the board has it, future heirs included: their role,
  * `member` for one with none, or null outside any dynasty. One planned to
  * leave is out; pets are never in one.
  */
 export function dynastyStanding(n: SimNode): HiDynastyRole | null {
   if (!n.dynasty || n.species || n.dynastyPlan === 'none') return null;
+  if (n.heirAfter) return 'heir';
   return n.dynastyRole ?? 'member';
 }
 
