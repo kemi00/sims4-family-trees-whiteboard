@@ -5,7 +5,7 @@ import { dynastyKey, rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
 import { everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
 import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
-import { lotKey, lotsIn, type GameLot } from '../places.ts';
+import { homeLotFields, lotKey, lotsIn, saveLotCatalog, type GameLot, type LotCatalog } from '../places.ts';
 import { edgeSourceOf, joinNotes, sanitizeEdges, uKey, worldColor } from '../utils.ts';
 import type {
   Edge,
@@ -804,7 +804,8 @@ function moveInto(n: SimNode, home: BoardHome): SimNode {
  * last import splits a household too. Each stray joins the box that already
  * holds most of its household — ties go to the box named like the household,
  * then the one in its home world, then the one the import made first (no
- * "::" suffix). Boxes are never split, and sims moved by hand stay put.
+ * "::" suffix). Rental households get separate boxes for their units.
+ * Sims moved by hand stay put.
  * Returns the board ids moved and each household's box.
  */
 function gatherHouseholds(
@@ -812,16 +813,23 @@ function gatherHouseholds(
   byHousehold: Map<string, { sim: ParsedSaveSim; id: string }[]>,
   worlds: World[],
   movedByHand: ReadonlySet<string>,
+  rentalZones: ReadonlySet<string>,
   /** A new box, for a household with no box it may stay in. */
   newHome: (sim: ParsedSaveSim) => BoardHome,
 ): { moved: string[]; homes: Map<string, BoardHome> } {
   const at = new Map(nodes.map((n, i) => [n.id, i]));
   const moved: string[] = [];
   const homes = new Map<string, BoardHome>();
-  for (const list of byHousehold.values()) {
+  const claimedBoxes = new Set<string>();
+  const hasRentalUnit = (sim: ParsedSaveSim) => !!sim.lot?.zone && rentalZones.has(sim.lot.zone);
+  // If a household split in the game, let the household staying in the old
+  // home keep its box. Each tenant household gets a box in its own world.
+  const lists = [...byHousehold.values()].sort((a, b) => Number(hasRentalUnit(a[0]!.sim)) - Number(hasRentalUnit(b[0]!.sim)));
+  for (const list of lists) {
     const free = list.filter((m) => !movedByHand.has(m.id));
     if (!free.length) continue;
     const { sim } = free[0]!;
+    const tenant = hasRentalUnit(sim);
     const homeWorld = boardWorldName(sim.world, worlds);
     const name = foldName(sim.household);
     const boxes = new Map<string, { count: number; n: SimNode; order: number }>();
@@ -831,12 +839,14 @@ function gatherHouseholds(
       if (isUnhousedGid(n.gid)) continue;
       // A household with no home lot lives in no world, as the game says.
       if (sim.unhoused && n.world !== OTHER_WORLD) continue;
+      if (tenant && (n.world !== homeWorld || claimedBoxes.has(n.gid))) continue;
       const box = boxes.get(n.gid);
       if (box) box.count += 1;
       else boxes.set(n.gid, { count: 1, n, order: boxes.size });
     }
     const rank = (b: { count: number; n: SimNode; order: number }) => [
       b.count,
+      b.n.lotZone && b.n.lotZone === sim.lot?.zone ? 1 : 0,
       foldName(b.n.hh) === name ? 1 : 0,
       b.n.world === homeWorld ? 1 : 0,
       b.n.gid.includes('::') ? 0 : 1,
@@ -850,6 +860,7 @@ function gatherHouseholds(
     })[0]?.n;
     const home = target ? homeOf(target) : newHome(sim);
     homes.set(sim.householdId, home);
+    claimedBoxes.add(home.gid);
     for (const { id } of free) {
       const i = at.get(id)!;
       if (nodes[i]!.gid === home.gid) continue;
@@ -1046,21 +1057,23 @@ export function fulfilsPlan(planned: EdgeType, saved: EdgeType): boolean {
 
 /**
  * The game lot each save household lives on, by the board box most of its
- * sims are in. The save names the lot by the game's id, which a building's
- * units share, and by name when it keeps one: that tells the units apart,
- * and households it names go first. A box whose world has no such lot (the
- * household moved there by hand) gets none.
+ * sims are in. Use the exact home zone when the save includes it. Older
+ * inputs with only a building hash can still match a shipped lot by name.
  */
 function saveHouseholdLots(
   sims: ParsedSaveSim[],
   saveIdToBoard: ReadonlyMap<string, string>,
   nodes: SimNode[],
+  catalog: LotCatalog,
+  movedByHand: ReadonlySet<string>,
+  rentalZones: ReadonlySet<string>,
 ): Map<string, GameLot> {
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const households = new Map<string, { hint: { hash: number; name?: string }; votes: Map<string, number> }>();
+  const households = new Map<string, { hint: NonNullable<ParsedSaveSim['lot']>; votes: Map<string, number> }>();
   for (const s of sims) {
     if (!s.lot || !s.householdId || s.householdId === '0' || s.unhoused) continue;
     const id = saveIdToBoard.get(s.saveSimId);
+    if (id && s.lot.zone && rentalZones.has(s.lot.zone) && movedByHand.has(id)) continue;
     const n = id === undefined ? undefined : byId.get(id);
     if (!n || isUnhousedGid(n.gid)) continue;
     const h = households.get(s.householdId) ?? { hint: s.lot, votes: new Map<string, number>() };
@@ -1070,14 +1083,18 @@ function saveHouseholdLots(
   const worldOf = new Map(nodes.map((n) => [n.gid, n.world]));
   const out = new Map<string, GameLot>();
   const held = new Set<string>();
-  const ordered = [...households.values()].sort((a, b) => Number(!!b.hint.name) - Number(!!a.hint.name));
+  const ordered = [...households.values()].sort((a, b) =>
+    Number(!!b.hint.zone) - Number(!!a.hint.zone) || Number(!!b.hint.name) - Number(!!a.hint.name),
+  );
   for (const { hint, votes } of ordered) {
     const gid = [...votes].sort((a, b) => b[1] - a[1])[0]![0];
     const world = worldOf.get(gid);
     if (!world || out.has(gid)) continue;
-    const units = lotsIn(world).filter((l) => l.hash === hint.hash && !held.has(lotKey(l)));
-    const named = hint.name ? units.find((l) => foldName(l.name) === foldName(hint.name!)) : undefined;
-    const lot = named ?? units[0];
+    const units = lotsIn(world, catalog).filter((l) => l.hash === hint.hash && !held.has(lotKey(l)));
+    const exact = hint.zone ? units.find((l) => l.zone === hint.zone) : undefined;
+    const fallback = units.filter((l) => !hint.zone || !l.zone);
+    const named = hint.name ? fallback.find((l) => foldName(l.name) === foldName(hint.name!)) : undefined;
+    const lot = exact ?? named ?? fallback.find((l) => l.venue !== 'rental');
     if (!lot) continue;
     out.set(gid, lot);
     held.add(lotKey(lot));
@@ -1088,6 +1105,10 @@ function saveHouseholdLots(
 export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const { parsed, seedNameKeys, now, nextEdgeId, worlds } = input;
   const nodes = input.nodes.map((n) => ({ ...n }));
+  const catalog = saveLotCatalog(parsed.lotZones);
+  const rentalZones = new Set(
+    [...catalog.values()].flatMap((lots) => lots.flatMap((l) => l.venue === 'rental' && l.zone ? [l.zone] : [])),
+  );
   /** The game's dynasties the board knows already, by id. */
   const boardDynastyIds = new Set(input.nodes.flatMap((n) => (n.dynastyId ? [n.dynastyId] : [])));
   const bySaveId = new Map<string, SimNode>();
@@ -1231,7 +1252,14 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     byHousehold,
     worlds,
     movedByHand,
-    (sim) => homeForNew(sim, worlds, existingGids, hhHome, rosterOf(sim)),
+    rentalZones,
+    (sim) => {
+      if (sim.lot?.zone && rentalZones.has(sim.lot.zone)) {
+        const hh = sim.household.trim() || sim.last.trim() || 'Household';
+        hhHome.delete(homeKey(sim.householdId, hh, boardWorldName(sim.world, worlds)));
+      }
+      return homeForNew(sim, worlds, existingGids, hhHome, rosterOf(sim));
+    },
   );
   // New members join the box their household was gathered into, whatever the
   // box is called ("Grove" on the roster, "The Grove Family" in the save), so
@@ -1585,18 +1613,16 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   // Where each save household lives, on every card in its box: the game
   // says which lot, and so which neighbourhood. A box the save doesn't
   // place keeps what it had.
-  const homeLots = saveHouseholdLots(sims, saveIdToBoard, nodes);
+  const homeLots = saveHouseholdLots(sims, saveIdToBoard, nodes, catalog, movedByHand, rentalZones);
   for (let i = 0; i < nodes.length; i++) {
     const lot = homeLots.get(nodes[i]!.gid);
-    if (lot && (nodes[i]!.lot !== lot.name || nodes[i]!.nb !== lot.nb)) {
-      nodes[i] = { ...nodes[i]!, lot: lot.name, nb: lot.nb };
-    }
+    if (lot) nodes[i] = { ...nodes[i]!, ...homeLotFields(lot) };
   }
   const groups = input.groups
     .filter((g) => !vacated.has(g.gid))
     .map((g) => {
       const lot = homeLots.get(g.gid);
-      return lot && (g.lot !== lot.name || g.nb !== lot.nb) ? { ...g, lot: lot.name, nb: lot.nb } : g;
+      return lot ? { ...g, ...homeLotFields(lot) } : g;
     });
   const gids = new Set(groups.map((g) => g.gid));
   for (const n of nodes) {
@@ -1608,6 +1634,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       world: n.world,
       nb: n.nb,
       ...(n.lot ? { lot: n.lot } : {}),
+      ...(n.lotZone ? { lotZone: n.lotZone } : {}),
       color: n.color,
       x: 0,
       y: 0,
@@ -1659,7 +1686,12 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     : undefined;
   const saveGame =
     saveGameRead && parsed.game
-      ? { ...saveGameRead, ...(lastPlayedGid ? { lastPlayedGid } : {}), ...(prestige ? { prestige } : {}) }
+      ? {
+          ...saveGameRead,
+          ...(lastPlayedGid ? { lastPlayedGid } : {}),
+          ...(prestige ? { prestige } : {}),
+          ...(parsed.lotZones ? { lotZones: parsed.lotZones } : {}),
+        }
       : saveGameRead;
 
   const nameOf = (id: string) => {

@@ -53,10 +53,11 @@ export function snapGroupDelta(
   return { dx: t.x - originX, dy: t.y - originY };
 }
 
-export type HouseholdLabel = Pick<Group, 'hh' | 'nb' | 'world'>;
+export type HouseholdLabel = Pick<Group, 'hh' | 'nb' | 'world' | 'lot' | 'lotZone'>;
 
 export function householdLabel(g: HouseholdLabel | undefined | null): string {
   if (!g) return '';
+  if (g.lotZone && g.lot) return `${g.hh}  ·  ${g.lot}`;
   // Not in any world names no world: the world's own tag says so, and the
   // long name would run every tag there past its cards.
   const world = g.world === NOT_IN_WORLD ? null : g.world;

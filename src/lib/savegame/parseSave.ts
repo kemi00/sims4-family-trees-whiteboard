@@ -1,7 +1,8 @@
 import { TREE_NAMES } from '../../data/treeNames.ts';
 import { homeWorld } from '../realm.ts';
 import { AGES_H, NON_BINARY } from '../constants.ts';
-import type { DynastyRole, PairTag, SimPronouns } from '../../types/whiteboard.ts';
+import { RESIDENTIAL_RENTAL_VENUE } from '../places.ts';
+import type { DynastyRole, PairTag, SaveLotZone, SimPronouns } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
@@ -27,12 +28,10 @@ export type ParsedSaveSim = {
   /** World name string from the save lot, if present. */
   world?: string;
   /**
-   * Their household's home lot: the game's id for it (a building's units
-   * share it) and, when the save keeps one, its name, which tells the units
-   * apart. Matched against the game's lots (places.ts); the name is never
-   * shown, as the player may have renamed it.
+   * Their household's home lot or exact unit. Zones have distinct IDs
+   * even when they share a building hash.
    */
-  lot?: { hash: number; name?: string };
+  lot?: { hash: number; name?: string; zone?: string };
   /** The sim's household has no home lot ("Currently Not in World"). */
   unhoused?: true;
   /**
@@ -134,6 +133,7 @@ export type ParsedSave = {
   householdWorld?: Record<string, string>;
   /** World name strings present in the save (installed worlds), from the file. */
   worlds?: string[];
+  lotZones?: SaveLotZone[];
   /** Friendship and romance statuses from the save's relationship records. */
   pairs?: ParsedSavePair[];
   /** Family-tree people with no sim; `rels` link them like sims. */
@@ -795,20 +795,31 @@ function parseWorldIndex(saveGame: Uint8Array): {
   householdWorld: Record<string, string>;
   householdName: Record<string, string>;
   /** Household id → its home lot's id and name (field 5 and 3 of the lot). */
-  householdLot: Record<string, { hash: number; name?: string }>;
+  householdLot: Record<string, NonNullable<ParsedSaveSim['lot']>>;
   /** Households the save lists with no home lot. */
   unhoused: Set<string>;
   worlds: string[];
+  lotZones: SaveLotZone[];
 } {
   const zoneWorld = new Map<string, string>();
-  const zoneLot = new Map<string, { hash: number; name?: string }>();
+  const zoneLot = new Map<string, NonNullable<ParsedSaveSim['lot']>>();
   const ownerWorld = new Map<string, string>();
+  const zoneDetails = new Map<string, ReturnType<typeof decodeFields>>();
+  const lotZones: SaveLotZone[] = [];
   const homeZone = new Map<string, string>();
   const householdName: Record<string, string> = {};
   const listed = new Set<string>();
   const worlds = new Set<string>();
   for (const rec of decodeFields(saveGame)) {
     if (!rec.bytes) continue;
+    // ZoneData also exists for empty units. The world record often only
+    // stores the name when a household is on the lot.
+    if (rec.field === 7) {
+      const fields = decodeFields(rec.bytes);
+      const zone = idField(fields, 1);
+      if (zone) zoneDetails.set(zone, fields);
+      continue;
+    }
     if (rec.field === 5) {
       const fields = decodeFields(rec.bytes);
       const id = idField(fields, HOUSEHOLD.id);
@@ -838,7 +849,9 @@ function parseWorldIndex(saveGame: Uint8Array): {
       const hash = lot.find((x) => x.field === 5 && !x.bytes)?.int;
       if (zone && hash) {
         const name = utf8(lot.find((x) => x.field === 3 && x.bytes)?.bytes ?? null)?.trim();
-        zoneLot.set(zone, { hash: Number(hash), ...(name ? { name } : {}) });
+        zoneLot.set(zone, { hash: Number(hash), zone, ...(name ? { name } : {}) });
+        const venue = lot.find((x) => x.field === 7 && !x.bytes)?.int;
+        if (venue) lotZones.push({ world, hash: Number(hash), zone, venue: Number(venue), ...(name ? { name } : {}) });
       }
       const owner = lot.find((x) => x.field === 4 && x.bytes)?.bytes;
       const household = owner ? idField(decodeFields(owner), 3) : '';
@@ -846,13 +859,31 @@ function parseWorldIndex(saveGame: Uint8Array): {
     }
   }
   const householdWorld: Record<string, string> = {};
-  const householdLot: Record<string, { hash: number; name?: string }> = {};
+  const householdLot: Record<string, NonNullable<ParsedSaveSim['lot']>> = {};
   for (const [id, world] of ownerWorld) householdWorld[id] = world;
   for (const [id, zone] of homeZone) {
     const world = zoneWorld.get(zone);
     if (world) householdWorld[id] = world;
     const lot = zoneLot.get(zone);
     if (lot) householdLot[id] = lot;
+  }
+  const occupied = new Set(homeZone.values());
+  for (const lot of lotZones) {
+    const details = zoneDetails.get(lot.zone);
+    if (details) {
+      const name = utf8(details.find((f) => f.field === 2)?.bytes ?? null)?.trim();
+      if (name) lot.name = name;
+      const number = (field: number) => Number(details.find((f) => f.field === field && f.wire === 0)?.int ?? -1n);
+      const listing = number(18);
+      // Rental listing IDs start at 300 for the shared zone, then 301
+      // for the first unit. The original lot's zone can become Unit 1.
+      if (lot.venue === RESIDENTIAL_RENTAL_VENUE && listing >= 300) lot.unit = listing - 300;
+      const beds = number(16);
+      const baths = number(17);
+      if (beds >= 0) lot.beds = beds;
+      if (baths >= 0) lot.baths = baths;
+    }
+    if (occupied.has(lot.zone)) lot.occupied = true;
   }
   const unhoused = new Set([...listed].filter((id) => !homeZone.has(id) && !ownerWorld.has(id)));
   return {
@@ -861,6 +892,7 @@ function parseWorldIndex(saveGame: Uint8Array): {
     householdLot,
     unhoused,
     worlds: [...worlds].sort((a, b) => a.localeCompare(b)),
+    lotZones,
   };
 }
 
@@ -984,7 +1016,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     sims.push(sim);
   }
   if (!sims.length) throw new Error('No sims found in this save');
-  const { householdWorld, householdName, householdLot, unhoused, worlds } = parseWorldIndex(data);
+  const { householdWorld, householdName, householdLot, unhoused, worlds, lotZones } = parseWorldIndex(data);
   for (const sim of sims) {
     const world = householdWorld[sim.householdId];
     if (world) sim.world = world;
@@ -1026,6 +1058,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     rels,
     householdWorld,
     worlds,
+    ...(lotZones.length ? { lotZones } : {}),
     pairs,
     relatives,
     ...(dynasties ? { dynasties: true as const } : {}),

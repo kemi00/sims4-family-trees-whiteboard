@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { commonWorld } from '../lib/householdMove.ts';
 import { cardName } from '../lib/plan.ts';
+import type { LotCatalog } from '../lib/places.ts';
 import { Trash } from '../icons.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
@@ -16,6 +17,7 @@ type Props = {
   worlds: World[];
   groups: Group[];
   nodes: SimNode[];
+  lotCatalog: LotCatalog;
   onMove: (world: string, houseGid: string, newName: string) => void;
   onClear: () => void;
   /** Set when one household is picked: open its plan. */
@@ -49,6 +51,7 @@ export function SelectionBar({
   worlds,
   groups,
   nodes,
+  lotCatalog,
   onMove,
   onClear,
   onPlan,
@@ -125,6 +128,7 @@ export function SelectionBar({
             worlds={worlds}
             groups={groups}
             nodes={nodes}
+            lotCatalog={lotCatalog}
             initialWorld={commonWorld(sims, worlds)}
             exclude={home}
             submitLabel={`Move ${who} here`}

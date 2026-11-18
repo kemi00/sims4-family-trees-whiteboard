@@ -1,7 +1,7 @@
 import { memo, useRef, useState } from 'react';
 import { rectsIntersect, type WorldRect } from '../lib/marquee.ts';
 import type { LotBox } from '../lib/lotBoxes.ts';
-import { lotKindLabel, lotRoomsLabel, lotSizeLabel, neighbourhoodIconUrl, type GameLot } from '../lib/places.ts';
+import { lotKey, lotKindLabel, lotRoomsLabel, lotSizeLabel, neighbourhoodIconUrl, type GameLot } from '../lib/places.ts';
 import { HH_TAG_INSET, HH_TAG_PILL_H } from '../lib/constants.ts';
 import { tagPillWidth } from '../lib/tiles.ts';
 import { textWidth } from '../lib/textWidth.ts';
@@ -47,15 +47,19 @@ function wrap(text: string, w: number, size: number, weight: number): string[] {
   return lines;
 }
 
-/** "Free lots" with how many, for the box's tag. */
-function boxLabel(count: number): string {
-  return count === 1 ? '1 free lot' : `${count} free lots`;
+/** How many lots and units are available, for the box's tag. */
+function boxLabel(tiles: LotBox['tiles']): string {
+  const units = tiles.filter(({ lot }) => lot.unit).length;
+  if (units > 0 && units < tiles.length) return `${tiles.length} free lots & units`;
+  const kind = units ? 'unit' : 'lot';
+  return `${tiles.length} free ${kind}${tiles.length === 1 ? '' : 's'}`;
 }
 
 /** A lot's tip: all it is, and what a click does. */
 function lotTip(lot: GameLot): string {
   const parts = [lotKindLabel(lot), lotSizeLabel(lot), lotRoomsLabel(lot)].filter(Boolean).join(', ');
-  return `${lot.name}, ${lot.nb}: ${parts}.\nNo one on the board lives here. Click to move sims in.`;
+  const place = [lot.name, lot.building && !lot.name.includes(lot.building) ? lot.building : null, lot.nb].filter(Boolean);
+  return `${place.join(', ')}: ${parts}.\nClick to move sims in.`;
 }
 
 /**
@@ -74,7 +78,7 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
       {[...boxes.values()].map((box) => {
         if (cull && !rectsIntersect(box, cull)) return null;
         const color = worldColor(box.world, worlds);
-        const label = boxLabel(box.tiles.length);
+        const label = boxLabel(box.tiles);
         const pillW = tagPillWidth(label, 22);
         const moving = drag?.world === box.world;
         return (
@@ -163,7 +167,7 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
               const top = y + PAD + 2;
               return (
                 <g
-                  key={lot.name}
+                  key={lotKey(lot)}
                   className="lot"
                   role="button"
                   aria-label={`${lot.name}: move sims in`}

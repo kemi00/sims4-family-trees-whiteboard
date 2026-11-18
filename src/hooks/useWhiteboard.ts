@@ -3,7 +3,7 @@ import { growHousehold, landMovedCards, type Box as LandBox } from '../lib/landi
 import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
-import { freeLotsIn, householdLots, lotPick, type GameLot } from '../lib/places.ts';
+import { freeLotsIn, homeLotFields, householdLots, lotKey, lotPick, saveLotCatalog, type GameLot } from '../lib/places.ts';
 import { lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
 import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
@@ -799,7 +799,9 @@ export function useWhiteboard() {
   const nodeBuckets = useMemo(() => bucketNodes(nodes), [nodes]);
 
   /** The game lot each household lives on (householdLots). */
-  const homes = useMemo(() => householdLots(nodesCore), [nodesCore]);
+  const lotZones = saveGame?.lotZones;
+  const lotCatalog = useMemo(() => saveLotCatalog(lotZones), [lotZones]);
+  const homes = useMemo(() => householdLots(nodesCore, lotCatalog), [nodesCore, lotCatalog]);
   /**
    * Each world's lots no household lives on, in the board's world order. A
    * world whose sims are all filtered out shows none, as it shows no frame.
@@ -814,11 +816,11 @@ export function useWhiteboard() {
     const out = new Map<string, GameLot[]>();
     for (const w of worlds) {
       if (w.name === NOT_IN_WORLD || (any.has(w.name) && !shown.has(w.name))) continue;
-      const free = freeLotsIn(w.name, homes);
+      const free = freeLotsIn(w.name, homes, lotCatalog);
       if (free.length) out.set(w.name, free);
     }
     return out;
-  }, [nodes, nodeVis, worlds, homes]);
+  }, [nodes, nodeVis, worlds, homes, lotCatalog]);
   /**
    * Each world's Free lots box: where it is pinned, or, the first time it
    * shows, under its world's households, then pinned there (below). Nothing
@@ -2500,7 +2502,7 @@ export function useWhiteboard() {
       const g = groups.find((x) => x.gid === gid);
       const members = nodes.filter((n) => n.gid === gid);
       if (!g || !members.length || isUnhousedGid(gid) || g.world === world) return null;
-      const dest = moveDestination(groups, nodes, worlds, world, house ?? NEW_HOUSEHOLD, g.hh);
+      const dest = moveDestination(groups, nodes, worlds, world, house ?? NEW_HOUSEHOLD, g.hh, lotCatalog);
       if (!dest || dest.gid === gid) return null;
       const ids = new Set(members.map((n) => n.id));
       const { patches, moves } = householdMovePlan(nodes, [...ids], dest);
@@ -2508,7 +2510,7 @@ export function useWhiteboard() {
       pushUndo(`Move ${theHousehold(g.hh, named)} to ${named(world)}`);
       trackAction('/action/household-world');
       const newGroup: Group | null = dest.isNew
-        ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, ...(dest.lot ? { lot: dest.lot } : {}), color: dest.color, x: 0, y: 0, w: 0, h: 0 }
+        ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, lot: dest.lot, lotZone: dest.lotZone, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
         : null;
       if (newGroup) setGroups((gs) => (gs.some((x) => x.gid === newGroup.gid) ? gs : [...gs, newGroup]));
       const createdAt = new Date().toISOString();
@@ -2537,7 +2539,7 @@ export function useWhiteboard() {
       );
       return dest;
     },
-    [groups, nodes, worlds, byid, householdMoves, briefGid, setBriefGid, pushUndo, landCards, lockViewToSims, flashStatus],
+    [groups, nodes, worlds, lotCatalog, byid, householdMoves, briefGid, setBriefGid, pushUndo, landCards, lockViewToSims, flashStatus],
   );
 
   /**
@@ -3851,7 +3853,7 @@ export function useWhiteboard() {
       houseGid: string,
       newName?: string,
     ): { dest: MoveDestination; moved: number; back: number } | null => {
-      const dest = moveDestination(groups, nodes, worlds, world, houseGid, newName);
+      const dest = moveDestination(groups, nodes, worlds, world, houseGid, newName, lotCatalog);
       if (!dest) return null;
       const { patches, moves } = householdMovePlan(nodes, ids, dest);
       if (!patches.size) return { dest, moved: 0, back: 0 };
@@ -3862,7 +3864,7 @@ export function useWhiteboard() {
         `Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${dest.isNew && dest.lot ? named(dest.lot) : theHousehold(dest.hh, named)}`,
       );
       const newGroup: Group | null = dest.isNew
-        ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, ...(dest.lot ? { lot: dest.lot } : {}), color: dest.color, x: 0, y: 0, w: 0, h: 0 }
+        ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, lot: dest.lot, lotZone: dest.lotZone, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
         : null;
       if (newGroup) setGroups((gs) => (gs.some((g) => g.gid === newGroup.gid) ? gs : [...gs, newGroup]));
       const createdAt = new Date().toISOString();
@@ -3876,7 +3878,7 @@ export function useWhiteboard() {
       if (landed.outOfView && landed.box) revealBox(landed.box);
       return { dest, moved: patches.size, back };
     },
-    [groups, nodes, worlds, householdMoves, pushUndo, landCards, lockViewToSims, revealBox, simCalled],
+    [groups, nodes, worlds, lotCatalog, householdMoves, pushUndo, landCards, lockViewToSims, revealBox, simCalled],
   );
 
   /**
@@ -3887,7 +3889,7 @@ export function useWhiteboard() {
   const moveIntoLot = useCallback(
     (ids: string[], lot: GameLot, name: string) => {
       const movers = ids.map((id) => byid[id]).filter((n): n is SimNode => !!n);
-      if (!movers.length) return;
+      if (!movers.length || !freeLotsIn(lot.world, homes, lotCatalog).some((l) => lotKey(l) === lotKey(lot))) return;
       const gids = new Set(movers.map((n) => n.gid));
       const [only] = gids;
       const g = gids.size === 1 && only && !isUnhousedGid(only) ? groups.find((x) => x.gid === only) : undefined;
@@ -3896,13 +3898,14 @@ export function useWhiteboard() {
         const was = homes.get(g.gid);
         pushUndo(`Move ${theHousehold(g.hh, named)} to ${named(lot.name)}`);
         trackAction('/action/household-lot');
-        setGroups((gs) => gs.map((x) => (x.gid === g.gid ? { ...x, lot: lot.name, nb: lot.nb } : x)));
+        const fields = homeLotFields(lot);
+        setGroups((gs) => gs.map((x) => (x.gid === g.gid ? { ...x, ...fields } : x)));
         pinCardsToCurrentPlaces(
           edges,
-          nodesCore.map((n) => (n.gid === g.gid ? toCore({ ...n, lot: lot.name, nb: lot.nb }) : n)),
+          nodesCore.map((n) => (n.gid === g.gid ? toCore({ ...n, ...fields }) : n)),
         );
         flashStatus(
-          `The ${named(g.hh)} household moves to ${named(lot.name)} in ${lot.nb}${was ? `, and ${named(was.name)} is free` : ''}. Undo takes it back.`,
+          `The ${named(g.hh)} household moves to ${named(lot.name)} in ${lot.nb}${was && !was.occupied ? `, and ${named(was.name)} is free` : ''}. Undo takes it back.`,
         );
         return;
       }
@@ -3918,7 +3921,7 @@ export function useWhiteboard() {
         `${named(who)} ${done.moved === 1 ? 'moves' : 'move'} to ${named(lot.name)} in ${lot.nb}, the ${named(done.dest.hh)} household. Undo with ⌘Z.`,
       );
     },
-    [byid, groups, nodes, nodesCore, edges, homes, pushUndo, pinCardsToCurrentPlaces, flashStatus, moveHouseholdToWorld, moveSimsToHousehold],
+    [byid, groups, nodes, nodesCore, edges, homes, lotCatalog, pushUndo, pinCardsToCurrentPlaces, flashStatus, moveHouseholdToWorld, moveSimsToHousehold],
   );
 
   const moveSimToHousehold = useCallback(
@@ -4226,6 +4229,7 @@ export function useWhiteboard() {
     nodeBuckets,
     homes,
     freeLots,
+    lotCatalog,
     lotBoxes,
     moveLotBox,
     visibleAreaRef,

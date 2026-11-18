@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { DECEASED_STATE } from '../lib/constants.ts';
 import { householdNamed, movesInGame } from '../lib/householdMove.ts';
-import { freeLotsIn, householdLots, lotOfPick, lotPick, lotsIn, lotKindLabel, lotRoomsLabel } from '../lib/places.ts';
+import { freeLotsIn, householdLots, lotOptionLabel, lotPick, lotsIn, type LotCatalog } from '../lib/places.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
   worlds: World[];
   groups: Group[];
   nodes: SimNode[];
+  lotCatalog: LotCatalog;
   /** `house`: a free lot's pick, or the gid of a household of its name to join. */
   onMove: (world: string, house?: string) => void;
 };
@@ -24,10 +25,10 @@ type Props = {
  * a slip. The button says what will happen ("Move the Dreamer household to
  * Brook Bungalow in Willow Creek").
  */
-export function WorldMoveForm({ idPrefix, group, worlds, groups, nodes, onMove }: Props) {
+export function WorldMoveForm({ idPrefix, group, worlds, groups, nodes, lotCatalog, onMove }: Props) {
   const [world, setWorld] = useState('');
   const [house, setHouse] = useState('');
-  const homes = useMemo(() => householdLots(nodes), [nodes]);
+  const homes = useMemo(() => householdLots(nodes, lotCatalog), [nodes, lotCatalog]);
   const members = nodes.filter((n) => n.gid === group.gid);
   const count = members.length;
   const dead = members.filter((n) => n.state === DECEASED_STATE).length;
@@ -35,9 +36,9 @@ export function WorldMoveForm({ idPrefix, group, worlds, groups, nodes, onMove }
   const twin = world ? householdNamed(groups, nodes, world, group.hh) : undefined;
   const others = worlds.filter((w) => w.name !== group.world);
   /** A world with no lots to live on (Not in any world): it simply goes there. */
-  const lotless = !!world && lotsIn(world).length === 0;
-  const free = world && !lotless ? freeLotsIn(world, homes) : [];
-  const lot = lotOfPick(world, house);
+  const lotless = !!world && lotsIn(world, lotCatalog).length === 0;
+  const free = world ? freeLotsIn(world, homes, lotCatalog) : [];
+  const lot = free.find((l) => lotPick(l) === house);
   const ready = !!world && (lotless || !!lot || (!!twin && house === twin.gid));
 
   const submit = (e: FormEvent) => {
@@ -78,14 +79,11 @@ export function WorldMoveForm({ idPrefix, group, worlds, groups, nodes, onMove }
             )}
             {free.length > 0 && (
               <optgroup label={`Free lots (${free.length})`}>
-                {free.map((l) => {
-                  const rooms = lotRoomsLabel(l);
-                  return (
-                    <option key={l.name} value={lotPick(l)}>
-                      {[l.name, l.nb, rooms ? rooms.replace(' · ', ', ') : lotKindLabel(l)].join(' · ')}
-                    </option>
-                  );
-                })}
+                {free.map((l) => (
+                  <option key={lotPick(l)} value={lotPick(l)}>
+                    {lotOptionLabel(l)}
+                  </option>
+                ))}
               </optgroup>
             )}
           </select>

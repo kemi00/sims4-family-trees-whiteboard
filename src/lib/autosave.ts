@@ -127,6 +127,8 @@ function nodeIdentity(n: SimNode) {
     hh: n.hh,
     world: n.world,
     nb: n.nb,
+    lot: n.lot ?? null,
+    lotZone: n.lotZone ?? null,
     color: n.color,
     townie: !!n.townie,
     oworld: n.oworld,
@@ -189,6 +191,8 @@ export function boardIdentity(payload: PersistPayload): string {
         hh: g.hh,
         world: g.world,
         nb: g.nb,
+        lot: g.lot ?? null,
+        lotZone: g.lotZone ?? null,
         color: g.color,
       }))
       .sort((a, b) => a.gid.localeCompare(b.gid)),

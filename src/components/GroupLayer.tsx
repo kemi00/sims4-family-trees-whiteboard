@@ -400,6 +400,9 @@ export const GroupLayer = memo(function GroupLayer({
 
 /** "Lives on Ophelia Villa, Pendula View." and a line break, for a tag's tip. */
 function homeLine(lot: GameLot | undefined, nb: string): string {
-  if (lot) return `Lives on ${lot.name}, ${lot.nb}.\n`;
+  if (lot) {
+    const building = lot.building && !lot.name.includes(lot.building) ? ` at ${lot.building}` : '';
+    return `Lives ${lot.venue === 'rental' ? 'in' : 'on'} ${lot.name}${building}, ${lot.nb}.\n`;
+  }
   return nb && nb !== '-' ? `Lives in ${nb}.\n` : '';
 }

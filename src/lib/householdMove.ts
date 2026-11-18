@@ -1,7 +1,7 @@
 import type { Group, HouseholdMove, SimNode, World } from '../types/whiteboard.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
 import { isPlannedSim } from './plan.ts';
-import { lotOfPick, type GameLot } from './places.ts';
+import { LOT_PREFIX, freeLotsIn, homeLotFields, householdLots, lotPick, type GameLot, type LotCatalog } from './places.ts';
 import { fold as foldName, worldColor } from './utils.ts';
 
 /** The household picker's value for "Create a new household…". */
@@ -21,6 +21,7 @@ export type MoveDestination = {
    * they say nothing). Movers take it, so no one brings their old lot along.
    */
   lot?: string;
+  lotZone?: string;
 };
 
 export type HouseholdOption = { gid: string; hh: string; count: number };
@@ -107,9 +108,12 @@ export function moveDestination(
   world: string,
   houseGid: string,
   newName = '',
+  catalog?: LotCatalog,
 ): MoveDestination | null {
-  const lot = lotOfPick(world, houseGid);
-  if (lot) return lotDestination(groups, nodes, worlds, lot, newName);
+  if (houseGid.startsWith(LOT_PREFIX)) {
+    const lot = freeLotsIn(world, householdLots(nodes, catalog), catalog).find((l) => lotPick(l) === houseGid);
+    return lot ? lotDestination(groups, nodes, worlds, lot, newName) : null;
+  }
   if (houseGid === NEW_HOUSEHOLD) {
     const name = newName.trim();
     if (!name) return null;
@@ -140,23 +144,25 @@ export function lotDestination(
   const hh = name.trim();
   if (!hh) return null;
   const plain = `${lot.world}||${hh}`;
-  const taken = (gid: string) => nodes.some((n) => n.gid === gid) || groups.some((g) => g.gid === gid && g.lot && g.lot !== lot.name);
-  const gid = taken(plain) ? `${plain}::${lot.name}` : plain;
+  const fields = homeLotFields(lot);
+  const taken = nodes.some((n) => n.gid === plain) || groups.some(
+    (g) => g.gid === plain && g.lot && (g.lot !== fields.lot || g.lotZone !== fields.lotZone),
+  );
+  const gid = taken ? `${plain}::${lot.zone && lot.venue === 'rental' ? lot.zone : lot.name}` : plain;
   return {
     gid,
     hh,
     world: lot.world,
-    nb: lot.nb,
+    ...fields,
     color: worldColor(lot.world, worlds),
     isNew: !groups.some((g) => g.gid === gid),
-    lot: lot.name,
   };
 }
 
 /** The lot a household's sims say it lives on, when one of them does. */
-function lotOf(nodes: SimNode[], gid: string): { lot?: string } {
-  const said = nodes.find((n) => n.gid === gid && n.lot !== undefined)?.lot;
-  return said === undefined ? {} : { lot: said };
+function lotOf(nodes: SimNode[], gid: string): Pick<SimNode, 'lot' | 'lotZone'> {
+  const said = nodes.find((n) => n.gid === gid && n.lot !== undefined);
+  return said ? { lot: said.lot, lotZone: said.lotZone } : {};
 }
 
 const pick = (g: Group) => ({ gid: g.gid, hh: g.hh, world: g.world, nb: g.nb, color: g.color });
@@ -188,6 +194,7 @@ export function householdMovePlan(
       color: dest.color,
       // Their new household's lot, or none: never the one they leave.
       ...(dest.lot !== undefined ? { lot: dest.lot } : n.lot !== undefined ? { lot: undefined } : {}),
+      ...(dest.lotZone !== n.lotZone ? { lotZone: dest.lotZone } : {}),
       ...(dest.lot ? { nb: dest.nb } : {}),
     };
     if (n.added) {

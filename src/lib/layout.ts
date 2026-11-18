@@ -2710,6 +2710,7 @@ export function packingKey(n: SimNode): string {
     n.nb,
     // Which lots are free, and so how big the world's Free lots box is.
     n.lot ?? '',
+    n.lotZone ?? '',
     n.age,
     // Living sims are counted to order the world columns.
     n.state,

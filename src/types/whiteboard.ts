@@ -36,6 +36,8 @@ export interface SimNode {
    * puts it (see householdLots).
    */
   lot?: string;
+  /** The save's exact zone ID for a residential rental unit. */
+  lotZone?: string;
   color: string;
   townie: boolean;
   oworld: string;
@@ -197,7 +199,21 @@ export interface SimLife {
   frozen?: 'inactive' | 'played' | 'unplayed';
 }
 
-/** The game clock and aging options from the last save import. */
+/** A lot or unit from the save's world and zone records. */
+export type SaveLotZone = {
+  world: string;
+  zone: string;
+  hash: number;
+  venue: number;
+  name?: string;
+  /** 0 for a residential rental's shared zone, 1 or higher for a unit. */
+  unit?: number;
+  beds?: number;
+  baths?: number;
+  occupied?: true;
+};
+
+/** The game clock, aging options and lot inventory from the last save import. */
 export interface SaveGameInfo {
   /** The save file's name. */
   fileName?: string;
@@ -239,6 +255,7 @@ export interface SaveGameInfo {
    * for it (dynastyKey). The game shows it as Prestige Level 0 to 10.
    */
   prestige?: Record<string, number>;
+  lotZones?: SaveLotZone[];
 }
 
 export type EdgeType =
@@ -341,6 +358,7 @@ export interface Group {
   nb: string;
   /** The game lot it lives on, as its sims' `lot` says. */
   lot?: string;
+  lotZone?: string;
   color: string;
   x: number;
   y: number;

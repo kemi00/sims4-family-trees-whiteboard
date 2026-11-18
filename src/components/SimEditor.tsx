@@ -58,6 +58,7 @@ import {
   renamePlannedDynasty,
 } from '../lib/dynastyMenu.ts';
 import { HouseholdMoveForm } from './HouseholdMoveForm.tsx';
+import type { LotCatalog } from '../lib/places.ts';
 import { WorldMoveForm } from './WorldMoveForm.tsx';
 import { SimCard } from './SimCard.tsx';
 import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelect.tsx';
@@ -261,6 +262,7 @@ type Props = {
   worlds: World[];
   groups: Group[];
   nodes: SimNode[];
+  lotCatalog: LotCatalog;
   edges: Edge[];
   /** Game clock and aging options from the last save import. */
   saveGame: SaveGameInfo | null;
@@ -338,6 +340,7 @@ export function SimEditor({
   worlds,
   groups,
   nodes,
+  lotCatalog,
   edges,
   saveGame,
   generations,
@@ -1223,6 +1226,7 @@ export function SimEditor({
                 worlds={worlds}
                 groups={groups}
                 nodes={nodes}
+                lotCatalog={lotCatalog}
                 initialWorld={n.oworld || n.world || worlds[0]?.name || ''}
                 exclude={n.gid}
                 submitLabel={`Move ${n.first || 'this sim'} here`}
@@ -1264,6 +1268,7 @@ export function SimEditor({
                 worlds={worlds}
                 groups={groups}
                 nodes={nodes}
+                lotCatalog={lotCatalog}
                 onMove={onMoveHousehold}
               />
             </div>

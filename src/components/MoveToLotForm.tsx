@@ -86,7 +86,7 @@ export function MoveToLotForm({ choices, suggested, twin, onMove, who, onBack }:
             Choose a free lot
           </option>
           {lots.map((l) => (
-            <option key={l.name} value={lotPick(l)}>
+            <option key={lotPick(l)} value={lotPick(l)}>
               {lotOptionLabel(l)}
             </option>
           ))}

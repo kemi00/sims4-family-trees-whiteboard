@@ -80,7 +80,7 @@ import { LotLayer } from './LotLayer.tsx';
 import { BlankHatchPattern } from './BlankDisc.tsx';
 import { LotMoveInMenu } from './LotMoveInMenu.tsx';
 import { RecapPanel } from './RecapPanel.tsx';
-import { coupleLotChoices, freeLotsIn, type GameLot } from '../lib/places.ts';
+import { coupleLotChoices, freeLotsIn, lotKey, type GameLot } from '../lib/places.ts';
 import { householdNamed } from '../lib/householdMove.ts';
 import type { CoupleLots } from './MoveToLotForm.tsx';
 import { homeRoom } from '../lib/homeRoom.ts';
@@ -1696,7 +1696,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     const a = wb.byid[aId];
     const b = wb.byid[bId];
     if (!a || !b) return undefined;
-    const choices = coupleLotChoices(wb.worlds.map((w) => w.name), wb.homes, [a.world, b.world]);
+    const choices = coupleLotChoices(wb.worlds.map((w) => w.name), wb.homes, [a.world, b.world], wb.lotCatalog);
     if (!choices.length) return undefined;
     return {
       choices,
@@ -2289,6 +2289,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           worlds={wb.worlds}
           groups={wb.groups}
           nodes={wb.nodes}
+          lotCatalog={wb.lotCatalog}
           onMove={(world, house, name) => {
             const ids = selectedSims.map((n) => n.id);
             const done = wb.moveSimsToHousehold(ids, world, house, name);
@@ -2459,7 +2460,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       )}
       {lotMenu && (
         <LotMoveInMenu
-          key={lotMenu.lot.world + lotMenu.lot.name}
+          key={lotKey(lotMenu.lot)}
           lot={lotMenu.lot}
           left={lotMenu.x}
           top={lotMenu.y}
@@ -2522,7 +2523,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             nodes: wb.nodes,
             edges: wb.edges,
             lot: wb.homes.get(briefGroup.gid),
-            free: freeLotsIn(briefGroup.world, wb.homes),
+            free: freeLotsIn(briefGroup.world, wb.homes, wb.lotCatalog),
           })}
           onMoveToLot={(l) =>
             wb.moveIntoLot(
@@ -2565,6 +2566,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                   worlds: wb.worlds,
                   groups: wb.groups,
                   nodes: wb.nodes,
+                  lotCatalog: wb.lotCatalog,
                   onMove: (world, house) => wb.moveHouseholdToWorld(briefGroup.gid, world, house),
                 }
           }
@@ -2578,6 +2580,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           worlds={wb.worlds}
           groups={wb.groups}
           nodes={wb.nodes}
+          lotCatalog={wb.lotCatalog}
           edges={wb.edges}
           saveGame={wb.saveGame}
           generations={wb.dynastyGens}

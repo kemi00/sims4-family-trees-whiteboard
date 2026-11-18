@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { NEW_HOUSEHOLD, householdNamed, householdOptions } from '../lib/householdMove.ts';
-import { freeLotsIn, householdLots, lotOfPick, lotOptionLabel, lotPick, lotsIn } from '../lib/places.ts';
+import { freeLotsIn, householdLots, lotOptionLabel, lotPick, lotsIn, type LotCatalog } from '../lib/places.ts';
 import type { Group, SimNode, World } from '../types/whiteboard.ts';
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   worlds: World[];
   groups: Group[];
   nodes: SimNode[];
+  lotCatalog: LotCatalog;
   initialWorld: string;
   /** The household every moving sim already lives in: not offered. */
   exclude?: string;
@@ -41,6 +42,7 @@ export function HouseholdMoveForm({
   worlds,
   groups,
   nodes,
+  lotCatalog,
   initialWorld,
   exclude,
   submitLabel,
@@ -51,16 +53,16 @@ export function HouseholdMoveForm({
   onMoveHousehold,
 }: Props) {
   const [world, setWorld] = useState(initialWorld);
-  const homes = useMemo(() => householdLots(nodes), [nodes]);
+  const homes = useMemo(() => householdLots(nodes, lotCatalog), [nodes, lotCatalog]);
   /** A world with no lots to live on: only there is a household made with none. */
-  const lotless = (w: string) => lotsIn(w).length === 0;
+  const lotless = (w: string) => lotsIn(w, lotCatalog).length === 0;
   const startHouse = (w: string) => (lotless(w) ? NEW_HOUSEHOLD : '');
   const [house, setHouse] = useState<string>(() => startHouse(initialWorld));
   const [name, setName] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const options = householdOptions(groups, nodes, world, exclude);
-  const free = lotless(world) ? [] : freeLotsIn(world, homes);
-  const lot = lotOfPick(world, house);
+  const free = freeLotsIn(world, homes, lotCatalog);
+  const lot = free.find((l) => lotPick(l) === house);
   const isNew = house === NEW_HOUSEHOLD || !!lot;
   const typed = name ?? (lot ? suggestedName : '');
   const twin = isNew ? householdNamed(groups, nodes, world, typed) : undefined;
@@ -137,7 +139,7 @@ export function HouseholdMoveForm({
         {free.length > 0 && (
           <optgroup label={`Free lots (${free.length})`}>
             {free.map((l) => (
-              <option key={l.name} value={lotPick(l)}>
+              <option key={lotPick(l)} value={lotPick(l)}>
                 {lotOptionLabel(l)}
               </option>
             ))}

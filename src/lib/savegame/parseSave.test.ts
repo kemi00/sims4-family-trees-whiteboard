@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
+import { freeLotsIn, householdLots, lotPick, saveLotCatalog } from '../places.ts';
+import { moveDestination } from '../householdMove.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
+import { mergeSaveIntoBoard } from './mergeSave.ts';
 import { genderFromPronouns, inferTreeDeaths, pairTagsFromBits, parseSaveGame, readableHouseholdName } from './parseSave.ts';
 import { decodeFields, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
@@ -499,6 +502,68 @@ function visitorsSave(): Uint8Array {
   );
   return wrapDbpf(refpackCompress(data));
 }
+
+describe('custom residential rentals', () => {
+  it('imports a converted lot with two tenants and one vacant unit by exact zone', () => {
+    const world = 'Ciudad Enamorada';
+    const hash = 1539899495; // Calle del Ensueño is an empty lot in the shipped catalog.
+    const shared = 743964202073981217n;
+    const first = shared + 1n;
+    const second = shared + 2n;
+    const vacant = shared + 3n;
+    const zone = (id: bigint, name: string, listing: number) => encodeBytes(7, concat(
+      encodeVarintField(1, id), encodeString(2, name), encodeVarintField(16, 2),
+      encodeVarintField(17, 1), encodeVarintField(18, listing),
+    ));
+    const worldLots = encodeBytes(4, concat(
+      encodeString(3, world),
+      ...[second, shared, vacant, first].map((id) => encodeBytes(5, concat(
+        encodeVarintField(2, id), encodeVarintField(5, hash), encodeVarintField(7, 341299),
+      ))),
+    ));
+    const household = (id: number, home: bigint) => encodeBytes(5, concat(
+      encodeVarintField(2, id), encodeString(3, 'Rivera'), encodeVarintField(4, home),
+    ));
+    const tenant = (id: number, householdId: number, first: string) => encodeBytes(6, simBlob({
+      id, householdId, first, last: 'Rivera', household: 'Rivera', gender: 4096, age: 16,
+    }));
+    const parsed = parseSaveGame(saveOf(
+      worldLots,
+      zone(shared, 'Calle del Ensueño', 300),
+      zone(first, 'Loft', 301),
+      zone(second, 'Loft', 302),
+      zone(vacant, 'Garden Suite', 303),
+      household(10, first),
+      household(20, second),
+      tenant(1, 10, 'Ari'),
+      tenant(2, 20, 'Mar'),
+      encodeBytes(2, encodeBytes(8, encodeVarintField(1, 1))),
+    ));
+    assert.deepEqual(parsed.sims.map((s) => s.lot?.zone), [String(first), String(second)]);
+
+    const worlds = [{ name: world, color: '#fff' }];
+    const input = {
+      nodes: [], edges: [], groups: [], worlds, parsed, seedNameKeys: new Set<string>(),
+      now: '2026-11-18T12:00:00.000Z', nextEdgeId: () => 'v1',
+    };
+    const board = mergeSaveIntoBoard(input);
+    // An existing board may have had the two Sims together before they moved.
+    const updated = mergeSaveIntoBoard({
+      ...input,
+      groups: board.groups.slice(0, 1),
+      nodes: board.nodes.map((n) => ({ ...n, gid: board.nodes[0]!.gid })),
+    });
+    const catalog = saveLotCatalog(updated.saveGame?.lotZones);
+    const homes = householdLots(updated.nodes, catalog);
+    assert.notEqual(updated.nodes[0]!.gid, updated.nodes[1]!.gid);
+    assert.deepEqual(updated.nodes.map((n) => homes.get(n.gid)?.zone), [String(first), String(second)]);
+    assert.deepEqual(updated.nodes.map((n) => n.lot), ['Loft · Unit 1', 'Loft · Unit 2']);
+    const free = freeLotsIn(world, new Map(), catalog).filter((l) => l.hash === hash);
+    assert.deepEqual(free.map((l) => [l.name, l.venue, l.beds, l.baths]), [['Garden Suite', 'rental', 2, 1]]);
+    const dest = moveDestination(updated.groups, updated.nodes, worlds, world, lotPick(free[0]!), 'New family', catalog);
+    assert.equal(dest?.lotZone, String(vacant));
+  });
+});
 
 describe('households', () => {
   const parsed = parseSaveGame(visitorsSave());

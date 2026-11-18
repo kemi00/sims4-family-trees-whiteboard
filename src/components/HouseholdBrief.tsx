@@ -1,7 +1,7 @@
 import type { HomeRoom } from '../lib/homeRoom.ts';
 import { CloseButton, IconButton } from './CloseButton.tsx';
 import { HOUSEHOLD_MAX } from '../lib/homeRoom.ts';
-import { lotKindLabel, lotRoomsLabel, lotSizeLabel, type GameLot } from '../lib/places.ts';
+import { lotKindLabel, lotRoomsLabel, lotSizeLabel, type GameLot, type LotCatalog } from '../lib/places.ts';
 import { useRef, useState } from 'react';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
@@ -50,6 +50,7 @@ type Props = {
     worlds: World[];
     groups: Group[];
     nodes: SimNode[];
+    lotCatalog: LotCatalog;
     onMove: (world: string, house?: string) => void;
   };
 };
@@ -175,6 +176,7 @@ export function HouseholdBrief({
                 worlds={move.worlds}
                 groups={move.groups}
                 nodes={move.nodes}
+                lotCatalog={move.lotCatalog}
                 onMove={move.onMove}
               />
             </div>
@@ -247,7 +249,11 @@ export function HouseholdBrief({
 
 /** "3 bed · 2 bath · 40×30", what a lot is. */
 function lotFacts(l: GameLot): string {
-  return [l.kind === 'empty' ? lotKindLabel(l) : lotRoomsLabel(l), lotSizeLabel(l)].filter(Boolean).join(' · ');
+  return [
+    l.venue === 'rental' || l.kind === 'empty' ? lotKindLabel(l) : null,
+    lotRoomsLabel(l),
+    lotSizeLabel(l),
+  ].filter(Boolean).join(' · ');
 }
 
 /**

@@ -1,5 +1,5 @@
 import placesData from '../data/places.json' with { type: 'json' };
-import type { SimNode } from '../types/whiteboard.ts';
+import type { SaveLotZone, SimNode } from '../types/whiteboard.ts';
 
 /**
  * The game's worlds, neighbourhoods and the lots people can live on, from
@@ -10,6 +10,8 @@ import type { SimNode } from '../types/whiteboard.ts';
 export type LotKind = 'house' | 'empty';
 /** What the lot is: a house, a rental unit (For Rent) or a dorm (Discover University). */
 export type LotVenue = 'house' | 'rental' | 'dorm';
+
+export const RESIDENTIAL_RENTAL_VENUE = 341299;
 
 export type GameLot = {
   world: string;
@@ -30,6 +32,11 @@ export type GameLot = {
   household?: string;
   /** One of the building's units, as apartments and rentals are. */
   unit?: boolean;
+  /** Exact zone of this home in the imported save. */
+  zone?: string;
+  /** The shared lot name for residential rental units. */
+  building?: string;
+  occupied?: true;
 };
 
 type WorldPlaces = {
@@ -85,9 +92,92 @@ export function lotWorlds(): string[] {
   return [...WORLDS.keys()];
 }
 
-/** The lots of `world` people can live on, by neighbourhood then name. */
-export function lotsIn(world: string): readonly GameLot[] {
-  return WORLDS.get(world)?.lots ?? [];
+export type LotCatalog = ReadonlyMap<string, readonly GameLot[]>;
+
+/** Overlay the save's current venue and rental units on the shipped map. */
+export function saveLotCatalog(zones: readonly SaveLotZone[] | undefined): LotCatalog {
+  const byWorld = new Map<string, Map<number, SaveLotZone[]>>();
+  for (const zone of zones ?? []) {
+    const world = byWorld.get(zone.world) ?? new Map<number, SaveLotZone[]>();
+    if (!byWorld.has(zone.world)) byWorld.set(zone.world, world);
+    const building = world.get(zone.hash) ?? [];
+    building.push(zone);
+    world.set(zone.hash, building);
+  }
+  const catalog = new Map<string, GameLot[]>();
+  for (const [world, buildings] of byWorld) {
+    const stock = new Map<number, GameLot[]>();
+    for (const lot of lotsIn(world)) {
+      const entries = stock.get(lot.hash) ?? [];
+      entries.push(lot);
+      stock.set(lot.hash, entries);
+    }
+    const lots: GameLot[] = [];
+    for (const hash of new Set([...stock.keys(), ...buildings.keys()])) {
+      const defaults = stock.get(hash) ?? [];
+      const saved = buildings.get(hash);
+      if (!saved) {
+        lots.push(...defaults);
+        continue;
+      }
+      const base = defaults[0];
+      const dimensions = { world, hash, nb: base?.nb ?? '-', w: base?.w ?? 0, d: base?.d ?? 0 };
+      const rentals = saved.filter((l) => l.venue === RESIDENTIAL_RENTAL_VENUE);
+      if (rentals.length) {
+        const shared = rentals.find((l) => l.unit === 0);
+        const units = rentals.filter((l) => l.unit !== undefined && l.unit > 0).sort((a, b) => a.unit! - b.unit!);
+        if (!shared && !units.length) {
+          lots.push(...defaults.filter((l) => l.venue === 'rental'));
+          continue;
+        }
+        const building = shared?.name ?? (base?.venue !== 'rental' ? base?.name : undefined);
+        for (const unit of units) {
+          const original = defaults.find((l) => l.name === unit.name);
+          const repeated = units.some((l) => l !== unit && l.name === unit.name);
+          const name = unit.name && !repeated ? unit.name : [unit.name ?? building, `Unit ${unit.unit}`].filter(Boolean).join(' · ');
+          lots.push({
+            ...dimensions,
+            name,
+            zone: unit.zone,
+            building,
+            beds: unit.beds ?? original?.beds ?? 0,
+            baths: unit.baths ?? original?.baths ?? 0,
+            kind: 'house',
+            venue: 'rental',
+            unit: true,
+            occupied: unit.occupied,
+          });
+        }
+        continue;
+      }
+      // The save can repurpose a residential lot or make a community lot residential.
+      const homes = saved.filter((l) => l.venue === 28614 || l.venue === 208182);
+      for (const lot of homes) {
+        const original = defaults.length === 1 ? base : defaults.find((l) => l.name === lot.name);
+        const name = original?.name ?? lot.name;
+        if (!name) continue;
+        lots.push({
+          ...dimensions,
+          ...original,
+          name,
+          zone: lot.zone,
+          unit: original?.unit ?? homes.length > 1,
+          beds: lot.beds ?? original?.beds ?? 0,
+          baths: lot.baths ?? original?.baths ?? 0,
+          kind: original?.kind === 'empty' && !lot.beds && !lot.baths ? 'empty' : 'house',
+          venue: lot.venue === 208182 ? 'dorm' : 'house',
+          occupied: lot.occupied,
+        });
+      }
+    }
+    catalog.set(world, lots);
+  }
+  return catalog;
+}
+
+/** The lots people can live on, with the save's inventory when available. */
+export function lotsIn(world: string, catalog?: LotCatalog): readonly GameLot[] {
+  return catalog?.get(world) ?? WORLDS.get(world)?.lots ?? [];
 }
 
 export function lotNamed(world: string, name: string | undefined): GameLot | undefined {
@@ -98,15 +188,19 @@ export function lotNamed(world: string, name: string | undefined): GameLot | und
 /** The value a lot has in a household picker. */
 export const LOT_PREFIX = '__lot:';
 
-export function lotPick(lot: Pick<GameLot, 'name'>): string {
-  return LOT_PREFIX + lot.name;
+function lotRef(lot: Pick<GameLot, 'name' | 'zone' | 'venue'>): string {
+  return lot.zone && lot.venue === 'rental' ? `zone:${lot.zone}` : lot.name;
 }
 
-export function lotOfPick(world: string, value: string): GameLot | undefined {
-  return value.startsWith(LOT_PREFIX) ? lotNamed(world, value.slice(LOT_PREFIX.length)) : undefined;
+export function lotPick(lot: GameLot): string {
+  return LOT_PREFIX + lotRef(lot);
 }
 
-type HomeCard = Pick<SimNode, 'gid' | 'world' | 'hh'> & { lot?: string };
+export function homeLotFields(lot: GameLot) {
+  return { lot: lot.name, lotZone: lot.venue === 'rental' ? lot.zone : undefined, nb: lot.nb };
+}
+
+type HomeCard = Pick<SimNode, 'gid' | 'world' | 'hh' | 'lot' | 'lotZone'>;
 
 /**
  * The lot each household on the board lives on, by gid. A household says so
@@ -115,25 +209,25 @@ type HomeCard = Pick<SimNode, 'gid' | 'world' | 'hh'> & { lot?: string };
  * a premade household still in its own world and under its own name has its
  * game lot, unless another household holds that lot.
  */
-export function householdLots(nodes: readonly HomeCard[]): Map<string, GameLot> {
-  const said = new Map<string, string | undefined>();
+export function householdLots(nodes: readonly HomeCard[], catalog?: LotCatalog): Map<string, GameLot> {
+  const said = new Map<string, HomeCard>();
   const where = new Map<string, HomeCard>();
   for (const n of nodes) {
     if (!where.has(n.gid)) where.set(n.gid, n);
-    if (n.lot !== undefined && !said.get(n.gid)) said.set(n.gid, n.lot);
+    if (n.lot !== undefined && !said.has(n.gid)) said.set(n.gid, n);
   }
   const out = new Map<string, GameLot>();
   const held = new Set<string>();
-  for (const [gid, lotName] of said) {
-    const n = where.get(gid)!;
-    const lot = lotNamed(n.world, lotName);
+  for (const [gid, n] of said) {
+    const zone = catalog?.has(n.world) ? n.lotZone : undefined;
+    const lot = lotsIn(n.world, catalog).find((l) => zone ? l.zone === zone : l.name === n.lot);
     if (!lot || held.has(lotKey(lot))) continue;
     out.set(gid, lot);
     held.add(lotKey(lot));
   }
   for (const [gid, n] of where) {
     if (said.has(gid) || gid !== `${n.world}||${n.hh}`) continue;
-    const lot = lotsIn(n.world).find((l) => l.household === n.hh && !held.has(lotKey(l)));
+    const lot = lotsIn(n.world, catalog).find((l) => l.household === n.hh && !held.has(lotKey(l)));
     if (!lot) continue;
     out.set(gid, lot);
     held.add(lotKey(lot));
@@ -141,14 +235,14 @@ export function householdLots(nodes: readonly HomeCard[]): Map<string, GameLot> 
   return out;
 }
 
-export function lotKey(lot: Pick<GameLot, 'world' | 'name'>): string {
-  return `${lot.world}||${lot.name}`;
+export function lotKey(lot: GameLot): string {
+  return `${lot.world}||${lotRef(lot)}`;
 }
 
-/** Lots of `world` no household on the board lives on, in the game's order. */
-export function freeLotsIn(world: string, homes: ReadonlyMap<string, GameLot>): GameLot[] {
+/** Lots and units available in both the save and the board's plans. */
+export function freeLotsIn(world: string, homes: ReadonlyMap<string, GameLot>, catalog?: LotCatalog): GameLot[] {
   const held = new Set([...homes.values()].map(lotKey));
-  return lotsIn(world).filter((l) => !held.has(lotKey(l)));
+  return lotsIn(world, catalog).filter((l) => !l.occupied && !held.has(lotKey(l)));
 }
 
 /**
@@ -160,9 +254,10 @@ export function coupleLotChoices(
   worlds: readonly string[],
   homes: ReadonlyMap<string, GameLot>,
   theirs: readonly string[],
+  catalog?: LotCatalog,
 ): { world: string; lots: GameLot[] }[] {
   return [...new Set([...theirs, ...worlds])]
-    .map((world) => ({ world, lots: freeLotsIn(world, homes) }))
+    .map((world) => ({ world, lots: freeLotsIn(world, homes, catalog) }))
     .filter((c) => c.lots.length > 0);
 }
 
@@ -173,11 +268,11 @@ export function lotOptionLabel(lot: GameLot): string {
 }
 
 /** Free lots of every world on the board, by world. */
-export function freeLotsByWorld(nodes: readonly HomeCard[], worlds: readonly string[]): Map<string, GameLot[]> {
-  const homes = householdLots(nodes);
+export function freeLotsByWorld(nodes: readonly HomeCard[], worlds: readonly string[], catalog?: LotCatalog): Map<string, GameLot[]> {
+  const homes = householdLots(nodes, catalog);
   const out = new Map<string, GameLot[]>();
   for (const w of worlds) {
-    const free = freeLotsIn(w, homes);
+    const free = freeLotsIn(w, homes, catalog);
     if (free.length) out.set(w, free);
   }
   return out;
