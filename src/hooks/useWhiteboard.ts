@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { growHousehold, landMovedCards, type Box as LandBox } from '../lib/landing.ts';
 import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
-import { ADDED_HOUSEHOLD, AGES_H, CARD_MIN_W, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
+import { ADDED_HOUSEHOLD, AGES_H, CARD_H, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, TILE, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import { freeLotsIn, homeLotFields, householdLots, lotKey, lotPick, saveLotCatalog, type GameLot } from '../lib/places.ts';
 import { lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
@@ -83,7 +83,7 @@ import {
   OTHER_WORLD,
   packingKey,
   rowPitch,
-  spawnChildOrigin,
+  childAddSpot,
   lotsBaseKey,
 } from '../lib/layout.ts';
 import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
@@ -1582,6 +1582,8 @@ export function useWhiteboard() {
       };
       // A pet joins the household's animals, in their lane at its right.
       const spot = species ? petAddSpot(home, nodes) : householdAddSpot(home, nodes, chrome.boxR);
+      const anchor = home.filter((n) => !!n.species === !!species)
+        .sort((a, b) => b.y - a.y || a.x - b.x)[0] ?? home[0]!;
       const r = growHousehold({
         core: [...nodesCore, toCore(n)],
         laid: nodes,
@@ -1591,6 +1593,7 @@ export function useWhiteboard() {
         gid,
         block: [{ ...n, ...spot, ...measureCard(n) }],
         spots: [spot],
+        near: species ? undefined : { x: anchor.x, y: anchor.y + anchor.h + TILE },
         view: viewRect(),
         obstacles: lotRoom,
       });
@@ -2037,11 +2040,11 @@ export function useWhiteboard() {
 
   /**
    * A planned baby of `parentIds` (a couple, or one sim alone) in household
-   * `destGid`, taking last name `sur`, placed under `rx` beside its full
+   * `destGid`, taking last name `sur`, placed near its parents beside its full
    * siblings: those with the same parents, and no other.
    */
   const addPlannedBaby = useCallback(
-    (parentIds: string[], destGid: string, sur: string, rx: number) => {
+    (parentIds: string[], destGid: string, sur: string) => {
       const ps = parentIds.map((id) => byid[id]);
       if (!ps.length || ps.some((p) => !p)) return;
       const parents = ps as SimNode[];
@@ -2096,19 +2099,7 @@ export function useWhiteboard() {
         ...(species ? { species, state: 'Pet', sur: '', pack: petPack(species) } : {}),
       };
       const size = measureCard(infant);
-      const siblings = nodes.filter((n) => {
-        const mine = new Set(edges.filter((e) => e.type === 'parent' && e.b === n.id).map((e) => e.a));
-        // A couple's: children of both. One sim's: children of theirs alone.
-        return parentIds.every((p) => mine.has(p)) && (parentIds.length > 1 || mine.size === 1);
-      });
-      const { x, y } = spawnChildOrigin(
-        Math.min(...parents.map((p) => p.y)),
-        rx,
-        size.w,
-        siblings,
-        nodes,
-        snap,
-      );
+      const { x, y } = childAddSpot(parents, dest.gid, nodes, edges, snap);
       const bundleId = 'b' + eidcRef.current++;
       const createdAt = new Date().toISOString();
       const nextEdges: Edge[] = [...edges];
@@ -2134,6 +2125,7 @@ export function useWhiteboard() {
         gid: dest.gid,
         block: [{ ...infant, x, y, ...size }],
         spots: [{ x, y }],
+        near: { x: host.x, y: host.y + CARD_H + TILE },
         view: viewRect(),
         obstacles: lotRoom,
       });
@@ -2164,8 +2156,8 @@ export function useWhiteboard() {
   );
 
   const addInfantOfCouple = useCallback(
-    (pa: string, pb: string, destGid: string, sur: string, rx: number, _ry: number) =>
-      addPlannedBaby([pa, pb], destGid, sur, rx),
+    (pa: string, pb: string, destGid: string, sur: string, _rx: number, _ry: number) =>
+      addPlannedBaby([pa, pb], destGid, sur),
     [addPlannedBaby],
   );
 
@@ -2179,7 +2171,7 @@ export function useWhiteboard() {
       const a = byid[id];
       if (!a) return;
       const sur = babySurnames(a, a, a.gid)[0] ?? a.sur;
-      addPlannedBaby([id], a.gid, sur, a.x + (a.w || CARD_MIN_W) / 2);
+      addPlannedBaby([id], a.gid, sur);
     },
     [byid, addPlannedBaby, babySurnames],
   );
@@ -2192,7 +2184,7 @@ export function useWhiteboard() {
     (parentIds: string[]) => {
       const a = byid[parentIds[0] ?? ''];
       if (!a?.species) return;
-      addPlannedBaby(parentIds, a.gid, '', a.x + (a.w || CARD_MIN_W) / 2);
+      addPlannedBaby(parentIds, a.gid, '');
     },
     [byid, addPlannedBaby],
   );

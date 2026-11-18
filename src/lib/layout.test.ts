@@ -6,6 +6,7 @@ import {
   computeLayout,
   HOUSEHOLD_ROWS_EPOCH,
   householdAddSpot,
+  childAddSpot,
   laneStrip,
   partnerSpot,
   rowsUnderHousehold,
@@ -301,6 +302,36 @@ describe('tile-native household packing', () => {
     const row = [-4, -3, -2, -1, 1, 2, 3, 4].map((i) => card(1000 + i * step));
     const p = spawnChildOrigin(500, 1100, CARD_MIN_W, [sibling], [sibling, ...row]);
     assert.deepEqual(p, { x: 1000 + step, y: 600 + CARD_H });
+  });
+});
+
+describe('a child added to its parents’ household', () => {
+  const parent = (id: string, gid: string, x: number, y: number) =>
+    sim({ id, first: id, gid, x, y, w: CARD_MIN_W, h: CARD_H });
+  const a = parent('a', 'Henford||Home', 1000, 1000);
+  const b = parent('b', 'Willow Creek||Away', 10000, 100);
+  const sibling = parent('older-child', 'Willow Creek||Away', 14000, 500);
+  const edges: Edge[] = [
+    { id: 'p1', type: 'parent', a: a.id, b: sibling.id },
+    { id: 'p2', type: 'parent', a: b.id, b: sibling.id },
+  ];
+
+  it('uses the parent in the chosen home when the other parent and sibling live elsewhere', () => {
+    const nodes = [a, b, sibling];
+    const spot = childAddSpot([a, b], a.gid, nodes, edges);
+    assert.deepEqual(spot, { x: a.x, y: a.y + CARD_H });
+    const reverse = childAddSpot([b, a], a.gid, nodes, edges);
+    assert.deepEqual(reverse, spot);
+  });
+
+  it('uses full siblings living in the chosen household', () => {
+    const local = { ...sibling, gid: a.gid, x: 1000, y: 1200 };
+    assert.deepEqual(childAddSpot([a, b], a.gid, [a, b, local], edges), { x: 1300, y: 1200 });
+  });
+
+  it('a one-parent child follows the parent in its own household', () => {
+    const ownEdges = edges.filter((e) => e.a === a.id);
+    assert.deepEqual(childAddSpot([a], a.gid, [a, sibling], ownEdges), { x: a.x, y: a.y + CARD_H });
   });
 });
 

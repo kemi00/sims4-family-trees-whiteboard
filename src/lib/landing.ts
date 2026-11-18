@@ -152,6 +152,8 @@ const NEAR_TILES = 40;
  * - on screen (`view`, in board units);
  * - growing the box down, then right, then left or up, as little as it can;
  * - nearest the first spot.
+ * With `near`, proximity to that family anchor takes priority in three-tile
+ * bands, so a child's clear place near a parent beats a distant vacancy.
  * The box may grow over its neighbours': the user rearranges from there.
  * `outOfView` when the place is off screen, so the view can glide to it;
  * `crowded` when nothing near was free at all and they sit on other cards;
@@ -169,19 +171,22 @@ export function householdGrowth(opts: {
   block: SimNode[];
   /** Top-left places for the newcomers to try first, best first. */
   spots: Point[];
+  /** Keep newcomers near a parent or existing household member. */
+  near?: Point;
   /** The part of the board on screen, in board units; null when unknown. */
   view?: Box | null;
   /** Room taken by other things on the board (its Free lots boxes): newcomers go around it. */
   obstacles?: readonly Box[];
 }): { at: Point; outOfView: boolean; crowded: boolean; atSpot: boolean } {
-  const { others, groups, home, block, spots, view, obstacles = [] } = opts;
+  const { others, groups, home, block, spots, near, view, obstacles = [] } = opts;
   const from = topLeft(block);
   const first = spots[0] ?? from;
+  const origin = near ?? first;
   const rel = block.map((n) => ({ dx: n.x - from.x, dy: n.y - from.y, w: n.w, h: n.h }));
   const bw = Math.max(...rel.map((r) => r.dx + r.w));
   const bh = Math.max(...rel.map((r) => r.dy + r.h));
   const reach = NEAR_TILES * TILE;
-  const region: Box = { l: first.x - reach - bw, t: first.y - reach - bh, r: first.x + reach + 2 * bw, b: first.y + reach + 2 * bh };
+  const region: Box = { l: origin.x - reach - bw, t: origin.y - reach - bh, r: origin.x + reach + 2 * bw, b: origin.y + reach + 2 * bh };
   // Cards keep a tile of air between them, as the layout leaves.
   const cards = [...[...others, ...home].map((n) => grown(boxOfRect(n), TILE)), ...obstacles.map((o) => grown(o, TILE))].filter(
     (c) => overlapArea(c, region) > 0,
@@ -207,6 +212,7 @@ export function householdGrowth(opts: {
     const grew = own ? boxesAt(at).reduce(union, own) : null;
     const side = !own || !grew ? 0 : growthSide(own, grew);
     return [
+      near ? Math.floor(Math.hypot(at.x - near.x, at.y - near.y) / (3 * TILE)) : 0,
       apart(at) ? 0 : 1,
       spot >= 0 ? spot : spots.length,
       inside(at) ? 0 : 1,
@@ -221,17 +227,21 @@ export function householdGrowth(opts: {
   };
   let best: { at: Point; score: number[]; spot: number } | null = null;
   const consider = (at: Point, spot: number) => {
+    if (near && (Math.abs(at.x - near.x) > reach || Math.abs(at.y - near.y) > reach)) return;
     if (!free(at) || above(at)) return;
     const sc = score(at, spot);
     if (!best || lessThan(sc, best.score)) best = { at, score: sc, spot };
   };
   spots.forEach((at, i) => consider(at, i));
-  const start = tileSnapOrigin(first.x - reach, first.y - reach);
-  for (let y = start.y; y <= first.y + reach; y += TILE) {
-    for (let x = start.x; x <= first.x + reach; x += TILE) consider({ x, y }, -1);
+  const start = tileSnapOrigin(origin.x - reach, origin.y - reach);
+  for (let y = start.y; y <= origin.y + reach; y += TILE) {
+    for (let x = start.x; x <= origin.x + reach; x += TILE) consider({ x, y }, -1);
   }
   const found = best as { at: Point; score: number[]; spot: number } | null;
-  if (!found) return { at: first, outOfView: !seen(first), crowded: true, atSpot: true };
+  if (!found) {
+    const at = near ? tileSnapOrigin(near.x, Math.max(near.y, firstRow)) : first;
+    return { at, outOfView: !seen(at), crowded: true, atSpot: at.x === first.x && at.y === first.y };
+  }
   return { at: found.at, outOfView: !seen(found.at), crowded: false, atSpot: found.spot === 0 };
 }
 
@@ -278,10 +288,11 @@ export function growHousehold(opts: {
   gid: string;
   block: SimNode[];
   spots: Point[];
+  near?: Point;
   view?: Box | null;
   obstacles?: readonly Box[];
 }): { core: SimNode[]; at: Point; box: Box; outOfView: boolean; crowded: boolean; atSpot: boolean } {
-  const { core, laid, worlds, edges, groups, gid, block, spots, view, obstacles } = opts;
+  const { core, laid, worlds, edges, groups, gid, block, spots, near, view, obstacles } = opts;
   const ids = new Set(block.map((n) => n.id));
   const home = laid.filter((n) => n.gid === gid && !ids.has(n.id));
   const from = topLeft(block);
@@ -293,6 +304,7 @@ export function growHousehold(opts: {
     label: groups.find((x) => x.gid === gid) ?? null,
     block,
     spots: spots.length ? spots : [from],
+    near,
     view,
     ...(obstacles ? { obstacles } : {}),
   });

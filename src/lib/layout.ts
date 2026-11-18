@@ -110,6 +110,33 @@ export function spawnChildOrigin(
   return at(x, y);
 }
 
+/** A child joins the parents and full siblings living in its own household. */
+export function childAddSpot(
+  parents: SimNode[],
+  gid: string,
+  nodes: SimNode[],
+  edges: Edge[],
+  snap = true,
+): { x: number; y: number } {
+  const homeParents = parents.filter((p) => p.gid === gid);
+  const local = homeParents.length ? homeParents : parents;
+  const ids = new Set(parents.map((p) => p.id));
+  const parentsByChild = new Map<string, Set<string>>();
+  for (const e of edges) {
+    if (e.type !== 'parent') continue;
+    const set = parentsByChild.get(e.b) ?? new Set<string>();
+    set.add(e.a);
+    parentsByChild.set(e.b, set);
+  }
+  const siblings = nodes.filter((n) => {
+    const theirs = parentsByChild.get(n.id);
+    return n.gid === gid && theirs?.size === ids.size && [...ids].every((id) => theirs.has(id));
+  });
+  const left = Math.min(...local.map((p) => p.x));
+  const right = Math.max(...local.map((p) => p.x + p.w));
+  return spawnChildOrigin(Math.max(...local.map((p) => p.y)), (left + right) / 2, CARD_MIN_W, siblings, nodes, snap);
+}
+
 type PlacedCard = { id: string; x: number; y: number; w: number; h: number };
 
 type HHGraph = {

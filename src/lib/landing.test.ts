@@ -227,6 +227,21 @@ describe('a household growing', () => {
     assert.ok(Math.hypot(g.at.x - under.x, g.at.y - under.y) <= 300, `too far: ${JSON.stringify(g.at)}`);
   });
 
+  it('keeps a child near its parent when a neighbouring household spans the nearby gaps', () => {
+    const others = [card('b', 'W||B', 700, 800), card('b2', 'W||B', 1600, 3000)];
+    const near = { x: a[0]!.x, y: a[0]!.y + CARD_H + TILE };
+    const g = householdGrowth({ others, groups: [], home: a, block: [baby], spots: [under], near });
+    assert.ok(clearOf(g.at, [...a, ...others]), 'clear of the existing cards');
+    assert.ok(Math.hypot(g.at.x - near.x, g.at.y - near.y) < 3 * TILE, JSON.stringify(g.at));
+  });
+
+  it('keeps a child near its parent even when a sibling’s suggested spot is far away', () => {
+    const near = { x: a[0]!.x, y: a[0]!.y + CARD_H + TILE };
+    const g = householdGrowth({ others: [], groups: [], home: a, block: [baby], spots: [{ x: 15000, y: 1200 }], near });
+    assert.ok(clearOf(g.at, a));
+    assert.ok(Math.hypot(g.at.x - near.x, g.at.y - near.y) < 3 * TILE, JSON.stringify(g.at));
+  });
+
   it('boxed in on every side, still moves no one: the nearest free spot', () => {
     const others = [
       card('b', 'W||B', 1000, 1400),
