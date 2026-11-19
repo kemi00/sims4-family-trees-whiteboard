@@ -11,6 +11,8 @@ export const LOT_TILE_W = 2 * TILE - 16;
 export const LOT_TILE_H = TILE - 16;
 export const LOT_PITCH_X = 2 * TILE;
 export const LOT_PITCH_Y = TILE;
+/** Room for the planned-household label in boxes with reserved vacancies. */
+export const LOT_RESERVED_EXTRA = 32;
 /** The box's tag band, over its first row of tiles. */
 export const LOT_HEAD = 50;
 /** From a tile to the box's left edge. */
@@ -32,7 +34,7 @@ export function lotCols(count: number, contentW: number): number {
 }
 
 /** The box's size for `count` lots in `cols` columns. */
-export function lotBoxSize(count: number, cols: number): { w: number; h: number } {
+export function lotBoxSize(count: number, cols: number, reserved = false): { w: number; h: number } {
   const rows = Math.ceil(count / Math.max(1, cols));
-  return { w: cols * LOT_PITCH_X, h: LOT_HEAD + rows * LOT_PITCH_Y };
+  return { w: cols * LOT_PITCH_X, h: LOT_HEAD + rows * (LOT_PITCH_Y + (reserved ? LOT_RESERVED_EXTRA : 0)) };
 }

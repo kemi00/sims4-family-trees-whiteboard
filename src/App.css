@@ -820,6 +820,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lot:hover .lot__face{opacity:1}
 .lot__name{fill:var(--ink)}
 .lot__detail{fill:var(--ink-2)}
+.lot--reserved{cursor:default}
+.lot--reserved .lot__tile{stroke:var(--plan)}
 .hh-add:hover rect{filter:brightness(.96)}
 .node rect{cursor:grab}
 .node__more{cursor:pointer;fill:#8a93a0}

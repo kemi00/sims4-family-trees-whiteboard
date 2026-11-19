@@ -1,6 +1,6 @@
 import { TILE } from './constants.ts';
 import { LAYOUT } from './layout.ts';
-import { LOT_HEAD, LOT_MAX_COLS, LOT_PAD, LOT_PITCH_X, LOT_PITCH_Y, LOT_TILE_H, LOT_TILE_W, lotBoxSize, lotCols } from './lotGrid.ts';
+import { LOT_HEAD, LOT_MAX_COLS, LOT_PAD, LOT_PITCH_X, LOT_PITCH_Y, LOT_RESERVED_EXTRA, LOT_TILE_H, LOT_TILE_W, lotBoxSize, lotCols } from './lotGrid.ts';
 import type { GameLot } from './places.ts';
 import { householdChrome } from './tiles.ts';
 import type { Group, LotBoxPins, SimNode } from '../types/whiteboard.ts';
@@ -46,12 +46,13 @@ function lessThan(a: number[], b: number[]): boolean {
 
 /** The tiles of a box at `l, t`, row by row. */
 function tilesAt(lots: readonly GameLot[], cols: number, l: number, t: number): LotTile[] {
+  const extra = lots.some((lot) => lot.reservedFor) ? LOT_RESERVED_EXTRA : 0;
   return lots.map((lot, i) => ({
     lot,
     x: l + LOT_PAD + (i % cols) * LOT_PITCH_X,
-    y: t + LOT_HEAD + Math.floor(i / cols) * LOT_PITCH_Y,
+    y: t + LOT_HEAD + Math.floor(i / cols) * (LOT_PITCH_Y + extra),
     w: LOT_TILE_W,
-    h: LOT_TILE_H,
+    h: LOT_TILE_H + extra,
   }));
 }
 
@@ -114,7 +115,7 @@ export function placeLotBoxes(opts: {
     const pin = pins?.[world];
     if (!lots.length || !pin) continue;
     const cols = Math.max(1, Math.min(pin.cols, lots.length));
-    const { w, h } = lotBoxSize(lots.length, cols);
+    const { w, h } = lotBoxSize(lots.length, cols, lots.some((lot) => lot.reservedFor));
     const at = { l: pin.x, t: pin.y, r: pin.x + w, b: pin.y + h };
     placed.push(at);
     out.set(world, { world, ...at, tiles: tilesAt(lots, cols, at.l, at.t) });
@@ -138,7 +139,7 @@ export function placeLotBoxes(opts: {
       return [near.reduce((s, o) => s + overlapArea(o, f), 0), crowd.reduce((s, o) => s + overlapArea(o, b), 0)];
     };
     const sized = (c: number) => {
-      const { w, h } = lotBoxSize(lots.length, c);
+      const { w, h } = lotBoxSize(lots.length, c, lots.some((lot) => lot.reservedFor));
       return { cols: c, w, h };
     };
     let shape = sized(cols);

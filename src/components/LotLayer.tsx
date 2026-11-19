@@ -49,7 +49,12 @@ function wrap(text: string, w: number, size: number, weight: number): string[] {
 
 /** How many lots and units are available, for the box's tag. */
 function boxLabel(tiles: LotBox['tiles']): string {
+  const reserved = tiles.filter(({ lot }) => lot.reservedFor).length;
   const units = tiles.filter(({ lot }) => lot.unit).length;
+  if (reserved) {
+    const kind = units > 0 && units < tiles.length ? 'lots & units' : units ? 'units' : 'lots';
+    return `${tiles.length} vacant ${kind} · ${reserved} planned`;
+  }
   if (units > 0 && units < tiles.length) return `${tiles.length} free lots & units`;
   const kind = units ? 'unit' : 'lot';
   return `${tiles.length} free ${kind}${tiles.length === 1 ? '' : 's'}`;
@@ -59,11 +64,13 @@ function boxLabel(tiles: LotBox['tiles']): string {
 function lotTip(lot: GameLot): string {
   const parts = [lotKindLabel(lot), lotSizeLabel(lot), lotRoomsLabel(lot)].filter(Boolean).join(', ');
   const place = [lot.name, lot.building && !lot.name.includes(lot.building) ? lot.building : null, lot.nb].filter(Boolean);
-  return `${place.join(', ')}: ${parts}.\nClick to move sims in.`;
+  return `${place.join(', ')}: ${parts}.\n${lot.reservedFor
+    ? `Vacant in your save. Planned for ${lot.reservedFor.hh}; this reservation is kept on the board.`
+    : 'Click to move sims in.'}`;
 }
 
 /**
- * Each world's Free lots: the lots no household on the board lives on, so
+ * Each world's Free lots: vacancies, with labels for homes reserved by plans, so
  * sims who move have somewhere to go. A faded box under the world's
  * households, like a household with no one in it, with one faded tile per
  * lot: its neighbourhood's icon, its name, what stands on it and its size.
@@ -127,7 +134,7 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
                 setDrag(null);
               }}
             >
-              <title>{`Lots in ${box.world} that no household on the board lives on. Sims move in from Move to, or click a lot. Drag this tag to move the box: nothing else moves it.`}</title>
+              <title>{`Vacant lots in ${box.world}. Planned households keep their reservations. Click an unreserved lot to move sims in. Drag this tag to move the box.`}</title>
               <rect
                 x={box.l + HH_TAG_INSET}
                 y={box.t + HH_TAG_INSET}
@@ -161,6 +168,7 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
                 lot.nb,
                 [lotKindLabel(lot), lotSizeLabel(lot)].filter(Boolean).join(' · '),
                 lotRoomsLabel(lot),
+                lot.reservedFor ? `Planned for ${lot.reservedFor.hh}` : null,
               ]
                 .filter((d): d is string => !!d)
                 .flatMap((d) => wrap(d, room, DETAIL_SIZE, 500));
@@ -168,14 +176,15 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
               return (
                 <g
                   key={lotKey(lot)}
-                  className="lot"
+                  className={lot.reservedFor ? 'lot lot--reserved' : 'lot'}
                   role="button"
-                  aria-label={`${lot.name}: move sims in`}
+                  aria-label={`${lot.name}: ${lot.reservedFor ? `vacant, planned for ${lot.reservedFor.hh}` : 'move sims in'}`}
+                  aria-disabled={!!lot.reservedFor}
                   tabIndex={-1}
                   // Acts on click, as the household + does, so a pan that
                   // starts on a lot moves nobody.
                   onPointerDown={(ev) => ev.stopPropagation()}
-                  onClick={(ev) => onPickLot?.(lot, ev.clientX, ev.clientY)}
+                  onClick={(ev) => { if (!lot.reservedFor) onPickLot?.(lot, ev.clientX, ev.clientY); }}
                 >
                   <title>{lotTip(lot)}</title>
                   <rect

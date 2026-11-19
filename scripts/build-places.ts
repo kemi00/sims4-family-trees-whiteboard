@@ -27,15 +27,13 @@ import zlib from 'node:zlib';
 import { readDbpf } from '../src/lib/savegame/dbpf.ts';
 import { refpackDecompress } from '../src/lib/savegame/refpack.ts';
 import { decodeFields, utf8 } from '../src/lib/savegame/protobuf.ts';
+import { HOME_VENUES, type LotVenue } from '../src/lib/places.ts';
 
 const GAME = '/Applications/EA Games/The Sims 4.app/Contents';
 const PACKS = '/Applications/EA Games/The Sims 4 Packs';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const [savePath] = process.argv.slice(2);
 if (!savePath) throw new Error('usage: build-places.ts <save>');
-
-/** Venues people live on, from the save's lot records. */
-const HOME_VENUES: Record<number, 'house' | 'rental' | 'dorm'> = { 28614: 'house', 341299: 'rental', 208182: 'dorm' };
 
 type Entry = { type: number; instance: bigint; offset: number; size: number; comp: number };
 function readIndex(file: string): { fd: number; entries: Entry[] } {
@@ -230,7 +228,7 @@ type Lot = {
   beds: number;
   baths: number;
   kind: 'house' | 'empty';
-  venue: 'house' | 'rental' | 'dorm';
+  venue: LotVenue;
   household?: string;
 };
 const lots: Lot[] = [];

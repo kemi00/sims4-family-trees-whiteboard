@@ -250,7 +250,7 @@ export function HouseholdBrief({
 /** "3 bed · 2 bath · 40×30", what a lot is. */
 function lotFacts(l: GameLot): string {
   return [
-    l.venue === 'rental' || l.kind === 'empty' ? lotKindLabel(l) : null,
+    l.venue === 'rental' || l.venue === 'tiny' || l.kind === 'empty' ? lotKindLabel(l) : null,
     lotRoomsLabel(l),
     lotSizeLabel(l),
   ].filter(Boolean).join(' · ');

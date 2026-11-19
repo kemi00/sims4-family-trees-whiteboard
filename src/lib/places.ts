@@ -9,9 +9,13 @@ import type { SaveLotZone, SimNode } from '../types/whiteboard.ts';
 
 export type LotKind = 'house' | 'empty';
 /** What the lot is: a house, a rental unit (For Rent) or a dorm (Discover University). */
-export type LotVenue = 'house' | 'rental' | 'dorm';
+export type LotVenue = 'house' | 'tiny' | 'rental' | 'dorm';
 
 export const RESIDENTIAL_RENTAL_VENUE = 341299;
+/** Permanent homes; vacation rentals and community venues are excluded. */
+export const HOME_VENUES: Readonly<Record<number, LotVenue>> = {
+  28614: 'house', 229251: 'tiny', 341299: 'rental', 208182: 'dorm',
+};
 
 export type GameLot = {
   world: string;
@@ -37,6 +41,8 @@ export type GameLot = {
   /** The shared lot name for residential rental units. */
   building?: string;
   occupied?: true;
+  /** Vacant in the save, but already assigned to this household on the board. */
+  reservedFor?: { gid: string; hh: string };
 };
 
 type WorldPlaces = {
@@ -151,7 +157,7 @@ export function saveLotCatalog(zones: readonly SaveLotZone[] | undefined): LotCa
         continue;
       }
       // The save can repurpose a residential lot or make a community lot residential.
-      const homes = saved.filter((l) => l.venue === 28614 || l.venue === 208182);
+      const homes = saved.filter((l) => HOME_VENUES[l.venue] && l.venue !== RESIDENTIAL_RENTAL_VENUE);
       for (const lot of homes) {
         const original = defaults.length === 1 ? base : defaults.find((l) => l.name === lot.name);
         const name = original?.name ?? lot.name;
@@ -165,7 +171,7 @@ export function saveLotCatalog(zones: readonly SaveLotZone[] | undefined): LotCa
           beds: lot.beds ?? original?.beds ?? 0,
           baths: lot.baths ?? original?.baths ?? 0,
           kind: original?.kind === 'empty' && !lot.beds && !lot.baths ? 'empty' : 'house',
-          venue: lot.venue === 208182 ? 'dorm' : 'house',
+          venue: HOME_VENUES[lot.venue]!,
           occupied: lot.occupied,
         });
       }
@@ -245,6 +251,25 @@ export function freeLotsIn(world: string, homes: ReadonlyMap<string, GameLot>, c
   return lotsIn(world, catalog).filter((l) => !l.occupied && !held.has(lotKey(l)));
 }
 
+/** Saved vacancies remain visible even when the board has plans for them.
+ * Pickers still use freeLotsIn, so those reservations cannot be assigned twice. */
+export function vacantLotsIn(
+  world: string,
+  homes: ReadonlyMap<string, GameLot>,
+  households: ReadonlyMap<string, string>,
+  catalog?: LotCatalog,
+): GameLot[] {
+  const held = new Map([...homes].map(([gid, lot]) => [lotKey(lot), gid]));
+  return lotsIn(world, catalog).flatMap((lot) => {
+    if (lot.occupied) return [];
+    const gid = held.get(lotKey(lot));
+    if (!gid) return [lot];
+    // Without a saved zone we cannot establish an in-game vacancy.
+    if (!lot.zone) return [];
+    return [{ ...lot, reservedFor: { gid, hh: households.get(gid) ?? gid } }];
+  });
+}
+
 /**
  * Where a couple could make a home together: each world's free lots (empty
  * lots and empty houses), the couple's own worlds first, then the board's
@@ -280,6 +305,7 @@ export function freeLotsByWorld(nodes: readonly HomeCard[], worlds: readonly str
 
 /** "Uninhabited", "Empty lot", "Apartment", "Rental unit" or "Dorm". */
 export function lotKindLabel(lot: GameLot): string {
+  if (lot.venue === 'tiny') return 'Tiny home';
   if (lot.venue === 'dorm') return 'Dorm';
   if (lot.venue === 'rental') return 'Rental unit';
   if (lot.unit) return 'Apartment';

@@ -95,6 +95,23 @@ describe('free lots', () => {
 });
 
 describe('a pinned Free lots box', () => {
+  it('leaves room for planned-household labels without overlapping rows or the box edge', () => {
+    const lots = Array.from({ length: 5 }, (_, i) => ({
+      ...lotNamed('Sulani', 'Pier Perfection')!,
+      name: `Home ${i}`,
+      reservedFor: { gid: `house${i}`, hh: 'Illes' },
+    }));
+    const box = placeLotBoxes({
+      laid: [], groups: [], free: new Map([['Sulani', lots]]),
+      pins: { Sulani: { x: 100, y: 200, cols: 2 } },
+    }).get('Sulani')!;
+    for (const tile of box.tiles) {
+      assert.ok(tile.y + tile.h <= box.b);
+      assert.ok(tile.h > 100, 'the reservation gets another line of space');
+    }
+    assert.ok(box.tiles[0]!.y + box.tiles[0]!.h < box.tiles[2]!.y);
+  });
+
   it('stays where it stands while households change around it, shrinking or growing in place', () => {
     const { laid, free, boxes } = boxesOf(seed.nodes);
     const box = boxes.get('Willow Creek')!;

@@ -3,7 +3,7 @@ import { growHousehold, landMovedCards, type Box as LandBox } from '../lib/landi
 import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_H, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, TILE, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
-import { freeLotsIn, homeLotFields, householdLots, lotKey, lotPick, saveLotCatalog, type GameLot } from '../lib/places.ts';
+import { freeLotsIn, homeLotFields, householdLots, lotKey, lotPick, saveLotCatalog, vacantLotsIn, type GameLot } from '../lib/places.ts';
 import { lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
 import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
@@ -804,7 +804,7 @@ export function useWhiteboard() {
   const lotCatalog = useMemo(() => saveLotCatalog(lotZones), [lotZones]);
   const homes = useMemo(() => householdLots(nodesCore, lotCatalog), [nodesCore, lotCatalog]);
   /**
-   * Each world's lots no household lives on, in the board's world order. A
+   * Each world's vacancies, including saved vacancies reserved by a plan. A
    * world whose sims are all filtered out shows none, as it shows no frame.
    */
   const freeLots = useMemo(() => {
@@ -815,13 +815,14 @@ export function useWhiteboard() {
       if (nodeVis(n)) shown.add(n.world);
     }
     const out = new Map<string, GameLot[]>();
+    const households = new Map(nodesCore.map((n) => [n.gid, n.hh]));
     for (const w of worlds) {
       if (w.name === NOT_IN_WORLD || (any.has(w.name) && !shown.has(w.name))) continue;
-      const free = freeLotsIn(w.name, homes, lotCatalog);
+      const free = vacantLotsIn(w.name, homes, households, lotCatalog);
       if (free.length) out.set(w.name, free);
     }
     return out;
-  }, [nodes, nodeVis, worlds, homes, lotCatalog]);
+  }, [nodes, nodesCore, nodeVis, worlds, homes, lotCatalog]);
   /**
    * Each world's Free lots box: where it is pinned, or, the first time it
    * shows, under its world's households, then pinned there (below). Nothing

@@ -503,7 +503,32 @@ function visitorsSave(): Uint8Array {
   return wrapDbpf(refpackCompress(data));
 }
 
-describe('custom residential rentals', () => {
+describe('saved residential lots', () => {
+  it('keeps tiny-home venues and rooms through a save import', () => {
+    const world = 'Sulani';
+    const parsed = parseSaveGame(saveOf(
+      encodeBytes(4, concat(encodeString(3, world), encodeBytes(5, concat(
+        encodeVarintField(2, 100), encodeVarintField(5, 3988783106), encodeVarintField(7, 229251),
+      )))),
+      encodeBytes(7, concat(
+        encodeVarintField(1, 100), encodeString(2, 'Sapphire Shores'),
+        encodeVarintField(16, 3), encodeVarintField(17, 3),
+      )),
+      encodeBytes(6, simBlob({
+        id: 1, householdId: 10, first: 'Ari', last: 'Rivera', household: 'Rivera', gender: 4096, age: 16,
+      })),
+      encodeBytes(2, encodeBytes(8, encodeVarintField(1, 1))),
+    ));
+    const board = mergeSaveIntoBoard({
+      nodes: [], edges: [], groups: [], worlds: [{ name: world, color: '#fff' }], parsed,
+      seedNameKeys: new Set<string>(), now: '2026-11-19T12:00:00.000Z', nextEdgeId: () => 'v1',
+    });
+    const catalog = saveLotCatalog(board.saveGame?.lotZones);
+    const lot = freeLotsIn(world, new Map(), catalog).find((l) => l.zone === '100');
+    assert.ok(lot);
+    assert.deepEqual([lot.venue, lot.kind, lot.beds, lot.baths], ['tiny', 'house', 3, 3]);
+  });
+
   it('imports a converted lot with two tenants and one vacant unit by exact zone', () => {
     const world = 'Ciudad Enamorada';
     const hash = 1539899495; // Calle del Ensueño is an empty lot in the shipped catalog.
