@@ -221,8 +221,9 @@ function oldestAncestor(
  * ancestor on the board, dead and family-tree relatives included (so
  * Cordelia Thebe V, four generations below Queen Thebe, is Gen 5), or the
  * sim picked in the editor. The count runs down the parent links, the
- * shortest line winning. A member with no line of their own takes their
- * spouse's generation; an ancestor of a picked Gen 1 is "before"; anyone
+ * longest line winning, so a child is below both counted parents. A member
+ * with no line of their own takes their spouse's generation; an ancestor
+ * of a picked Gen 1 is "before"; anyone
  * else gets no number. Ancestors on the line to the first head who are no
  * members get their number too, marked as forebears.
  */
@@ -237,12 +238,12 @@ export function dynastyGenerations(nodes: SimNode[], edges: Edge[]): Map<string,
     const n = byId.get(id);
     return n ? `${n.first} ${n.sur}` : '';
   };
-  const children = new Map<string, Edge[]>();
+  const parentLinks = new Map<string, Edge[]>();
   const parents = new Map<string, string[]>();
   const spouses = new Map<string, string[]>();
   for (const e of edges) {
     if (e.type === 'parent') {
-      children.set(e.a, [...(children.get(e.a) ?? []), e]);
+      parentLinks.set(e.b, [...(parentLinks.get(e.b) ?? []), e]);
       parents.set(e.b, [...(parents.get(e.b) ?? []), e.a]);
     } else if (e.type === 'marriage') {
       spouses.set(e.a, [...(spouses.get(e.a) ?? []), e.b]);
@@ -273,17 +274,26 @@ export function dynastyGenerations(nodes: SimNode[], edges: Edge[]): Map<string,
     const dynasty = list[0]!.dynasty ?? '';
     const autoRoot = oldestAncestor(first, parents, nameOf, dynasty);
     const root = picked.get(key) ?? autoRoot;
-    const gen = new Map<string, { gen: number; planned: boolean }>([[root, { gen: 1, planned: false }]]);
-    const queue = [root];
-    for (let i = 0; i < queue.length; i++) {
-      const at = queue[i]!;
-      const here = gen.get(at)!;
-      for (const e of children.get(at) ?? []) {
-        if (gen.has(e.b)) continue;
-        gen.set(e.b, { gen: here.gen + 1, planned: here.planned || e.source === 'planned' });
-        queue.push(e.b);
+    type Count = { gen: number; planned: boolean };
+    const gen = new Map<string, Count | undefined>([[root, { gen: 1, planned: false }]]);
+    const counting = new Set<string>();
+    const generationOf = (id: string): Count | undefined => {
+      if (gen.has(id)) return gen.get(id);
+      // Imported boards can contain a parent cycle; never recurse forever.
+      if (counting.has(id)) return undefined;
+      counting.add(id);
+      let best: Count | undefined;
+      for (const e of parentLinks.get(id) ?? []) {
+        const parent = generationOf(e.a);
+        if (!parent) continue;
+        const next = { gen: parent.gen + 1, planned: parent.planned || edgeSourceOf(e) === 'planned' };
+        // On equal-length routes, a confirmed line needs no planned-link flag.
+        if (!best || next.gen > best.gen || (next.gen === best.gen && !next.planned)) best = next;
       }
-    }
+      counting.delete(id);
+      gen.set(id, best);
+      return best;
+    };
     const before = ancestorsOf(root);
     const base = {
       key,
@@ -295,13 +305,13 @@ export function dynastyGenerations(nodes: SimNode[], edges: Edge[]): Map<string,
     };
     const memberIds = new Set(list.map((n) => n.id));
     for (const n of list) {
-      const own = gen.get(n.id);
+      const own = generationOf(n.id);
       if (own) {
         out.set(n.id, { ...base, gen: own.gen, ...(own.planned ? { planned: true as const } : {}) });
         continue;
       }
       const spouse = (spouses.get(n.id) ?? [])
-        .map((s) => gen.get(s))
+        .map(generationOf)
         .filter((g): g is { gen: number; planned: boolean } => !!g)
         .sort((a, b) => a.gen - b.gen)[0];
       if (spouse) {
@@ -314,7 +324,7 @@ export function dynastyGenerations(nodes: SimNode[], edges: Edge[]): Map<string,
     }
     // The line itself: the first head's ancestors from Gen 1 down.
     for (const a of new Set([root, ...ancestorsOf(first)])) {
-      const g = gen.get(a);
+      const g = generationOf(a);
       if (!g || memberIds.has(a)) continue;
       lines.set(a, [...(lines.get(a) ?? []), { ...base, gen: g.gen, forebear: true }]);
     }

@@ -94,6 +94,41 @@ describe('dynasty generations', () => {
     assert.ok(back.every((n) => !n.genRootOf));
   });
 
+  it('puts children of unequal cousin branches below both parents, regardless of link order', () => {
+    const nodes = ['Queen', 'II', 'III', 'IV', 'V', 'VI', 'Rodrigo', 'Unknown', 'Arnessa', 'Demetrius', 'VII', 'VIII']
+      .map((id) => sim(id, {
+        sur: 'Thebe', dynasty: 'Thebe', dynastyId: '7',
+        ...(id === 'V' ? { dynastyRole: 'head' as const } : {}),
+      }));
+    const links = [
+      parent('Queen', 'Rodrigo'), parent('Rodrigo', 'Unknown'), parent('Unknown', 'Arnessa'),
+      parent('Arnessa', 'Demetrius', { source: 'planned' }),
+      parent('Queen', 'II'), parent('II', 'III'), parent('III', 'IV'), parent('IV', 'V'), parent('V', 'VI'),
+      parent('Demetrius', 'VII', { source: 'planned' }), parent('VI', 'VII', { source: 'planned' }),
+      parent('VII', 'VIII', { source: 'planned' }), married('Demetrius', 'VI'),
+    ];
+    for (const edges of [links, [...links].reverse()]) {
+      const g = dynastyGenerations(nodes, edges);
+      assert.deepEqual(['V', 'VI', 'Demetrius', 'VII', 'VIII'].map((id) => g.get(id)?.gen), [5, 6, 5, 7, 8]);
+      assert.equal(g.get('VII')?.planned, true);
+      assert.equal(g.get('VIII')?.planned, true);
+      assert.equal(g.get('VII')?.byMarriage, undefined);
+    }
+  });
+
+  it('prefers a confirmed route when longest routes tie and tolerates parent cycles', () => {
+    const nodes = ['Root', 'Planned', 'Confirmed', 'Child', 'X', 'Y'].map((id) => sim(id, id === 'Root' ? { dynastyRole: 'head', genRootOf: 'id:9' } : {}));
+    const edges = [
+      parent('Root', 'Planned', { source: 'planned' }), parent('Root', 'Confirmed', { source: 'save' }),
+      parent('Planned', 'Child'), parent('Confirmed', 'Child'),
+      parent('Child', 'Root'), parent('X', 'Y'), parent('Y', 'X'),
+    ];
+    const g = dynastyGenerations(nodes, edges);
+    assert.deepEqual([g.get('Root')?.gen, g.get('Child')?.gen, g.get('Child')?.planned], [1, 3, undefined]);
+    assert.equal(g.get('X')?.gen, undefined);
+    assert.equal(g.get('Y')?.gen, undefined);
+  });
+
   it('keeps counting from a remembered first head after the heir succeeds', () => {
     const after = nodes.map((n) =>
       n.id === 'Mortimer'

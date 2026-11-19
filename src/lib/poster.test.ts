@@ -136,6 +136,29 @@ describe('posters', () => {
     assert.deepEqual(p.rows.flatMap((r) => r.cards).find((c) => c.id === 'k')!.notes, ['Adopted by Odette Capp']);
   });
 
+  it('draws Cordelia VII in Generation 7 beneath both parents from unequal branches', () => {
+    const members = ['Arnessa', 'V', 'VI', 'Demetrius', 'VII'];
+    const nodes = ['Queen', 'II', 'III', 'IV', 'V', 'VI', 'Rodrigo', 'Unknown', 'Arnessa', 'Demetrius', 'VII']
+      .map((id) => sim(id, ['V', 'VI', 'VII'].includes(id) ? 'Cordelia' : id, 'Adult', 0, 0, {
+        sur: ['V', 'VI', 'VII'].includes(id) ? `Thebe ${id}` : 'Thebe',
+        ...(members.includes(id) ? { dynasty: 'Thebe' } : {}),
+        ...(id === 'V' ? { dynastyRole: 'head' as const } : {}),
+      }));
+    const links: Edge[] = [
+      ['Queen', 'Rodrigo'], ['Rodrigo', 'Unknown'], ['Unknown', 'Arnessa'], ['Arnessa', 'Demetrius'],
+      ['Queen', 'II'], ['II', 'III'], ['III', 'IV'], ['IV', 'V'], ['V', 'VI'],
+      ['Demetrius', 'VII'], ['VI', 'VII'],
+    ].map(([a, b]) => ({ id: `${a}>${b}`, a: a!, b: b!, type: 'parent' }));
+    const p = dynastyPoster({ key: 'name:Thebe', label: 'Thebe', nodes, edges: links });
+    assert.deepEqual(p.rows.map((r) => [r.label, r.cards.map((c) => c.id)]), [
+      ['Generation 4', ['Arnessa']], ['Generation 5', ['V', 'Demetrius']],
+      ['Generation 6', ['VI']], ['Generation 7', ['VII']],
+    ]);
+    const family = p.families.find((f) => f.children.some((c) => c.id === 'VII'));
+    assert.deepEqual(family?.parents, ['Demetrius', 'VI']);
+    assert.equal(p.rows.at(-1)?.cards[0]?.notes, undefined);
+  });
+
   it('dates the poster by the save’s calendar', () => {
     const clock = 5.2 * TICKS_PER_DAY;
     assert.equal(
