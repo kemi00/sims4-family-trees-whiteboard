@@ -187,11 +187,12 @@ export const DYNASTY_ROLES = {
 } as const;
 
 /**
- * Highlight chips for children and dynasty roles. They share the set with the
+ * Highlight chips for family and dynasty roles. They share the set with the
  * age, gender and pet chips, so they persist and undo with them; the prefix
  * keeps them from clashing with a value a sim can have.
  */
 export const HI_NO_CHILDREN = 'family:no-children';
+export const HI_NO_SIBLINGS = 'family:no-siblings';
 /** A life stage chip before Infant: planned babies, not born yet. */
 export const HI_NOT_BORN = 'life:not-born';
 /** A dynasty role chip, head to outcast; `member` is a member with no role. */

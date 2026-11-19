@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip } from './constants.ts';
-import { partneredIdSet, parentIdSet, cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
+import { HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, hiDynastyChip } from './constants.ts';
+import { partneredIdSet, parentIdSet, siblingIdSet, cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
 
 function edge(a: string, b: string, type: Edge['type'] = 'parent'): Edge {
   return { id: `${type}:${a}:${b}`, a, b, type, source: 'seed' };
@@ -40,6 +40,27 @@ describe('parentLinkMakesCycle', () => {
     const edges = [edge('X', 'Y'), edge('Y', 'X'), edge('Y', 'Z')];
     assert.equal(parentLinkMakesCycle('Q', 'X', edges), false);
     assert.equal(parentLinkMakesCycle('Z', 'X', edges), true);
+  });
+});
+
+describe('siblings for highlighting', () => {
+  it('counts shared parents, half-siblings, planned and adopted children, and explicit sibling links', () => {
+    const links = [
+      edge('Late parent', 'Ada'), { ...edge('Late parent', 'Ben'), source: 'planned' as const },
+      edge('Other parent', 'Ben'), { ...edge('Other parent', 'Cy'), adopted: true },
+      edge('Dan', 'Eve', 'sibling'), edge('Dan', 'Eve', 'marriage'),
+      edge('Solo parent', 'Only'), edge('Solo parent', 'Only'), edge('Only', 'Only', 'sibling'),
+    ];
+    assert.deepEqual([...siblingIdSet(links, (id) => id !== 'Late parent')].sort(), ['Ada', 'Ben', 'Cy', 'Dan', 'Eve']);
+  });
+
+  it('does not count deceased siblings or unrelated family links', () => {
+    const links = [
+      edge('Parent', 'Only'), edge('Parent', 'Late'), edge('Only', 'Late', 'sibling'),
+      edge('Spouse', 'Only', 'marriage'), edge('Only', 'Child'),
+    ];
+    assert.deepEqual([...siblingIdSet(links, (id) => id !== 'Late')], []);
+    assert.deepEqual([...siblingIdSet(links)].sort(), ['Late', 'Only']);
   });
 });
 
@@ -99,6 +120,20 @@ describe('isHighlightMatch', () => {
   it('narrows pets only once their species is picked', () => {
     assert.deepEqual(glowing(['Cat', 'Female']), ['cat']);
     assert.deepEqual(glowing(['Cat', 'Male']), []);
+  });
+
+  it('narrows to no siblings alongside family, age, gender and dynasty picks', () => {
+    const member = { ...cassandra, dynasty: 'Goth' };
+    const dead = { ...nb, id: 'dead', state: 'Deceased' };
+    const glow = (hi: string[], single = false) => [bella, mortimer, member, nb, cat, dead]
+      .filter((n) => isHighlightMatch(n, new Set(hi), single, {
+        partnered, siblings: new Set(['bella', 'heir']), parents: new Set(['mortimer']),
+      })).map((n) => n.id);
+    assert.deepEqual(glow([HI_NO_SIBLINGS]), ['mortimer', 'cassandra']);
+    assert.deepEqual(glow([HI_NO_SIBLINGS, HI_NO_CHILDREN]), ['cassandra']);
+    assert.deepEqual(glow([HI_NO_SIBLINGS, HI_NO_CHILDREN, 'Young Adult', 'Female', hiDynastyChip('member')], true), ['cassandra']);
+    assert.deepEqual(glow([HI_NO_SIBLINGS, 'Adult'], true), []);
+    assert.deepEqual(glow([HI_NO_SIBLINGS, 'Cat']), ['cat']);
   });
 
   it('narrows to sims with no children, and to dynasty roles, which add to each other', () => {

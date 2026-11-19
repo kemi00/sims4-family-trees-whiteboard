@@ -1,4 +1,4 @@
-import { AGES_H, DECEASED_STATE, GENDERS, HI_DYNASTY, HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip, SPECIES_H, type HiDynastyRole } from './constants.ts';
+import { AGES_H, DECEASED_STATE, GENDERS, HI_DYNASTY, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, hiDynastyChip, SPECIES_H, type HiDynastyRole } from './constants.ts';
 import { isHighlightMatch, type HighlightSets } from './utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
@@ -41,7 +41,7 @@ function listed(items: string[], word: 'and' | 'or'): string {
  * infants", "single male elders and teens", "female cats", "infants, plus
  * cats", "single female young adults with no children who are dynasty
  * members with no role". Singular for one ("1 female infant"). Age and pet
- * chips add up; gender, Single, No children and dynasty roles narrow them,
+ * chips add up; gender, family chips and dynasty roles narrow them,
  * as in isHighlightMatch.
  */
 export function highlightPhrase(hi: ReadonlySet<string>, hiSingle: boolean, n: number): string {
@@ -60,9 +60,10 @@ export function highlightPhrase(hi: ReadonlySet<string>, hiSingle: boolean, n: n
   const groups: string[] = [];
   if (ages.length || !pets.length) {
     const noun = ages.length ? listed(ages, word) : one ? 'sim' : 'sims';
-    const kids = hi.has(HI_NO_CHILDREN) ? ' with no children' : '';
+    const family = [hi.has(HI_NO_CHILDREN) ? 'children' : '', hi.has(HI_NO_SIBLINGS) ? 'siblings' : ''].filter(Boolean);
+    const familyText = family.length ? ` with no ${listed(family, 'or')}` : '';
     const role = roles.length ? ` who ${one ? 'is a' : 'are'} dynasty ${listed(roles, word)}` : '';
-    groups.push([hiSingle ? 'single' : '', gender, noun].filter(Boolean).join(' ') + kids + role);
+    groups.push([hiSingle ? 'single' : '', gender, noun].filter(Boolean).join(' ') + familyText + role);
   }
   if (pets.length) groups.push([gender, listed(pets, word)].filter(Boolean).join(' '));
   return groups.join(', plus ');

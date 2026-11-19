@@ -21,6 +21,8 @@ type Props = {
   partneredIds: Set<string>;
   /** Sims with a child, for the No children highlight. */
   parentIds: Set<string>;
+  /** Sims with a living sibling, for the No siblings highlight. */
+  siblingIds: Set<string>;
   /** Planned babies, for the Not born yet highlight. */
   unbornIds: Set<string>;
   bloodlineIds: Set<string> | null;
@@ -105,6 +107,7 @@ export const SimNodeView = memo(function SimNodeView({
   hiSingle,
   partneredIds,
   parentIds,
+  siblingIds,
   unbornIds,
   bloodlineIds,
   familyIds = null,
@@ -132,7 +135,7 @@ export const SimNodeView = memo(function SimNodeView({
   const hasBadge = !!(speciesBadge || stateBadge);
   const highlighting = hiAges.size > 0 || hiSingle;
   const ageMatch =
-    !highlighting || isHighlightMatch(n, hiAges, hiSingle, { partnered: partneredIds, parents: parentIds, unborn: unbornIds });
+    !highlighting || isHighlightMatch(n, hiAges, hiSingle, { partnered: partneredIds, parents: parentIds, siblings: siblingIds, unborn: unbornIds });
   const bloodMatch = !bloodlineIds || bloodlineIds.has(n.id);
   const familyMatch = !familyIds || familyIds.has(n.id);
   const match = ageMatch && bloodMatch && familyMatch;

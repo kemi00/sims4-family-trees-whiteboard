@@ -1,4 +1,4 @@
-import { AGES_H, DECEASED_STATE, DYNASTY_ROLES, GENDERS, HI_DYNASTY, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, NEW_SIM_GENDERS, SPECIES, SPECIES_H, hiDynastyChip, type HiDynastyRole } from '../lib/constants.ts';
+import { AGES_H, DECEASED_STATE, DYNASTY_ROLES, GENDERS, HI_DYNASTY, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, NEW_SIM_GENDERS, SPECIES, SPECIES_H, hiDynastyChip, type HiDynastyRole } from '../lib/constants.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { dynastyStanding, isPet } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
@@ -25,6 +25,8 @@ type Props = {
   partnered: Set<string>;
   /** Sims with a living child. */
   parents: Set<string>;
+  /** Sims with a living sibling. */
+  siblings: Set<string>;
   hiAges: Set<string>;
   hiSingle: boolean;
   /** Planned babies, not born yet. */
@@ -40,6 +42,7 @@ export function AgesPanel({
   nodes,
   partnered,
   parents,
+  siblings,
   hiAges,
   hiSingle,
   unborn,
@@ -59,6 +62,7 @@ export function AgesPanel({
   const cntSingle = sims.filter((n) => !partnered.has(n.id)).length;
   const cntGender = (g: string) => sims.filter((n) => n.gender === g).length;
   const cntNoKids = sims.filter((n) => !parents.has(n.id)).length;
+  const cntNoSiblings = sims.filter((n) => !siblings.has(n.id)).length;
   const cntUnborn = sims.filter((n) => unborn.has(n.id)).length;
   const cntRole = (r: HiDynastyRole) => sims.filter((n) => dynastyStanding(n) === r).length;
   // Dynasty chips once a shown sim is in one, or a chip is still on.
@@ -72,7 +76,7 @@ export function AgesPanel({
       hiAges.has(g),
   );
   const active = highlightActive(hiAges, hiSingle);
-  const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, partnered, parents, unborn });
+  const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, partnered, parents, siblings, unborn });
 
   return (
     <>
@@ -160,6 +164,16 @@ export function AgesPanel({
           No children{' '}
           <b style={{ opacity: 0.6 }}>{cntNoKids}</b>
         </button>
+        <button
+          type="button"
+          className={hiAges.has(HI_NO_SIBLINGS) ? 'on' : ''}
+          aria-pressed={hiAges.has(HI_NO_SIBLINGS)}
+          title="No living siblings known on the board; half-siblings, adoptive siblings and planned babies count"
+          onClick={() => onToggle(HI_NO_SIBLINGS)}
+        >
+          No siblings{' '}
+          <b style={{ opacity: 0.6 }}>{cntNoSiblings}</b>
+        </button>
       </div>
       {dynasties && (
         <>
@@ -212,7 +226,7 @@ export function AgesPanel({
       >
         Highlighted sims glow gold; the rest dim. Two picks in one row show
         both, like Teen and Elder; picks in different rows narrow each
-        other, and so do Single and No children. Pets add to life stages.
+        other, and so do Single, No children and No siblings. Pets add to life stages.
       </div>
     </>
   );

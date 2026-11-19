@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fileFilters, filterChangeNote, loadJsonRisk } from './loadJsonRisk.ts';
+import { HI_NO_SIBLINGS } from './constants.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
 function node(partial: Partial<SimNode> & { id: string }): SimNode {
@@ -133,6 +134,12 @@ describe('JSON merge filters', () => {
       filterChangeNote(none, file),
       "Your filters will change to the file's: it shows every game, highlights 1 age, 2 genders, 1 pet species and single sims.",
     );
+  });
+
+  it('retains No siblings and describes it as a family highlight when loading JSON', () => {
+    const file = fileFilters({ hiAges: [HI_NO_SIBLINGS] });
+    assert.deepEqual(file.hiAges, [HI_NO_SIBLINGS]);
+    assert.equal(filterChangeNote(none, file), "Your filters will change to the file's: it shows every game, highlights sims with no siblings.");
   });
 
   it('warns when merging would clear the filters on screen', () => {

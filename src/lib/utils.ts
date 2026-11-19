@@ -1,7 +1,7 @@
 import { chainPlannedHeirs } from './succession.ts';
 import type { ChronicleEntry } from './chronicle.ts';
 import { MAGIC_REALM, homeWorld, realmGid } from './realm.ts';
-import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NOT_BORN, hiDynastyChip, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
+import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, hiDynastyChip, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
 import type {
   DeceasedMark,
   Edge,
@@ -400,6 +400,26 @@ export function parentIdSet(edges: Edge[], alive: (id: string) => boolean = () =
   return ids;
 }
 
+/** Sims with a living sibling: explicit links or a shared parent, including
+ * half-siblings, adopted children and planned babies. Parents may be deceased. */
+export function siblingIdSet(edges: Edge[], alive: (id: string) => boolean = () => true): Set<string> {
+  const ids = new Set<string>();
+  const children = new Map<string, Set<string>>();
+  for (const e of edges) {
+    if (e.a === e.b) continue;
+    if (e.type === 'sibling' && alive(e.a) && alive(e.b)) {
+      ids.add(e.a);
+      ids.add(e.b);
+    } else if (e.type === 'parent' && alive(e.b)) {
+      const family = children.get(e.a) ?? new Set<string>();
+      family.add(e.b);
+      children.set(e.a, family);
+    }
+  }
+  for (const family of children.values()) if (family.size > 1) for (const id of family) ids.add(id);
+  return ids;
+}
+
 /**
  * A sim's place in a dynasty as the board has it, future heirs included: their role,
  * `member` for one with none, or null outside any dynasty. One planned to
@@ -419,6 +439,8 @@ export type HighlightSets = {
   partnered: ReadonlySet<string>;
   /** Sims with a child: No children leaves them out. */
   parents?: ReadonlySet<string>;
+  /** Sims with a living sibling: No siblings leaves them out. */
+  siblings?: ReadonlySet<string>;
   /** Planned babies, not born yet. */
   unborn?: ReadonlySet<string>;
 };
@@ -426,8 +448,8 @@ export type HighlightSets = {
 /**
  * Age/species chips OR with each other, Not born yet among them; gender
  * chips OR with each other and AND with that set, and so do the dynasty role
- * chips. Single and No children each narrow on their own. Pets ignore
- * Single, No children and dynasty roles, and only glow for their species
+ * chips. Each family chip narrows on its own. Pets ignore
+ * family chips and dynasty roles, and only glow for their species
  * chip, which a gender chip narrows like it does ages. The deceased never
  * match.
  */
@@ -435,7 +457,7 @@ export function isHighlightMatch(
   n: SimNode,
   hi: ReadonlySet<string>,
   hiSingle: boolean,
-  { partnered, parents = NO_IDS, unborn = NO_IDS }: HighlightSets,
+  { partnered, parents = NO_IDS, siblings = NO_IDS, unborn = NO_IDS }: HighlightSets,
 ): boolean {
   if (hi.size === 0 && !hiSingle) return true;
   if (n.state === DECEASED_STATE) return false;
@@ -446,15 +468,17 @@ export function isHighlightMatch(
     else if (HI_DYNASTY_CHIPS.has(h)) roles++;
   }
   const noKids = hi.has(HI_NO_CHILDREN);
-  const kinds = hi.size - genders - roles - (noKids ? 1 : 0);
+  const noSiblings = hi.has(HI_NO_SIBLINGS);
+  const kinds = hi.size - genders - roles - (noKids ? 1 : 0) - (noSiblings ? 1 : 0);
   const genderOk = genders === 0 || hi.has(n.gender);
   if (isPet(n)) return !!n.species && hi.has(n.species) && genderOk;
   const ageOk = kinds === 0 || hi.has(n.age) || (hi.has(HI_NOT_BORN) && unborn.has(n.id));
   const singleOk = !hiSingle || !partnered.has(n.id);
   const kidsOk = !noKids || !parents.has(n.id);
+  const siblingsOk = !noSiblings || !siblings.has(n.id);
   const standing = roles ? dynastyStanding(n) : null;
   const roleOk = roles === 0 || (!!standing && hi.has(hiDynastyChip(standing)));
-  return ageOk && genderOk && singleOk && kidsOk && roleOk;
+  return ageOk && genderOk && singleOk && kidsOk && siblingsOk && roleOk;
 }
 
 /** Lowercase, trimmed and without accents, for search: "ananou" finds "Ánanou". */

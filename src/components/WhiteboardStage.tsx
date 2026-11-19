@@ -2015,6 +2015,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 partnerPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
                 partneredIds={wb.partneredIds}
                 parentIds={wb.parentIds}
+                siblingIds={wb.siblingIds}
                 unbornIds={wb.plannedChildIds}
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.briefHover ?? wb.dynastyFocusIds ?? wb.familyIds}
@@ -2257,6 +2258,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
               hiSingle: wb.hiSingle,
               partnered: wb.partneredIds,
               parents: wb.parentIds,
+              siblings: wb.siblingIds,
               unborn: wb.plannedChildIds,
             })}
             onChange={() => {

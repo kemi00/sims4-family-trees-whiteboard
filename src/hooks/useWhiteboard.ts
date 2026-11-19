@@ -99,7 +99,7 @@ import {
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
 import { aKind, newPetFields, petKindsAvailable, petPack, youngWord } from '../lib/pets.ts';
-import { cleanNote, edgeSourceOf, endedByPassing, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
+import { cleanNote, edgeSourceOf, endedByPassing, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, siblingIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -874,6 +874,8 @@ export function useWhiteboard() {
   const partneredIds = useMemo(() => partneredIdSet(shownEdges, alive), [shownEdges, alive]);
   /** Sims with a living child, for the No children highlight. */
   const parentIds = useMemo(() => parentIdSet(shownEdges, alive), [shownEdges, alive]);
+  /** Sims with a living sibling, for the No siblings highlight. */
+  const siblingIds = useMemo(() => siblingIdSet(shownEdges, alive), [shownEdges, alive]);
 
   const connectionLog = useMemo(
     () =>
@@ -4158,6 +4160,7 @@ export function useWhiteboard() {
     familyIds,
     partneredIds,
     parentIds,
+    siblingIds,
     status,
     fastRoute,
     editNodeId,

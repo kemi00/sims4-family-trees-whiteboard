@@ -119,7 +119,7 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
     );
   }
 
-  const sets = { partnered: wb.partneredIds, parents: wb.parentIds, unborn: wb.plannedChildIds };
+  const sets = { partnered: wb.partneredIds, parents: wb.parentIds, siblings: wb.siblingIds, unborn: wb.plannedChildIds };
   const summary = highlightSummary({ nodes: wb.nodes, shown: wb.nodeVis, hi: wb.hiAges, hiSingle: wb.hiSingle, ...sets });
   const list = simList({
     ...base,
