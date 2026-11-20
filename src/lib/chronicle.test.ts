@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { chronicleEntry, chronicleWhen, entryAbout, mergeChronicles, storyLines, withEntry } from './chronicle.ts';
+import { chronicleEntry, chronicleWhen, entryAbout, mergeChronicles, storyDays, storyLines, withEntry } from './chronicle.ts';
 import { TICKS_PER_DAY } from './lifeClock.ts';
 import type { SaveRecap } from './saveRecap.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
@@ -35,6 +35,12 @@ describe('the chronicle', () => {
     assert.equal('celebrate' in list[1]!.recap!, false);
     assert.deepEqual(withEntry(list, next).length, 2);
     assert.deepEqual(mergeChronicles([first], [next, first]).map((e) => e.at), [first.at, next.at]);
+  });
+
+  it('tells uploads on the same day of the game as one day, newest first', () => {
+    const later = chronicleEntry({ ...game(9), importedAt: '2026-11-18T10:00:00Z', clock: game(9).clock + 1000 }, { recap });
+    const days = storyDays([later, next, first]);
+    assert.deepEqual(days.map((d) => [d.when, d.entries.length]), [['Day 9', 2], ['Day 6', 1]]);
   });
 
   it('dates an upload by the save’s calendar: seasons only with Seasons', () => {

@@ -69,6 +69,25 @@ export function chronicleWhen(e: ChronicleEntry): string {
   return dayText(day);
 }
 
+/** A day of the game in the story, with the uploads told in it, newest first. */
+export type StoryDay = { when: string; entries: ChronicleEntry[] };
+
+/**
+ * The story told by day of the game: uploads on the same day of the game
+ * (a save, then another a few minutes of play later) are one day, not two
+ * headings with the same date. `entries` newest first, as the Story lists them.
+ */
+export function storyDays(entries: readonly ChronicleEntry[]): StoryDay[] {
+  const days: StoryDay[] = [];
+  for (const e of entries) {
+    const when = chronicleWhen(e);
+    const last = days[days.length - 1];
+    if (last && last.when === when) last.entries.push(e);
+    else days.push({ when, entries: [e] });
+  }
+  return days;
+}
+
 /** Does an entry's event involve anyone in `ids`? */
 const has = (ids: ReadonlySet<string> | null, ...who: (RecapSim | string | undefined)[]) =>
   !ids || who.some((w) => !!w && ids.has(typeof w === 'string' ? w : w.id));

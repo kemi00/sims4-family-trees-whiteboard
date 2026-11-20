@@ -1,4 +1,25 @@
 import { useRef, useState, type ReactNode } from 'react';
+import {
+  BabyCarriage,
+  Cake,
+  CaretDown,
+  Check,
+  Crown,
+  Diamond,
+  Flower,
+  GameController,
+  HandHeart,
+  Heart,
+  HeartBreak,
+  House,
+  Sparkle,
+  Star,
+  SuitcaseRolling,
+  TreeStructure,
+  UserPlus,
+  UsersThree,
+  type Icon,
+} from '../icons.ts';
 import { CloseButton } from './CloseButton.tsx';
 import { lifeText, recapTimeText, relationshipText, theDynasty, type DynastyNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
@@ -10,9 +31,6 @@ type Props = {
   onGoToSim: (id: string) => void;
   onClose: () => void;
 };
-
-/** How many of a kind show before "and N more". */
-const SHOWN = 5;
 
 /**
  * "Previously on…": what the save upload says happened in the game since
@@ -42,7 +60,7 @@ export function RecapPanel({ recap, offPlan, onGoToSim, onClose }: Props) {
         <CloseButton label="Close Previously on" onClick={onClose} />
       </div>
       <div className="recap__body">
-        <RecapStory recap={recap} onGoToSim={onGoToSim} />
+        <RecapStory recaps={[recap]} onGoToSim={onGoToSim} />
       </div>
       {(recap.plansDone > 0 || offPlan > 0) && (
         <p className="recap__plans">
@@ -62,23 +80,50 @@ export function RecapPanel({ recap, offPlan, onGoToSim, onClose }: Props) {
   );
 }
 
+/** How many big moments a day shows before "and N more". */
+const SHOWN = 8;
+
+type StoryItem = {
+  key: string;
+  Icon: Icon;
+  node: ReactNode;
+  /** A plan that came true: a quiet ✓ at the end of the line. */
+  planned?: boolean;
+  /** Context rather than news (who you played, sims met): told quietly. */
+  quiet?: boolean;
+};
+
 /**
- * What happened, as the story it is: births and couples first, then
- * moves, birthdays and goodbyes. Names take you to the sim. Shared by
- * Previously on and the Chronicle.
+ * What happened, as one list of moments, the biggest first: passings,
+ * births, couples and partings, family, dynasty, life, arrivals, moves and
+ * birthdays, then the rest. Friendships, the many small ones, fold into one
+ * line you can open. The sim each line is about is in bold; every name
+ * takes you to the sim. A plan that came true gets a ✓. Shared by
+ * Previously on and the Story, for one upload (`recaps` of one) or a
+ * day's (several, told as one).
  */
-export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celebrate'>; onGoToSim: (id: string) => void }) {
-  const who = (s: RecapSim) => (
-    <button type="button" className="recap__sim" onClick={() => onGoToSim(s.id)}>
+export function RecapStory({
+  recaps,
+  onGoToSim,
+  focus,
+}: {
+  recaps: readonly Omit<SaveRecap, 'celebrate'>[];
+  onGoToSim: (id: string) => void;
+  /** Whose story it is: their friendships are counted by whom they're with. */
+  focus?: ReadonlySet<string> | null;
+}) {
+  const [all, setAll] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
+  const who = (s: RecapSim, lead = false) => (
+    <button type="button" className={lead ? 'recap__sim recap__sim--lead' : 'recap__sim'} onClick={() => onGoToSim(s.id)}>
       {s.name}
     </button>
   );
-  const planned = (on?: boolean) => on && <span className="recap__done">as planned</span>;
-  const and = (sims: RecapSim[]) =>
+  const and = (sims: RecapSim[], lead = false) =>
     sims.map((p, i) => (
       <span key={p.id}>
         {i > 0 && ' and '}
-        {who(p)}
+        {who(p, lead)}
       </span>
     ));
   const dynastyItem = (d: DynastyNews): ReactNode => {
@@ -108,19 +153,18 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
     };
     return (
       <>
-        {who(d.sim)} {said[d.kind]}
-        {planned(d.planned)}
+        {who(d.sim, true)} {said[d.kind]}
       </>
     );
   };
   const lifeItem = (l: LifeNews): ReactNode => {
-    if (l.kind === 'name') return <>{who(l.sim)} took the name {l.to}</>;
-    if (l.kind === 'renamed') return <>{l.from} is now called {who(l.sim)}</>;
+    if (l.kind === 'name') return <>{who(l.sim, true)} took the name {l.to}</>;
+    if (l.kind === 'renamed') return <>{l.from} is now called {who(l.sim, true)}</>;
     // The sentence the board tells everywhere, the name to click in it.
     const text = lifeText(l);
     return (
       <>
-        {who(l.sim)}
+        {who(l.sim, true)}
         {text.slice(l.sim.name.length)}
       </>
     );
@@ -131,188 +175,207 @@ export function RecapStory({ recap, onGoToSim }: { recap: Omit<SaveRecap, 'celeb
     if (x.kind === 'secretKnown' && x.link === 'parent') {
       return (
         <>
-          {who(x.a)} is no longer a secret parent of {who(x.b)}
+          {who(x.a, true)} is no longer a secret parent of {who(x.b)}
         </>
       );
     }
     const rest = text.slice(`${x.a.name} and ${x.b.name}`.length);
     return (
       <>
-        {who(x.a)} and {who(x.b)}
+        {who(x.a, true)} and {who(x.b, true)}
         {rest}
       </>
     );
   };
-  const sections: { key: string; mark: string; title: string; items: ReactNode[] }[] = [
-    {
-      key: 'born',
-      mark: '🍼',
-      title: 'Born',
-      items: recap.born.map((b) => (
-        <>
-          {who(b)}
-          {b.parents.length > 0 && <> to {b.parents.join(' and ')}</>}
-          {b.planned && <span className="recap__done">as planned</span>}
-        </>
-      )),
-    },
-    {
-      key: 'together',
-      mark: '💞',
-      title: 'Together',
-      items: recap.together.map((t) => (
-        <>
-          {who(t.a)} {t.type === 'marriage' ? 'married' : 'fell for'} {who(t.b)}
-          {t.planned && <span className="recap__done">as planned</span>}
-        </>
-      )),
-    },
-    {
-      key: 'arrivals',
-      mark: '🧳',
-      title: 'Moved in',
-      items: (recap.arrivals ?? []).map((a) => (
-        <>
-          {who(a.sim)}
-          {a.as ? `, ${a.as},` : ''} joined the {a.hh} household
-        </>
-      )),
-    },
-    {
-      key: 'family',
-      mark: '👪',
-      title: 'Family',
-      items: (recap.family ?? []).map((f) =>
-        f.kind === 'adopted' ? (
-          <>
-            {and(f.parents)} adopted {who(f.child)}
-            {planned(f.planned)}
-          </>
-        ) : (
-          <>
-            The family tree shows {who(f.parent)} as {f.secret ? 'a secret parent' : 'a parent'} of {who(f.child)}
-          </>
-        ),
-      ),
-    },
-    {
-      key: 'dynasty',
-      mark: '⚜️',
-      title: 'Dynasty',
-      items: (recap.dynasty ?? []).map(dynastyItem),
-    },
-    {
-      key: 'relationships',
-      mark: '🤝',
-      title: 'Relationships',
-      items: (recap.relationships ?? []).map(relationshipItem),
-    },
-    {
-      key: 'apart',
-      mark: '💔',
-      title: 'Apart',
-      items: recap.apart.map((t) => (
-        <>
-          {who(t.a)} and {who(t.b)} {t.type === 'divorced' ? 'divorced' : 'broke up'}
-        </>
-      )),
-    },
-    {
-      key: 'moved',
-      mark: '🏠',
-      title: 'Moved',
-      items: [
-        ...(recap.homes ?? []).map((h) => {
-          const name = (
-            <button type="button" className="recap__sim" onClick={() => onGoToSim(h.ids[0]!)}>
-              {h.hh}
-            </button>
-          );
-          return h.renamedFrom ? (
-            <>
-              The {h.renamedFrom} household is now called the {name} household
-            </>
-          ) : (
-            <>
-              The {name} household moved to {h.to}
-            </>
-          );
-        }),
-        ...recap.moved.map((m) => (
-          <>
-            {/* Out of every household: left it, rather than "moved to Unhoused sims". */}
-            {who(m)} {m.to === 'Unhoused sims' ? <>left {m.from}</> : <>moved to {m.to}</>}
-          </>
-        )),
-      ],
-    },
-    {
-      key: 'grew',
-      mark: '🎂',
-      title: 'Grew up',
-      items: recap.grew.map((g) => (
-        <>
-          {who(g)}: {g.from} to {g.to}
-        </>
-      )),
-    },
-    {
-      key: 'life',
-      mark: '🔮',
-      title: 'Life',
-      items: (recap.life ?? []).map(lifeItem),
-    },
-    {
-      key: 'died',
-      mark: '🕊️',
-      title: 'Passed away',
-      items: recap.died.map((d) => <>{who(d)}</>),
-    },
-    {
-      key: 'prestige',
-      mark: '👑',
-      title: 'Prestige',
-      items: (recap.prestige ?? []).map((p) => (
-        <>
-          The {p.name} dynasty {p.to > p.from ? 'gained' : 'lost'} {Math.abs(p.to - p.from).toLocaleString()} prestige (
-          {p.from.toLocaleString()} to {p.to.toLocaleString()})
-        </>
-      )),
-    },
-  ].filter((s) => s.items.length > 0);
-  return (
-    <>
-      {recap.played && <p className="recap__played">You played the {recap.played.hh} household.</p>}
-      {sections.map((s) => (
-        <RecapSection key={s.key} mark={s.mark} title={s.title} items={s.items} />
-      ))}
-      {recap.met > 0 && (
-        <p className="recap__met">
-          {recap.met === 1 ? '1 new sim' : `${recap.met} new sims`} met along the way.
-        </p>
-      )}
-    </>
-  );
-}
 
-function RecapSection({ mark, title, items }: { mark: string; title: string; items: ReactNode[] }) {
-  const [all, setAll] = useState(false);
-  const shown = all ? items : items.slice(0, SHOWN);
+  const items: StoryItem[] = [];
+  const friendships: RelationshipNews[] = [];
+  let met = 0;
+  const played = new Map<string, NonNullable<SaveRecap['played']>>();
+  // The biggest moments first, kind by kind, across the day's uploads.
+  const each = <T,>(pick: (r: Omit<SaveRecap, 'celebrate'>) => readonly T[] | undefined, make: (x: T, key: string) => StoryItem | null) => {
+    recaps.forEach((r, ri) => (pick(r) ?? []).forEach((x, i) => {
+      const item = make(x, `${ri}:${i}`);
+      if (item) items.push(item);
+    }));
+  };
+  each((r) => r.died, (d, k) => ({ key: `died${k}`, Icon: Flower, node: <>{who(d, true)} passed away</> }));
+  each((r) => r.born, (b, k) => ({
+    key: `born${k}`,
+    Icon: BabyCarriage,
+    planned: b.planned,
+    node: (
+      <>
+        {who(b, true)} was born{b.parents.length > 0 && <> to {b.parents.join(' and ')}</>}
+      </>
+    ),
+  }));
+  each((r) => r.together, (t, k) => ({
+    key: `together${k}`,
+    Icon: Heart,
+    planned: t.planned,
+    node: (
+      <>
+        {who(t.a, true)} {t.type === 'marriage' ? 'married' : 'fell for'} {who(t.b, true)}
+      </>
+    ),
+  }));
+  each((r) => r.apart, (t, k) => ({
+    key: `apart${k}`,
+    Icon: HeartBreak,
+    node: (
+      <>
+        {who(t.a, true)} and {who(t.b, true)} {t.type === 'divorced' ? 'divorced' : 'broke up'}
+      </>
+    ),
+  }));
+  each((r) => r.family, (f, k) =>
+    f.kind === 'adopted'
+      ? { key: `family${k}`, Icon: HandHeart, planned: f.planned, node: <>{and(f.parents)} adopted {who(f.child, true)}</> }
+      : {
+          key: `family${k}`,
+          Icon: TreeStructure,
+          node: (
+            <>
+              The family tree shows {who(f.parent)} as {f.secret ? 'a secret parent' : 'a parent'} of {who(f.child, true)}
+            </>
+          ),
+        },
+  );
+  each((r) => r.dynasty, (d, k) => ({ key: `dynasty${k}`, Icon: Crown, planned: d.planned, node: dynastyItem(d) }));
+  each((r) => r.life, (l, k) => ({ key: `life${k}`, Icon: Sparkle, node: lifeItem(l) }));
+  each((r) => r.arrivals, (a, k) => ({
+    key: `arrival${k}`,
+    Icon: SuitcaseRolling,
+    node: (
+      <>
+        {who(a.sim, true)}
+        {a.as ? `, ${a.as},` : ''} joined the {a.hh} household
+      </>
+    ),
+  }));
+  each((r) => r.homes, (h, k) => {
+    const name = (
+      <button type="button" className="recap__sim recap__sim--lead" onClick={() => onGoToSim(h.ids[0]!)}>
+        {h.hh}
+      </button>
+    );
+    return {
+      key: `home${k}`,
+      Icon: House,
+      node: h.renamedFrom ? (
+        <>
+          The {h.renamedFrom} household is now called the {name} household
+        </>
+      ) : (
+        <>
+          The {name} household moved to {h.to}
+        </>
+      ),
+    };
+  });
+  each((r) => r.moved, (m, k) => ({
+    key: `moved${k}`,
+    Icon: House,
+    // Out of every household: left it, rather than "moved to Unhoused sims".
+    node: <>{who(m, true)} {m.to === 'Unhoused sims' ? <>left {m.from}</> : <>moved to {m.to}</>}</>,
+  }));
+  each((r) => r.grew, (g, k) => ({
+    key: `grew${k}`,
+    Icon: Cake,
+    node: (
+      <>
+        {who(g, true)}: {g.from} to {g.to}
+      </>
+    ),
+  }));
+  each((r) => r.relationships, (x, k) => {
+    if (x.kind === 'friendship') {
+      friendships.push(x);
+      return null;
+    }
+    return { key: `rel${k}`, Icon: x.kind === 'engaged' ? Diamond : UsersThree, node: relationshipItem(x) };
+  });
+  each((r) => r.prestige, (p, k) => ({
+    key: `prestige${k}`,
+    Icon: Star,
+    node: (
+      <>
+        The {p.name} dynasty {p.to > p.from ? 'gained' : 'lost'} {Math.abs(p.to - p.from).toLocaleString()} prestige (
+        {p.from.toLocaleString()} to {p.to.toLocaleString()})
+      </>
+    ),
+  }));
+  for (const r of recaps) {
+    met += r.met;
+    if (r.played) played.set(r.played.hh, r.played);
+  }
+
+  const big = all ? items : items.slice(0, SHOWN);
+  const more = items.length - big.length;
+  // Friendships, the many small ones: one line, by whom most of them were with.
+  const counts = new Map<string, { sim: RecapSim; n: number }>();
+  for (const f of friendships) {
+    for (const s of [f.a, f.b]) {
+      if (focus?.has(s.id)) continue;
+      const c = counts.get(s.id) ?? { sim: s, n: 0 };
+      c.n += 1;
+      counts.set(s.id, c);
+    }
+  }
+  const top = [...counts.values()].sort((x, y) => y.n - x.n || x.sim.name.localeCompare(y.sim.name))[0];
+  const grew = friendships.every((f) => (f.to ?? 0) > (f.from ?? 0));
   return (
-    <div className="recap__sec">
-      <h3>
-        <span aria-hidden="true">{mark}</span> {title}
-      </h3>
-      <ul>
-        {shown.map((item, i) => (
-          <li key={i}>{item}</li>
-        ))}
-      </ul>
-      {items.length > SHOWN && (
-        <button type="button" className="recap__more" onClick={() => setAll(!all)}>
-          {all ? 'Show fewer' : `And ${items.length - SHOWN} more`}
-        </button>
+    <ul className="recap__story">
+      {big.map((it) => (
+        <li key={it.key} className={it.quiet ? 'recap__line recap__line--quiet' : 'recap__line'}>
+          <it.Icon className="recap__icon" aria-hidden="true" />
+          <span className="recap__text">{it.node}</span>
+          {it.planned && (
+            <span className="recap__planned" title="As planned" aria-label="as planned" role="img">
+              <Check weight="bold" />
+            </span>
+          )}
+        </li>
+      ))}
+      {more > 0 && (
+        <li className="recap__line recap__line--more">
+          <button type="button" className="recap__more" onClick={() => setAll(true)}>
+            And {more} more
+          </button>
+        </li>
       )}
-    </div>
+      {[...played.values()].map((p) => (
+        <li key={`played${p.hh}`} className="recap__line recap__line--quiet">
+          <GameController className="recap__icon" aria-hidden="true" />
+          <span className="recap__text">You played the {p.hh} household</span>
+        </li>
+      ))}
+      {friendships.length > 0 && (
+        <li className="recap__line recap__line--quiet recap__line--fold">
+          <UsersThree className="recap__icon" aria-hidden="true" />
+          <span className="recap__text">
+            <button type="button" className="recap__fold" aria-expanded={friendsOpen} onClick={() => setFriendsOpen(!friendsOpen)}>
+              {friendships.length === 1 ? '1 friendship' : `${friendships.length} friendships`} {grew ? 'grew' : 'changed'}
+              {top && top.n > 1 && friendships.length > 1 ? `, ${top.n} with ${top.sim.name}` : ''}
+              <CaretDown className="recap__caret" weight="bold" aria-hidden="true" />
+            </button>
+            {friendsOpen && (
+              <ul className="recap__folded">
+                {friendships.map((f, i) => (
+                  <li key={i}>{relationshipItem(f)}</li>
+                ))}
+              </ul>
+            )}
+          </span>
+        </li>
+      )}
+      {met > 0 && (
+        <li className="recap__line recap__line--quiet">
+          <UserPlus className="recap__icon" aria-hidden="true" />
+          <span className="recap__text">{met === 1 ? '1 new sim' : `${met} new sims`} met along the way</span>
+        </li>
+      )}
+    </ul>
   );
 }
