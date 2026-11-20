@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "159aad6",
+   "date": "2026-11-20",
+   "text": "Filters › Highlight is easier to read: each question has its own row, with its name beside its choices, like Life stage, Partner or Sims at home. Picks in a row add up, and rows narrow each other. Clear shows up once you've picked something."
+  },
+  {
    "sha": "7a5bf3c",
    "date": "2026-11-20",
    "text": "You can now send a problem report straight to kemi: in ⋮ › Send a problem report, or on the screen that shows if the board stops. Add a few words on what you were doing, press Send, and you get the report's number to mention on Threads. It still has no names, and nothing is sent until you press Send."
