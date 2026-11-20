@@ -1229,9 +1229,21 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .edge.edge--faded{opacity:.14}
 .node.agehl>rect:first-of-type{stroke:#f5a300!important;stroke-width:4.5px!important}
 .node.agehl{filter:drop-shadow(0 0 7px rgba(245,163,0,.9))}
-.agechips{display:flex;flex-wrap:wrap;gap:5px}
+.agechips{display:flex;flex-wrap:wrap;gap:6px}
 .agechips button{padding:5px 10px;border:1px solid var(--chip-line);background:var(--chip);color:#3b4757;border-radius:16px;font-weight:600}
 .agechips button.on{background:#f5a300;color:#fff;border-color:#f5a300}
+/* Counts stay light beside the names; an empty choice dims but keeps its place. */
+.agechips__n{font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.agechips button.on .agechips__n{color:#fff;opacity:.85}
+.agechips button.zero{opacity:.5}
+/* Filters › Highlight: one question per row, its name in a column of its own. */
+.hlhint{margin:6px 4px 4px;font-size:11px;line-height:1.4;color:var(--ink-3)}
+.hlrow{display:grid;grid-template-columns:84px minmax(0,1fr);gap:8px;padding:9px 0;border-top:1px solid var(--line)}
+.hlrow:first-child{border-top:none;padding-top:4px}
+.hlrow__label{padding:6px 0 0 4px;font-size:11px;font-weight:700;line-height:1.25;color:var(--ink-3);letter-spacing:.02em}
+@media (pointer:coarse){.hlrow__label{padding-top:15px}.gpanel .hlsum .hlsum__clear{min-height:44px;margin:-12px -4px -12px 0;padding:0 4px}}
+/* A phone: the row's name sits above its choices, so they get the whole width. */
+@media (max-width:520px){.hlrow{grid-template-columns:minmax(0,1fr);gap:6px}.hlrow__label{padding:0 0 0 4px}}
 .menu button:where(:not(.iconbtn)):hover{background:#e7eefb}
 .menu button:disabled{opacity:.6;cursor:not-allowed}
 .menu button:disabled:hover{background:#f5f6f8}
@@ -1831,7 +1843,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .node.dead.sel,.node.dead.msel,.node.dead.agehl{opacity:.85}
 
 /* ── highlight count: in the Highlight panel and on the board ──────────── */
-.hlsum{margin:0 4px 4px;padding:6px 8px;border-radius:8px;background:var(--recess);font-size:12px;line-height:1.4;color:var(--ink)}
+.hlsum{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 4px 4px;padding:7px 9px;border-radius:8px;background:var(--recess);font-size:12px;line-height:1.4;color:var(--ink)}
+.gpanel .hlsum .hlsum__clear{flex:none;padding:0;border:0;background:none;color:var(--accent);font-size:12px;font-weight:600;line-height:1.4}
+.gpanel .hlsum .hlsum__clear:hover{background:none;text-decoration:underline}
 .hlsum b{color:#3d2f00}
 .hlsum__of{color:var(--ink-3)}
 .highlight-banner{border-color:#f0d58a}

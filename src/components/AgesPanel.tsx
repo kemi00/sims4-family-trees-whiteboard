@@ -1,3 +1,4 @@
+import { useId, type ReactNode } from 'react';
 import {
   AGES_H,
   DECEASED_STATE,
@@ -24,14 +25,6 @@ import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
 import { dynastyStanding, isPet, type HighlightSets } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
-
-const sectionLabel = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: '#6b7280',
-  margin: '10px 4px 6px',
-  letterSpacing: '0.02em',
-} as const;
 
 /** The dynasty chips: the card's mark, then the game's word. */
 const ROLE_CHIP: Record<HiDynastyRole, { text: string; title: string }> = {
@@ -88,17 +81,32 @@ export function AgesPanel({
     if (size !== null && !bySize.has(size)) bySize.set(size, 0);
   }
   const sizes = [...bySize.keys()].sort((a, b) => a - b);
-  /** One row of family chips: picks in it add up, rows narrow each other. */
-  const familyRow = (chips: { key: string; text: string; title: string; count: number; on: boolean; toggle: () => void }[]) => (
-    <div className="agechips">
-      {chips.map((c) => (
-        <button key={c.key} type="button" className={c.on ? 'on' : ''} aria-pressed={c.on} title={c.title} onClick={c.toggle}>
-          {c.text} <b style={{ opacity: 0.6 }}>{c.count}</b>
-        </button>
-      ))}
+  const rowId = useId();
+  type Chip = { key: string; text: ReactNode; title?: string; count: number; on: boolean; toggle: () => void; data?: Record<string, string> };
+  /** One choice: its name and its count, light; an empty one dims but stays where it is. */
+  const chipButton = (c: Chip) => (
+    <button
+      key={c.key}
+      type="button"
+      className={c.on ? 'on' : c.count === 0 ? 'zero' : ''}
+      aria-pressed={c.on}
+      title={c.title}
+      onClick={c.toggle}
+      {...c.data}
+    >
+      {c.text} <span className="agechips__n">{c.count}</span>
+    </button>
+  );
+  /** One question, its name in the left column and its choices beside it: picks in a row add up, rows narrow each other. */
+  const row = (key: string, label: string, chips: Chip[], title?: string) => (
+    <div className="hlrow" role="group" aria-labelledby={`${rowId}-${key}`} key={key}>
+      <span className="hlrow__label" id={`${rowId}-${key}`} title={title}>
+        {label}
+      </span>
+      <div className="agechips">{chips.map(chipButton)}</div>
     </div>
   );
-  const chip = (key: string, text: string, title: string, ok: (n: SimNode) => boolean) => ({
+  const chip = (key: string, text: string, title: string, ok: (n: SimNode) => boolean): Chip => ({
     key,
     text,
     title,
@@ -119,174 +127,128 @@ export function AgesPanel({
   );
   const active = highlightActive(hiAges, hiSingle);
   const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, ...sets });
+  const toggleKey = (key: string) => () => onToggle(key);
 
   return (
     <>
-      <div className="fpanel__bulk">
-        <button type="button" onClick={onClear} disabled={!active}>
-          Clear
-        </button>
-      </div>
       <div className="hlsum" role="status" aria-live="polite">
-        {active ? (
-          <>
-            <b>{summary.count}</b> {summary.phrase}
-            <span className="hlsum__of"> of {summary.living} living on the board</span>
-          </>
-        ) : (
-          <>
-            <b>{sims.length}</b> sims
-            {pets.length > 0 && (
-              <>
-                {' '}
-                · <b>{pets.length}</b> pets
-              </>
-            )}{' '}
-            living on the board. Pick what to highlight.
-          </>
+        <span>
+          {active ? (
+            <>
+              <b>{summary.count}</b> {summary.phrase}
+              <span className="hlsum__of"> of {summary.living} living on the board</span>
+            </>
+          ) : (
+            <>
+              <b>{sims.length}</b> sims
+              {pets.length > 0 && (
+                <>
+                  {' '}
+                  · <b>{pets.length}</b> pets
+                </>
+              )}{' '}
+              living on the board
+            </>
+          )}
+        </span>
+        {active && (
+          <button type="button" className="hlsum__clear" onClick={onClear}>
+            Clear
+          </button>
         )}
       </div>
-      <div style={sectionLabel}>Life stage</div>
-      <div className="agechips">
-        <button
-          type="button"
-          className={hiAges.has(HI_NOT_BORN) ? 'on' : ''}
-          aria-pressed={hiAges.has(HI_NOT_BORN)}
-          title="Planned babies: on the board, not born in your game yet"
-          onClick={() => onToggle(HI_NOT_BORN)}
-        >
-          Not born yet{' '}
-          <b style={{ opacity: 0.6 }}>{cntUnborn}</b>
-        </button>
-        {AGES_H.map((a) => (
-          <button
-            key={a}
-            data-age={a}
-            className={hiAges.has(a) ? 'on' : ''}
-            onClick={() => onToggle(a)}
-          >
-            {a}{' '}
-            <b style={{ opacity: 0.6 }}>{cntAge(a)}</b>
-          </button>
-        ))}
-      </div>
-      <div style={sectionLabel}>Gender</div>
-      <div className="agechips">
-        {genders.map((g) => (
-          <button
-            key={g}
-            data-gender={g}
-            className={hiAges.has(g) ? 'on' : ''}
-            onClick={() => onToggle(g)}
-          >
-            {g}{' '}
-            <b style={{ opacity: 0.6 }}>{cntGender(g)}</b>
-          </button>
-        ))}
-      </div>
-      <div style={sectionLabel}>Family</div>
-      {familyRow([
-        {
-          key: 'single',
-          text: 'Single',
-          title: 'No partner: not married or in a romance. The widowed are single.',
-          count: cnt((n) => !partnered.has(n.id)),
-          on: hiSingle,
-          toggle: onToggleSingle,
-        },
-        chip(HI_ROMANCE, 'In a romance', 'In a romance with a living sim, not married', (n) => partnered.has(n.id) && !married.has(n.id)),
-        chip(HI_MARRIED, 'Married', 'Married to a living sim', (n) => married.has(n.id)),
-      ])}
-      {familyRow([
-        chip(
-          HI_DESCENDANTS,
+      <p className="hlhint">
+        Picks in a row add up. Rows narrow each other{pets.length > 0 ? '; pets add to the sims you pick' : ''}.
+      </p>
+      <div className="hlrows">
+        {row('age', 'Life stage', [
+          ...AGES_H.map((a) => ({ key: a, text: a, count: cntAge(a), on: hiAges.has(a), toggle: toggleKey(a), data: { 'data-age': a } })),
+          {
+            key: HI_NOT_BORN,
+            text: 'Not born yet',
+            title: 'Planned babies: on the board, not born in your game yet',
+            count: cntUnborn,
+            on: hiAges.has(HI_NOT_BORN),
+            toggle: toggleKey(HI_NOT_BORN),
+          },
+        ])}
+        {row(
+          'gender',
+          'Gender',
+          genders.map((g) => ({ key: g, text: g, count: cntGender(g), on: hiAges.has(g), toggle: toggleKey(g), data: { 'data-gender': g } })),
+        )}
+        {row('partner', 'Partner', [
+          {
+            key: 'single',
+            text: 'Single',
+            title: 'No partner: not married or in a romance. The widowed are single.',
+            count: cnt((n) => !partnered.has(n.id)),
+            on: hiSingle,
+            toggle: onToggleSingle,
+          },
+          chip(HI_ROMANCE, 'In a romance', 'In a romance with a living sim, not married', (n) => partnered.has(n.id) && !married.has(n.id)),
+          chip(HI_MARRIED, 'Married', 'Married to a living sim', (n) => married.has(n.id)),
+        ])}
+        {row(
+          'descendants',
           'Descendants',
-          'A living child, grandchild or further down on the board, planned babies counted',
-          (n) => descendants.has(n.id),
-        ),
-        chip(HI_NO_CHILDREN, 'No descendants', 'No living child, grandchild or further down on the board, planned babies counted', (n) => !descendants.has(n.id)),
-      ])}
-      {familyRow([
-        chip(HI_SIBLINGS, 'Siblings', 'A living sibling on the board; half-siblings, adoptive siblings and planned babies count', (n) => siblings.has(n.id)),
-        chip(HI_NO_SIBLINGS, 'No siblings', 'No living sibling known on the board; half-siblings, adoptive siblings and planned babies count', (n) => !siblings.has(n.id)),
-      ])}
-      {sizes.length > 0 && (
-        <>
-          <div style={sectionLabel}>Household size</div>
-          <div className="agechips">
-            {sizes.map((size) => {
+          [
+            chip(HI_DESCENDANTS, 'Some', 'A living child, grandchild or further down on the board, planned babies counted', (n) => descendants.has(n.id)),
+            chip(HI_NO_CHILDREN, 'None', 'No living child, grandchild or further down on the board, planned babies counted', (n) => !descendants.has(n.id)),
+          ],
+          'Children, grandchildren and further down, living on the board',
+        )}
+        {row(
+          'siblings',
+          'Siblings',
+          [
+            chip(HI_SIBLINGS, 'Some', 'A living sibling on the board; half-siblings, adoptive siblings and planned babies count', (n) => siblings.has(n.id)),
+            chip(HI_NO_SIBLINGS, 'None', 'No living sibling known on the board; half-siblings, adoptive siblings and planned babies count', (n) => !siblings.has(n.id)),
+          ],
+          'Living siblings on the board, half and adoptive ones too',
+        )}
+        {sizes.length > 0 &&
+          row(
+            'home',
+            'Sims at home',
+            sizes.map((size) => {
               const key = hiHouseholdChip(size);
               const count = bySize.get(size) ?? 0;
               const homes = Math.round(count / size);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className={hiAges.has(key) ? 'on' : ''}
-                  aria-pressed={hiAges.has(key)}
-                  title={`${homes === 1 ? '1 household' : `${homes} households`} of ${size === 1 ? '1 living sim' : `${size} living sims`}: ${count === 1 ? '1 sim' : `${count} sims`}. The deceased, pets and babies not born yet don't count.`}
-                  onClick={() => onToggle(key)}
-                >
-                  {size === 1 ? '1 sim' : `${size} sims`} <b style={{ opacity: 0.6 }}>{count}</b>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-      {dynasties && (
-        <>
-          <div style={sectionLabel}>Dynasty</div>
-          <div className="agechips">
-            {HI_DYNASTY.map((r) => {
-              const chip = hiDynastyChip(r);
-              return (
-                <button
-                  key={r}
-                  type="button"
-                  data-role={r}
-                  className={hiAges.has(chip) ? 'on' : ''}
-                  aria-pressed={hiAges.has(chip)}
-                  title={ROLE_CHIP[r].title}
-                  onClick={() => onToggle(chip)}
-                >
-                  {ROLE_CHIP[r].text}{' '}
-                  <b style={{ opacity: 0.6 }}>{cntRole(r)}</b>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-      {pets.length > 0 && (
-        <>
-          <div style={sectionLabel}>Pets</div>
-          <div className="agechips">
-            {SPECIES_H.map((s) => (
-              <button
-                key={s}
-                data-species={s}
-                className={hiAges.has(s) ? 'on' : ''}
-                onClick={() => onToggle(s)}
-              >
-                {SPECIES[s]} {s}{' '}
-                <b style={{ opacity: 0.6 }}>{cntSpecies(s)}</b>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-      <div
-        style={{
-          fontSize: 10,
-          color: 'var(--ink-3)',
-          margin: '8px 4px 2px',
-        }}
-      >
-        Highlighted sims glow gold; the rest dim. Two picks in one row show
-        both, like Teen and Elder or Single and Married; picks in different
-        rows narrow each other. Household size counts the living sims at
-        home. Pets add to life stages.
+              return {
+                key,
+                text: String(size),
+                title: `${homes === 1 ? '1 household' : `${homes} households`} of ${size === 1 ? '1 living sim' : `${size} living sims`}: ${count === 1 ? '1 sim' : `${count} sims`}. The deceased, pets and babies not born yet don't count.`,
+                count,
+                on: hiAges.has(key),
+                toggle: toggleKey(key),
+              };
+            }),
+            'How many living sims their household has. The deceased, pets and babies not born yet don’t count.',
+          )}
+        {dynasties &&
+          row(
+            'dynasty',
+            'Dynasty',
+            HI_DYNASTY.map((r) => {
+              const key = hiDynastyChip(r);
+              return { key, text: ROLE_CHIP[r].text, title: ROLE_CHIP[r].title, count: cntRole(r), on: hiAges.has(key), toggle: toggleKey(key), data: { 'data-role': r } };
+            }),
+          )}
+        {pets.length > 0 &&
+          row(
+            'pets',
+            'Pets',
+            SPECIES_H.map((sp) => ({
+              key: sp,
+              text: `${SPECIES[sp]} ${sp}`,
+              count: cntSpecies(sp),
+              on: hiAges.has(sp),
+              toggle: toggleKey(sp),
+              data: { 'data-species': sp },
+            })),
+            'Pets add to the sims you pick, as “plus cats”',
+          )}
       </div>
     </>
   );
