@@ -117,7 +117,7 @@ export function SendReport({ report }: Props) {
           variant="panel"
           heading="Or send it yourself"
           note="By email, or a message on Threads"
-          subject="Family Trees Whiteboard: problem report"
+          subject="The Sims 4 Family Tree Planner: problem report"
         />
       )}
     </section>

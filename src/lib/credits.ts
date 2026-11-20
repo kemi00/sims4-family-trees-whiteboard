@@ -21,7 +21,7 @@ export const EA_FAN_CONTENT_URL =
 export const CONTACT_EMAIL = 'giggle.34richter@icloud.com';
 
 /** An email to the developer, with this subject. */
-export function contactMailto(subject = 'Family Trees Whiteboard'): string {
+export function contactMailto(subject = 'The Sims 4 Family Tree Planner'): string {
   return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
 }
 
