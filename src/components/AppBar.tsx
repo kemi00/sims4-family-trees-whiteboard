@@ -34,6 +34,7 @@ import type { LinksView } from '../lib/family.ts';
 import { saveChipText } from '../lib/lifeClock.ts';
 import { REDO_KEYS, UNDO_KEYS, redoTip, undoTip } from '../lib/undoNames.ts';
 import { StepTip } from './StepText.tsx';
+import { BUILD } from '../lib/build.ts';
 import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
 import { SaveDetails } from './SaveStatus.tsx';
 import { ToolButton } from './ToolButton.tsx';
@@ -544,7 +545,7 @@ export function AppBar({
         onProblemReport={() => {
           const latest = changelog.entries[0];
           return problemReport({
-            build: typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev',
+            build: BUILD,
             ...(latest ? { latestUpdate: { sha: latest.sha, date: latest.date } } : {}),
             now: new Date(),
             env: reportEnv(),

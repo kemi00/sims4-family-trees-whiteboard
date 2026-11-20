@@ -14,6 +14,11 @@ function buildId(): string {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Maps from the minified code to the source, not linked from it: a
+    // problem report's file:line:column can be traced to the line.
+    sourcemap: 'hidden',
+  },
   define: {
     __BUILD_ID__: JSON.stringify(buildId()),
   },

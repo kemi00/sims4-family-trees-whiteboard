@@ -241,7 +241,12 @@ export function problemReport(input: ProblemReportInput): string {
   if (!input.errors.length) line('Recent errors: none');
   else {
     line('Recent errors:');
-    for (const x of input.errors) line(`  ${x.at} ${x.message}${x.where ? ` @ ${x.where}` : ''}`);
+    for (const x of input.errors) {
+      line(
+        `  ${x.at}${x.crash ? ' (the page went blank)' : ''} ${x.message}${x.where ? ` @ ${x.where}` : ''}` +
+          `${x.components ? ` in ${x.components}` : ''}${x.build && x.build !== input.build ? ` (build ${x.build})` : ''}`,
+      );
+    }
   }
   return out.join('\n');
 }
@@ -267,5 +272,102 @@ export function draftKB(key: string): number | null {
     return raw === null ? null : Math.round(raw.length / 1024);
   } catch {
     return null;
+  }
+}
+
+/**
+ * The problem report when the app itself has crashed: made from the board
+ * the browser kept (the draft), as the report from the menu would be, with
+ * what can't be known without the running board (free lots, filters shown,
+ * layers) left empty. With no readable draft, the browser and errors alone.
+ */
+export function problemReportFromDraft(
+  raw: string | null,
+  base: Pick<ProblemReportInput, 'build' | 'latestUpdate' | 'now' | 'env' | 'errors'>,
+): string {
+  type Draft = Partial<{
+    nodes: SimNode[];
+    edges: Edge[];
+    groups: Group[];
+    saveGame: SaveGameInfo | null;
+    chronicle: unknown[];
+    connectionLog: unknown[];
+    hiddenPacks: string[];
+    hiddenPlay: string[];
+    hiAges: string[];
+    hiSingle: boolean;
+    bloodlineId: string | null;
+    hideSecrets: boolean;
+    hideDeceased: boolean;
+  }>;
+  let d: Draft = {};
+  try {
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    d = parsed && typeof parsed === 'object' ? (parsed as Draft) : {};
+  } catch {
+    d = {};
+  }
+  // The board that crashed may be what's broken: only well-formed records count.
+  const records = <T extends { id: string }>(list: unknown): T[] =>
+    Array.isArray(list) ? list.filter((x): x is T => !!x && typeof x === 'object' && typeof (x as { id?: unknown }).id === 'string') : [];
+  const nodes = records<SimNode>(d.nodes).map((n) => ({
+    ...n,
+    first: typeof n.first === 'string' ? n.first : '',
+    sur: typeof n.sur === 'string' ? n.sur : '',
+    world: typeof n.world === 'string' ? n.world : '',
+    gid: typeof n.gid === 'string' ? n.gid : '',
+  }));
+  const edges = records<Edge>(d.edges);
+  const groups = (Array.isArray(d.groups) ? d.groups : []).filter((g): g is Group => !!g && typeof g === 'object' && typeof (g as Group).gid === 'string');
+  const worlds = [...new Set(nodes.map((n) => n.world).filter(Boolean))].map((name) => ({ name, color: '' }));
+  const noBoard = {
+    nodes: [] as SimNode[],
+    edges: [] as Edge[],
+    groups: [] as Group[],
+    worlds: [],
+    saveGame: null,
+    shownWorlds: new Set<string>(),
+    freeLots: new Map(),
+    filters: { hiddenPacks: [], hiddenPlay: 0, highlightAges: [], single: false, bloodline: false, hideSecrets: false, hideDeceased: false },
+    layers: {},
+    plans: { plannedBabies: 0, offPlanSims: 0, offPlanLinks: 0, issues: 0, logEntries: 0, storyPages: 0 },
+    storage: { draftKB: raw === null ? null : Math.round(raw.length / 1024), staleTab: false, fromDraft: true },
+  };
+  try {
+    return reportFromBoard();
+  } catch {
+    // Too broken to count: the browser and the errors still say a lot.
+    return `${problemReport({ ...base, ...noBoard })}\n\nThe board kept in this browser couldn't be read for this report.`;
+  }
+  function reportFromBoard(): string {
+  return problemReport({
+    ...base,
+    nodes,
+    edges,
+    groups,
+    worlds,
+    saveGame: d.saveGame && typeof d.saveGame === 'object' ? d.saveGame : null,
+    shownWorlds: new Set(worlds.map((w) => w.name)),
+    freeLots: new Map(),
+    filters: {
+      hiddenPacks: Array.isArray(d.hiddenPacks) ? d.hiddenPacks.filter((x) => typeof x === 'string') : [],
+      hiddenPlay: Array.isArray(d.hiddenPlay) ? d.hiddenPlay.length : 0,
+      highlightAges: Array.isArray(d.hiAges) ? d.hiAges.filter((x) => typeof x === 'string') : [],
+      single: !!d.hiSingle,
+      bloodline: !!d.bloodlineId,
+      hideSecrets: !!d.hideSecrets,
+      hideDeceased: !!d.hideDeceased,
+    },
+    layers: {},
+    plans: {
+      plannedBabies: nodes.filter((n) => n.plannedAs).length,
+      offPlanSims: 0,
+      offPlanLinks: 0,
+      issues: 0,
+      logEntries: Array.isArray(d.connectionLog) ? d.connectionLog.length : 0,
+      storyPages: Array.isArray(d.chronicle) ? d.chronicle.length : 0,
+    },
+    storage: { draftKB: raw === null ? null : Math.round(raw.length / 1024), staleTab: false, fromDraft: true },
+  });
   }
 }

@@ -323,6 +323,22 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .credits-panel a{color:var(--accent);text-decoration:none;font-weight:600}
 .credits-panel a:hover{text-decoration:underline}
 .credits-panel__note{margin-top:10px;font-size:10.5px;color:var(--ink-3)}
+/* The crash screen: instead of a blank page, what happened and what to do. */
+.crash{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;box-sizing:border-box;background:var(--canvas);color:var(--ink);font-size:13px;line-height:1.5}
+.crash__card{width:min(460px,100%);padding:20px 22px;border:1px solid var(--line);border-radius:var(--r-surface);background:#fff;box-shadow:var(--lift)}
+.crash h1{margin:0 0 6px;font-size:18px;font-weight:700}
+.crash__lead{margin:0;color:var(--ink-2)}
+.crash__acts{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 8px}
+.crash__btn{padding:7px 14px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.crash__btn:hover{background:var(--hover)}
+.crash__btn--main{border-color:var(--accent);background:var(--accent);color:#fff}
+.crash__btn--main:hover{background:var(--accent-strong)}
+.crash__btn--danger{color:var(--danger)}
+.crash__btn--danger:hover{background:var(--danger-soft)}
+.crash__btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.crash__note{margin:0;font-size:12px;color:var(--ink-3)}
+.crash__report{margin-top:12px;font-size:12px;color:var(--ink-2)}
+.crash__report summary{cursor:pointer;font-weight:600}
 .report-panel{font-size:11.5px;line-height:1.45}
 .report-panel__lead{margin:0;color:var(--ink);font-weight:600}
 .report-panel__note{margin:8px 0 0;font-size:10.5px;color:var(--ink-3)}

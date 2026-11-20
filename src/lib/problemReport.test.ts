@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { NOT_IN_WORLD } from './constants.ts';
-import { problemReport, type ProblemReportInput } from './problemReport.ts';
+import { problemReport, problemReportFromDraft, type ProblemReportInput } from './problemReport.ts';
 import type { Edge, Group, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 const card = (over: Partial<SimNode>): SimNode =>
@@ -107,5 +107,35 @@ describe('problemReport', () => {
     assert.match(text, /Recent errors: none/);
     const withError = problemReport(input({ errors: [{ at: '2026-11-20T09:59:00.000Z', message: 'TypeError: x is undefined', where: 'index-abc.js:1:200' }] }));
     assert.match(withError, /TypeError: x is undefined @ index-abc\.js:1:200/);
+  });
+});
+
+describe('problemReportFromDraft', () => {
+  const base = {
+    build: 'abc1234',
+    now: new Date('2026-11-20T10:00:00.000Z'),
+    env: { userAgent: 'TestBrowser/1', languages: ['uk-UA'], screen: '1x1', viewport: '1x1', dpr: 1, touchPoints: 0, pointer: 'fine' },
+    errors: [{ at: '2026-11-20T09:59:00.000Z', message: 'TypeError: x is undefined', where: 'index-abc.js:1:200', components: 'ConnectMenu < App', crash: true as const }],
+  };
+
+  it('reports the crash and the board the browser kept, with no names', () => {
+    const draft = JSON.stringify(input());
+    const text = problemReportFromDraft(draft, base);
+    assert.match(text, /\(the page went blank\) TypeError: x is undefined @ index-abc\.js:1:200 in ConnectMenu < App/);
+    assert.match(text, /Board: 3 cards/);
+    for (const secret of ['Quillon', 'Zephyrine', 'Velvetorium']) assert.ok(!text.includes(secret), secret);
+  });
+
+  it('skips what is broken in the board it was given, never throwing', () => {
+    const broken = JSON.stringify({ nodes: [{ id: 'a', gid: 'W||X', world: 'W' }, null, 7], edges: [{ id: 'e', a: 'a', b: 'zz', type: 'marriage' }, null], groups: [null] });
+    const text = problemReportFromDraft(broken, base);
+    assert.match(text, /Board: 1 card /);
+    assert.match(text, /links to a missing card 1/);
+  });
+
+  it('still reports the browser and the crash with no readable board', () => {
+    const text = problemReportFromDraft('not json', base);
+    assert.match(text, /Board: 0 cards/);
+    assert.match(text, /the page went blank/);
   });
 });
