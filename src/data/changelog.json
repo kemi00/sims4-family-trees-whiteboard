@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "de773c1",
+   "date": "2026-11-21",
+   "text": "Planned sims are clearer. A household's ＋ now asks who's joining: a baby of a couple there, a sim moving in (you choose their life stage and gender), or a pet. Planned cards say \"Not born yet\" or \"Planned: moves in\". In Filters › Highlight every sim is counted, there's a new In your game row, household size is a range like 2 to 4 or \"Full: 8 or more\", and Dynasty has None."
+  },
+  {
    "sha": "159aad6",
    "date": "2026-11-20",
    "text": "Filters › Highlight is easier to read: each question has its own row, with its name beside its choices, like Life stage, Partner or Sims at home. Picks in a row add up, and rows narrow each other. Clear shows up once you've picked something."
