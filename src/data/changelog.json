@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "d4838f9",
+   "date": "2026-11-20",
+   "text": "The board now shows only what your games have: without Royalty & Legacy there are no dynasty or secret options, and life states like Vampire or Mermaid appear only with their packs. The sim editor is calmer: Possible partners has its own tab, and the book next to the close button opens the sim's story."
+  },
+  {
    "sha": "9559401",
    "date": "2026-11-20",
    "text": "Every game now shows its own icon: in Filters › Games and packs, and at the start of each world's tag, before the world's picture. Hover a world's tag to see which game it comes from."
