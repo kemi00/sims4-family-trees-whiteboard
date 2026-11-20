@@ -2,11 +2,9 @@ import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from '
 import changelog from '../data/changelog.json';
 import { AUTOSAVE_KEY } from '../lib/autosave.ts';
 import { BUILD } from '../lib/build.ts';
-import { copyText } from '../lib/clipboard.ts';
-import { DEVELOPER_NAME } from '../lib/credits.ts';
 import { logError, recentErrors } from '../lib/errorLog.ts';
 import { problemReportFromDraft, reportEnv } from '../lib/problemReport.ts';
-import { DeveloperContact } from './DeveloperContact.tsx';
+import { SendReport } from './SendReport.tsx';
 
 /** The problem report, made from the board the browser kept, as the page can't run. */
 function crashReport(): string {
@@ -60,14 +58,13 @@ function downloadDraft(): void {
 /**
  * What shows instead of a blank page when the board crashes: it says so,
  * that the board is safe in the browser, and offers to reload it or to
- * copy a problem report with the error in it for the developer. The same
- * words and contact as the ⋮ menu's report.
+ * send the developer a problem report with the error in it (SendReport,
+ * the same as the ⋮ menu's report).
  */
 function CrashScreen() {
   // Made once the crash is logged (the guard logs it as the screen shows), so it's in the report.
   const [text, setText] = useState('');
   useEffect(() => setText(crashReport()), []);
-  const [copied, setCopied] = useState<boolean | null>(null);
   return (
     <main className="crash" role="alert">
       <div className="crash__card">
@@ -77,34 +74,13 @@ function CrashScreen() {
           back.
         </p>
         <div className="crash__acts">
-          <button type="button" className="crash__btn crash__btn--main" onClick={() => location.reload()}>
+          <button type="button" className="crash__btn" onClick={() => location.reload()}>
             Reload the board
           </button>
-          <button
-            type="button"
-            className="crash__btn"
-            onClick={() => {
-              void copyText(text || crashReport()).then(setCopied);
-            }}
-          >
-            {copied ? 'Copied' : 'Copy a problem report'}
-          </button>
         </div>
-        <p className="crash__note" role="status" aria-live="polite">
-          {copied === false
-            ? 'Your browser didn’t let the board copy it. Open the report below, select all of it and copy it.'
-            : copied
-              ? `It’s on your clipboard. Paste it into a message to ${DEVELOPER_NAME}, with a few words on what you were doing.`
-              : `The report says what went wrong, so ${DEVELOPER_NAME} can fix it. It has no names: not your sims’, households’, lots’ or dynasties’, and none of your notes.`}
-        </p>
-        <DeveloperContact
-          variant="panel"
-          heading={`Send it to ${DEVELOPER_NAME}`}
-          note="By email, or a message on Threads"
-          subject="Family Trees Whiteboard: problem report"
-        />
+        <SendReport report={() => text || crashReport()} />
         <details className="crash__report">
-          <summary>See the report</summary>
+          <summary>See what’s sent</summary>
           <pre className="report-panel__text" tabIndex={0}>
             {text}
           </pre>

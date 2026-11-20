@@ -2,7 +2,8 @@
  * The last few errors the page hit, for the problem report: when, the
  * message (cut short), where in the code, and for a crash the components it
  * happened in. Kept in this browser (localStorage) so a report copied after
- * reloading still has the error that made the page go blank; never sent.
+ * reloading still has the error that made the page go blank. It leaves the
+ * browser only inside a report the player chooses to send (SendReport).
  */
 
 import { pageTranslation } from './translateGuard.ts';

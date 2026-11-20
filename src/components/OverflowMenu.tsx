@@ -9,7 +9,6 @@ import {
   type Icon,
 } from '../icons.ts';
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { copyText } from '../lib/clipboard.ts';
 import { DEVELOPER_NAME } from '../lib/credits.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import { CreditsPanel } from './CreditsPanel.tsx';
@@ -63,8 +62,8 @@ export function OverflowMenu({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
-  /** The problem report just copied, and whether the copy worked (null while copying). */
-  const [report, setReport] = useState<{ text: string; copied: boolean | null } | null>(null);
+  /** The problem report, made when the panel opened, to send or copy. */
+  const [report, setReport] = useState<{ text: string } | null>(null);
   const ownWrapRef = useRef<HTMLDivElement>(null);
   const wrapRef = outerWrapRef ?? ownWrapRef;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -197,16 +196,13 @@ export function OverflowMenu({
               onClick={() => {
                 setOpen(false);
                 setCreditsOpen(false);
-                const text = onProblemReport();
-                setReport({ text, copied: null });
-                // Copied in the click itself: browsers allow it only then.
-                void copyText(text).then((ok) => setReport((r) => (r?.text === text ? { ...r, copied: ok } : r)));
+                setReport({ text: onProblemReport() });
               }}
             >
               <ClipboardText aria-hidden="true" />
               <span className="pop__stack">
-                Copy a problem report
-                <span className="pop__sub">For the developer, with no names</span>
+                Send a problem report
+                <span className="pop__sub">To the developer, with no names</span>
               </span>
             </button>
           )}
@@ -254,7 +250,6 @@ export function OverflowMenu({
         <ProblemReportPanel
           anchorRect={wrapRef.current?.getBoundingClientRect() ?? null}
           text={report.text}
-          copied={report.copied}
           onClose={() => setReport(null)}
         />
       )}

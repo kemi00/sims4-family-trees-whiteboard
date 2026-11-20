@@ -359,6 +359,32 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .crash__note{margin:0;font-size:12px;color:var(--ink-3)}
 .crash__report{margin-top:12px;font-size:12px;color:var(--ink-2)}
 .crash__report summary{cursor:pointer;font-weight:600}
+/* Sending a problem report (SendReport): the crash screen and the ⋮ menu's panel alike. */
+.sendrep{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule)}
+.gpanel .sendrep{margin-top:4px;padding-top:0;border-top:none}
+/* The panel's own title already says it. */
+.gpanel .sendrep__title{display:none}
+.sendrep__title{display:block;margin:0 0 6px;font-size:1.05em;font-weight:700;color:var(--ink)}
+.sendrep__label{display:block;margin:0 0 4px;font-weight:600;color:var(--ink-2)}
+.sendrep__label span{font-weight:500;color:var(--ink-3)}
+.sendrep__note{display:block;box-sizing:border-box;width:100%;min-height:48px;resize:vertical;padding:6px 8px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;line-height:1.45}
+.sendrep__note::placeholder{color:var(--ink-3)}
+.sendrep__note:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.sendrep__acts{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 6px}
+.sendrep .sendrep__btn{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:6px 13px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-weight:600;line-height:1.2;cursor:pointer;white-space:nowrap}
+.sendrep .sendrep__btn:hover{background:var(--hover)}
+.sendrep .sendrep__btn--main{border-color:var(--accent);background:var(--accent);color:#fff}
+.sendrep .sendrep__btn--main:hover{background:var(--accent-strong)}
+.sendrep .sendrep__btn[aria-busy=true]{cursor:progress;opacity:.8}
+.sendrep .sendrep__btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.sendrep__fine{margin:0;font-size:.92em;color:var(--ink-3)}
+.sendrep__fine--warn{color:var(--ink)}
+.sendrep__ok{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:1.05em;font-weight:700;color:var(--ink)}
+.sendrep__ok svg{width:16px;height:16px;flex:none;color:var(--accent)}
+.sendrep__code{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-control);background:var(--chip)}
+.sendrep__code span{display:flex;flex-direction:column;gap:1px}
+.sendrep__code small{font-size:.9em;color:var(--ink-3)}
+.sendrep__code b{font-size:1.5em;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .report-panel{font-size:11.5px;line-height:1.45}
 .report-panel__lead{margin:0;color:var(--ink);font-weight:600}
 .report-panel__note{margin:8px 0 0;font-size:10.5px;color:var(--ink-3)}
