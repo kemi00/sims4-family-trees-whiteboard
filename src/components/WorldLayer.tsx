@@ -2,7 +2,6 @@ import { memo, type PointerEvent as ReactPointerEvent } from 'react';
 import { Crown, House, User } from '../icons.ts';
 import { worldFrame, worldTagMetrics } from '../lib/geometry.ts';
 import { nodesForWorld, type NodeBuckets } from '../lib/nodeIndex.ts';
-import { NOT_IN_WORLD, NOT_IN_WORLD_SHORT } from '../lib/constants.ts';
 import { worldColor } from '../lib/utils.ts';
 import { worldIconUrl } from '../lib/places.ts';
 import { frameWithLots, type LotBox } from '../lib/lotBoxes.ts';
@@ -415,20 +414,6 @@ export const WorldLayer = memo(function WorldLayer({
                   </>
                 )}
               </g>
-            )}
-            {c.w === NOT_IN_WORLD && (
-              // What it is, beside its tag: it has no picture, and its name alone left testers guessing.
-              <text
-                className="whandle__note"
-                x={c.paintX + pill.w + 8 * s}
-                y={c.paintY + pill.nameY}
-                dominantBaseline="middle"
-                fontSize={pill.fontSize * 0.92}
-                fontWeight={600}
-                style={{ pointerEvents: 'none' }}
-              >
-                {NOT_IN_WORLD_SHORT}
-              </text>
             )}
           </g>
         );
