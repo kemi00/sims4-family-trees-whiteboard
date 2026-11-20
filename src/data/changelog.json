@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "41baaeb",
+   "date": "2026-11-20",
+   "text": "Highlight's Family rows have both sides now: Single, In a romance or Married; Descendants or No descendants; Siblings or No siblings. A new Household size row lights up sims in households of 1, 2, 3 or more living sims."
+  },
+  {
    "sha": "d1e93d1",
    "date": "2026-11-20",
    "text": "A sim's, household's or dynasty's story now has a switch under the search: their story or everyone's, and back again."
