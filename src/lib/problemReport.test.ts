@@ -103,6 +103,21 @@ describe('problemReport', () => {
     assert.match(text, /full names on more than one card 1 \(2 cards\)/);
   });
 
+  it('names each world’s own game, not the game its sims came from', () => {
+    // The sims here are from the Base Game; the line names the world's game all the same.
+    assert.match(text, /Willow Creek: 2 \/ 1 \/ 2 of \d+ · Base Game/);
+  });
+
+  it('says whether the browser was translating the page', () => {
+    assert.match(text, /Page not translated by the browser/);
+    const translated = problemReport(input({ env: { ...input().env, translated: 'uk', translateFixes: 3 } }));
+    assert.match(translated, /Page translated by the browser to uk · the board stepped around swapped text 3 times/);
+    const withError = problemReport(
+      input({ errors: [{ at: '2026-11-20T09:59:00.000Z', message: 'NotFoundError: gone', crash: true, translated: 'uk' }] }),
+    );
+    assert.match(withError, /\(the page went blank\) \(page translated to uk\) NotFoundError: gone/);
+  });
+
   it('lists recent errors, or says there are none', () => {
     assert.match(text, /Recent errors: none/);
     const withError = problemReport(input({ errors: [{ at: '2026-11-20T09:59:00.000Z', message: 'TypeError: x is undefined', where: 'index-abc.js:1:200' }] }));
@@ -124,6 +139,13 @@ describe('problemReportFromDraft', () => {
     assert.match(text, /\(the page went blank\) TypeError: x is undefined @ index-abc\.js:1:200 in ConnectMenu < App/);
     assert.match(text, /Board: 3 cards/);
     for (const secret of ['Quillon', 'Zephyrine', 'Velvetorium']) assert.ok(!text.includes(secret), secret);
+  });
+
+  it('says what the crash screen can’t know, instead of counting it as none', () => {
+    const text = problemReportFromDraft(JSON.stringify(input()), base);
+    assert.match(text, /Willow Creek: 2 \/ 1 \/ \? of \d+/);
+    assert.match(text, /free lots are shown as \?/);
+    assert.match(text, /Layers: not known from the crash screen/);
   });
 
   it('skips what is broken in the board it was given, never throwing', () => {

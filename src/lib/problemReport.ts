@@ -1,6 +1,8 @@
 import { DECEASED_STATE, LAYOUT_EPOCH, NOT_IN_WORLD } from './constants.ts';
 import type { LoggedError } from './errorLog.ts';
 import { dayOf, saveChipText } from './lifeClock.ts';
+import { worldPack } from './packs.ts';
+import { pageTranslation, translateGuardHits } from './translateGuard.ts';
 import { lotsIn } from './places.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { edgeSourceOf } from './utils.ts';
@@ -27,6 +29,10 @@ export type ProblemReportInput = {
     dpr: number;
     touchPoints: number;
     pointer: string;
+    /** The language the browser is translating the page to, or null when it isn't. */
+    translated?: string | null;
+    /** How often the board stepped around text the translation swapped. */
+    translateFixes?: number;
   };
   nodes: readonly SimNode[];
   edges: readonly Edge[];
@@ -35,8 +41,8 @@ export type ProblemReportInput = {
   saveGame: SaveGameInfo | null;
   /** Worlds with something on show (liveWorlds). */
   shownWorlds: ReadonlySet<string>;
-  /** Each world's free lots, as its Free lots box lists them. */
-  freeLots: ReadonlyMap<string, readonly unknown[]>;
+  /** Each world's free lots, as its Free lots box lists them; null when not known (the crash screen). */
+  freeLots: ReadonlyMap<string, readonly unknown[]> | null;
   filters: {
     hiddenPacks: readonly string[];
     hiddenPlay: number;
@@ -46,7 +52,8 @@ export type ProblemReportInput = {
     hideSecrets: boolean;
     hideDeceased: boolean;
   };
-  layers: Readonly<Record<string, boolean>>;
+  /** Null when not known (the crash screen). */
+  layers: Readonly<Record<string, boolean>> | null;
   plans: { plannedBabies: number; offPlanSims: number; offPlanLinks: number; issues: number; logEntries: number; storyPages: number };
   storage: { draftKB: number | null; staleTab: boolean; fromDraft: boolean };
   errors: readonly LoggedError[];
@@ -97,6 +104,11 @@ export function problemReport(input: ProblemReportInput): string {
       `pointer ${e.pointer} · touch points ${e.touchPoints}`,
   );
   line(
+    e.translated
+      ? `Page translated by the browser to ${e.translated} · the board stepped around swapped text ${count(e.translateFixes ?? 0, 'time')}`
+      : 'Page not translated by the browser',
+  );
+  line(
     `Storage: draft ${input.storage.draftKB === null ? 'none' : `${input.storage.draftKB} KB`}` +
       ` · opened from the draft: ${input.storage.fromDraft ? 'yes' : 'no'}` +
       ` · another tab has it: ${input.storage.staleTab ? 'yes' : 'no'}`,
@@ -142,27 +154,22 @@ export function problemReport(input: ProblemReportInput): string {
   line();
   const sims = new Map<string, number>();
   const hh = new Map<string, Set<string>>();
-  const packs = new Map<string, Map<string, number>>();
   for (const n of nodes) {
     bump(sims, n.world);
     if (!isUnhousedGid(n.gid)) hh.set(n.world, (hh.get(n.world) ?? new Set()).add(n.gid));
-    if (n.pack) {
-      const m = packs.get(n.world) ?? new Map<string, number>();
-      bump(m, n.pack);
-      packs.set(n.world, m);
-    }
   }
   line('Worlds on the board (sims / households / free lots of the game’s lots · its game):');
+  if (!input.freeLots) line('  (Made from the crash screen: free lots are shown as ?, as the board wasn’t running to count them.)');
   const known = new Set(worlds.map((w) => w.name));
   for (const w of worlds) {
     const shown = input.shownWorlds.has(w.name) || !sims.get(w.name);
     const outside = w.name === NOT_IN_WORLD;
-    const game = outside ? '' : ` / ${input.freeLots.get(w.name)?.length ?? 0} of ${lotsIn(w.name).length}`;
-    const pack = outside ? undefined : packs.get(w.name);
-    const mainPack = pack ? [...pack].sort((a, b) => b[1] - a[1])[0]![0] : '';
+    const free = input.freeLots ? String(input.freeLots.get(w.name)?.length ?? 0) : '?';
+    const game = outside ? '' : ` / ${free} of ${lotsIn(w.name).length}`;
+    const pack = outside ? undefined : worldPack(w.name);
     line(
       `  ${w.name}: ${sims.get(w.name) ?? 0} / ${hh.get(w.name)?.size ?? 0}${game}` +
-        `${mainPack ? ` · ${mainPack}` : ''}${shown ? '' : ' · hidden'}`,
+        `${pack ? ` · ${pack}` : ''}${shown ? '' : ' · hidden'}`,
     );
   }
   const strays = [...sims.keys()].filter((w) => !known.has(w));
@@ -174,6 +181,7 @@ export function problemReport(input: ProblemReportInput): string {
     line('Save: none uploaded yet');
   } else {
     line(`Save: uploaded ${g.importedAt} · ${gameLine(g)}`);
+    if (g.gamesMissing) line(`Games the save doesn’t have: ${g.gamesMissing.length ? g.gamesMissing.join(', ') : 'none'}`);
     const u = g.lastUpload;
     if (u) {
       line(
@@ -234,8 +242,11 @@ export function problemReport(input: ProblemReportInput): string {
     f.hideDeceased ? 'deceased hidden' : '',
   ].filter(Boolean);
   line(`Filters: ${on.length ? on.join(' · ') : 'none'}`);
-  const layers = Object.entries(input.layers);
-  line(`Layers: ${layers.map(([k, v]) => `${k} ${v ? 'on' : 'off'}`).join(', ')}`);
+  line(
+    input.layers
+      ? `Layers: ${Object.entries(input.layers).map(([k, v]) => `${k} ${v ? 'on' : 'off'}`).join(', ')}`
+      : 'Layers: not known from the crash screen',
+  );
 
   line();
   if (!input.errors.length) line('Recent errors: none');
@@ -243,7 +254,7 @@ export function problemReport(input: ProblemReportInput): string {
     line('Recent errors:');
     for (const x of input.errors) {
       line(
-        `  ${x.at}${x.crash ? ' (the page went blank)' : ''} ${x.message}${x.where ? ` @ ${x.where}` : ''}` +
+        `  ${x.at}${x.crash ? ' (the page went blank)' : ''}${x.translated ? ` (page translated to ${x.translated})` : ''} ${x.message}${x.where ? ` @ ${x.where}` : ''}` +
           `${x.components ? ` in ${x.components}` : ''}${x.build && x.build !== input.build ? ` (build ${x.build})` : ''}`,
       );
     }
@@ -262,6 +273,8 @@ export function reportEnv(): ProblemReportInput['env'] {
     dpr: Math.round(devicePixelRatio * 100) / 100,
     touchPoints: navigator.maxTouchPoints ?? 0,
     pointer: pointer('(pointer: fine)') ? 'fine' : pointer('(pointer: coarse)') ? 'coarse' : 'none',
+    translated: pageTranslation(),
+    translateFixes: translateGuardHits(),
   };
 }
 
@@ -327,9 +340,9 @@ export function problemReportFromDraft(
     worlds: [],
     saveGame: null,
     shownWorlds: new Set<string>(),
-    freeLots: new Map(),
+    freeLots: null,
     filters: { hiddenPacks: [], hiddenPlay: 0, highlightAges: [], single: false, bloodline: false, hideSecrets: false, hideDeceased: false },
-    layers: {},
+    layers: null,
     plans: { plannedBabies: 0, offPlanSims: 0, offPlanLinks: 0, issues: 0, logEntries: 0, storyPages: 0 },
     storage: { draftKB: raw === null ? null : Math.round(raw.length / 1024), staleTab: false, fromDraft: true },
   };
@@ -348,7 +361,7 @@ export function problemReportFromDraft(
     worlds,
     saveGame: d.saveGame && typeof d.saveGame === 'object' ? d.saveGame : null,
     shownWorlds: new Set(worlds.map((w) => w.name)),
-    freeLots: new Map(),
+    freeLots: null,
     filters: {
       hiddenPacks: Array.isArray(d.hiddenPacks) ? d.hiddenPacks.filter((x) => typeof x === 'string') : [],
       hiddenPlay: Array.isArray(d.hiddenPlay) ? d.hiddenPlay.length : 0,
@@ -358,7 +371,7 @@ export function problemReportFromDraft(
       hideSecrets: !!d.hideSecrets,
       hideDeceased: !!d.hideDeceased,
     },
-    layers: {},
+    layers: null,
     plans: {
       plannedBabies: nodes.filter((n) => n.plannedAs).length,
       offPlanSims: 0,

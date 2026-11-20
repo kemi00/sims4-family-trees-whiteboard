@@ -5,6 +5,8 @@
  * reloading still has the error that made the page go blank; never sent.
  */
 
+import { pageTranslation } from './translateGuard.ts';
+
 export type LoggedError = {
   at: string;
   message: string;
@@ -16,6 +18,8 @@ export type LoggedError = {
   crash?: true;
   /** The app's build when it happened. */
   build?: string;
+  /** The browser was translating the page, to this language, when it happened. */
+  translated?: string;
 };
 
 export const ERROR_LOG_KEY = 'sims4-family-trees:errors:v1';
@@ -89,6 +93,7 @@ export function logError(
   const message = (e ? `${e.name}: ${e.message}` : String(error)).slice(0, MAX_MESSAGE);
   const where = whereFrom(e?.stack);
   const components = componentsFrom(opts.componentStack);
+  const translated = pageTranslation();
   list.push({
     at: (opts.now ?? new Date()).toISOString(),
     message,
@@ -96,6 +101,7 @@ export function logError(
     ...(components ? { components } : {}),
     ...(opts.crash ? { crash: true as const } : {}),
     ...(opts.build ? { build: opts.build } : {}),
+    ...(translated ? { translated } : {}),
   });
   if (list.length > MAX_ERRORS) list.splice(0, list.length - MAX_ERRORS);
   save();

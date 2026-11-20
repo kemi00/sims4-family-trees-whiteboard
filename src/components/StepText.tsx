@@ -3,17 +3,22 @@ import { stepParts } from '../lib/undoNames.ts';
 /**
  * A step or message with its names (sims, households, worlds, dynasties)
  * set apart in the name colour, so who and where read at a glance.
+ *
+ * Every piece is its own span, never loose text beside a name: a browser
+ * translating the page swaps loose text for its own, and React then can't
+ * find it to change or remove it, which blanked the board. Names aren't
+ * translated: they're the player's sims and places, as the cards show them.
  */
 export function StepText({ text }: { text: string }) {
   return (
     <>
       {stepParts(text).map((p, i) =>
         p.name ? (
-          <span key={i} className="named">
+          <span key={i} className="named" translate="no">
             {p.text}
           </span>
         ) : (
-          p.text
+          <span key={i}>{p.text}</span>
         ),
       )}
     </>
