@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "fccad29",
+   "date": "2026-11-20",
+   "text": "The prestige bar now fills to where the dynasty is in its level, as in the game, and says how far: \"25% of Prestige Level 8\"."
+  },
+  {
    "sha": "030f00d",
    "date": "2026-11-20",
    "text": "Each dynasty card shows its Prestige Level as the game does: ten stars on a bar, gold up to its level."
