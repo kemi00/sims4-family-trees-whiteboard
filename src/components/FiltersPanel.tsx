@@ -139,12 +139,9 @@ export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList
       >
         <AgesPanel
           nodes={wb.nodes}
-          partnered={wb.partneredIds}
-          parents={wb.parentIds}
-          siblings={wb.siblingIds}
+          sets={wb.highlightSets}
           hiAges={wb.hiAges}
           hiSingle={wb.hiSingle}
-          unborn={wb.plannedChildIds}
           packVis={wb.nodeVis}
           onToggle={wb.toggleAge}
           onToggleSingle={wb.toggleSingle}

@@ -1,6 +1,28 @@
-import { AGES_H, DECEASED_STATE, DYNASTY_ROLES, GENDERS, HI_DYNASTY, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, NEW_SIM_GENDERS, SPECIES, SPECIES_H, hiDynastyChip, type HiDynastyRole } from '../lib/constants.ts';
+import {
+  AGES_H,
+  DECEASED_STATE,
+  DYNASTY_ROLES,
+  GENDERS,
+  HI_DESCENDANTS,
+  HI_DYNASTY,
+  HI_DYNASTY_CHIPS,
+  HI_MARRIED,
+  HI_NO_CHILDREN,
+  HI_NO_SIBLINGS,
+  HI_NOT_BORN,
+  HI_ROMANCE,
+  HI_SIBLINGS,
+  NEW_SIM_GENDERS,
+  SPECIES,
+  SPECIES_H,
+  hiDynastyChip,
+  hiHouseholdChip,
+  householdChipSize,
+  type HiDynastyRole,
+} from '../lib/constants.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
-import { dynastyStanding, isPet } from '../lib/utils.ts';
+import { isUnhousedGid } from '../lib/unhoused.ts';
+import { dynastyStanding, isPet, type HighlightSets } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 const sectionLabel = {
@@ -21,16 +43,10 @@ const ROLE_CHIP: Record<HiDynastyRole, { text: string; title: string }> = {
 
 type Props = {
   nodes: SimNode[];
-  /** Married or in a romance with a living sim. */
-  partnered: Set<string>;
-  /** Sims with a living child. */
-  parents: Set<string>;
-  /** Sims with a living sibling. */
-  siblings: Set<string>;
+  /** What the chips ask about each sim: partners, descendants, siblings, not born yet, household sizes. */
+  sets: HighlightSets;
   hiAges: Set<string>;
   hiSingle: boolean;
-  /** Planned babies, not born yet. */
-  unborn: Set<string>;
   packVis: (n: SimNode) => boolean;
   onToggle: (age: string) => void;
   onToggleSingle: () => void;
@@ -40,12 +56,9 @@ type Props = {
 /** Filters › Highlight: light up sims by life stage, gender, family or dynasty role. */
 export function AgesPanel({
   nodes,
-  partnered,
-  parents,
-  siblings,
+  sets,
   hiAges,
   hiSingle,
-  unborn,
   packVis,
   onToggle,
   onToggleSingle,
@@ -59,11 +72,40 @@ export function AgesPanel({
   const cntAge = (a: string) => sims.filter((n) => n.age === a).length;
   const cntSpecies = (s: string) =>
     pets.filter((n) => n.species === s).length;
-  const cntSingle = sims.filter((n) => !partnered.has(n.id)).length;
-  const cntGender = (g: string) => sims.filter((n) => n.gender === g).length;
-  const cntNoKids = sims.filter((n) => !parents.has(n.id)).length;
-  const cntNoSiblings = sims.filter((n) => !siblings.has(n.id)).length;
-  const cntUnborn = sims.filter((n) => unborn.has(n.id)).length;
+  const { partnered, married = new Set<string>(), descendants = new Set<string>(), siblings = new Set<string>(), unborn = new Set<string>() } = sets;
+  const cnt = (ok: (n: SimNode) => boolean) => sims.filter(ok).length;
+  const cntGender = (g: string) => cnt((n) => n.gender === g);
+  const cntUnborn = cnt((n) => unborn.has(n.id));
+  // Household sizes: living sims at home, counted by how many their household has.
+  const bySize = new Map<number, number>();
+  for (const n of sims) {
+    if (unborn.has(n.id) || isUnhousedGid(n.gid)) continue;
+    const size = sets.householdSizes?.get(n.gid);
+    if (size) bySize.set(size, (bySize.get(size) ?? 0) + 1);
+  }
+  for (const h of hiAges) {
+    const size = householdChipSize(h);
+    if (size !== null && !bySize.has(size)) bySize.set(size, 0);
+  }
+  const sizes = [...bySize.keys()].sort((a, b) => a - b);
+  /** One row of family chips: picks in it add up, rows narrow each other. */
+  const familyRow = (chips: { key: string; text: string; title: string; count: number; on: boolean; toggle: () => void }[]) => (
+    <div className="agechips">
+      {chips.map((c) => (
+        <button key={c.key} type="button" className={c.on ? 'on' : ''} aria-pressed={c.on} title={c.title} onClick={c.toggle}>
+          {c.text} <b style={{ opacity: 0.6 }}>{c.count}</b>
+        </button>
+      ))}
+    </div>
+  );
+  const chip = (key: string, text: string, title: string, ok: (n: SimNode) => boolean) => ({
+    key,
+    text,
+    title,
+    count: cnt(ok),
+    on: hiAges.has(key),
+    toggle: () => onToggle(key),
+  });
   const cntRole = (r: HiDynastyRole) => sims.filter((n) => dynastyStanding(n) === r).length;
   // Dynasty chips once a shown sim is in one, or a chip is still on.
   const dynasties =
@@ -76,7 +118,7 @@ export function AgesPanel({
       hiAges.has(g),
   );
   const active = highlightActive(hiAges, hiSingle);
-  const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, partnered, parents, siblings, unborn });
+  const summary = highlightSummary({ nodes, shown: packVis, hi: hiAges, hiSingle, ...sets });
 
   return (
     <>
@@ -143,38 +185,55 @@ export function AgesPanel({
         ))}
       </div>
       <div style={sectionLabel}>Family</div>
-      <div className="agechips">
-        <button
-          type="button"
-          className={hiSingle ? 'on' : ''}
-          aria-pressed={hiSingle}
-          title="No partner: not married or in a romance"
-          onClick={onToggleSingle}
-        >
-          Single{' '}
-          <b style={{ opacity: 0.6 }}>{cntSingle}</b>
-        </button>
-        <button
-          type="button"
-          className={hiAges.has(HI_NO_CHILDREN) ? 'on' : ''}
-          aria-pressed={hiAges.has(HI_NO_CHILDREN)}
-          title="No children on the board, planned babies counted, so no descendants either"
-          onClick={() => onToggle(HI_NO_CHILDREN)}
-        >
-          No children{' '}
-          <b style={{ opacity: 0.6 }}>{cntNoKids}</b>
-        </button>
-        <button
-          type="button"
-          className={hiAges.has(HI_NO_SIBLINGS) ? 'on' : ''}
-          aria-pressed={hiAges.has(HI_NO_SIBLINGS)}
-          title="No living siblings known on the board; half-siblings, adoptive siblings and planned babies count"
-          onClick={() => onToggle(HI_NO_SIBLINGS)}
-        >
-          No siblings{' '}
-          <b style={{ opacity: 0.6 }}>{cntNoSiblings}</b>
-        </button>
-      </div>
+      {familyRow([
+        {
+          key: 'single',
+          text: 'Single',
+          title: 'No partner: not married or in a romance. The widowed are single.',
+          count: cnt((n) => !partnered.has(n.id)),
+          on: hiSingle,
+          toggle: onToggleSingle,
+        },
+        chip(HI_ROMANCE, 'In a romance', 'In a romance with a living sim, not married', (n) => partnered.has(n.id) && !married.has(n.id)),
+        chip(HI_MARRIED, 'Married', 'Married to a living sim', (n) => married.has(n.id)),
+      ])}
+      {familyRow([
+        chip(
+          HI_DESCENDANTS,
+          'Descendants',
+          'A living child, grandchild or further down on the board, planned babies counted',
+          (n) => descendants.has(n.id),
+        ),
+        chip(HI_NO_CHILDREN, 'No descendants', 'No living child, grandchild or further down on the board, planned babies counted', (n) => !descendants.has(n.id)),
+      ])}
+      {familyRow([
+        chip(HI_SIBLINGS, 'Siblings', 'A living sibling on the board; half-siblings, adoptive siblings and planned babies count', (n) => siblings.has(n.id)),
+        chip(HI_NO_SIBLINGS, 'No siblings', 'No living sibling known on the board; half-siblings, adoptive siblings and planned babies count', (n) => !siblings.has(n.id)),
+      ])}
+      {sizes.length > 0 && (
+        <>
+          <div style={sectionLabel}>Household size</div>
+          <div className="agechips">
+            {sizes.map((size) => {
+              const key = hiHouseholdChip(size);
+              const count = bySize.get(size) ?? 0;
+              const homes = Math.round(count / size);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={hiAges.has(key) ? 'on' : ''}
+                  aria-pressed={hiAges.has(key)}
+                  title={`${homes === 1 ? '1 household' : `${homes} households`} of ${size === 1 ? '1 living sim' : `${size} living sims`}: ${count === 1 ? '1 sim' : `${count} sims`}. The deceased, pets and babies not born yet don't count.`}
+                  onClick={() => onToggle(key)}
+                >
+                  {size === 1 ? '1 sim' : `${size} sims`} <b style={{ opacity: 0.6 }}>{count}</b>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
       {dynasties && (
         <>
           <div style={sectionLabel}>Dynasty</div>
@@ -225,8 +284,9 @@ export function AgesPanel({
         }}
       >
         Highlighted sims glow gold; the rest dim. Two picks in one row show
-        both, like Teen and Elder; picks in different rows narrow each
-        other, and so do Single, No children and No siblings. Pets add to life stages.
+        both, like Teen and Elder or Single and Married; picks in different
+        rows narrow each other. Household size counts the living sims at
+        home. Pets add to life stages.
       </div>
     </>
   );

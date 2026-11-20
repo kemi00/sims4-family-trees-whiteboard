@@ -193,6 +193,20 @@ export const DYNASTY_ROLES = {
  */
 export const HI_NO_CHILDREN = 'family:no-children';
 export const HI_NO_SIBLINGS = 'family:no-siblings';
+/** The other side of each family pair: married, in a romance (Single is its own toggle), with descendants, with siblings. */
+export const HI_MARRIED = 'family:married';
+export const HI_ROMANCE = 'family:romance';
+export const HI_DESCENDANTS = 'family:descendants';
+export const HI_SIBLINGS = 'family:siblings';
+/** Every family chip in the set: each pair narrows the others, its own two sides add up. */
+export const HI_FAMILY_CHIPS: ReadonlySet<string> = new Set([HI_MARRIED, HI_ROMANCE, HI_DESCENDANTS, HI_NO_CHILDREN, HI_SIBLINGS, HI_NO_SIBLINGS]);
+/** A household size chip: households of `n` living sims. */
+export const hiHouseholdChip = (n: number): string => `household:${n}`;
+/** The size a household size chip picks, or null for another chip. */
+export const householdChipSize = (h: string): number | null => {
+  const m = /^household:(\d+)$/.exec(h);
+  return m ? Number(m[1]) : null;
+};
 /** A life stage chip before Infant: planned babies, not born yet. */
 export const HI_NOT_BORN = 'life:not-born';
 /** A dynasty role chip, head to outcast; `member` is a member with no role. */

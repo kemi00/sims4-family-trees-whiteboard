@@ -1,5 +1,5 @@
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NO_SIBLINGS, SPECIES_H } from './constants.ts';
+import { GENDER_CHIPS, HI_DESCENDANTS, HI_DYNASTY_CHIPS, HI_FAMILY_CHIPS, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_ROMANCE, HI_SIBLINGS, householdChipSize, SPECIES_H } from './constants.ts';
 
 /** What Load JSON would discard from the current board. */
 export type LoadJsonRisk = {
@@ -154,16 +154,25 @@ export function filterChangeNote(
   const genders = file.hiAges.filter((h) => GENDER_CHIPS.has(h)).length;
   const pets = file.hiAges.filter((h) => (SPECIES_H as readonly string[]).includes(h)).length;
   const roles = file.hiAges.filter((h) => HI_DYNASTY_CHIPS.has(h)).length;
-  const noKids = file.hiAges.includes(HI_NO_CHILDREN);
-  const noSiblings = file.hiAges.includes(HI_NO_SIBLINGS);
-  const ages = file.hiAges.length - genders - pets - roles - (noKids ? 1 : 0) - (noSiblings ? 1 : 0);
+  const family = file.hiAges.filter((h) => HI_FAMILY_CHIPS.has(h));
+  const sizes = file.hiAges.filter((h) => householdChipSize(h) !== null).length;
+  const ages = file.hiAges.length - genders - pets - roles - family.length - sizes;
+  // Each family pick in words, as the panel's chips say it.
+  const FAMILY_WORDS: Record<string, string> = {
+    [HI_ROMANCE]: 'sims in a romance',
+    [HI_MARRIED]: 'married sims',
+    [HI_DESCENDANTS]: 'sims with descendants',
+    [HI_NO_CHILDREN]: 'sims with no descendants',
+    [HI_SIBLINGS]: 'sims with siblings',
+    [HI_NO_SIBLINGS]: 'sims with no siblings',
+  };
   const highlights = [
     ages && count(ages, 'age', 'ages'),
     genders && count(genders, 'gender', 'genders'),
     pets && count(pets, 'pet species', 'pet species'),
     file.hiSingle && 'single sims',
-    noKids && 'sims with no children',
-    noSiblings && 'sims with no siblings',
+    ...family.map((h) => FAMILY_WORDS[h]),
+    sizes && count(sizes, 'household size', 'household sizes'),
     roles && count(roles, 'dynasty role', 'dynasty roles'),
   ].filter(Boolean);
   const parts = [

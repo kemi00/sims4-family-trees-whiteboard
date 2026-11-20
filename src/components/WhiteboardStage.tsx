@@ -2058,10 +2058,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 heirAfter={heirAfterOf(n)}
                 babyPlus={!wb.connectMode && n.state !== DECEASED_STATE && (!n.species || !isPlannedSim(n))}
                 partnerPlus={!wb.connectMode && !n.species && n.state !== DECEASED_STATE}
-                partneredIds={wb.partneredIds}
-                parentIds={wb.parentIds}
-                siblingIds={wb.siblingIds}
-                unbornIds={wb.plannedChildIds}
+                highlightSets={wb.highlightSets}
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.briefHover ?? wb.dynastyFocusIds ?? wb.familyIds}
                 generation={generationTitle(wb.dynastyGens.get(n.id))}
@@ -2292,10 +2289,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
               shown: wb.nodeVis,
               hi: wb.hiAges,
               hiSingle: wb.hiSingle,
-              partnered: wb.partneredIds,
-              parents: wb.parentIds,
-              siblings: wb.siblingIds,
-              unborn: wb.plannedChildIds,
+              ...wb.highlightSets,
             })}
             onChange={() => {
               wb.setGamesOpen(false);

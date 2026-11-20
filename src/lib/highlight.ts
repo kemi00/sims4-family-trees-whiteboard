@@ -1,4 +1,4 @@
-import { AGES_H, DECEASED_STATE, GENDERS, HI_DYNASTY, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, hiDynastyChip, SPECIES_H, type HiDynastyRole } from './constants.ts';
+import { AGES_H, DECEASED_STATE, GENDERS, HI_DESCENDANTS, HI_DYNASTY, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, HI_ROMANCE, HI_SIBLINGS, hiDynastyChip, householdChipSize, SPECIES_H, type HiDynastyRole } from './constants.ts';
 import { isHighlightMatch, type HighlightSets } from './utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
@@ -60,10 +60,25 @@ export function highlightPhrase(hi: ReadonlySet<string>, hiSingle: boolean, n: n
   const groups: string[] = [];
   if (ages.length || !pets.length) {
     const noun = ages.length ? listed(ages, word) : one ? 'sim' : 'sims';
-    const family = [hi.has(HI_NO_CHILDREN) ? 'children' : '', hi.has(HI_NO_SIBLINGS) ? 'siblings' : ''].filter(Boolean);
-    const familyText = family.length ? ` with no ${listed(family, 'or')}` : '';
+    // Partners: one pick reads before the noun ("single teens"), more after it.
+    const partners = [hiSingle ? 'single' : '', hi.has(HI_ROMANCE) ? 'in a romance' : '', hi.has(HI_MARRIED) ? 'married' : ''].filter(Boolean);
+    const allPartners = partners.length === 3;
+    const before = partners.length === 1 && partners[0] !== 'in a romance' ? partners[0]! : '';
+    const partnerText = allPartners || before || !partners.length ? '' : ` ${one ? 'who is' : 'who are'} ${listed(partners, 'or')}`;
+    // A pair with both sides picked is everyone: said only when one side is.
+    const side = (yes: string, no: string, word: string): { has?: string; not?: string } | null =>
+      hi.has(yes) === hi.has(no) ? null : hi.has(yes) ? { has: word } : { not: word };
+    const sides = [side(HI_DESCENDANTS, HI_NO_CHILDREN, 'descendants'), side(HI_SIBLINGS, HI_NO_SIBLINGS, 'siblings')];
+    const has = sides.flatMap((x) => (x?.has ? [x.has] : []));
+    const not = sides.flatMap((x) => (x?.not ? [x.not] : []));
+    const withText = [has.length ? listed(has, 'and') : '', not.length ? `no ${listed(not, 'or')}` : ''].filter(Boolean);
+    const familyText = withText.length ? ` with ${withText.join(' and ')}` : '';
+    const sizes = [...hi].map(householdChipSize).filter((n): n is number => n !== null).sort((a, b) => a - b);
+    const homeText = sizes.length
+      ? ` in ${one ? 'a ' : ''}${listed(sizes.map((n) => `${n}-sim`), 'or')} ${one ? 'household' : 'households'}`
+      : '';
     const role = roles.length ? ` who ${one ? 'is a' : 'are'} dynasty ${listed(roles, word)}` : '';
-    groups.push([hiSingle ? 'single' : '', gender, noun].filter(Boolean).join(' ') + familyText + role);
+    groups.push([before, gender, noun].filter(Boolean).join(' ') + partnerText + familyText + homeText + role);
   }
   if (pets.length) groups.push([gender, listed(pets, word)].filter(Boolean).join(' '));
   return groups.join(', plus ');

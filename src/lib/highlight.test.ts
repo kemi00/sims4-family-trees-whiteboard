@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { SimNode } from '../types/whiteboard.ts';
-import { HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, hiDynastyChip } from './constants.ts';
+import { HI_DESCENDANTS, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, HI_ROMANCE, HI_SIBLINGS, hiDynastyChip, hiHouseholdChip } from './constants.ts';
 import { highlightActive, highlightPhrase, highlightSummary } from './highlight.ts';
 
 const sim = (id: string, extra: Partial<SimNode>): SimNode =>
@@ -20,15 +20,25 @@ describe('the highlight in words', () => {
     assert.equal(highlightPhrase(new Set(['Female', 'Male', 'Adult']), false, 9), 'female or male adults');
     assert.equal(
       highlightPhrase(new Set(['Female', 'Young Adult', HI_NO_CHILDREN, hiDynastyChip('member')]), true, 4),
-      'single female young adults with no children who are dynasty members with no role',
+      'single female young adults with no descendants who are dynasty members with no role',
     );
     assert.equal(
       highlightPhrase(new Set([hiDynastyChip('head'), hiDynastyChip('heir')]), false, 1),
       'sim who is a dynasty head or heir',
     );
-    assert.equal(highlightPhrase(new Set([HI_NO_CHILDREN]), false, 7), 'sims with no children');
+    assert.equal(highlightPhrase(new Set([HI_NO_CHILDREN]), false, 7), 'sims with no descendants');
     assert.equal(highlightPhrase(new Set([HI_NO_SIBLINGS]), false, 1), 'sim with no siblings');
-    assert.equal(highlightPhrase(new Set([HI_NO_CHILDREN, HI_NO_SIBLINGS]), false, 7), 'sims with no children or siblings');
+    assert.equal(highlightPhrase(new Set([HI_NO_CHILDREN, HI_NO_SIBLINGS]), false, 7), 'sims with no descendants or siblings');
+  });
+
+  it('names the other side of each pair, partners and household sizes', () => {
+    assert.equal(highlightPhrase(new Set([HI_MARRIED]), false, 7), 'married sims');
+    assert.equal(highlightPhrase(new Set([HI_ROMANCE, HI_MARRIED, 'Adult']), false, 7), 'adults who are in a romance or married');
+    assert.equal(highlightPhrase(new Set([HI_ROMANCE, HI_MARRIED]), true, 9), 'sims', 'all three partner picks are everyone');
+    assert.equal(highlightPhrase(new Set([HI_DESCENDANTS, HI_NO_SIBLINGS]), false, 3), 'sims with descendants and no siblings');
+    assert.equal(highlightPhrase(new Set([HI_SIBLINGS, HI_NO_SIBLINGS]), false, 3), 'sims', 'both sides of a pair are everyone');
+    assert.equal(highlightPhrase(new Set([hiHouseholdChip(2), hiHouseholdChip(1)]), false, 6), 'sims in 1-sim or 2-sim households');
+    assert.equal(highlightPhrase(new Set([HI_MARRIED, hiHouseholdChip(2)]), false, 1), 'married sim in a 2-sim household');
     assert.equal(highlightPhrase(new Set([HI_NOT_BORN]), false, 3), 'babies not born yet');
     assert.equal(highlightPhrase(new Set([HI_NOT_BORN, 'Infant']), false, 1), 'baby not born yet or infant');
   });

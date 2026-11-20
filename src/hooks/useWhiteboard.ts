@@ -99,7 +99,7 @@ import {
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
 import { aKind, newPetFields, petKindsAvailable, petPack, youngWord } from '../lib/pets.ts';
-import { cleanNote, edgeSourceOf, endedByPassing, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, parentIdSet, siblingIdSet, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
+import { type HighlightSets, cleanNote, edgeSourceOf, endedByPassing, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, siblingIdSet, marriedIdSet, descendantIdSet, householdSizes, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -888,9 +888,7 @@ export function useWhiteboard() {
   // single, and children who died don't count.
   const alive = useCallback((id: string) => byid[id]?.state !== DECEASED_STATE, [byid]);
   const partneredIds = useMemo(() => partneredIdSet(shownEdges, alive), [shownEdges, alive]);
-  /** Sims with a living child, for the No children highlight. */
-  const parentIds = useMemo(() => parentIdSet(shownEdges, alive), [shownEdges, alive]);
-  /** Sims with a living sibling, for the No siblings highlight. */
+  /** Sims with a living sibling, for the Siblings highlights. */
   const siblingIds = useMemo(() => siblingIdSet(shownEdges, alive), [shownEdges, alive]);
 
   const connectionLog = useMemo(
@@ -1729,6 +1727,22 @@ export function useWhiteboard() {
     const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
     return new Set(edges.filter((e) => e.type === 'parent' && planned.has(e.b)).map((e) => e.b));
   }, [nodesCore, edges]);
+  /**
+   * What the highlight chips ask about each sim, in one: partnered and
+   * married, a living descendant or sibling, not born yet, and each
+   * household's living sims (the household size chips).
+   */
+  const highlightSets = useMemo<HighlightSets>(
+    () => ({
+      partnered: partneredIds,
+      married: marriedIdSet(shownEdges, alive),
+      descendants: descendantIdSet(shownEdges, alive),
+      siblings: siblingIds,
+      unborn: plannedChildIds,
+      householdSizes: householdSizes(nodesCore, plannedChildIds),
+    }),
+    [partneredIds, siblingIds, shownEdges, alive, plannedChildIds, nodesCore],
+  );
   /** Each planned child's parents, for its card ("Child of Jules ＋ Bess"). */
   const plannedParents = useMemo(() => {
     const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
@@ -4220,8 +4234,8 @@ export function useWhiteboard() {
     family,
     familyIds,
     partneredIds,
-    parentIds,
     siblingIds,
+    highlightSets,
     status,
     fastRoute,
     editNodeId,

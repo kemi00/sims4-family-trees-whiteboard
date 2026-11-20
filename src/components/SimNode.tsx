@@ -4,7 +4,7 @@ import { CARD_H, CARD_MIN_W, COL, DECEASED_STATE, DYNASTY_ROLES, OCC, PILL_H, SP
 import { dynastyPhrase } from '../lib/generations.ts';
 import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
-import { isUserE, isHighlightMatch } from '../lib/utils.ts';
+import { isUserE, isHighlightMatch, type HighlightSets } from '../lib/utils.ts';
 import { NOT_YET_AGE, cardName, isPlannedSim } from '../lib/plan.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
@@ -18,13 +18,8 @@ type Props = {
   connectHighlight: boolean;
   hiAges: Set<string>;
   hiSingle: boolean;
-  partneredIds: Set<string>;
-  /** Sims with a child, for the No children highlight. */
-  parentIds: Set<string>;
-  /** Sims with a living sibling, for the No siblings highlight. */
-  siblingIds: Set<string>;
-  /** Planned babies, for the Not born yet highlight. */
-  unbornIds: Set<string>;
+  /** What the highlight chips ask about each sim (useWhiteboard's highlightSets). */
+  highlightSets: HighlightSets;
   bloodlineIds: Set<string> | null;
   /** A highlighted family (familyOf): they glow, everyone else dims. */
   familyIds?: Set<string> | null;
@@ -105,10 +100,7 @@ export const SimNodeView = memo(function SimNodeView({
   connectHighlight,
   hiAges,
   hiSingle,
-  partneredIds,
-  parentIds,
-  siblingIds,
-  unbornIds,
+  highlightSets,
   bloodlineIds,
   familyIds = null,
   generation,
@@ -135,7 +127,7 @@ export const SimNodeView = memo(function SimNodeView({
   const hasBadge = !!(speciesBadge || stateBadge);
   const highlighting = hiAges.size > 0 || hiSingle;
   const ageMatch =
-    !highlighting || isHighlightMatch(n, hiAges, hiSingle, { partnered: partneredIds, parents: parentIds, siblings: siblingIds, unborn: unbornIds });
+    !highlighting || isHighlightMatch(n, hiAges, hiSingle, highlightSets);
   const bloodMatch = !bloodlineIds || bloodlineIds.has(n.id);
   const familyMatch = !familyIds || familyIds.has(n.id);
   const match = ageMatch && bloodMatch && familyMatch;
