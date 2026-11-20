@@ -17,12 +17,14 @@ import {
   Star,
   SuitcaseRolling,
   TreeStructure,
+  UserMinus,
   UserPlus,
   UsersThree,
   type Icon,
 } from '../icons.ts';
 import { CloseButton } from './CloseButton.tsx';
-import { lifeText, perkText, prestigeLevelNewsText, recapTimeText, relationshipText, theDynasty, type DynastyNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
+import { NOT_IN_WORLD } from '../lib/constants.ts';
+import { lifeText, perkText, prestigeLevelNewsText, recapTimeText, relationshipText, theDynasty, type DynastyNews, type ForebearNews, type GoneNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
@@ -92,6 +94,8 @@ type StoryItem = {
   planned?: boolean;
   /** Context rather than news (who you played, sims met): told quietly. */
   quiet?: boolean;
+  /** When it happened, when the line knows (a first chapter's birth): quietly at its end. */
+  when?: string;
 };
 
 /**
@@ -115,6 +119,8 @@ export function RecapStory({
 }) {
   const [all, setAll] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
+  const [goneOpen, setGoneOpen] = useState(false);
+  const [forebearsOpen, setForebearsOpen] = useState(false);
   const who = (s: RecapSim, lead = false) => (
     <button type="button" className={lead ? 'recap__sim recap__sim--lead' : 'recap__sim'} onClick={() => onGoToSim(s.id)}>
       {s.name}
@@ -125,6 +131,14 @@ export function RecapStory({
       <span key={p.id}>
         {i > 0 && ' and '}
         {who(p, lead)}
+      </span>
+    ));
+  /** "A, B and C", each name to click. */
+  const listed = (sims: RecapSim[]) =>
+    sims.map((p, i) => (
+      <span key={p.id}>
+        {i > 0 && (i === sims.length - 1 ? ' and ' : ', ')}
+        {who(p)}
       </span>
     ));
   const dynastyItem = (d: DynastyNews): ReactNode => {
@@ -139,6 +153,13 @@ export function RecapStory({
       noLongerOutcast: <>is no longer an outcast of {the}</>,
       joined: <>joined {the}</>,
       left: <>left {the}</>,
+      heads: (
+        <>
+          heads {the}
+          {d.level !== undefined ? ` (Prestige Level ${d.level})` : ''}
+          {d.heir ? <>, with {who(d.heir)} as heir</> : null}
+        </>
+      ),
       founded: (
         <>
           founded {the}
@@ -210,12 +231,23 @@ export function RecapStory({
         {who(b, true)} was born{b.parents.length > 0 && <> to {b.parents.join(' and ')}</>}
       </>
     ),
+    ...(b.when ? { when: b.when } : {}),
   }));
   each((r) => r.together, (t, k) => ({
     key: `together${k}`,
     Icon: Heart,
     planned: t.planned,
-    node: (
+    node: t.standing ? (
+      t.type === 'marriage' ? (
+        <>
+          {who(t.a, true)} is married to {who(t.b, true)}
+        </>
+      ) : (
+        <>
+          {who(t.a, true)} and {who(t.b, true)} are in a romance
+        </>
+      )
+    ) : (
       <>
         {who(t.a, true)} {t.type === 'marriage' ? 'married' : 'fell for'} {who(t.b, true)}
       </>
@@ -226,7 +258,8 @@ export function RecapStory({
     Icon: HeartBreak,
     node: (
       <>
-        {who(t.a, true)} and {who(t.b, true)} {t.type === 'divorced' ? 'divorced' : 'broke up'}
+        {who(t.a, true)} and {who(t.b, true)}{' '}
+        {t.standing ? (t.type === 'divorced' ? 'are divorced' : 'are no longer together') : t.type === 'divorced' ? 'divorced' : 'broke up'}
       </>
     ),
   }));
@@ -268,6 +301,10 @@ export function RecapStory({
         <>
           The {h.renamedFrom} household is now called the {name} household
         </>
+      ) : h.to === NOT_IN_WORLD ? (
+        <>
+          The {name} household moved out{h.from ? ` of ${h.from}` : ''} and has no home lot now
+        </>
       ) : (
         <>
           The {name} household moved to {h.to}
@@ -299,10 +336,17 @@ export function RecapStory({
   });
   each((r) => r.prestigeLevels, (p, k) => ({ key: `level${k}`, Icon: Star, node: <>{prestigeLevelNewsText(p)}</> }));
   each((r) => r.perks, (p, k) => ({ key: `perks${k}`, Icon: Medal, node: <>{perkText(p)}</> }));
+  const gone: GoneNews[] = [];
+  const forebears: ForebearNews[] = [];
   for (const r of recaps) {
     met += r.met;
     if (r.played) played.set(r.played.hh, r.played);
+    gone.push(...(r.gone ?? []));
+    forebears.push(...(r.forebears ?? []));
   }
+  const passedAway = forebears.flatMap((f) => f.sims.map((s) => ({ sim: s, hh: f.hh })));
+  /** A first chapter: told against the game's start, not the upload before. */
+  const remembered = recaps.length > 0 && recaps.every((r) => r.remembered);
 
   const big = all ? items : items.slice(0, SHOWN);
   const more = items.length - big.length;
@@ -323,7 +367,10 @@ export function RecapStory({
       {big.map((it) => (
         <li key={it.key} className={it.quiet ? 'recap__line recap__line--quiet' : 'recap__line'}>
           <it.Icon className="recap__icon" aria-hidden="true" />
-          <span className="recap__text">{it.node}</span>
+          <span className="recap__text">
+            {it.node}
+            {it.when && <span className="recap__when">{it.when}</span>}
+          </span>
           {it.planned && (
             <span className="recap__planned" title="As planned" aria-label="as planned" role="img">
               <Check weight="bold" />
@@ -363,10 +410,73 @@ export function RecapStory({
           </span>
         </li>
       )}
+      {passedAway.length > 0 && (
+        <li className="recap__line recap__line--quiet recap__line--fold">
+          <TreeStructure className="recap__icon" aria-hidden="true" />
+          <span className="recap__text">
+            {forebears.length === 1 && passedAway.length <= 3 ? (
+              // One household's few: by name.
+              <>The family tree remembers {listed(passedAway.map((p) => p.sim))}, who passed away</>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="recap__fold"
+                  aria-expanded={forebearsOpen}
+                  onClick={() => setForebearsOpen(!forebearsOpen)}
+                >
+                  The family tree remembers {passedAway.length} sims who passed away
+                  <CaretDown className="recap__caret" weight="bold" aria-hidden="true" />
+                </button>
+                {forebearsOpen && (
+                  <ul className="recap__folded">
+                    {passedAway.map((p) => (
+                      <li key={p.sim.id}>
+                        {who(p.sim)}, of the {p.hh} household
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </span>
+        </li>
+      )}
+      {gone.length > 0 && (
+        <li className="recap__line recap__line--quiet recap__line--fold">
+          <UserMinus className="recap__icon" aria-hidden="true" />
+          <span className="recap__text">
+            {gone.length === 1 ? (
+              // One: their name, plainly; they have no card to go to.
+              <>
+                {gone[0]!.sim.name}, of the {gone[0]!.hh} household, is no longer in your save
+              </>
+            ) : (
+              <>
+                <button type="button" className="recap__fold" aria-expanded={goneOpen} onClick={() => setGoneOpen(!goneOpen)}>
+                  {gone.length} sims the game started with are no longer in your save
+                  <CaretDown className="recap__caret" weight="bold" aria-hidden="true" />
+                </button>
+                {goneOpen && (
+                  <ul className="recap__folded">
+                    {gone.map((g) => (
+                      <li key={g.sim.id}>
+                        {g.sim.name}, of the {g.hh} household
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </span>
+        </li>
+      )}
       {met > 0 && (
         <li className="recap__line recap__line--quiet">
           <UserPlus className="recap__icon" aria-hidden="true" />
-          <span className="recap__text">{met === 1 ? '1 new sim' : `${met} new sims`} met along the way</span>
+          <span className="recap__text">
+            {met === 1 ? '1 new sim' : `${met} new sims`} {remembered ? 'since the game began' : 'met along the way'}
+          </span>
         </li>
       )}
     </ul>

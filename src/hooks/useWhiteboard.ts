@@ -7,6 +7,8 @@ import { freeLotsIn, homeLotFields, householdLots, lotKey, lotPick, saveLotCatal
 import { frameWithLots, lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
 import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
+import { firstChapter } from '../lib/firstChapter.ts';
+import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
@@ -3553,6 +3555,8 @@ export function useWhiteboard() {
       mode: 'merge' | 'replace',
       /** Replace only: carry the board's story on (a newer save of the same game). */
       keepStory = false,
+      /** The save as read: a story's first upload tells what it remembers (firstChapter). */
+      parsed?: ParsedSave,
     ) => {
       // The story since the last upload, told only between two saves of the
       // same game: a board's first save, or Replace, starts the story.
@@ -3572,7 +3576,23 @@ export function useWhiteboard() {
               sims: result.nodes.filter((n) => n.saveSimId && !n.species && n.state !== DECEASED_STATE).length,
               households: new Set(result.nodes.filter((n) => n.saveSimId && !isUnhousedGid(n.gid)).map((n) => n.gid)).size,
             };
-        const entry = chronicleEntry(result.saveGame, { recap: told && recapHasNews(told) ? told : null, ...(start ? { start } : {}) });
+        // A story's first upload: what the save remembers from before it, against the game's start.
+        let opening: SaveRecap | null = null;
+        if (!told && parsed) {
+          try {
+            opening = firstChapter({
+              seed: { nodes: seed.nodes, edges: seed.edges, groups: seed.groups ?? [] },
+              worlds,
+              parsed,
+              after: { nodes: result.nodes, edges: result.edges, saveGame: result.saveGame },
+              hidePacks: result.summary.hidePacks,
+            });
+          } catch (err) {
+            // The upload goes on without its first chapter.
+            logError(err);
+          }
+        }
+        const entry = chronicleEntry(result.saveGame, { recap: told && recapHasNews(told) ? told : opening, ...(start ? { start } : {}) });
         if (told && !recapHasNews(told)) {
           // Nothing happened since: the story has no new page.
         } else setChronicle((prev) => withEntry(goesOn ? prev : [], entry));
@@ -3655,7 +3675,7 @@ export function useWhiteboard() {
       );
       fitWhenLaidOut(svgWidth, svgHeight);
     },
-    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, edges, saveGame, pairStatus, releaseLayout, seed.nodes],
+    [byid, worlds, pushUndo, flashStatus, fitWhenLaidOut, snap, hiddenPacks, nodesCore, edges, saveGame, pairStatus, releaseLayout, seed.nodes, seed.edges, seed.groups],
   );
 
   const previewSave = useCallback((file: File) => {
@@ -3705,7 +3725,7 @@ export function useWhiteboard() {
         (x): x is [string, PlanChoice] => x[1] !== 'later',
       );
       if (!matches.length && !resolve.length) {
-        applySaveBoard(saveImport.merge, svgWidth, svgHeight, 'merge');
+        applySaveBoard(saveImport.merge, svgWidth, svgHeight, 'merge', false, saveImport.parsed);
         return;
       }
       // Following the game takes back a move made for the plan: the merge
@@ -3750,6 +3770,8 @@ export function useWhiteboard() {
         svgWidth,
         svgHeight,
         'merge',
+        false,
+        saveImport.parsed,
       );
       // Moves your save now shows done stop being plans.
       const done = movesDoneBySave(
@@ -3887,6 +3909,7 @@ export function useWhiteboard() {
         svgHeight,
         'replace',
         keepStory,
+        saveImport.parsed,
       );
     },
     [saveImport, worlds, seed.nodes, seed.edges, applySaveBoard],

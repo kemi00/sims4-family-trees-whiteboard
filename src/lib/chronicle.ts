@@ -69,8 +69,14 @@ export function chronicleWhen(e: ChronicleEntry): string {
   return dayText(day);
 }
 
-/** A day of the game in the story, with the uploads told in it, newest first. */
-export type StoryDay = { when: string; entries: ChronicleEntry[] };
+/** The heading of the story's first chapter: what the save remembers from before it. */
+export const FIRST_CHAPTER = 'Before your first upload';
+
+/**
+ * A day of the game in the story, with the uploads told in it, newest
+ * first; or the first chapter (`remembered`), told under its own heading.
+ */
+export type StoryDay = { when: string; entries: ChronicleEntry[]; remembered?: true };
 
 /**
  * The story told by day of the game: uploads on the same day of the game
@@ -80,9 +86,14 @@ export type StoryDay = { when: string; entries: ChronicleEntry[] };
 export function storyDays(entries: readonly ChronicleEntry[]): StoryDay[] {
   const days: StoryDay[] = [];
   for (const e of entries) {
+    // The first chapter is its own, even when the next upload is the same day of the game.
+    if (e.recap?.remembered) {
+      days.push({ when: FIRST_CHAPTER, entries: [e], remembered: true });
+      continue;
+    }
     const when = chronicleWhen(e);
     const last = days[days.length - 1];
-    if (last && last.when === when) last.entries.push(e);
+    if (last && !last.remembered && last.when === when) last.entries.push(e);
     else days.push({ when, entries: [e] });
   }
   return days;
@@ -150,6 +161,12 @@ export function entryAbout(
     // An arrival is the story of everyone in the home it joined.
     ...(r.arrivals ? { arrivals: r.arrivals.filter((a) => has(ids, a.sim, ...a.ids) && says(q, a.sim.name, a.hh)) } : {}),
     ...(r.relationships ? { relationships: r.relationships.filter((x) => has(ids, x.a, x.b) && says(q, x.a.name, x.b.name)) } : {}),
+    // Sims the game started with, no longer in the save: theirs, and the story of whoever they lived with.
+    ...(r.gone ? { gone: r.gone.filter((g) => has(ids, g.sim, ...g.ids) && says(q, g.sim.name, g.hh)) } : {}),
+    // Relatives the tree keeps who passed away: their household's story, and theirs.
+    ...(r.forebears
+      ? { forebears: r.forebears.filter((f) => has(ids, ...f.ids) && says(q, f.hh, ...f.sims.map((s) => s.name))) }
+      : {}),
     // Whose session it was: told with the whole story, or the story of someone in that household.
     ...(r.played && (!ids || has(ids, ...r.played.ids)) && !q ? { played: r.played } : { played: undefined }),
   };
@@ -167,7 +184,9 @@ export function entryAbout(
     (recap.life?.length ?? 0) +
     (recap.homes?.length ?? 0) +
     (recap.arrivals?.length ?? 0) +
-    (recap.relationships?.length ?? 0);
+    (recap.relationships?.length ?? 0) +
+    (recap.gone?.length ?? 0) +
+    (recap.forebears?.length ?? 0);
   if (!any && (ids || q || (!recap.met && !recap.seasons))) return null;
   return { ...e, recap };
 }
@@ -185,14 +204,26 @@ export function storyLines(entries: readonly ChronicleEntry[], ids: ReadonlySet<
   for (const e of entries) {
     const r = entryAbout(e, ids)?.recap;
     if (!r) continue;
-    const when = chronicleWhen(e);
-    for (const b of r.born) out.push({ when, text: `${b.name} was born${b.parents.length ? ` to ${b.parents.join(' and ')}` : ''}` });
-    for (const t of r.together) out.push({ when, text: `${t.a.name} ${t.type === 'marriage' ? 'married' : 'fell for'} ${t.b.name}` });
-    for (const t of r.apart) out.push({ when, text: `${t.a.name} and ${t.b.name} ${t.type === 'divorced' ? 'divorced' : 'broke up'}` });
+    const when = r.remembered ? FIRST_CHAPTER : chronicleWhen(e);
+    for (const b of r.born) out.push({ when: b.when ?? when, text: `${b.name} was born${b.parents.length ? ` to ${b.parents.join(' and ')}` : ''}` });
+    for (const t of r.together)
+      out.push({
+        when,
+        text: t.standing
+          ? t.type === 'marriage'
+            ? `${t.a.name} is married to ${t.b.name}`
+            : `${t.a.name} and ${t.b.name} are in a romance`
+          : `${t.a.name} ${t.type === 'marriage' ? 'married' : 'fell for'} ${t.b.name}`,
+      });
+    for (const t of r.apart)
+      out.push({
+        when,
+        text: `${t.a.name} and ${t.b.name} ${t.standing ? (t.type === 'divorced' ? 'are divorced' : 'are no longer together') : t.type === 'divorced' ? 'divorced' : 'broke up'}`,
+      });
     for (const d of r.died) out.push({ when, text: `${d.name} passed away` });
     // The dynasty's milestones and the family's adoptions: its big moments too.
     for (const f of r.family ?? []) if (f.kind === 'adopted') out.push({ when, text: familyText(f) });
-    for (const d of r.dynasty ?? []) if (d.kind === 'head' || d.kind === 'heir' || d.kind === 'founded') out.push({ when, text: dynastyText(d) });
+    for (const d of r.dynasty ?? []) if (d.kind === 'head' || d.kind === 'heir' || d.kind === 'founded' || d.kind === 'heads') out.push({ when, text: dynastyText(d) });
     for (const h of r.homes ?? []) out.push({ when, text: homeText(h) });
     for (const l of r.life ?? []) if (l.kind === 'state') out.push({ when, text: lifeText(l) });
     for (const a of r.arrivals ?? []) out.push({ when, text: arrivalText(a) });

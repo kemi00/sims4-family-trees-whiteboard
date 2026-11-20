@@ -1,5 +1,5 @@
 import { prestigeLevel } from './prestige.ts';
-import { DECEASED_STATE } from './constants.ts';
+import { DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
 import { TICKS_PER_DAY } from './lifeClock.ts';
 import { dynastyKey, dynastyLabelText, dynastyNames } from './generations.ts';
 import { cardName, isPlannedSim } from './plan.ts';
@@ -24,7 +24,8 @@ export function theDynasty(d: RecapDynasty): string {
  * joining or leaving, a dynasty founded.
  */
 export type DynastyNews = {
-  kind: 'head' | 'heir' | 'outcast' | 'noLongerHead' | 'noLongerHeir' | 'noLongerOutcast' | 'joined' | 'left' | 'founded';
+  /** `heads`: the first chapter's dynasty as it stands, its head with its heir (the game founds some itself). */
+  kind: 'head' | 'heir' | 'outcast' | 'noLongerHead' | 'noLongerHeir' | 'noLongerOutcast' | 'joined' | 'left' | 'founded' | 'heads';
   sim: RecapSim;
   dynasty: RecapDynasty;
   /** Who held the role before, for "in place of". */
@@ -33,7 +34,23 @@ export type DynastyNews = {
   members?: RecapSim[];
   heir?: RecapSim;
   planned?: boolean;
+  /** `heads`: its Prestige Level now. */
+  level?: number;
 };
+
+/**
+ * A sim the game started with that a save no longer has (deleted, or
+ * cleared away by the game): the first chapter's. `ids`: who they lived
+ * with, still on the board, whose story it is too.
+ */
+export type GoneNews = { sim: RecapSim; hh: string; ids: string[] };
+
+/**
+ * A household's relatives the family tree keeps who passed away, told in
+ * the first chapter, with no day: the save doesn't keep one. `ids`: them
+ * and the household's sims, whose story it is.
+ */
+export type ForebearNews = { hh: string; sims: RecapSim[]; ids: string[] };
 
 /**
  * Someone new to the board who joined a household already on it, at any
@@ -115,9 +132,14 @@ export type SaveRecap = {
   days: number | null;
   /** The season then and now, when the save has Seasons and it changed. */
   seasons?: { from: string; to: string };
-  born: (RecapSim & { parents: string[]; parentIds?: string[]; planned: boolean })[];
-  together: { a: RecapSim; b: RecapSim; type: 'marriage' | 'romance'; planned: boolean }[];
-  apart: { a: RecapSim; b: RecapSim; type: 'divorced' | 'breakup' }[];
+  /** `when`: the day the save says they were born (the first chapter's births). */
+  born: (RecapSim & { parents: string[]; parentIds?: string[]; planned: boolean; when?: string })[];
+  /**
+   * `standing`: the first chapter's, told as the couple is now ("is married
+   * to"), as the save can't say when, or whether the game started them so.
+   */
+  together: { a: RecapSim; b: RecapSim; type: 'marriage' | 'romance'; planned: boolean; standing?: true }[];
+  apart: { a: RecapSim; b: RecapSim; type: 'divorced' | 'breakup'; standing?: true }[];
   moved: (RecapSim & { from: string; to: string })[];
   grew: (RecapSim & { from: string; to: string })[];
   died: RecapSim[];
@@ -147,6 +169,16 @@ export type SaveRecap = {
   played?: { hh: string; ids: string[] };
   /** Cards to celebrate: a planned birth or couple came true. */
   celebrate: string[];
+  /**
+   * The story's first chapter: what the save remembers from before its
+   * first upload, against the game's start (firstChapter), not news since
+   * the upload before.
+   */
+  remembered?: true;
+  /** First chapter: sims the game started with that the save no longer has. */
+  gone?: GoneNews[];
+  /** First chapter: relatives in the family tree who passed away, household by household. */
+  forebears?: ForebearNews[];
 };
 
 type Board = { nodes: readonly SimNode[]; edges: readonly Edge[]; saveGame?: SaveGameInfo | null; pairStatus?: readonly PairStatus[] };
@@ -332,6 +364,8 @@ export function dynastyText(d: DynastyNews): string {
       return `${d.sim.name} left ${the}`;
     case 'founded':
       return `${d.sim.name} founded ${the}${foundedWith(d)}`;
+    case 'heads':
+      return `${d.sim.name} heads ${the}${d.level !== undefined ? ` (Prestige Level ${d.level})` : ''}${d.heir ? `, with ${d.heir.name} as heir` : ''}`;
   }
 }
 
@@ -385,6 +419,7 @@ export function familyText(f: FamilyNews): string {
 /** A household's move as a sentence: "The Capp household moved to 17 Bright Cliff in Ondarion". */
 export function homeText(h: HomeNews): string {
   if (h.renamedFrom) return `The ${h.renamedFrom} household is now called the ${h.hh} household`;
+  if (h.to === NOT_IN_WORLD) return `The ${h.hh} household moved out${h.from ? ` of ${h.from}` : ''} and has no home lot now`;
   return `The ${h.hh} household moved to ${h.to}`;
 }
 

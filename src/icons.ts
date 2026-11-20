@@ -55,6 +55,7 @@ export { Trash } from '@phosphor-icons/react/Trash';
 export { TreeStructure } from '@phosphor-icons/react/TreeStructure';
 export { UploadSimple } from '@phosphor-icons/react/UploadSimple';
 export { User } from '@phosphor-icons/react/User';
+export { UserMinus } from '@phosphor-icons/react/UserMinus';
 export { UserPlus } from '@phosphor-icons/react/UserPlus';
 export { UsersThree } from '@phosphor-icons/react/UsersThree';
 export { UsersFour } from '@phosphor-icons/react/UsersFour';

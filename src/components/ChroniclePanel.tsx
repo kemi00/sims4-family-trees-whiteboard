@@ -113,13 +113,34 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onCl
             const seasons = recaps.map((r) => r.seasons).filter(Boolean).at(-1);
             const plans = recaps.reduce((sum, r) => sum + r.plansDone, 0);
             const dates = [...new Set(told.map((e) => uploaded(e.at)).filter(Boolean))];
-            const start = told.find((e) => e.start)?.start;
+            // How many the story starts with: the whole board's, so not in one household's story.
+            const start = theirs ? undefined : told.find((e) => e.start)?.start;
             const meta = [
               time ? `${time[0]!.toUpperCase()}${time.slice(1)}` : '',
               seasons ? `${seasons.to} arrived` : '',
               told.length > 1 ? `${told.length} uploads, ${inWords(dates)}` : `uploaded ${dates[0] ?? ''}`,
               plans ? (plans === 1 ? '1 plan came true' : `${plans} plans came true`) : '',
             ].filter(Boolean);
+            if (day.remembered) {
+              return (
+                <article key={`first${day.entries[0]!.at}`} className="chron__entry chron__entry--first">
+                  <h3 className="chron__when">
+                    {day.when} <span className="chron__tag">From your save</span>
+                  </h3>
+                  <p className="chron__meta">
+                    Your save keeps the day of each birth. Everything else it remembers without a date.
+                  </p>
+                  {start && (
+                    <p className="chron__start">
+                      Your save started the story with {start.sims === 1 ? '1 sim' : `${start.sims} sims`} in{' '}
+                      {start.households === 1 ? '1 household' : `${start.households} households`}.
+                    </p>
+                  )}
+                  {recaps.length > 0 && <RecapStory recaps={recaps} onGoToSim={onGoToSim} focus={set} />}
+                  {days.length === 1 && <p className="chron__next">Your next upload carries the story on from here.</p>}
+                </article>
+              );
+            }
             return (
               <article key={day.entries[0]!.at} className="chron__entry">
                 <h3 className="chron__when">{day.when}</h3>
