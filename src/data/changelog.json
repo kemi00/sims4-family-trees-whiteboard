@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "66591ba",
+   "date": "2026-11-20",
+   "text": "Dynasty cards now show the game's Prestige Level, read from your save. The number the board used to call prestige is perk points: the story now says a dynasty took perks or spent perk points, and tells when it reaches a new Prestige Level."
+  },
+  {
    "sha": "3939e1d",
    "date": "2026-11-20",
    "text": "The story is easier to read: one heading per day of the game, the big moments first with an icon each, and friendships folded into one line you can open. A plan that came true gets a green check."
