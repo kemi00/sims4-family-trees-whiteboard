@@ -82,6 +82,8 @@ const parsed: ParsedSave = {
     // Bella divorced Mortimer and lives on her own.
     { saveSimId: '4', householdId: '30', first: 'Bella', last: 'Goth', household: 'Bella', age: 'Adult', gender: 'Female', world: 'Willow Creek' },
     { saveSimId: '5', householdId: '40', first: 'Agnes', last: 'Crumplebottom', household: 'Crumplebottom', age: 'Elder', gender: 'Female', world: 'Willow Creek' },
+    // Triplets made in Create a Sim: their parents in the save, no pregnancy, a day old.
+    { saveSimId: '8', householdId: '20', first: 'Dalia', last: 'Goth', household: 'Goth', age: 'Infant', gender: 'Female', world: 'Willow Creek', aliveTicks: TICKS_PER_DAY, stageDays: 0 },
     // A townie the game made.
     { saveSimId: '7', householdId: '50', first: 'Tina', last: 'Townie', household: 'Townie', age: 'Adult', gender: 'Female', world: 'Willow Creek', generated: true },
   ],
@@ -92,6 +94,7 @@ const parsed: ParsedSave = {
     { a: '3', b: '5', type: 'romance' },
     { a: '1', b: '6', type: 'parent' },
     { a: '2', b: '6', type: 'parent' },
+    { a: '3', b: '8', type: 'parent' },
   ],
   game: { clock: CLOCK, lifespan: 'Normal', playedHouseholds: ['10'] },
 };
@@ -119,9 +122,13 @@ describe('the story’s first chapter', () => {
 
   it('tells what the save remembers, against the game’s start', () => {
     assert.ok(chapter.remembered);
+    // Born from a pregnancy, dated; made in Create a Sim with a parent, born all the same, undated.
     assert.deepEqual(
       chapter.born.map((b) => [b.name, b.parents, b.when]),
-      [['Bebe Pancakes', ['Bob Pancakes', 'Eliza Pancakes'], 'Day 3']],
+      [
+        ['Bebe Pancakes', ['Bob Pancakes', 'Eliza Pancakes'], 'Day 3'],
+        ['Dalia Goth', ['Mortimer Goth'], undefined],
+      ],
     );
     assert.deepEqual(chapter.grew.map((g) => [g.name, g.from, g.to]), [['Eliza Pancakes', 'Young Adult', 'Adult']]);
     assert.deepEqual(chapter.together.map((t) => [name(t.a.id), name(t.b.id), t.type, t.standing]), [['Mortimer', 'Agnes', 'romance', true]]);

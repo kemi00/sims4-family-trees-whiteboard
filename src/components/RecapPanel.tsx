@@ -24,7 +24,7 @@ import {
 } from '../icons.ts';
 import { CloseButton } from './CloseButton.tsx';
 import { NOT_IN_WORLD } from '../lib/constants.ts';
-import { lifeText, perkText, prestigeLevelNewsText, recapTimeText, relationshipText, theDynasty, type DynastyNews, type ForebearNews, type GoneNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
+import { lifeText, perkText, prestigeLevelNewsText, recapTimeText, relationshipText, theDynasty, type ArrivalNews, type DynastyNews, type FamilyNews, type ForebearNews, type GoneNews, type HomeNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
@@ -83,11 +83,13 @@ export function RecapPanel({ recap, offPlan, onGoToSim, onClose }: Props) {
   );
 }
 
-/** How many big moments a day shows before "and N more". */
-const SHOWN = 8;
+/** A kind with more moments than this is one line that opens to list them. */
+const FOLD_AT = 3;
 
 type StoryItem = {
   key: string;
+  /** Which kind of moment (born, together, dynasty…), so many of one kind fold into one line. */
+  kind: string;
   Icon: Icon;
   node: ReactNode;
   /** A plan that came true: a quiet ✓ at the end of the line. */
@@ -101,26 +103,42 @@ type StoryItem = {
 /**
  * What happened, as one list of moments, the biggest first: passings,
  * births, couples and partings, family, dynasty, life, arrivals, moves and
- * birthdays, then the rest. Friendships, the many small ones, fold into one
- * line you can open. The sim each line is about is in bold; every name
- * takes you to the sim. A plan that came true gets a ✓. Shared by
- * Previously on and the Story, for one upload (`recaps` of one) or a
- * day's (several, told as one).
+ * birthdays, then the rest. A kind with more than three moments is one line
+ * ("28 babies were born, the first Cordelia Thebe VI") that opens to a
+ * bulleted list; friendships, the many small ones, always fold. Every list
+ * starts closed, and one is open at a time. The sim each line is about is
+ * in bold; every name takes you to the sim. A plan that came true gets a ✓.
+ * Shared by Previously on and the Story, for one upload (`recaps` of one) or
+ * a day's (several, told as one).
  */
 export function RecapStory({
   recaps,
   onGoToSim,
   focus,
+  openFold,
+  onOpenFold,
+  foldScope = '',
 }: {
   recaps: readonly Omit<SaveRecap, 'celebrate'>[];
   onGoToSim: (id: string) => void;
   /** Whose story it is: their friendships are counted by whom they're with. */
   focus?: ReadonlySet<string> | null;
+  /** The list open in the whole Story (one at a time across its days), as `scope:kind`; this list keeps its own without. */
+  openFold?: string | null;
+  onOpenFold?: (key: string | null) => void;
+  /** This day's part of `openFold`'s key. */
+  foldScope?: string;
 }) {
-  const [all, setAll] = useState(false);
-  const [friendsOpen, setFriendsOpen] = useState(false);
-  const [goneOpen, setGoneOpen] = useState(false);
-  const [forebearsOpen, setForebearsOpen] = useState(false);
+  // One list open at a time: the Story's, across its days, or this list's own.
+  const [ownOpen, setOwnOpen] = useState<string | null>(null);
+  const opened = onOpenFold ? (openFold ?? null) : ownOpen;
+  const isOpen = (kind: string) => opened === `${foldScope}:${kind}`;
+  const toggle = (kind: string) => {
+    const key = `${foldScope}:${kind}`;
+    const next = opened === key ? null : key;
+    if (onOpenFold) onOpenFold(next);
+    else setOwnOpen(next);
+  };
   const who = (s: RecapSim, lead = false) => (
     <button type="button" className={lead ? 'recap__sim recap__sim--lead' : 'recap__sim'} onClick={() => onGoToSim(s.id)}>
       {s.name}
@@ -211,18 +229,26 @@ export function RecapStory({
   };
 
   const items: StoryItem[] = [];
+  /** Each kind's moments as told, for its line when they fold. */
+  const raw = new Map<string, unknown[]>();
   const friendships: RelationshipNews[] = [];
   let met = 0;
   const played = new Map<string, NonNullable<SaveRecap['played']>>();
   // The biggest moments first, kind by kind, across the day's uploads.
-  const each = <T,>(pick: (r: Omit<SaveRecap, 'celebrate'>) => readonly T[] | undefined, make: (x: T, key: string) => StoryItem | null) => {
+  const each = <T,>(
+    kind: string,
+    pick: (r: Omit<SaveRecap, 'celebrate'>) => readonly T[] | undefined,
+    make: (x: T, key: string) => Omit<StoryItem, 'kind'> | null,
+  ) => {
     recaps.forEach((r, ri) => (pick(r) ?? []).forEach((x, i) => {
       const item = make(x, `${ri}:${i}`);
-      if (item) items.push(item);
+      if (!item) return;
+      items.push({ ...item, kind });
+      raw.set(kind, [...(raw.get(kind) ?? []), x]);
     }));
   };
-  each((r) => r.died, (d, k) => ({ key: `died${k}`, Icon: Flower, node: <>{who(d, true)} passed away</> }));
-  each((r) => r.born, (b, k) => ({
+  each('died', (r) => r.died, (d, k) => ({ key: `died${k}`, Icon: Flower, node: <>{who(d, true)} passed away</> }));
+  each('born', (r) => r.born, (b, k) => ({
     key: `born${k}`,
     Icon: BabyCarriage,
     planned: b.planned,
@@ -233,7 +259,7 @@ export function RecapStory({
     ),
     ...(b.when ? { when: b.when } : {}),
   }));
-  each((r) => r.together, (t, k) => ({
+  each('together', (r) => r.together, (t, k) => ({
     key: `together${k}`,
     Icon: Heart,
     planned: t.planned,
@@ -253,7 +279,7 @@ export function RecapStory({
       </>
     ),
   }));
-  each((r) => r.apart, (t, k) => ({
+  each('apart', (r) => r.apart, (t, k) => ({
     key: `apart${k}`,
     Icon: HeartBreak,
     node: (
@@ -263,7 +289,7 @@ export function RecapStory({
       </>
     ),
   }));
-  each((r) => r.family, (f, k) =>
+  each('family', (r) => r.family, (f, k) =>
     f.kind === 'adopted'
       ? { key: `family${k}`, Icon: HandHeart, planned: f.planned, node: <>{and(f.parents)} adopted {who(f.child, true)}</> }
       : {
@@ -276,9 +302,9 @@ export function RecapStory({
           ),
         },
   );
-  each((r) => r.dynasty, (d, k) => ({ key: `dynasty${k}`, Icon: Crown, planned: d.planned, node: dynastyItem(d) }));
-  each((r) => r.life, (l, k) => ({ key: `life${k}`, Icon: Sparkle, node: lifeItem(l) }));
-  each((r) => r.arrivals, (a, k) => ({
+  each('dynasty', (r) => r.dynasty, (d, k) => ({ key: `dynasty${k}`, Icon: Crown, planned: d.planned, node: dynastyItem(d) }));
+  each('life', (r) => r.life, (l, k) => ({ key: `life${k}`, Icon: Sparkle, node: lifeItem(l) }));
+  each('arrivals', (r) => r.arrivals, (a, k) => ({
     key: `arrival${k}`,
     Icon: SuitcaseRolling,
     node: (
@@ -288,7 +314,7 @@ export function RecapStory({
       </>
     ),
   }));
-  each((r) => r.homes, (h, k) => {
+  each('homes', (r) => r.homes, (h, k) => {
     const name = (
       <button type="button" className="recap__sim recap__sim--lead" onClick={() => onGoToSim(h.ids[0]!)}>
         {h.hh}
@@ -312,13 +338,13 @@ export function RecapStory({
       ),
     };
   });
-  each((r) => r.moved, (m, k) => ({
+  each('moved', (r) => r.moved, (m, k) => ({
     key: `moved${k}`,
     Icon: House,
     // Out of every household: left it, rather than "moved to Unhoused sims".
     node: <>{who(m, true)} {m.to === 'Unhoused sims' ? <>left {m.from}</> : <>moved to {m.to}</>}</>,
   }));
-  each((r) => r.grew, (g, k) => ({
+  each('grew', (r) => r.grew, (g, k) => ({
     key: `grew${k}`,
     Icon: Cake,
     node: (
@@ -327,15 +353,15 @@ export function RecapStory({
       </>
     ),
   }));
-  each((r) => r.relationships, (x, k) => {
+  each('relationships', (r) => r.relationships, (x, k) => {
     if (x.kind === 'friendship') {
       friendships.push(x);
       return null;
     }
     return { key: `rel${k}`, Icon: x.kind === 'engaged' ? Diamond : UsersThree, node: relationshipItem(x) };
   });
-  each((r) => r.prestigeLevels, (p, k) => ({ key: `level${k}`, Icon: Star, node: <>{prestigeLevelNewsText(p)}</> }));
-  each((r) => r.perks, (p, k) => ({ key: `perks${k}`, Icon: Medal, node: <>{perkText(p)}</> }));
+  each('prestige', (r) => r.prestigeLevels, (p, k) => ({ key: `level${k}`, Icon: Star, node: <>{prestigeLevelNewsText(p)}</> }));
+  each('perks', (r) => r.perks, (p, k) => ({ key: `perks${k}`, Icon: Medal, node: <>{perkText(p)}</> }));
   const gone: GoneNews[] = [];
   const forebears: ForebearNews[] = [];
   for (const r of recaps) {
@@ -348,8 +374,86 @@ export function RecapStory({
   /** A first chapter: told against the game's start, not the upload before. */
   const remembered = recaps.length > 0 && recaps.every((r) => r.remembered);
 
-  const big = all ? items : items.slice(0, SHOWN);
-  const more = items.length - big.length;
+  // Kinds in the order their first moment came, each with its moments.
+  const kinds: { kind: string; items: StoryItem[] }[] = [];
+  for (const it of items) {
+    const k = kinds.find((x) => x.kind === it.kind);
+    if (k) k.items.push(it);
+    else kinds.push({ kind: it.kind, items: [it] });
+  }
+  /** A name in a folded line: coloured like every name, but part of the line you press to open. */
+  const nm = (name: string) => <span className="recap__foldname">{name}</span>;
+  /** The line a kind folds into: how many, and the first of them. */
+  const summary = (kind: string, xs: unknown[]): ReactNode => {
+    const n = xs.length;
+    switch (kind) {
+      case 'died':
+        return <>{n} sims passed away, among them {nm((xs[0] as RecapSim).name)}</>;
+      case 'born': {
+        const b = xs[0] as SaveRecap['born'][number];
+        // A first chapter's births come oldest first: the first is the first born.
+        return <>{n} babies were born, {b.when ? 'the first' : 'among them'} {nm(b.name)}</>;
+      }
+      case 'together': {
+        const t = xs[0] as SaveRecap['together'][number];
+        return (
+          <>
+            {n} couples {t.standing ? 'are together now' : 'got together'}, among them {nm(t.a.name)} and {nm(t.b.name)}
+          </>
+        );
+      }
+      case 'apart': {
+        const t = xs[0] as SaveRecap['apart'][number];
+        return (
+          <>
+            {n} couples {t.standing ? 'are no longer together' : 'split up'}, among them {nm(t.a.name)} and {nm(t.b.name)}
+          </>
+        );
+      }
+      case 'family':
+        return (xs as FamilyNews[]).every((f) => f.kind === 'adopted') ? <>{n} adoptions</> : <>{n} adoptions and parents found</>;
+      case 'dynasty': {
+        const ds = xs as DynastyNews[];
+        const top = ds.find((d) => d.kind === 'heads');
+        // A first chapter's dynasties as they stand, the highest first.
+        if (top) {
+          const count = new Set(ds.map((d) => d.dynasty.key)).size;
+          return (
+            <>
+              {count} dynasties
+              {top.level !== undefined ? `, ${theDynasty(top.dynasty)} highest at Prestige Level ${top.level}` : ''}
+            </>
+          );
+        }
+        return <>{n} changes in the dynasties, among them {nm(ds[0]!.sim.name)}</>;
+      }
+      case 'life':
+        return <>{n} new names and life states, among them {nm((xs[0] as LifeNews).sim.name)}</>;
+      case 'arrivals':
+        return <>{n} joined households, among them {nm((xs[0] as ArrivalNews).sim.name)}</>;
+      case 'homes':
+        return <>{n} households moved home, among them the {nm((xs[0] as HomeNews).hh)} household</>;
+      case 'moved':
+        return <>{n} sims moved, among them {nm((xs[0] as RecapSim).name)}</>;
+      case 'grew':
+        return <>{n} sims grew up, among them {nm((xs[0] as RecapSim).name)}</>;
+      case 'relationships': {
+        const x = xs[0] as RelationshipNews;
+        return <>{n} relationships took a step, among them {nm(x.a.name)} and {nm(x.b.name)}</>;
+      }
+      case 'prestige':
+        return <>{n} dynasties changed Prestige Level</>;
+      case 'perks':
+        return <>{n} dynasties changed their perks</>;
+      default:
+        return <>{n} more</>;
+    }
+  };
+  const planned = (
+    <span className="recap__planned" title="As planned" aria-label="as planned" role="img">
+      <Check weight="bold" />
+    </span>
+  );
   // Friendships, the many small ones: one line, by whom most of them were with.
   const counts = new Map<string, { sim: RecapSim; n: number }>();
   for (const f of friendships) {
@@ -364,27 +468,44 @@ export function RecapStory({
   const grew = friendships.every((f) => (f.to ?? 0) > (f.from ?? 0));
   return (
     <ul className="recap__story">
-      {big.map((it) => (
-        <li key={it.key} className={it.quiet ? 'recap__line recap__line--quiet' : 'recap__line'}>
-          <it.Icon className="recap__icon" aria-hidden="true" />
-          <span className="recap__text">
-            {it.node}
-            {it.when && <span className="recap__when">{it.when}</span>}
-          </span>
-          {it.planned && (
-            <span className="recap__planned" title="As planned" aria-label="as planned" role="img">
-              <Check weight="bold" />
+      {kinds.map(({ kind, items: its }) => {
+        if (its.length > FOLD_AT) {
+          const Glyph = its[0]!.Icon;
+          return (
+            <li key={kind} className="recap__line recap__line--fold">
+              <Glyph className="recap__icon" aria-hidden="true" />
+              <span className="recap__text">
+                <button type="button" className="recap__fold" aria-expanded={isOpen(kind)} onClick={() => toggle(kind)}>
+                  <span>{summary(kind, raw.get(kind) ?? [])}</span>
+                  <CaretDown className="recap__caret" weight="bold" aria-hidden="true" />
+                </button>
+                {isOpen(kind) && (
+                  <ul className="recap__folded">
+                    {its.map((it) => (
+                      <li key={it.key}>
+                        {it.node}
+                        {it.when && <span className="recap__when">{it.when}</span>}
+                        {it.planned && planned}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </span>
+              {its.some((it) => it.planned) && planned}
+            </li>
+          );
+        }
+        return its.map((it) => (
+          <li key={it.key} className={it.quiet ? 'recap__line recap__line--quiet' : 'recap__line'}>
+            <it.Icon className="recap__icon" aria-hidden="true" />
+            <span className="recap__text">
+              {it.node}
+              {it.when && <span className="recap__when">{it.when}</span>}
             </span>
-          )}
-        </li>
-      ))}
-      {more > 0 && (
-        <li className="recap__line recap__line--more">
-          <button type="button" className="recap__more" onClick={() => setAll(true)}>
-            And {more} more
-          </button>
-        </li>
-      )}
+            {it.planned && planned}
+          </li>
+        ));
+      })}
       {[...played.values()].map((p) => (
         <li key={`played${p.hh}`} className="recap__line recap__line--quiet">
           <GameController className="recap__icon" aria-hidden="true" />
@@ -395,12 +516,14 @@ export function RecapStory({
         <li className="recap__line recap__line--quiet recap__line--fold">
           <UsersThree className="recap__icon" aria-hidden="true" />
           <span className="recap__text">
-            <button type="button" className="recap__fold" aria-expanded={friendsOpen} onClick={() => setFriendsOpen(!friendsOpen)}>
-              {friendships.length === 1 ? '1 friendship' : `${friendships.length} friendships`} {grew ? 'grew' : 'changed'}
-              {top && top.n > 1 && friendships.length > 1 ? `, ${top.n} with ${top.sim.name}` : ''}
+            <button type="button" className="recap__fold" aria-expanded={isOpen('friends')} onClick={() => toggle('friends')}>
+              <span>
+                {friendships.length === 1 ? '1 friendship' : `${friendships.length} friendships`} {grew ? 'grew' : 'changed'}
+                {top && top.n > 1 && friendships.length > 1 ? `, ${top.n} with ${top.sim.name}` : ''}
+              </span>
               <CaretDown className="recap__caret" weight="bold" aria-hidden="true" />
             </button>
-            {friendsOpen && (
+            {isOpen('friends') && (
               <ul className="recap__folded">
                 {friendships.map((f, i) => (
                   <li key={i}>{relationshipItem(f)}</li>
@@ -419,16 +542,11 @@ export function RecapStory({
               <>The family tree remembers {listed(passedAway.map((p) => p.sim))}, who passed away</>
             ) : (
               <>
-                <button
-                  type="button"
-                  className="recap__fold"
-                  aria-expanded={forebearsOpen}
-                  onClick={() => setForebearsOpen(!forebearsOpen)}
-                >
-                  The family tree remembers {passedAway.length} sims who passed away
+                <button type="button" className="recap__fold" aria-expanded={isOpen('forebears')} onClick={() => toggle('forebears')}>
+                  <span>The family tree remembers {passedAway.length} sims who passed away</span>
                   <CaretDown className="recap__caret" weight="bold" aria-hidden="true" />
                 </button>
-                {forebearsOpen && (
+                {isOpen('forebears') && (
                   <ul className="recap__folded">
                     {passedAway.map((p) => (
                       <li key={p.sim.id}>
@@ -453,11 +571,11 @@ export function RecapStory({
               </>
             ) : (
               <>
-                <button type="button" className="recap__fold" aria-expanded={goneOpen} onClick={() => setGoneOpen(!goneOpen)}>
-                  {gone.length} sims the game started with are no longer in your save
+                <button type="button" className="recap__fold" aria-expanded={isOpen('gone')} onClick={() => toggle('gone')}>
+                  <span>{gone.length} sims the game started with are no longer in your save</span>
                   <CaretDown className="recap__caret" weight="bold" aria-hidden="true" />
                 </button>
-                {goneOpen && (
+                {isOpen('gone') && (
                   <ul className="recap__folded">
                     {gone.map((g) => (
                       <li key={g.sim.id}>

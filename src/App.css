@@ -1851,20 +1851,23 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .recap__when{margin-left:6px;font-size:11px;color:var(--ink-3);white-space:nowrap}
 .recap__planned{flex:none;display:inline-flex;margin-top:3px;color:var(--done)}
 .recap__planned svg{width:13px;height:13px}
-.recap__line--more{padding-left:23px}
-.recap__fold{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:none;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.recap__fold{display:inline;padding:0;border:0;background:none;font:inherit;color:inherit;cursor:pointer;text-align:left}
 .recap__fold:hover{color:var(--ink)}
 .recap__fold:focus-visible{outline:2px solid var(--accent-ring);outline-offset:2px;border-radius:4px}
-.recap__caret{width:11px;height:11px;flex:none}
+.recap__caret{display:inline-block;width:11px;height:11px;margin-left:4px;vertical-align:-1px}
+/* A name in a line that opens: coloured like every name, part of what you press. */
+.recap__foldname{color:var(--name);font-weight:700}
 .recap__fold[aria-expanded=true] .recap__caret{transform:rotate(180deg)}
-.recap__folded{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;color:var(--ink-2)}
+.recap__folded{list-style:disc;margin:5px 0 2px;padding:0 0 0 16px;display:flex;flex-direction:column;gap:3px;color:var(--ink)}
+.recap__folded li::marker{color:var(--ink-3)}
+.recap__folded .recap__planned{display:inline-flex;vertical-align:-2px;margin:0 0 0 4px}
+.recap__line--quiet .recap__folded{color:var(--ink-2)}
 .recap__sim{padding:0;border:0;background:none;font:inherit;font-weight:500;color:var(--name);cursor:pointer;text-decoration:none;border-radius:3px}
 .recap__sim--lead{font-weight:700}
 .recap__sim:hover{text-decoration:underline;text-underline-offset:2px}
 .recap__sim:focus-visible{outline:2px solid var(--accent-ring);outline-offset:1px}
 .recap__done{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--celebrate-soft);color:var(--warn);font-size:10.5px;font-weight:700;vertical-align:1px}
 .recap__done--big{margin-left:0;padding:2px 8px;font-size:11.5px}
-.recap__more{margin-top:2px;padding:0;border:0;background:none;font:inherit;font-size:11px;font-weight:600;color:var(--accent);cursor:pointer}
 .recap__plans{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0;padding:8px 14px 12px;border-top:1px solid var(--line)}
 .recap__off{font-size:11.5px;color:var(--warn)}
 /* Looking back (LookBackBar.tsx): the board as it was at an upload, read only. */

@@ -42,6 +42,8 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onCl
   const [query, setQuery] = useState('');
   /** Opened on someone's story: theirs, or everyone's, a switch either way. */
   const [everyone, setEveryone] = useState(false);
+  /** The one list open in the whole story, across its days: opening one closes the other. */
+  const [openFold, setOpenFold] = useState<string | null>(null);
   const theirs = !!ids && !everyone;
   const set = useMemo(() => (ids && !everyone ? new Set(ids) : null), [ids, everyone]);
   const keys = useMemo(() => new Set(dynasties ?? []), [dynasties]);
@@ -128,7 +130,8 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onCl
                     {day.when} <span className="chron__tag">From your save</span>
                   </h3>
                   <p className="chron__meta">
-                    Your save keeps the day of each birth. Everything else it remembers without a date.
+                    Your save keeps the day of each birth from a pregnancy. Everything else it remembers without a
+                    date.
                   </p>
                   {start && (
                     <p className="chron__start">
@@ -136,7 +139,16 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onCl
                       {start.households === 1 ? '1 household' : `${start.households} households`}.
                     </p>
                   )}
-                  {recaps.length > 0 && <RecapStory recaps={recaps} onGoToSim={onGoToSim} focus={set} />}
+                  {recaps.length > 0 && (
+                    <RecapStory
+                      recaps={recaps}
+                      onGoToSim={onGoToSim}
+                      focus={set}
+                      openFold={openFold}
+                      onOpenFold={setOpenFold}
+                      foldScope={day.entries[0]!.at}
+                    />
+                  )}
                   {days.length === 1 && <p className="chron__next">Your next upload carries the story on from here.</p>}
                 </article>
               );
@@ -151,7 +163,16 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onCl
                     {start.households === 1 ? '1 household' : `${start.households} households`}.
                   </p>
                 )}
-                {recaps.length > 0 && <RecapStory recaps={recaps} onGoToSim={onGoToSim} focus={set} />}
+                {recaps.length > 0 && (
+                  <RecapStory
+                    recaps={recaps}
+                    onGoToSim={onGoToSim}
+                    focus={set}
+                    openFold={openFold}
+                    onOpenFold={setOpenFold}
+                    foldScope={day.entries[0]!.at}
+                  />
+                )}
               </article>
             );
           })

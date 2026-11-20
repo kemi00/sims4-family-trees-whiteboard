@@ -102,16 +102,21 @@ export function firstChapter(opts: {
     return !!x && !!x.treeId && !x.saveSimId;
   };
 
-  // Births: everyone the save says was born in play, at any age now, dated.
+  // Births: everyone the save says was born from a pregnancy, at any age now, dated.
   const parentsOf = (id: string) =>
     after.edges.filter((e) => e.type === 'parent' && e.b === id && !e.adopted).map((e) => now.get(e.a)).filter((p): p is SimNode => !!p);
-  const born: SaveRecap['born'] = after.nodes
+  const dated: SaveRecap['born'] = after.nodes
     .filter((x) => x.life?.inPlay && x.life.born !== undefined && !isPlannedSim(x))
     .sort((a, b) => a.life!.born - b.life!.born)
     .map((x) => {
       const ps = parentsOf(x.id);
       return { ...sim(x), parents: ps.map(cardName), parentIds: ps.map((p) => p.id), planned: false, when: whenAt(game, x.life!.born) };
     });
+  const datedIds = new Set(dated.map((b) => b.id));
+  // Babies with parents in the save but no pregnancy it saw (made in Create a Sim, as the
+  // Nadir triplets were): born all the same, with no day, as the save keeps none.
+  const undated = told.born.filter((b) => !datedIds.has(b.id) && b.parents.length > 0);
+  const born = [...dated, ...undated];
   const bornIds = new Set(born.map((b) => b.id));
 
   // Passings: a sim the game started alive, not an ancestor whose death the tree leaves to guesswork.
