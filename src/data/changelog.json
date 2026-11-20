@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "1fec558",
+   "date": "2026-11-20",
+   "text": "Something wrong with your board? In the ⋮ menu, Copy a problem report copies details the developer needs to find the cause, and shows you all of it. It never holds the names of your sims, households, lots or dynasties, or your notes."
+  },
+  {
    "sha": "480ce86",
    "date": "2026-11-20",
    "text": "If your game isn't in English, uploading your save now puts every household in its world. Before, the board only knew the worlds' English names, so most households went to Not in any world and every lot looked free."
