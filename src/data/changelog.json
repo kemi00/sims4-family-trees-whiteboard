@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "d36e65b",
+   "date": "2026-11-20",
+   "text": "The board no longer goes blank when your browser translates the page. If you read it in another language with Chrome's translate, linking sims, undoing and other changes now work, and the message at the top keeps up. Sim and place names stay as your game shows them."
+  },
+  {
    "sha": "d4838f9",
    "date": "2026-11-20",
    "text": "The board now shows only what your games have: without Royalty & Legacy there are no dynasty or secret options, and life states like Vampire or Mermaid appear only with their packs. The sim editor is calmer: Possible partners has its own tab, and the book next to the close button opens the sim's story."
