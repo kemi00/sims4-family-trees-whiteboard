@@ -1,7 +1,8 @@
 import { useCallback, useId, useRef, useState } from 'react';
 import type { ChipObstacle, ChipSim, LinkSelectionInfo } from '../lib/linkLabel.ts';
 import { placeChipOnVisiblePath } from '../lib/linkLabel.ts';
-import { CaretDown, LinkBreak, NotePencil, Plus, UserPlus } from '../icons.ts';
+import { CaretDown, Heart, LinkBreak, NotePencil, Plus, Trash, UserPlus } from '../icons.ts';
+import type { NextStep, StoryStep } from '../lib/coupleStory.ts';
 import { NoteEditor } from './NoteEditor.tsx';
 
 type Props = {
@@ -22,11 +23,28 @@ type Props = {
    */
   onChildMenu?: (button: HTMLElement, step: 'new' | 'adopt') => void;
   adoptDisabledReason?: string;
-  /** What to do with the picked couple: plan its end, or cancel that plan. */
-  action?: { label: string; onClick: () => void };
+  /**
+   * The picked couple's story, step by step, when it has more than one:
+   * where each step comes from, and a bin on each planned one.
+   */
+  story?: {
+    steps: (StoryStep & { from: 'save' | 'seed' | 'planned' })[];
+    onCancel: (step: StoryStep) => void;
+  };
+  /** What can come next in their story: "Marry", "Break up", "Get back together". */
+  next?: { step: NextStep; label: string; onClick: (button: HTMLElement) => void }[];
   onSaveNote?: (text: string) => void;
   /** Take the picked link off the board (the Delete key's job too). */
   onDelete?: () => void;
+};
+
+/** Each story step's mark, as Connect's menu marks the links. */
+const STEP_MARK: Record<StoryStep['kind'], string> = {
+  romance: '❤',
+  marriage: '⚭',
+  divorced: '⚮',
+  breakup: '♡',
+  divorce: '⚮',
 };
 
 /** Most names a chip lists; past that, the rest are "+ N more". */
@@ -97,7 +115,8 @@ export function LinkSelectionChip({
   onGoToSim,
   onChildMenu,
   adoptDisabledReason,
-  action,
+  story,
+  next = [],
   onSaveNote,
   onDelete,
 }: Props) {
@@ -149,13 +168,14 @@ export function LinkSelectionChip({
   const left = Math.max(half, Math.min(stageW - half, tx + placement.at[0] * k));
   const top = ty + placement.at[1] * k;
   const directed = !!(info.nameFrom && info.nameTo);
-  const hasPlans = !!(onChildMenu || action);
+  const hasPlans = !!onChildMenu || next.length > 0;
+  const told = !!story && story.steps.length > 1;
   const hasNoteControl = !!(info.yourNote || onSaveNote);
 
   return (
     <div
       ref={ref}
-      className={`link-sel-chip${directed || hasPlans || hasNoteControl || onDelete ? ' link-sel-chip--tall' : ''}${editingNote ? ' link-sel-chip--editing' : ''}`}
+      className={`link-sel-chip${directed || hasPlans || told || hasNoteControl || onDelete ? ' link-sel-chip--tall' : ''}${editingNote ? ' link-sel-chip--editing' : ''}`}
       data-side={placement.side}
       style={{ left, top }}
       role="status"
@@ -201,8 +221,43 @@ export function LinkSelectionChip({
           </span>
         ) : null}
         {info.note && <span className="link-sel-chip__note">{info.note}</span>}
+        {told && (
+          <div className="link-sel-chip__story" role="group" aria-label="Their story">
+            <span className="link-sel-chip__head">Their story</span>
+            <ol>
+              {story.steps.map((step, i) => (
+                <li key={`${step.edgeId}:${step.part}`} className={step.planned ? 'is-planned' : undefined}>
+                  <span className="link-sel-chip__num" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                  <span className="link-sel-chip__step">
+                    <span className="link-sel-chip__step-mark" aria-hidden="true">
+                      {STEP_MARK[step.kind]}
+                    </span>
+                    {step.label}
+                  </span>
+                  {step.planned ? (
+                    <button
+                      type="button"
+                      className="link-sel-chip__bin"
+                      aria-label={`Cancel step ${i + 1}: ${step.label}`}
+                      title="Cancel this step; the rest of their story stays. Undo takes it back."
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => story.onCancel(step)}
+                    >
+                      <Trash aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <span className="link-sel-chip__from">{step.from === 'save' ? 'from your save' : 'from the game'}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
         {hasPlans && (
           <div className="link-sel-chip__plans" role="group" aria-label="Relationship plans">
+            <span className="link-sel-chip__head">Plan next</span>
             {onChildMenu && (
               <>
                 <button
@@ -227,17 +282,27 @@ export function LinkSelectionChip({
                 </button>
               </>
             )}
-            {action && (
+            {next.map((n) => (
               <button
+                key={n.step}
                 type="button"
                 className="link-sel-chip__act link-sel-chip__act--plan"
+                title={`Plan it: ${n.label}, after the steps before it. Undo takes it back.`}
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={action.onClick}
+                onClick={(e) => n.onClick(e.currentTarget)}
               >
-                <LinkBreak weight="bold" aria-hidden="true" />
-                {action.label}
+                {n.step === 'romance' ? (
+                  <Heart weight="bold" aria-hidden="true" />
+                ) : n.step === 'marriage' ? (
+                  <span className="link-sel-chip__glyph" aria-hidden="true">
+                    ⚭
+                  </span>
+                ) : (
+                  <LinkBreak weight="bold" aria-hidden="true" />
+                )}
+                {n.label}
               </button>
-            )}
+            ))}
           </div>
         )}
         {(hasNoteControl || onDelete) && (

@@ -1,6 +1,7 @@
 import { DECEASED_STATE } from './constants.ts';
 import { isPlannedSim } from './plan.ts';
 import { isPet } from './utils.ts';
+import { isOngoingCouple } from './coupleStory.ts';
 import type { GameLot } from './places.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
@@ -51,7 +52,7 @@ export function homeRoom(opts: {
   const paired = new Set<string>();
   let couples = 0;
   for (const e of edges) {
-    if ((e.type !== 'marriage' && e.type !== 'romance') || e.ending) continue;
+    if (!isOngoingCouple(e, edges)) continue;
     if (!here.has(e.a) || !here.has(e.b) || paired.has(e.a) || paired.has(e.b)) continue;
     paired.add(e.a).add(e.b);
     couples += 1;

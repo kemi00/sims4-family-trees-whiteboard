@@ -1,5 +1,6 @@
 import { whyNotAdopt } from './adoption.ts';
 import { petLinkWhy } from './pets.ts';
+import { storiesByPair } from './coupleStory.ts';
 import { uKey } from './utils.ts';
 import type { ConnectChoice, Edge, SimNode } from '../types/whiteboard.ts';
 
@@ -30,9 +31,16 @@ export function connectOptions(opts: {
   const { a, b, edges } = opts;
   const pair = uKey(a.id, b.id);
   const between = edges.filter((e) => uKey(e.a, e.b) === pair);
-  const marriage = between.find((e) => e.type === 'marriage');
-  const romance = between.find((e) => e.type === 'romance');
-  const divorced = between.some((e) => e.type === 'divorced');
+  // Where the couple's story leaves them: its last link. A planned end on
+  // it takes them apart, so the next step (back together, marry) is open.
+  const story = storiesByPair(between).get(pair) ?? [];
+  const last = story[story.length - 1];
+  const live = last && !last.ending && last.type !== 'divorced' ? last : undefined;
+  const marriage = live?.type === 'marriage' ? live : undefined;
+  const romance = live?.type === 'romance' ? live : undefined;
+  /** The last link's planned end, which Connect can take back. */
+  const ending = last?.ending ? last : undefined;
+  const divorced = story.some((e) => e.type === 'divorced');
   const parentLink = (p: SimNode, c: SimNode) =>
     between.find((e) => e.type === 'parent' && e.a === p.id && e.b === c.id);
   const ab = parentLink(a, b);
@@ -42,7 +50,13 @@ export function connectOptions(opts: {
   const kin = ab ? `${a.first} is ${b.first}’s parent` : ba ? `${b.first} is ${a.first}’s parent` : null;
   const off = (why: string | null) => (kin ? { why: kin } : why ? { why } : {});
   // And a couple, past or present, is no parent and child, for the same reason.
-  const paired = marriage ? 'They’re married' : romance ? 'They’re in a romance' : divorced ? 'They were married' : null;
+  const paired = story.some((e) => e.type === 'marriage')
+    ? 'They’re married'
+    : story.some((e) => e.type === 'romance')
+      ? 'They’re in a romance'
+      : divorced
+        ? 'They were married'
+        : null;
 
   const couple: ConnectOption[] = [
     { choice: 'marriage', ...off(marriage ? 'Married already' : null) },
@@ -55,11 +69,15 @@ export function connectOptions(opts: {
       ...off(marriage ? 'Married already' : romance?.secret ? 'Secret lovers already' : null),
     },
     marriage
-      ? { choice: 'divorce', ...(marriage.ending ? { cancel: true as const } : {}) }
-      : { choice: 'divorced', ...off(divorced ? 'Divorced already' : null) },
-    ...(romance && !marriage
-      ? [{ choice: 'breakup' as const, ...(romance.ending ? { cancel: true as const } : {}) }]
-      : []),
+      ? { choice: 'divorce' }
+      : ending?.type === 'marriage'
+        ? { choice: 'divorce', cancel: true }
+        : { choice: 'divorced', ...off(divorced ? 'Divorced already' : null) },
+    ...(romance
+      ? [{ choice: 'breakup' as const }]
+      : ending?.type === 'romance'
+        ? [{ choice: 'breakup' as const, cancel: true as const }]
+        : []),
   ];
 
   // A parent link one way: off when there, or when it would loop.
@@ -110,12 +128,14 @@ export function connectOptions(opts: {
   const parentNow = (link: Edge | undefined, p: SimNode, c: SimNode) =>
     link ? `${p.first} is ${c.first}’s ${link.adopted ? 'adoptive ' : link.secret ? 'secret ' : ''}parent` : null;
   const now = marriage
-    ? `married${marriage.ending ? ' · divorce planned' : ''}`
+    ? 'married'
     : romance
-      ? `${romance.secret ? 'secret lovers' : 'in a romance'}${romance.ending ? ' · breakup planned' : ''}`
-      : divorced
-        ? 'divorced'
-        : (parentNow(ab, a, b) ?? parentNow(ba, b, a));
+      ? romance.secret ? 'secret lovers' : 'in a romance'
+      : ending
+        ? ending.type === 'marriage' ? 'married · divorce planned' : `${ending.secret ? 'secret lovers' : 'in a romance'} · breakup planned`
+        : last?.type === 'divorced'
+          ? 'divorced'
+          : (parentNow(ab, a, b) ?? parentNow(ba, b, a));
   return {
     now,
     sections: [

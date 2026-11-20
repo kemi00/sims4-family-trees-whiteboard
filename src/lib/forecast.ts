@@ -1,4 +1,5 @@
 import { DECEASED_STATE } from './constants.ts';
+import { isOngoingCouple } from './coupleStory.ts';
 import {
   ELDER_MIN_DAYS,
   GROWN_UP,
@@ -114,7 +115,7 @@ export type SuccessionForecast = {
 /** Their partner on the board: a marriage before a romance, the game's before a plan. */
 function partnerOf(id: string, edges: readonly Edge[], byId: Map<string, SimNode>): LineStep['partner'] {
   const found = edges
-    .filter((e) => (e.type === 'marriage' || e.type === 'romance') && !e.ending && (e.a === id || e.b === id))
+    .filter((e) => isOngoingCouple(e, edges) && (e.a === id || e.b === id))
     .map((e) => ({ e, other: byId.get(e.a === id ? e.b : e.a) }))
     .filter((x): x is { e: Edge; other: SimNode } => !!x.other && x.other.state !== DECEASED_STATE)
     .sort(

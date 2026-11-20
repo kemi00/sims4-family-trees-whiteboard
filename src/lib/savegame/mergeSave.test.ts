@@ -153,6 +153,67 @@ describe('mergeSaveIntoBoard', () => {
     assert.deepEqual(merge({ ...married, type: 'romance' }, ['exes']), []);
   });
 
+  it('checks a couple’s story off in order, never a step after one the game hasn’t shown', () => {
+    const bob = sim({ id: 'Bob Pancakes', first: 'Bob', sur: 'Pancakes' });
+    const eliza = sim({ id: 'Eliza Pancakes', first: 'Eliza', sur: 'Pancakes', gender: 'Female' });
+    const sims: ParsedSave['sims'] = [
+      { saveSimId: '1', householdId: '10', first: 'Bob', last: 'Pancakes', household: 'Pancakes', age: 'Adult', gender: 'Male' },
+      { saveSimId: '2', householdId: '10', first: 'Eliza', last: 'Pancakes', household: 'Pancakes', age: 'Adult', gender: 'Female' },
+    ];
+    const merge = (edges: Edge[], rels: ParsedSave['rels'], tags: PairTag[]) =>
+      mergeSaveIntoBoard({
+        nodes: [bob, eliza],
+        edges,
+        groups: [],
+        worlds: world,
+        parsed: { sims, rels, pairs: [{ a: '1', b: '2', tags }] },
+        seedNameKeys: seedNameKeysFromNodes([bob, eliza]),
+        now: '2026-11-21T12:00:00.000Z',
+        nextEdgeId: () => 'v9',
+      }).edges.map((e) => `${e.id} ${e.type} ${e.source}${e.ending ? ' +end' : ''}`);
+    const at = (h: number) => `2026-11-20T${String(h).padStart(2, '0')}:00:00.000Z`;
+    // Romance from the save, a breakup, then back together and married, all planned.
+    const story: Edge[] = [
+      { id: 'r1', a: bob.id, b: eliza.id, type: 'romance', source: 'save', createdAt: at(1), ending: { createdAt: at(2) } },
+      { id: 'r2', a: bob.id, b: eliza.id, type: 'romance', source: 'planned', createdAt: at(3) },
+      { id: 'm1', a: bob.id, b: eliza.id, type: 'marriage', source: 'planned', createdAt: at(4) },
+    ];
+    // Still in their romance: the breakup is to come, and so is all after it.
+    assert.deepEqual(merge(story, [{ a: '1', b: '2', type: 'romance' }], ['partners']), [
+      'r1 romance save +end',
+      'r2 romance planned',
+      'm1 marriage planned',
+    ]);
+    // Married in the game: still not proof of the breakup, so nothing is checked off.
+    assert.deepEqual(
+      merge(story, [{ a: '1', b: '2', type: 'marriage' }], ['married']).filter((l) => !l.startsWith('v9')),
+      ['r1 romance save +end', 'r2 romance planned', 'm1 marriage planned'],
+    );
+    // Broken up: the breakup is done, and getting back together is next.
+    assert.deepEqual(merge(story, [], ['exes']), ['r2 romance planned', 'm1 marriage planned']);
+    // Married, then divorced in the game: the divorce takes the marriage's place, first in their story.
+    const divorce: Edge[] = [
+      { id: 'w1', a: bob.id, b: eliza.id, type: 'marriage', source: 'save', createdAt: at(1), ending: { createdAt: at(2) } },
+      { id: 'r9', a: bob.id, b: eliza.id, type: 'romance', source: 'planned', createdAt: at(3) },
+    ];
+    const after = mergeSaveIntoBoard({
+      nodes: [bob, eliza],
+      edges: divorce,
+      groups: [],
+      worlds: world,
+      parsed: { sims, rels: [{ a: '1', b: '2', type: 'divorced' }], pairs: [{ a: '1', b: '2', tags: ['divorced'] }] },
+      seedNameKeys: seedNameKeysFromNodes([bob, eliza]),
+      now: '2026-11-21T12:00:00.000Z',
+      nextEdgeId: () => 'v9',
+    }).edges;
+    const last = [...after].sort((x, y) => Date.parse(x.createdAt ?? '') - Date.parse(y.createdAt ?? '')).at(-1)!;
+    assert.deepEqual([last.id, last.type, last.source], ['r9', 'romance', 'planned'], 'getting back together is still next');
+    assert.ok(after.some((e) => e.type === 'divorced' && e.source === 'save'));
+    // A romance and its breakup both only planned, and the save has them apart: never together yet, so both wait.
+    const onlyPlanned: Edge[] = [{ id: 'p1', a: bob.id, b: eliza.id, type: 'romance', source: 'planned', createdAt: at(1), ending: { createdAt: at(2) } }];
+    assert.deepEqual(merge(onlyPlanned, [], ['friends']), ['p1 romance planned +end']);
+  });
+
   it('keeps your notes on plans the save shows done', () => {
     const bob = sim({ id: 'Bob Pancakes', first: 'Bob', sur: 'Pancakes' });
     const eliza = sim({ id: 'Eliza Pancakes', first: 'Eliza', sur: 'Pancakes', gender: 'Female' });

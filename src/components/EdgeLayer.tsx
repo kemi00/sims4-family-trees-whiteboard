@@ -266,6 +266,8 @@ type Props = {
   selStroke: number;
   /** The picked couple whose badge PickedUnionBadge draws above the cards: not drawn here. */
   liftedUnionId?: string;
+  /** Planned steps in each couple's story, by the link drawn for them (two or more). */
+  storySteps?: ReadonlyMap<string, number>;
   onLinkClick: (ids: string[], e: ReactPointerEvent) => void;
   /** A couple's line was pressed: `edgeId` is the one drawn there, on top of any other between them. */
   onUnionClick: (a: string, b: string, e: ReactPointerEvent, edgeId: string) => void;
@@ -301,12 +303,28 @@ function unionPassed(u: UnionRender, deadIds: ReadonlySet<string> | undefined): 
 }
 
 /** A couple's badge on its line, with the ＋ for a baby under it (shown on hover, or when picked). */
+/** How many planned steps a couple's story has, at the badge's top left (two or more). */
+function StoryCount({ x, y, n }: { x: number; y: number; n: number }) {
+  const cx = x - PILL_HALF_W;
+  const cy = y - PILL_H / 2;
+  return (
+    <g pointerEvents="none">
+      <title>{`${n} planned steps in their story`}</title>
+      <circle cx={cx} cy={cy} r={7} fill={UEDIT} stroke="#fff" strokeWidth={1.4} />
+      <text x={cx} y={cy + 3.4} fontSize={9.5} fontWeight={800} textAnchor="middle" fill="#fff">
+        {n > 9 ? '9+' : n}
+      </text>
+    </g>
+  );
+}
+
 function UnionBadge({
   u,
   picked,
   color,
   passed,
   offPlan,
+  steps = 0,
   scale = 1,
   onAddInfant,
 }: {
@@ -315,6 +333,8 @@ function UnionBadge({
   color: string;
   passed: boolean;
   offPlan: boolean;
+  /** Planned steps in the couple's story: counted on the badge from two. */
+  steps?: number;
   /** Grown about the badge's centre, to keep its size on screen when zoomed out. */
   scale?: number;
   onAddInfant: (u: UnionRender, e: ReactPointerEvent) => void;
@@ -332,6 +352,7 @@ function UnionBadge({
         (u.secret ? <SecretLoversPill x={x} y={y} color={color} /> : <HeartPill x={x} y={y} color={color} />)}
       {u.type === 'marriage' && !u.ending && <RingPill x={x} y={y} color={color} />}
       {offPlan && <OffPlanMark x={x} y={y} />}
+      {steps > 1 && <StoryCount x={x} y={y} n={steps} />}
       {!passed && (
         <AddInfantPlus
           x={x}
@@ -357,6 +378,7 @@ export function PickedUnionBadge({
   scale,
   deadIds,
   offPlan,
+  steps,
   worldById,
   gidById,
   onUnionClick,
@@ -364,6 +386,8 @@ export function PickedUnionBadge({
 }: {
   u: UnionRender;
   scale: number;
+  /** Planned steps in the couple's story. */
+  steps?: number;
   deadIds?: ReadonlySet<string>;
   offPlan: boolean;
   worldById?: ReadonlyMap<string, string>;
@@ -387,6 +411,7 @@ export function PickedUnionBadge({
         color={unionColors(u, true).pill}
         passed={unionPassed(u, deadIds)}
         offPlan={offPlan}
+        steps={steps}
         scale={scale}
         onAddInfant={onAddInfant}
       />
@@ -452,6 +477,7 @@ export const EdgeLayer = memo(function EdgeLayer({
   hitStroke,
   selStroke,
   liftedUnionId,
+  storySteps,
   onLinkClick,
   onUnionClick,
   onAddInfant,
@@ -542,6 +568,7 @@ export const EdgeLayer = memo(function EdgeLayer({
                 color={pc}
                 passed={passed}
                 offPlan={!!offPlanEdgeIds?.has(u.edgeId)}
+                steps={storySteps?.get(u.edgeId)}
                 onAddInfant={onAddInfant}
               />
             )}

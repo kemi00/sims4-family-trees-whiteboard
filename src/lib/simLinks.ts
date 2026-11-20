@@ -1,5 +1,6 @@
 import type { Edge } from '../types/whiteboard.ts';
 import { edgeSourceOf, endedByPassing } from './utils.ts';
+import { pastUnionIds } from './coupleStory.ts';
 
 /** What taking a link off does: removes it, or plans the end of a couple the game has. */
 export type LinkRemoval = 'remove' | 'divorce' | 'breakup';
@@ -35,8 +36,12 @@ export function simLinkRows(
   firstOf: (id: string) => string = nameOf,
 ): SimLinkRow[] {
   const rows: (SimLinkRow & { kind: (typeof ORDER)[number] })[] = [];
+  // A couple's earlier links, which a later step of their story replaced,
+  // are their history: the link's label and the Log tell it.
+  const past = pastUnionIds(edges);
   for (const e of edges) {
     if (e.a !== id && e.b !== id) continue;
+    if (past.has(e.id)) continue;
     const otherId = e.a === id ? e.b : e.a;
     const other = nameOf(otherId);
     const planned = edgeSourceOf(e) === 'planned';

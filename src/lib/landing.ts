@@ -2,6 +2,7 @@ import { HH_TAG_BAND, TILE } from './constants.ts';
 import { toCore } from './autosave.ts';
 import { householdAddSpot, LAYOUT, laneStrip, layoutBases, partnerSpot, petAddSpot, spawnChildOrigin } from './layout.ts';
 import { householdChrome, tileSnapOrigin } from './tiles.ts';
+import { isOngoingCouple } from './coupleStory.ts';
 import type { Edge, Group, SimNode, World } from '../types/whiteboard.ts';
 
 export type Box = { l: number; t: number; r: number; b: number };
@@ -356,7 +357,7 @@ export function joinSpots(opts: {
   for (const m of block) {
     if (isAnimal(m)) continue;
     const partners = edges
-      .filter((e) => (e.type === 'marriage' || e.type === 'romance') && !e.ending && (e.a === m.id || e.b === m.id))
+      .filter((e) => isOngoingCouple(e, edges) && (e.a === m.id || e.b === m.id))
       .map((e) => (e.a === m.id ? e.b : e.a))
       .filter((id) => alive(id) && alive(m.id) && byId.has(id));
     const kids = edges.filter((e) => e.type === 'parent' && e.a === m.id).map((e) => e.b);

@@ -1,4 +1,5 @@
 import { chainPlannedHeirs } from './succession.ts';
+import { isOngoingCouple } from './coupleStory.ts';
 import type { ChronicleEntry } from './chronicle.ts';
 import { MAGIC_REALM, homeWorld, realmGid } from './realm.ts';
 import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DYNASTY_CHIPS, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, hiDynastyChip, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
@@ -378,7 +379,7 @@ export function endedByPassing(e: Pick<Edge, 'type' | 'a' | 'b'>, isDead: (id: s
 export function partneredIdSet(edges: Edge[], alive: (id: string) => boolean = () => true): Set<string> {
   const ids = new Set<string>();
   for (const e of edges) {
-    if ((e.type !== 'marriage' && e.type !== 'romance') || e.ending) continue;
+    if (!isOngoingCouple(e, edges)) continue;
     if (!alive(e.a) || !alive(e.b)) continue;
     ids.add(e.a);
     ids.add(e.b);

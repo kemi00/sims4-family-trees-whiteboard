@@ -19,6 +19,7 @@ import type {
   SimNode,
   World,
 } from '../../types/whiteboard.ts';
+import { storiesByPair } from '../coupleStory.ts';
 import {
   type ParsedGameInfo,
   readableHouseholdName,
@@ -1476,7 +1477,13 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         (e.type === 'marriage' || e.type === 'romance' || e.type === 'divorced') &&
         uKey(e.a, e.b) === pair,
     );
-    const planned = unions.filter((e) => e.source === 'planned');
+    // Their story in order (coupleStory). A planned end the game hasn't
+    // shown yet holds up the steps after it: the save has them together, so
+    // back together or a new wedding after that end is still to come.
+    const story = storiesByPair(unions).get(pair) ?? [];
+    const cut = story.findIndex((e) => !!e.ending);
+    const reachable = (e: Edge) => cut < 0 || story.indexOf(e) <= cut;
+    const planned = unions.filter((e) => e.source === 'planned' && reachable(e));
     const settled = unions.filter((e) => e.source !== 'planned');
     // Only the plans this link fulfils are done. A wedding planned for a
     // couple the save has engaged is still to come.
@@ -1489,9 +1496,10 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     };
     // The save's link, on the board already. An engaged couple the save now
     // has married: their romance becomes the marriage.
+    // A romance with a breakup planned is not the one that became the marriage.
     const same =
       settled.find((e) => e.type === type) ??
-      (type === 'marriage' ? settled.find((e) => e.type === 'romance') : undefined);
+      (type === 'marriage' ? settled.find((e) => e.type === 'romance' && !e.ending) : undefined);
     if (same) {
       if (same.type !== type) {
         same.type = type;
@@ -1587,12 +1595,18 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     // A save read without relationship statuses can't say a couple ended.
     if (!e.ending || !parsed.pairs || !inSave.has(e.a) || !inSave.has(e.b)) continue;
     const tags = tagsOf.get(uKey(e.a, e.b)) ?? [];
+    // A couple the game never had together, only planned: apart in the save
+    // may mean never together yet, so the end is done only when the game
+    // shows they were (divorced, or exes).
+    if (e.source === 'planned' && !tags.includes('divorced') && !(e.type === 'romance' && tags.includes('exes'))) continue;
     const note = joinNotes(e.note, e.ending.note);
     if (e.type === 'divorced' || (e.type === 'marriage' && !tags.includes('married'))) {
       const twin = edges.find((x) => x !== e && x.type === 'divorced' && uKey(x.a, x.b) === uKey(e.a, e.b));
       if (twin) {
         edges.splice(edges.indexOf(e), 1);
         twin.wasPlanned = true;
+        // The game's divorce takes the place in their story of the marriage it ended.
+        if (e.createdAt) twin.createdAt = e.createdAt;
         if (note) twin.note = note;
       } else {
         e.type = 'divorced';

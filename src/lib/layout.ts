@@ -15,6 +15,7 @@ import { lotBoxSize, lotCols } from './lotGrid.ts';
 import { freeLotsIn, householdLots, lotsIn } from './places.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { isPet } from './utils.ts';
+import { isOngoingCouple } from './coupleStory.ts';
 import { worldCounts, worldTagReserve } from './worldTag.ts';
 import type { Edge, SimNode, World } from '../types/whiteboard.ts';
 
@@ -530,7 +531,7 @@ function lineUpHouseholds(
     if (e.type === 'parent') {
       parentsOf.set(e.b, [...(parentsOf.get(e.b) ?? []), e.a]);
       if (gidOf.get(e.a) !== gidOf.get(e.b)) asks.push({ a: e.a, b: e.b, d: 1, atLeast: false });
-    } else if ((e.type === 'marriage' || e.type === 'romance') && !e.ending && gidOf.get(e.a) !== gidOf.get(e.b)) {
+    } else if (isOngoingCouple(e, edges) && gidOf.get(e.a) !== gidOf.get(e.b)) {
       asks.push({ a: e.a, b: e.b, d: 0, atLeast: false });
     }
   }

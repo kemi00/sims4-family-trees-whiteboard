@@ -3,6 +3,7 @@ import { approxLifeDays, lifeDays, scaleOf } from './lifeClock.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { cardName } from './plan.ts';
 import { endedByPassing, fold } from './utils.ts';
+import { isOngoingCouple } from './coupleStory.ts';
 import type { Edge, SaveGameInfo, SimLife, SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -137,7 +138,7 @@ export function partnerCandidates(opts: {
   for (const e of opts.edges) {
     // A couple with a planned divorce or breakup is free in the plan, and so
     // is one a passing ended: the widowed are single.
-    if (e.ending || endedByPassing(e, (id) => dead.has(id))) continue;
+    if (!isOngoingCouple(e, opts.edges) || endedByPassing(e, (id) => dead.has(id))) continue;
     if (e.type === 'marriage') {
       married.add(e.a);
       married.add(e.b);
@@ -222,7 +223,7 @@ export function partnerSearch(opts: {
   const blood = bloodRelatives(id, edges);
   const dead = new Set(nodes.filter((n) => n.state === DECEASED_STATE).map((n) => n.id));
   const married = new Set(
-    edges.filter((e) => e.type === 'marriage' && !e.ending && !endedByPassing(e, (x) => dead.has(x))).flatMap((e) => [e.a, e.b]),
+    edges.filter((e) => e.type === 'marriage' && isOngoingCouple(e, edges) && !endedByPassing(e, (x) => dead.has(x))).flatMap((e) => [e.a, e.b]),
   );
   const hit = (n: SimNode, candidate?: PartnerCandidate): PartnerHit => ({
     id: n.id,

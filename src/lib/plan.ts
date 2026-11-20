@@ -1,6 +1,7 @@
 import { DECEASED_STATE, GENDERS } from './constants.ts';
 import { petKind } from './pets.ts';
 import { edgeSourceOf, endedByPassing, joinNotes, withNote } from './utils.ts';
+import { pastUnionIds } from './coupleStory.ts';
 import type { ParsedSave, ParsedSaveSim } from './savegame/parseSave.ts';
 import type { Edge, EdgeType, HouseholdMove, SimNode, SimPronouns } from '../types/whiteboard.ts';
 
@@ -151,10 +152,12 @@ export function planConflicts(nodes: SimNode[], edges: Edge[]): PlanConflict[] {
   const settledWith = new Map<string, { type: EdgeType; other: string }[]>();
   const parentsOf = new Map<string, Edge[]>();
   const dead = (id: string) => byId.get(id)?.state === DECEASED_STATE;
+  // A couple's earlier links, which a later step of their story replaced, hold no more.
+  const past = pastUnionIds(edges);
   for (const e of edges) {
     if (e.type === 'parent') {
       parentsOf.set(e.b, [...(parentsOf.get(e.b) ?? []), e]);
-    } else if (!planned(e) && COUPLE.has(e.type) && !e.ending && !endedByPassing(e, dead)) {
+    } else if (!planned(e) && COUPLE.has(e.type) && !e.ending && !past.has(e.id) && !endedByPassing(e, dead)) {
       // A couple with a planned divorce or breakup is free in the plan, and
       // so is one a passing ended: the widowed are single.
       settledWith.set(e.a, [...(settledWith.get(e.a) ?? []), { type: e.type, other: e.b }]);

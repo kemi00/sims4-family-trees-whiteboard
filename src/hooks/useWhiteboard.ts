@@ -111,6 +111,7 @@ import {
   type SaveMergeResult,
   uploadInfo,
 } from '../lib/savegame/mergeSave.ts';
+import { coupleLinkBlock, storiesByPair, storySteps, withoutPastUnions } from '../lib/coupleStory.ts';
 import type {
   BoardMultiSel,
   ConnectChoice,
@@ -756,10 +757,24 @@ export function useWhiteboard() {
    * drawing, labels, the log and bloodline — but layout still uses every
    * link, so turning the filter on or off never moves a card.
    */
+  /** Each couple's links in story order (coupleStory): what the link's label tells and plans next. */
+  const coupleStories = useMemo(() => storiesByPair(edges), [edges]);
+  /** Planned steps in each couple's story, by its last link, when two or more: counted on its badge. */
+  const storyStepCounts = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const links of coupleStories.values()) {
+      const n = storySteps(links, (e) => edgeSourceOf(e) === 'planned').filter((st) => st.planned).length;
+      if (n > 1) out.set(links[links.length - 1]!.id, n);
+    }
+    return out;
+  }, [coupleStories]);
   const shownEdges = useMemo(() => {
-    const now = hideSecrets ? withoutSecretLinks(edges) : edges;
     // Looking back: the game's links as they were then.
-    return past ? pastEdges(now, past) : now;
+    const then = past ? pastEdges(edges, past) : edges;
+    // Each couple as the last step of its story puts them; the steps before
+    // are in the link's label and the Log.
+    const now = withoutPastUnions(then);
+    return hideSecrets ? withoutSecretLinks(now) : now;
   }, [edges, hideSecrets, past]);
   const hasSecrets = useMemo(() => edges.some((e) => e.secret), [edges]);
 
@@ -1285,20 +1300,28 @@ export function useWhiteboard() {
    * parent. When the same link is already on the board, it is marked so
    * rather than drawn twice.
    */
-  const addEdge = useCallback((a: string, b: string, type: Edge['type'], secret = false, adopted = false) => {
-    if (type === 'sibling' && siblingsShareParents(a, b, edges)) return;
+  const addEdge = useCallback((a: string, b: string, type: Edge['type'], secret = false, adopted = false): string | undefined => {
+    if (type === 'sibling' && siblingsShareParents(a, b, edges)) return undefined;
     pushUndo(linkStep(type, simCalled(a), simCalled(b), { secret, adopted }));
     // Built here from the links as they are, not in a setEdges updater: React
     // may run that only at the next render, leaving the cards unpinned, and a
     // new couple or parent repacks every world around them.
+    // A secret marks the couple's romance they're in now: the last of their story.
+    const story = type === 'romance' || type === 'marriage' ? storiesByPair(edges).get(uKey(a, b)) : undefined;
+    const last = story?.[story.length - 1];
     const same =
       secret || adopted
-        ? edges.find(
-            (x) =>
-              x.type === type &&
-              ((x.a === a && x.b === b) || (type !== 'parent' && x.a === b && x.b === a)),
-          )
+        ? story
+          ? last && last.type === type && !last.ending
+            ? last
+            : undefined
+          : edges.find(
+              (x) =>
+                x.type === type &&
+                ((x.a === a && x.b === b) || (type !== 'parent' && x.a === b && x.b === a)),
+            )
         : undefined;
+    const id = same ? same.id : 'u' + eidcRef.current;
     const nextEdges: Edge[] = same
       ? edges.map((x) =>
           x === same
@@ -1320,6 +1343,7 @@ export function useWhiteboard() {
         ]);
     setEdges(nextEdges);
     freezeAfterEdgeChange([a, b], nextEdges);
+    return id;
   }, [edges, freezeAfterEdgeChange, pushUndo, simCalled]);
 
   /**
@@ -2371,10 +2395,17 @@ export function useWhiteboard() {
   const linkPartner = useCallback(
     (a: string, b: string, choice: PartnerChoice): boolean => {
       const link = CONNECT_LINKS[choice];
-      const there = edges.find((e) => e.type === link.type && uKey(e.a, e.b) === uKey(a, b));
       const [A, B] = [byid[a], byid[b]];
       if (!A || !B) return false;
-      if (there && (!link.secret || there.secret)) {
+      // Their story can go on (back together after a breakup, remarry after
+      // a divorce): only the step they are at already is refused.
+      const why =
+        link.type === 'marriage' || link.type === 'romance'
+          ? coupleLinkBlock(edges, a, b, link.type, !!link.secret)
+          : edges.some((e) => e.type === link.type && uKey(e.a, e.b) === uKey(a, b))
+            ? 'already'
+            : null;
+      if (why) {
         flashStatus(`${named(cardName(A))} and ${named(cardName(B))} already have that link.`);
         return false;
       }
@@ -2572,6 +2603,35 @@ export function useWhiteboard() {
       return true;
     },
     [edges, byid, alive, pushUndo, freezeAfterEdgeChange, flashStatus, simCalled],
+  );
+
+  /**
+   * The next step of a couple's story, from their link's label: their
+   * breakup or divorce planned on the link they're at, or a new link (back
+   * together, married), planned and picked so the label follows them.
+   * Living apart, a new couple is asked who moves in, as Connect asks,
+   * with the question opening at `at`.
+   */
+  const planCoupleStep = useCallback(
+    (a: string, b: string, step: 'romance' | 'marriage' | 'breakup' | 'divorce', at: { x: number; y: number }): boolean => {
+      const story = storiesByPair(edges).get(uKey(a, b)) ?? [];
+      const last = story[story.length - 1];
+      if (step === 'breakup' || step === 'divorce') {
+        return !!last && last.type === (step === 'divorce' ? 'marriage' : 'romance') && setEnding(last.id, true);
+      }
+      const [A, B] = [byid[a], byid[b]];
+      if (!A || !B || coupleLinkBlock(edges, a, b, step)) return false;
+      const id = addEdge(a, b, step);
+      if (id) setSel({ type: 'link', ids: [id] });
+      trackAction(step === 'marriage' ? '/action/story-marry' : '/action/story-together');
+      const names = `${named(cardName(A))} and ${named(cardName(B))}`;
+      if (livesApart(A, B)) setConnectMenu({ a, b, x: at.x, y: at.y, linked: step });
+      flashStatus(
+        `Planned: ${names} ${step === 'marriage' ? 'marry' : 'get back together'}, after the steps before it. Undo takes it back.`,
+      );
+      return true;
+    },
+    [edges, byid, setEnding, addEdge, flashStatus],
   );
 
   /**
@@ -4347,6 +4407,9 @@ export function useWhiteboard() {
     moveHouseholdToWorld,
     cancelPlan,
     setEnding,
+    planCoupleStep,
+    coupleStories,
+    storyStepCounts,
     toggleSimInSelection,
     isSelLink,
     setSnap,

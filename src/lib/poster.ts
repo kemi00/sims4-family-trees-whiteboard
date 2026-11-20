@@ -1,3 +1,4 @@
+import { withoutPastUnions } from './coupleStory.ts';
 import { DECEASED_STATE, DYNASTY_ROLES } from './constants.ts';
 import { dynastyGenerations, dynastyKey } from './generations.ts';
 import { dayOf, dayText, seasonNow } from './lifeClock.ts';
@@ -138,7 +139,8 @@ function relate(
   const partnerOf = new Map<string, string>();
   const notes = new Map<string, string[]>();
   const note = (id: string, text: string) => notes.set(id, [...(notes.get(id) ?? []), text]);
-  const coupleLinks = links
+  // Each couple as they are now: the last step of their story.
+  const coupleLinks = withoutPastUnions(links)
     .filter((e) => e.type in COUPLE_RANK && (on(e.a) || on(e.b)) && e.a !== e.b)
     // A living partner before a late one: the card names whom they're with now.
     .sort(

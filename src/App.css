@@ -469,6 +469,22 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .link-sel-chip__sep{margin:0 5px;color:var(--ink-3, #8a94a0);font-weight:600}
 .link-sel-chip__sim:hover{color:var(--accent-strong);text-decoration-style:solid;text-decoration-color:currentColor}
 .link-sel-chip__sim:focus-visible{box-shadow:0 0 0 3px var(--accent-ring)}
+/* A couple's story: each step numbered, the planned ones violet with a bin. */
+.link-sel-chip__story{margin-top:5px;font-size:11px;font-weight:500;color:var(--ink-2)}
+.link-sel-chip__head{display:block;width:100%;margin:0 0 2px;font-size:10px;font-weight:600;color:var(--ink-3)}
+.link-sel-chip__story ol{margin:0;padding:0;list-style:none}
+.link-sel-chip__story li{display:flex;align-items:center;gap:6px;min-height:20px}
+.link-sel-chip__num{width:12px;flex:none;text-align:right;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.link-sel-chip__step{flex:1 1 auto;min-width:0;white-space:nowrap}
+.link-sel-chip__step-mark{display:inline-block;width:14px;text-align:center;margin-right:3px}
+.link-sel-chip__story li.is-planned .link-sel-chip__step{color:var(--plan);font-weight:600}
+.link-sel-chip__from{flex:none;font-size:10px;color:var(--ink-3)}
+.link-sel-chip__bin{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--ink-3);cursor:pointer}
+.link-sel-chip__bin svg{width:12px;height:12px}
+.link-sel-chip__bin:hover{background:var(--danger-soft);color:var(--danger)}
+.link-sel-chip__bin:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.link-sel-chip__glyph{display:inline-block;width:11px;font-size:12px;line-height:1;text-align:center}
+@media (pointer:coarse){.link-sel-chip__bin{width:28px;height:28px}}
 .link-sel-chip__plans,.link-sel-chip__utility{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
 .link-sel-chip__plans + .link-sel-chip__utility{padding-top:4px;border-top:1px solid var(--line)}
 .link-sel-chip__act{pointer-events:auto;display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border:1px solid transparent;border-radius:6px;background:transparent;font:inherit;font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer}

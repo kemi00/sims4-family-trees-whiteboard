@@ -95,6 +95,7 @@ import { ChroniclePanel } from './ChroniclePanel.tsx';
 import { LookBackBar } from './LookBackBar.tsx';
 import { pastNode } from '../lib/lookBack.ts';
 import { connectOptions } from '../lib/connectOptions.ts';
+import { isUnionEdge, nextStepLabel, nextSteps, storiesByPair, storySteps, type StoryStep } from '../lib/coupleStory.ts';
 import { Legend } from './Legend.tsx';
 import { keyMarks } from '../lib/keyMarks.ts';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
@@ -1775,6 +1776,49 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       : null;
 
   /**
+   * The picked couple's story for its label: each step (a bin on the planned
+   * ones, the Log's own cancel) and what can come next. Nothing to plan
+   * while looking back.
+   */
+  const pickedStoryProps = () => {
+    const picked = pickedId ? wb.edges.find((e) => e.id === pickedId) : undefined;
+    if (!picked || !isUnionEdge(picked)) return {};
+    const links = wb.coupleStories.get(uKey(picked.a, picked.b)) ?? [];
+    const steps = storySteps(links, (e) => edgeSourceOf(e) === 'planned');
+    const last = links[links.length - 1];
+    const editing = wb.lookBackAt === null;
+    const nexts = editing ? nextSteps(last, !!last && widowedEdge(last.id)) : [];
+    const sourceOf = new Map(links.map((e) => [e.id, edgeSourceOf(e)]));
+    return {
+      story: {
+        steps: steps.map((st) => ({ ...st, planned: st.planned && editing, from: sourceOf.get(st.edgeId) ?? 'planned' })),
+        onCancel: (step: StoryStep) => {
+          const entry = wb.connectionLog.find((x) =>
+            step.part === 'end' ? x.id === `end:${step.edgeId}` : x.kind !== 'end' && x.edgeIds.includes(step.edgeId),
+          );
+          if (entry) wb.cancelPlan(entry);
+          else if (step.part === 'end') wb.setEnding(step.edgeId, false);
+          // The label follows the couple to the step they're at now.
+          if (step.part === 'start') {
+            const rest = links.filter((e) => e.id !== step.edgeId);
+            const now = rest[rest.length - 1];
+            if (now) wb.selectLink([now.id]);
+          }
+        },
+      },
+      next: nexts.map((step) => ({
+        step,
+        label: nextStepLabel(step, steps),
+        onClick: (button: HTMLElement) => {
+          const sr = stageRef.current?.getBoundingClientRect();
+          const br = button.getBoundingClientRect();
+          wb.planCoupleStep(picked.a, picked.b, step, { x: br.left - (sr?.left ?? 0), y: br.bottom - (sr?.top ?? 0) + 6 });
+        },
+      })),
+    };
+  };
+
+  /**
    * The one couple picked, when its line has a ＋ for a baby (not a couple a
    * passing ended): the chip offers the same, so it's in reach at any zoom.
    */
@@ -1943,6 +1987,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             hitStroke={EDGE_HIT_SCREEN_PX / k}
             selStroke={EDGE_SEL_SCREEN_PX / k}
             liftedUnionId={pickedUnion?.edgeId}
+            storySteps={wb.storyStepCounts}
             onLinkClick={(ids, ev) => {
               onHandlePointer(ev);
               if (pinchRef.current || pointersRef.current.size >= 2) return;
@@ -2032,6 +2077,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
               scale={Math.max(1, SEL_BADGE_MIN_SCREEN_PX / (PILL_H * k))}
               deadIds={deadIds}
               offPlan={wb.offPlan.edges.has(pickedUnion.edgeId)}
+              steps={wb.storyStepCounts.get(pickedUnion.edgeId)}
               worldById={worldById}
               gidById={gidById}
               onUnionClick={onUnionClick}
@@ -2149,17 +2195,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 },
               }
             : {})}
-          {...(linkChip.couple && !widowedEdge(linkChip.couple.id)
-            ? {
-                action: (() => {
-                  const c = linkChip.couple;
-                  const word = c.type === 'marriage' ? 'divorce' : 'breakup';
-                  return c.ending
-                    ? { label: `Cancel the ${word}`, onClick: () => wb.setEnding(c.id, false) }
-                    : { label: `Plan a ${word}`, onClick: () => wb.setEnding(c.id, true) };
-                })(),
-              }
-            : {})}
+          {...pickedStoryProps()}
           // Delete takes the link off, except a couple the game has: for that
           // one Delete plans its end, which the action above already offers.
           onDelete={wb.sel?.type === 'link' && !gameCoupleIntact(wb.sel.ids) ? wb.deleteSelected : undefined}
@@ -2367,11 +2403,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           })}
           onConfirm={(type) => {
             if (type === 'divorce' || type === 'breakup') {
-              // Planned on the couple's link, as from the link chip or Delete.
+              // Planned on the couple's link, as from the link chip or Delete:
+              // the last of their story, where they are now.
               const want = type === 'divorce' ? 'marriage' : 'romance';
-              const link = wb.edges.find(
-                (e) => e.type === want && uKey(e.a, e.b) === uKey(menu.a, menu.b),
-              );
+              const story = storiesByPair(wb.edges).get(uKey(menu.a, menu.b)) ?? [];
+              const last = story[story.length - 1];
+              const link = last?.type === want ? last : undefined;
               // Reset Connect first, so the plan's own message is the one shown.
               wb.cancelConnect();
               if (link) wb.setEnding(link.id, !link.ending);
