@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { chronicleEntry, chronicleWhen, entryAbout, mergeChronicles, storyDays, storyLines, withEntry } from './chronicle.ts';
 import { TICKS_PER_DAY } from './lifeClock.ts';
+import { withPerkPoints } from './utils.ts';
 import type { SaveRecap } from './saveRecap.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
 
@@ -59,11 +60,24 @@ describe('the chronicle', () => {
     assert.equal(entryAbout(next, new Set(['nobody'])), null);
   });
 
-  it('keeps a dynasty’s prestige for its own story and the whole one', () => {
-    const withPrestige = chronicleEntry(game(10), { recap: { ...recap, prestige: [{ key: 'id:7', name: 'Darong', from: 350, to: 625 }] } });
-    assert.equal(entryAbout(withPrestige, null)!.recap!.prestige!.length, 1);
-    assert.equal(entryAbout(withPrestige, new Set(['a']), '', new Set(['id:7']))!.recap!.prestige!.length, 1);
-    assert.equal(entryAbout(withPrestige, new Set(['a']))!.recap!.prestige!.length, 0);
+  it('keeps a dynasty’s prestige and perks for its own story and the whole one', () => {
+    const withPrestige = chronicleEntry(game(10), {
+      recap: {
+        ...recap,
+        prestigeLevels: [{ key: 'id:7', name: 'Darong', from: 7, to: 8 }],
+        perks: [{ key: 'id:7', name: 'Darong', pointsFrom: 350, pointsTo: 25, perksFrom: 12, perksTo: 18 }],
+      },
+    });
+    assert.equal(entryAbout(withPrestige, null)!.recap!.prestigeLevels!.length, 1);
+    assert.equal(entryAbout(withPrestige, new Set(['a']), '', new Set(['id:7']))!.recap!.perks!.length, 1);
+    assert.equal(entryAbout(withPrestige, new Set(['a']))!.recap!.prestigeLevels!.length, 0);
+  });
+
+  it('tells an older board’s “prestige” news as the perk points it was', () => {
+    const old = { ...chronicleEntry(game(10), { recap }), recap: { ...recap, prestige: [{ key: 'id:7', name: 'Thebe', from: 525, to: 0 }] } };
+    const now = withPerkPoints(old as never);
+    assert.deepEqual(now.recap!.perks, [{ key: 'id:7', name: 'Thebe', pointsFrom: 525, pointsTo: 0 }]);
+    assert.equal('prestige' in now.recap!, false);
   });
 
   it('tells a dynasty or family moment in the story of everyone it names', () => {

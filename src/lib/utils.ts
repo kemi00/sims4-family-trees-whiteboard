@@ -309,8 +309,36 @@ export function migrateWhiteboardData(d: {
       gid: realmGid(gid(a.gid)),
       world: homeWorld(world(a.world)),
     })),
-    ...(d.saveGame?.lastPlayedGid ? { saveGame: { ...d.saveGame, lastPlayedGid: realmGid(d.saveGame.lastPlayedGid) } } : {}),
+    ...(d.saveGame ? { saveGame: withStanding(d.saveGame) } : {}),
+    ...(d.chronicle ? { chronicle: d.chronicle.map(withPerkPoints) } : {}),
   };
+}
+
+/** The save's details as the board keeps them now: last-played box in Glimmerbrook, perk points by name. */
+function withStanding(g: SaveGameInfo | null): SaveGameInfo | null {
+  if (!g) return g;
+  const out = g.lastPlayedGid ? { ...g, lastPlayedGid: realmGid(g.lastPlayedGid) } : g;
+  // Before 2026-11-20 the board called a dynasty's perk points its prestige.
+  const old = (out as SaveGameInfo & { prestige?: Record<string, number> }).prestige;
+  if (!old) return out;
+  const { prestige: _was, ...rest } = out as SaveGameInfo & { prestige?: unknown };
+  return {
+    ...rest,
+    dynastyStanding: rest.dynastyStanding ?? Object.fromEntries(Object.entries(old).map(([key, perkPoints]) => [key, { perkPoints }])),
+  };
+}
+
+/**
+ * A story entry kept before 2026-11-20, when the board called a dynasty's
+ * perk points its prestige: that news is about perk points, so it is told
+ * as such. Entries since then are returned as they are.
+ */
+export function withPerkPoints(e: ChronicleEntry): ChronicleEntry {
+  const old = (e.recap as { prestige?: { key: string; name: string; from: number; to: number }[] } | undefined)?.prestige;
+  if (!e.recap || !old) return e;
+  const { prestige: _was, ...rest } = e.recap as NonNullable<ChronicleEntry['recap']> & { prestige?: unknown };
+  const perks = old.map((p) => ({ key: p.key, name: p.name, pointsFrom: p.from, pointsTo: p.to }));
+  return { ...e, recap: { ...rest, perks: [...(rest.perks ?? []), ...perks] } };
 }
 
 export const cssesc = (s: string): string =>

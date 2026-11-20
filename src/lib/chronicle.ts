@@ -1,5 +1,5 @@
 import { dayOf, dayText, seasonNow, yearOf } from './lifeClock.ts';
-import { arrivalText, dynastyText, familyText, homeText, lifeText, relationshipText, type RecapSim, type SaveRecap } from './saveRecap.ts';
+import { arrivalText, dynastyText, familyText, homeText, lifeText, prestigeLevelNewsText, relationshipText, type RecapSim, type SaveRecap } from './saveRecap.ts';
 import type { SaveGameInfo } from '../types/whiteboard.ts';
 
 /**
@@ -121,10 +121,11 @@ export function entryAbout(
     died: r.died.filter((d) => has(ids, d) && says(q, d.name)),
     met: ids || q ? 0 : r.met,
     plansDone: ids || q ? 0 : r.plansDone,
-    // A dynasty's prestige belongs to its story by its members' names, or the whole story.
-    ...(r.prestige
-      ? { prestige: r.prestige.filter((p) => (!ids || !!dynasties?.has(p.key)) && says(q, p.name)) }
+    // A dynasty's prestige and perks belong to its own story, or the whole story.
+    ...(r.prestigeLevels
+      ? { prestigeLevels: r.prestigeLevels.filter((p) => (!ids || !!dynasties?.has(p.key)) && says(q, p.name)) }
       : {}),
+    ...(r.perks ? { perks: r.perks.filter((p) => (!ids || !!dynasties?.has(p.key)) && says(q, p.name)) } : {}),
     // Each moment belongs to the story of every sim it names, and a dynasty's to that dynasty's.
     ...(r.dynasty
       ? {
@@ -159,7 +160,8 @@ export function entryAbout(
     recap.moved.length +
     recap.grew.length +
     recap.died.length +
-    (recap.prestige?.length ?? 0) +
+    (recap.prestigeLevels?.length ?? 0) +
+    (recap.perks?.length ?? 0) +
     (recap.dynasty?.length ?? 0) +
     (recap.family?.length ?? 0) +
     (recap.life?.length ?? 0) +
@@ -195,6 +197,7 @@ export function storyLines(entries: readonly ChronicleEntry[], ids: ReadonlySet<
     for (const l of r.life ?? []) if (l.kind === 'state') out.push({ when, text: lifeText(l) });
     for (const a of r.arrivals ?? []) out.push({ when, text: arrivalText(a) });
     for (const x of r.relationships ?? []) if (x.kind === 'engaged') out.push({ when, text: relationshipText(x) });
+    for (const p of r.prestigeLevels ?? []) if (p.to > p.from) out.push({ when, text: prestigeLevelNewsText(p) });
   }
   return out;
 }

@@ -39,6 +39,7 @@ export { ListNumbers } from '@phosphor-icons/react/ListNumbers';
 export { LockSimple } from '@phosphor-icons/react/LockSimple';
 export { MagicWand } from '@phosphor-icons/react/MagicWand';
 export { MagnifyingGlass } from '@phosphor-icons/react/MagnifyingGlass';
+export { Medal } from '@phosphor-icons/react/Medal';
 export { Megaphone } from '@phosphor-icons/react/Megaphone';
 export { Minus } from '@phosphor-icons/react/Minus';
 export { NotePencil } from '@phosphor-icons/react/NotePencil';

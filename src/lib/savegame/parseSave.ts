@@ -2,7 +2,7 @@ import { TREE_NAMES } from '../../data/treeNames.ts';
 import { homeWorld } from '../realm.ts';
 import { AGES_H, NON_BINARY } from '../constants.ts';
 import { RESIDENTIAL_RENTAL_VENUE, worldOfLotHashes } from '../places.ts';
-import type { DynastyRole, PairTag, SaveLotZone, SaveReadInfo, SaveWorldRecord, SimPronouns } from '../../types/whiteboard.ts';
+import type { DynastyRole, DynastyStanding, PairTag, SaveLotZone, SaveReadInfo, SaveWorldRecord, SimPronouns } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
@@ -145,8 +145,8 @@ export type ParsedSave = {
    * none in the game. Older saves leave this out and say nothing either way.
    */
   dynasties?: true;
-  /** Each dynasty's prestige as the save stores it, by dynasty id (parseDynastyPrestige). */
-  prestige?: Record<string, number>;
+  /** Each dynasty's prestige, perk points and perks, by dynasty id (parseDynastyStanding). */
+  dynastyStanding?: Record<string, DynastyStanding>;
   /** The game clock and aging options; absent when the save has no clock. */
   game?: ParsedGameInfo;
 };
@@ -994,34 +994,49 @@ function parseWorldIndex(saveGame: Uint8Array): {
  */
 type DynastyPlace = { dynasty: string; dynastyId: string; role?: DynastyRole };
 
-/** The dynasty record's tracker (field 12, its id in 12.1) whose value (12.2) is the dynasty's prestige. */
-const PRESTIGE_TRACKER = 294913n;
+/** The dynasty record's tracker (field 12, its id in 12.1) of its perk points (12.2) and perks (12.3). */
+const PERK_TRACKER = 294913n;
+
+/** A float a field stores (wire 5), or undefined. */
+function floatField(fields: ReturnType<typeof decodeFields>, n: number): number | undefined {
+  const f = fields.find((x) => x.field === n && x.wire === 5);
+  if (!f) return undefined;
+  const v = new DataView(new Uint32Array([Number(f.int)]).buffer).getFloat32(0, true);
+  return Number.isFinite(v) ? v : undefined;
+}
 
 /**
- * Each dynasty's prestige, by dynasty id: in its record, one of field 12's
- * trackers (id 294913) holds it in 12.2, with the items the dynasty has
- * unlocked (CAS parts) listed in 12.3. Read from saves on 2026-11-12: it
- * rose by 275 for the Darongs when Beatrice Capp married Adekoya and had
- * triplets, and by 100 for the Cuthberts and Dreamers between two saves.
- * The game shows it as Prestige Level 0 to 10; where each level starts
- * isn't in the save, so the board keeps the points as they are.
+ * Each dynasty's standing, by dynasty id. Its prestige is the record's field
+ * 13, a float: the points the game shows as Prestige Level 0 to 10 (32,100
+ * for a dynasty cheated to the top, exactly 16,100 for one set to Level 7).
+ * One of field 12's trackers (id 294913) holds the perk points left to
+ * spend in 12.2 and lists the active Dynasty Perks in 12.3: on 2026-11-20
+ * the Thebes had 0 perk points and 19 entries after spending 525 points,
+ * and the game showed "Active Perks: 19 / 31, Perk Points: 0". Boards
+ * before then called the perk points prestige.
  */
-function parseDynastyPrestige(gameplay: Uint8Array | null): Record<string, number> | null {
+function parseDynastyStanding(gameplay: Uint8Array | null): Record<string, DynastyStanding> | null {
   const list = gameplay ? firstBytes(gameplay, 60) : null;
   if (!list) return null;
-  const out: Record<string, number> = {};
+  const out: Record<string, DynastyStanding> = {};
   for (const rec of decodeFields(list)) {
     if (rec.field !== 1 || !rec.bytes) continue;
     const fields = decodeFields(rec.bytes);
     const id = idField(fields, 1);
     if (!id) continue;
+    const standing: DynastyStanding = {};
+    const prestige = floatField(fields, 13);
+    if (prestige !== undefined) standing.prestige = prestige;
     for (const f of fields) {
       if (f.field !== 12 || !f.bytes) continue;
       const t = decodeFields(f.bytes);
-      if (t.find((x) => x.field === 1 && x.wire === 0)?.int !== PRESTIGE_TRACKER) continue;
+      if (t.find((x) => x.field === 1 && x.wire === 0)?.int !== PERK_TRACKER) continue;
       const v = t.find((x) => x.field === 2 && x.wire === 0)?.int;
-      out[id] = v === undefined ? 0 : Number(v);
+      // A value left out is the format's 0.
+      standing.perkPoints = v === undefined ? 0 : Number(v);
+      standing.perks = t.filter((x) => x.field === 3 && x.bytes).length;
     }
+    if (Object.keys(standing).length) out[id] = standing;
   }
   return out;
 }
@@ -1139,7 +1154,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     }
   }
   const game = parseGameInfo(data);
-  const prestige = parseDynastyPrestige(gameplay);
+  const dynastyStanding = parseDynastyStanding(gameplay);
   return {
     sims,
     rels,
@@ -1150,7 +1165,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     pairs,
     relatives,
     ...(dynasties ? { dynasties: true as const } : {}),
-    ...(prestige && Object.keys(prestige).length ? { prestige } : {}),
+    ...(dynastyStanding && Object.keys(dynastyStanding).length ? { dynastyStanding } : {}),
     ...(game ? { game } : {}),
   };
 }

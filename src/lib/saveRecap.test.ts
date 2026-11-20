@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { arrivalText, dynastyText, homeText, recapHasNews, recapTimeText, relationshipText, saveRecap } from './saveRecap.ts';
+import { arrivalText, dynastyText, homeText, recapHasNews, recapTimeText, relationshipText, prestigeLevelNewsText, perkText, saveRecap } from './saveRecap.ts';
 import type { Edge, PairStatus, SimNode } from '../types/whiteboard.ts';
 
 const sim = (id: string, first: string, extra: Partial<SimNode> = {}): SimNode =>
@@ -56,13 +56,29 @@ describe('previously on', () => {
     assert.deepEqual(saveRecap(before, after).celebrate.sort(), ['b', 'j', 'k']);
   });
 
-  it('tells which dynasties gained or lost prestige', () => {
+  it('tells a new Prestige Level, and perks taken for perk points', () => {
     const capp = (n: SimNode) => ({ ...n, dynasty: 'Capp', dynastyId: '7' });
     const r = saveRecap(
-      { ...before, nodes: before.nodes.map(capp), saveGame: { ...before.saveGame, prestige: { 'id:7': 350, 'id:9': 75 } } },
-      { ...after, nodes: after.nodes.map(capp), saveGame: { ...after.saveGame, prestige: { 'id:7': 625, 'id:9': 75 } } },
+      {
+        ...before,
+        nodes: before.nodes.map(capp),
+        saveGame: { ...before.saveGame, dynastyStanding: { 'id:7': { prestige: 20900, perkPoints: 525, perks: 13 }, 'id:9': { prestige: 300, perkPoints: 75, perks: 0 } } },
+      },
+      {
+        ...after,
+        nodes: after.nodes.map(capp),
+        saveGame: { ...after.saveGame, dynastyStanding: { 'id:7': { prestige: 22405, perkPoints: 0, perks: 19 }, 'id:9': { prestige: 380, perkPoints: 100, perks: 0 } } },
+      },
     );
-    assert.deepEqual(r.prestige, [{ key: 'id:7', name: 'Capp', from: 350, to: 625 }]);
+    assert.deepEqual(r.prestigeLevels, [{ key: 'id:7', name: 'Capp', from: 7, to: 8 }]);
+    assert.deepEqual(r.perks, [{ key: 'id:7', name: 'Capp', pointsFrom: 525, pointsTo: 0, perksFrom: 13, perksTo: 19 }]);
+    assert.equal(perkText(r.perks![0]!), 'The Capp dynasty took 6 perks for 525 perk points');
+    assert.equal(prestigeLevelNewsText(r.prestigeLevels![0]!), 'The Capp dynasty reached Prestige Level 8');
+  });
+
+  it('tells perk points spent when an older board has no perk count', () => {
+    assert.equal(perkText({ key: 'k', name: 'Thebe', pointsFrom: 525, pointsTo: 0 }), 'The Thebe dynasty spent 525 perk points');
+    assert.equal(perkText({ key: 'k', name: 'Thebe', perksFrom: 19, perksTo: 0 }), 'The Thebe dynasty reset its perks');
   });
 
   it('has no news when nothing changed', () => {

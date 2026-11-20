@@ -251,15 +251,29 @@ export interface SaveGameInfo {
   /** Clock of the first import where every household was aging. */
   allAgingSince?: number;
   /**
-   * Each game dynasty's prestige as the save stores it, by the board's key
-   * for it (dynastyKey). The game shows it as Prestige Level 0 to 10.
+   * Each game dynasty's standing as the save stores it, by the board's key
+   * for it (dynastyKey): its prestige, perk points and perks.
    */
-  prestige?: Record<string, number>;
+  dynastyStanding?: Record<string, DynastyStanding>;
   lotZones?: SaveLotZone[];
   /** What the board read from the save, with no names: for the problem report. */
   read?: SaveReadInfo;
   /** What the last upload did, in counts: for the problem report. */
   lastUpload?: SaveUploadInfo;
+}
+
+/**
+ * A game dynasty's standing (Royalty & Legacy), as a save stores it. Boards
+ * from before 2026-11-20 called the perk points "prestige"; they load as
+ * perk points.
+ */
+export interface DynastyStanding {
+  /** Prestige points: the game shows them as Prestige Level 0 to 10 (prestigeLevel). */
+  prestige?: number;
+  /** Perk points left to spend on Dynasty Perks. */
+  perkPoints?: number;
+  /** How many Dynasty Perks are active. */
+  perks?: number;
 }
 
 /** A world record in an uploaded save, as the problem report lists it. */

@@ -1,3 +1,4 @@
+import { prestigeLevel } from './prestige.ts';
 import { DECEASED_STATE } from './constants.ts';
 import { TICKS_PER_DAY } from './lifeClock.ts';
 import { dynastyKey, dynastyLabelText, dynastyNames } from './generations.ts';
@@ -58,6 +59,41 @@ export type RelationshipNews = {
   link?: 'parent' | 'romance';
 };
 
+/**
+ * A dynasty's perks between two saves: its perk points left and its active
+ * perks, before and now (counts are missing from older saves' boards).
+ */
+export type PerkNews = {
+  key: string;
+  name: string;
+  pointsFrom?: number;
+  pointsTo?: number;
+  perksFrom?: number;
+  perksTo?: number;
+};
+
+/**
+ * "The Thebe dynasty took 6 perks for 525 perk points": perks taken or given
+ * up, or (with no perk counts) perk points spent or earned.
+ */
+export function perkText(p: PerkNews): string {
+  const the = `The ${p.name} dynasty`;
+  const points = (n: number) => `${n.toLocaleString('en-US')} perk ${n === 1 ? 'point' : 'points'}`;
+  const spent = p.pointsFrom !== undefined && p.pointsTo !== undefined ? p.pointsFrom - p.pointsTo : 0;
+  if (p.perksFrom !== undefined && p.perksTo !== undefined && p.perksTo !== p.perksFrom) {
+    const n = Math.abs(p.perksTo - p.perksFrom);
+    const perks = `${n} ${n === 1 ? 'perk' : 'perks'}`;
+    if (p.perksTo > p.perksFrom) return spent > 0 ? `${the} took ${perks} for ${points(spent)}` : `${the} took ${perks}`;
+    return p.perksTo === 0 ? `${the} reset its perks` : `${the} gave up ${perks}`;
+  }
+  return spent > 0 ? `${the} spent ${points(spent)}` : `${the} earned ${points(-spent)}`;
+}
+
+/** "The Thebe dynasty reached Prestige Level 9", or fell to one. */
+export function prestigeLevelNewsText(p: { name: string; from: number; to: number }): string {
+  return `The ${p.name} dynasty ${p.to > p.from ? 'reached' : 'fell to'} Prestige Level ${p.to}`;
+}
+
 /** Family news: an adoption, or a parent the family tree now shows. */
 export type FamilyNews =
   | { kind: 'adopted'; parents: RecapSim[]; child: RecapSim; planned?: boolean }
@@ -91,8 +127,10 @@ export type SaveRecap = {
   metIds?: string[];
   /** Planned births and couples the save shows done. */
   plansDone: number;
-  /** Dynasties whose prestige changed: the game's dynasty name, before and now. */
-  prestige?: { key: string; name: string; from: number; to: number }[];
+  /** Dynasties that reached a new Prestige Level (or fell to one): the game's dynasty name, levels before and now. */
+  prestigeLevels?: { key: string; name: string; from: number; to: number }[];
+  /** Dynasties that took or gave up perks, or whose perk points changed with no perk count to tell by. */
+  perks?: PerkNews[];
   /** New heads, heirs and outcasts, joining and leaving (absent on older chronicle pages). */
   dynasty?: DynastyNews[];
   /** Adoptions, and parents the family tree now shows. */
@@ -211,22 +249,43 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
     const b = now.get(e.b);
     if (a && b) recap.apart.push({ a: sim(a), b: sim(b), type: 'breakup' });
   }
-  // Prestige gained or lost, dynasty by dynasty, as the two saves have it.
-  const p0 = before.saveGame?.prestige;
-  const p1 = after.saveGame?.prestige;
-  if (p0 && p1) {
+  // Each dynasty's standing, as the two saves have it: a new Prestige Level,
+  // and perks taken or given up. Perk points rising with prestige are no news.
+  const st0 = before.saveGame?.dynastyStanding;
+  const st1 = after.saveGame?.dynastyStanding;
+  if (st0 && st1) {
     const names = dynastyNames([...after.nodes]);
-    const changes = Object.entries(p1)
-      .filter(([key, to]) => p0[key] !== undefined && p0[key] !== to)
-      .map(([key, to]) => {
-        // Two of one name are told apart by line: "Ngata (Leila’s line)".
-        const known = names.get(key);
-        const name = known ? dynastyLabelText(known) : (after.nodes.find((n) => dynastyKey(n) === key)?.dynasty ?? '');
-        return { key, name, from: p0[key]!, to };
-      })
-      .filter((c) => c.name)
-      .sort((x, y) => Math.abs(y.to - y.from) - Math.abs(x.to - x.from) || x.name.localeCompare(y.name));
-    if (changes.length) recap.prestige = changes;
+    const nameOf = (key: string) => {
+      // Two of one name are told apart by line: "Ngata (Leila’s line)".
+      const known = names.get(key);
+      return known ? dynastyLabelText(known) : (after.nodes.find((n) => dynastyKey(n) === key)?.dynasty ?? '');
+    };
+    const levels: NonNullable<SaveRecap['prestigeLevels']> = [];
+    const perks: PerkNews[] = [];
+    for (const [key, now] of Object.entries(st1)) {
+      const then = st0[key];
+      const name = nameOf(key);
+      if (!then || !name) continue;
+      if (then.prestige !== undefined && now.prestige !== undefined) {
+        const from = prestigeLevel(then.prestige);
+        const to = prestigeLevel(now.prestige);
+        if (from !== to) levels.push({ key, name, from, to });
+      }
+      const counted = then.perks !== undefined && now.perks !== undefined;
+      const points = then.perkPoints !== undefined && now.perkPoints !== undefined && then.perkPoints !== now.perkPoints;
+      if (counted ? then.perks !== now.perks : points && now.perkPoints! < then.perkPoints!) {
+        perks.push({
+          key,
+          name,
+          ...(then.perkPoints !== undefined ? { pointsFrom: then.perkPoints } : {}),
+          ...(now.perkPoints !== undefined ? { pointsTo: now.perkPoints } : {}),
+          ...(then.perks !== undefined ? { perksFrom: then.perks } : {}),
+          ...(now.perks !== undefined ? { perksTo: now.perks } : {}),
+        });
+      }
+    }
+    if (levels.length) recap.prestigeLevels = levels.sort((x, y) => y.to - x.to || x.name.localeCompare(y.name));
+    if (perks.length) recap.perks = perks.sort((x, y) => x.name.localeCompare(y.name));
   }
   tellTheRest(before, after, recap, was, now, sim);
   recap.celebrate = [...new Set(recap.celebrate)];
@@ -631,7 +690,8 @@ export function recapHasNews(r: SaveRecap): boolean {
       r.grew.length +
       r.died.length +
       r.met +
-      (r.prestige?.length ?? 0) +
+      (r.prestigeLevels?.length ?? 0) +
+      (r.perks?.length ?? 0) +
       (r.dynasty?.length ?? 0) +
       (r.family?.length ?? 0) +
       (r.life?.length ?? 0) +

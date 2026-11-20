@@ -1,3 +1,4 @@
+import { prestigeLevelText } from './prestige.ts';
 import { withoutPastUnions } from './coupleStory.ts';
 import { DECEASED_STATE, DYNASTY_ROLES } from './constants.ts';
 import { dynastyGenerations, dynastyKey } from './generations.ts';
@@ -6,7 +7,7 @@ import { NOT_YET_AGE, cardName, isPlannedSim } from './plan.ts';
 import { successionLine } from './succession.ts';
 import { edgeSourceOf, isPet } from './utils.ts';
 import type { StoryLine } from './chronicle.ts';
-import type { Edge, Group, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
+import type { DynastyStanding, Edge, Group, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 /** One sim on a poster. */
 export type PosterCard = {
@@ -346,10 +347,10 @@ export function dynastyPoster(opts: {
   /** The links the board shows (without secrets when it hides them); every link by default. */
   links?: readonly Edge[];
   saveGame?: SaveGameInfo | null;
-  /** Its prestige from the save, for a game dynasty. */
-  prestige?: number;
+  /** Its prestige and perks from the save, for a game dynasty. */
+  standing?: DynastyStanding;
 }): PosterModel {
-  const { key, label, nodes, edges, links = edges, saveGame, prestige } = opts;
+  const { key, label, nodes, edges, links = edges, saveGame, standing } = opts;
   const members = nodes.filter((n) => dynastyKey(n) === key && !isPet(n) && n.dynastyPlan !== 'none');
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const gens = dynastyGenerations(nodes, edges);
@@ -389,7 +390,7 @@ export function dynastyPoster(opts: {
     subtitle: [
       `${living} living ${living === 1 ? 'member' : 'members'}`,
       deceased ? `${deceased} remembered` : '',
-      prestige !== undefined ? `${prestige.toLocaleString('en-US')} prestige` : '',
+      prestigeLevelText(standing) ?? '',
       head?.world && head.world !== '-' ? `head in ${head.world}` : '',
     ]
       .filter(Boolean)

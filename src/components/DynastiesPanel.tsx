@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookOpenText, Check, Highlighter, ImageSquare, Warning } from '../icons.ts';
+import { prestigeLevelText, standingText } from '../lib/prestige.ts';
 import { DYNASTY_ROLES } from '../lib/constants.ts';
 import { riskText, type DynastyMember, type DynastyRow } from '../lib/dynastyMenu.ts';
 import { handoverText, lineClockText, stepClockText, stepWhen, type Handover, type SuccessionForecast } from '../lib/forecast.ts';
 import { agingSummary } from '../lib/lifeClock.ts';
 import { windowText } from '../lib/matchClock.ts';
-import type { SaveGameInfo } from '../types/whiteboard.ts';
+import type { DynastyStanding, SaveGameInfo } from '../types/whiteboard.ts';
 import { fold } from '../lib/utils.ts';
 import { BarPanel } from './BarPanel.tsx';
 
@@ -43,8 +44,8 @@ type Props = {
   hhOf: (gid: string) => string;
   /** Open the Chronicle on a dynasty's story (by key); absent while the story is empty. */
   onStory?: (key: string) => void;
-  /** A game dynasty's prestige from your last save, by key. */
-  prestigeOf?: (key: string) => number | undefined;
+  /** A game dynasty's prestige, perk points and perks from your last save, by key. */
+  standingOf?: (key: string) => DynastyStanding | undefined;
 };
 
 /** The list's order: by name, by how many sims each has (the count on its card), or by prestige. */
@@ -54,7 +55,7 @@ const SORTS: { key: Sort; label: string; title: string }[] = [
   { key: 'name', label: 'A–Z', title: 'By name, A to Z' },
   { key: 'most', label: 'Most sims', title: 'The most sims first' },
   { key: 'fewest', label: 'Fewest sims', title: 'The fewest sims first' },
-  { key: 'prestige', label: 'Most prestige', title: 'The most prestige first, as your save has it' },
+  { key: 'prestige', label: 'Most prestige', title: 'The highest Prestige Level first, as your save has it' },
 ];
 
 /** The order you last picked, kept for this browser only. */
@@ -124,7 +125,7 @@ export function DynastiesPanel({
   onPoster,
   hhOf,
   onStory,
-  prestigeOf,
+  standingOf,
 }: Props) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
@@ -160,12 +161,12 @@ export function DynastiesPanel({
       }
       return false;
     });
-    if (sort === 'prestige') out.sort((a, b) => (prestigeOf?.(b.key) ?? -1) - (prestigeOf?.(a.key) ?? -1));
+    if (sort === 'prestige') out.sort((a, b) => (standingOf?.(b.key)?.prestige ?? -1) - (standingOf?.(a.key)?.prestige ?? -1));
     else if (sort !== 'name') out.sort((a, b) => (sort === 'most' ? -1 : 1) * (a.members.length - b.members.length));
     return { rows: out, byMember };
-  }, [rows, q, labelOf, nameOf, riskOnly, sort, prestigeOf]);
+  }, [rows, q, labelOf, nameOf, riskOnly, sort, standingOf]);
   /** Prestige is in the save (Royalty & Legacy, read since 2026-11-12): only then sort by it. */
-  const hasPrestige = useMemo(() => rows.some((r) => prestigeOf?.(r.key) !== undefined), [rows, prestigeOf]);
+  const hasPrestige = useMemo(() => rows.some((r) => standingOf?.(r.key)?.prestige !== undefined), [rows, standingOf]);
 
   const groups = [
     { key: 'game', title: 'In your game', rows: found.rows.filter((r) => r.inGame) },
@@ -431,14 +432,18 @@ export function DynastiesPanel({
                     >
                       <span className="dynp__top">
                         <span className="dynp__name">{labelOf(r)}</span>
-                        {prestigeOf?.(r.key) !== undefined && (
-                          <span
-                            className="dynp__prestige"
-                            title="Prestige as your save stores it: the game shows it as Prestige Level 0 to 10"
-                          >
-                            {prestigeOf(r.key)!.toLocaleString()} prestige
-                          </span>
-                        )}
+                        {(() => {
+                          // The game's own words, "Prestige Level 8"; the points and perks in the tip.
+                          const standing = standingOf?.(r.key);
+                          const level = prestigeLevelText(standing);
+                          const points = standing?.perkPoints;
+                          const shown = level ?? (points !== undefined ? `${points.toLocaleString()} perk points` : null);
+                          return shown ? (
+                            <span className="dynp__prestige" title={standingText(standing)}>
+                              {shown}
+                            </span>
+                          ) : null;
+                        })()}
                         <span className="dynp__count">{plural(r.members.length, 'sim')}</span>
                       </span>
                       <span className="dynp__holders">

@@ -74,7 +74,7 @@ function gameLine(g: SaveGameInfo): string {
     `played age: ${g.playedAging ?? 'unknown'}`,
     `unplayed age: ${g.unplayedAging === undefined ? 'unknown' : g.unplayedAging ? 'on' : 'off'}`,
     g.activeHousehold ? 'active household known' : 'no active household',
-    g.prestige ? count(Object.keys(g.prestige).length, 'dynasty prestige', 'dynasty prestiges') : '',
+    g.dynastyStanding ? count(Object.keys(g.dynastyStanding).length, 'dynasty standing', 'dynasty standings') : '',
     g.lotZones ? count(g.lotZones.length, 'saved lot') : '',
   ];
   return parts.filter(Boolean).join(' · ');

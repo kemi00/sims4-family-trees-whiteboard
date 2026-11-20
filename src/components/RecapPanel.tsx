@@ -12,6 +12,7 @@ import {
   Heart,
   HeartBreak,
   House,
+  Medal,
   Sparkle,
   Star,
   SuitcaseRolling,
@@ -21,7 +22,7 @@ import {
   type Icon,
 } from '../icons.ts';
 import { CloseButton } from './CloseButton.tsx';
-import { lifeText, recapTimeText, relationshipText, theDynasty, type DynastyNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
+import { lifeText, perkText, prestigeLevelNewsText, recapTimeText, relationshipText, theDynasty, type DynastyNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
@@ -296,16 +297,8 @@ export function RecapStory({
     }
     return { key: `rel${k}`, Icon: x.kind === 'engaged' ? Diamond : UsersThree, node: relationshipItem(x) };
   });
-  each((r) => r.prestige, (p, k) => ({
-    key: `prestige${k}`,
-    Icon: Star,
-    node: (
-      <>
-        The {p.name} dynasty {p.to > p.from ? 'gained' : 'lost'} {Math.abs(p.to - p.from).toLocaleString()} prestige (
-        {p.from.toLocaleString()} to {p.to.toLocaleString()})
-      </>
-    ),
-  }));
+  each((r) => r.prestigeLevels, (p, k) => ({ key: `level${k}`, Icon: Star, node: <>{prestigeLevelNewsText(p)}</> }));
+  each((r) => r.perks, (p, k) => ({ key: `perks${k}`, Icon: Medal, node: <>{perkText(p)}</> }));
   for (const r of recaps) {
     met += r.met;
     if (r.played) played.set(r.played.hh, r.played);

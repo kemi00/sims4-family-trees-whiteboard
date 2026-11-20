@@ -566,7 +566,7 @@ export default function App() {
                 return { ...f, windows: partnerWindows(f, wb.nodes, wb.saveGame) };
               }}
               hhOf={(gid) => householdName(gid, wb.groups, wb.nodes)}
-              prestigeOf={(key) => wb.saveGame?.prestige?.[key]}
+              standingOf={(key) => wb.saveGame?.dynastyStanding?.[key]}
               {...(wb.chronicle.length
                 ? {
                     onStory: (key: string) => {
@@ -583,7 +583,7 @@ export default function App() {
               onPoster={(key) => {
                 const poster = dynastyPoster({
                   key,
-                  prestige: wb.saveGame?.prestige?.[key],
+                  standing: wb.saveGame?.dynastyStanding?.[key],
                   label: dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' }),
                   nodes: wb.nodes,
                   edges: wb.edges,
