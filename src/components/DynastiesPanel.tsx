@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookOpenText, Check, Highlighter, ImageSquare, Warning } from '../icons.ts';
-import { prestigeLevelText, standingText } from '../lib/prestige.ts';
+import { standingText } from '../lib/prestige.ts';
 import { DYNASTY_ROLES } from '../lib/constants.ts';
 import { riskText, type DynastyMember, type DynastyRow } from '../lib/dynastyMenu.ts';
 import { handoverText, lineClockText, stepClockText, stepWhen, type Handover, type SuccessionForecast } from '../lib/forecast.ts';
@@ -9,6 +9,7 @@ import { windowText } from '../lib/matchClock.ts';
 import type { DynastyStanding, SaveGameInfo } from '../types/whiteboard.ts';
 import { fold } from '../lib/utils.ts';
 import { BarPanel } from './BarPanel.tsx';
+import { PrestigeBar } from './PrestigeBar.tsx';
 
 type Props = {
   rows: DynastyRow[];
@@ -433,19 +434,26 @@ export function DynastiesPanel({
                       <span className="dynp__top">
                         <span className="dynp__name">{labelOf(r)}</span>
                         {(() => {
-                          // The game's own words, "Prestige Level 8"; the points and perks in the tip.
+                          // A board from before knows only perk points: said in words here.
                           const standing = standingOf?.(r.key);
-                          const level = prestigeLevelText(standing);
                           const points = standing?.perkPoints;
-                          const shown = level ?? (points !== undefined ? `${points.toLocaleString()} perk points` : null);
-                          return shown ? (
+                          return standing?.prestige === undefined && points !== undefined ? (
                             <span className="dynp__prestige" title={standingText(standing)}>
-                              {shown}
+                              {points.toLocaleString()} perk points
                             </span>
                           ) : null;
                         })()}
                         <span className="dynp__count">{plural(r.members.length, 'sim')}</span>
                       </span>
+                      {(() => {
+                        // Its Prestige Level as the game draws it: ten stars on a bar.
+                        const standing = standingOf?.(r.key);
+                        return standing?.prestige !== undefined ? (
+                          <span className="dynp__standing">
+                            <PrestigeBar standing={{ ...standing, prestige: standing.prestige }} />
+                          </span>
+                        ) : null;
+                      })()}
                       <span className="dynp__holders">
                         {holder(r.head, 'head')}
                         {holder(r.heir, 'heir')}
