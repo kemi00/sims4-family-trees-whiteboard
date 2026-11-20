@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "9559401",
+   "date": "2026-11-20",
+   "text": "Every game now shows its own icon: in Filters › Games and packs, and at the start of each world's tag, before the world's picture. Hover a world's tag to see which game it comes from."
+  },
+  {
    "sha": "e196153",
    "date": "2026-11-20",
    "text": "The story is easier to scan: when there are many births, couples, dynasties or moves, each kind becomes one line you can open into a list, one at a time. Babies made in Create a Sim now count as births in your save's first chapter too."
