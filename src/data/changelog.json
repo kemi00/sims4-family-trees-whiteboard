@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "7a5bf3c",
+   "date": "2026-11-20",
+   "text": "You can now send a problem report straight to kemi: in ⋮ › Send a problem report, or on the screen that shows if the board stops. Add a few words on what you were doing, press Send, and you get the report's number to mention on Threads. It still has no names, and nothing is sent until you press Send."
+  },
+  {
    "sha": "d36e65b",
    "date": "2026-11-20",
    "text": "The board no longer goes blank when your browser translates the page. If you read it in another language with Chrome's translate, linking sims, undoing and other changes now work, and the message at the top keeps up. Sim and place names stay as your game shows them."
