@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from '../icons.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { copyText } from '../lib/clipboard.ts';
-import { CONTACT_EMAIL, CONTACT_MAILTO } from '../lib/credits.ts';
+import { DEVELOPER_NAME } from '../lib/credits.ts';
 import { CloseButton, IconButton } from './CloseButton.tsx';
+import { DeveloperContact } from './DeveloperContact.tsx';
 
 type Props = {
   anchorRect: DOMRect | null;
@@ -68,10 +69,10 @@ export function ProblemReportPanel({ anchorRect, text, copied, onClose }: Props)
         {ok === false
           ? 'Your browser didn’t let the board copy it. Select all the text below and copy it, or try the copy button again.'
           : again
-            ? 'Copied again. Paste it into a message to the developer, with a few words on what went wrong.'
+            ? `Copied again. Paste it into a message to ${DEVELOPER_NAME}, with a few words on what went wrong.`
             : ok === null
               ? 'Copying.'
-              : 'It’s on your clipboard. Paste it into a message to the developer, with a few words on what went wrong.'}
+              : `It’s on your clipboard. Paste it into a message to ${DEVELOPER_NAME}, the developer, with a few words on what went wrong.`}
       </p>
       <p className="report-panel__note">
         It has no names: not your sims’, households’, lots’ or dynasties’, and none of your notes. Only counts, the
@@ -80,9 +81,12 @@ export function ProblemReportPanel({ anchorRect, text, copied, onClose }: Props)
       <pre className="report-panel__text" tabIndex={0} aria-label="The problem report">
         {text}
       </pre>
-      <p className="report-panel__note">
-        Developer: <a href={CONTACT_MAILTO}>{CONTACT_EMAIL}</a>
-      </p>
+      <DeveloperContact
+        variant="panel"
+        heading={`Send it to ${DEVELOPER_NAME}`}
+        note="By email, or a message on Threads"
+        subject="Family Trees Whiteboard: problem report"
+      />
     </div>
   );
 }

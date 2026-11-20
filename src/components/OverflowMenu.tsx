@@ -3,7 +3,6 @@ import {
   ClipboardText,
   DotsThreeVertical,
   DownloadSimple,
-  EnvelopeSimple,
   Info,
   Megaphone,
   UploadSimple,
@@ -11,9 +10,10 @@ import {
 } from '../icons.ts';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { copyText } from '../lib/clipboard.ts';
-import { CONTACT_EMAIL, CONTACT_MAILTO } from '../lib/credits.ts';
+import { DEVELOPER_NAME } from '../lib/credits.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import { CreditsPanel } from './CreditsPanel.tsx';
+import { DeveloperContact } from './DeveloperContact.tsx';
 import { ProblemReportPanel } from './ProblemReportPanel.tsx';
 import { StepText } from './StepText.tsx';
 import { ToolButton } from './ToolButton.tsx';
@@ -210,18 +210,12 @@ export function OverflowMenu({
               </span>
             </button>
           )}
-          <a
-            href={CONTACT_MAILTO}
-            role="menuitem"
-            title={`Problems, feedback, suggestions, or ideas: ${CONTACT_EMAIL}`}
-            onClick={() => setOpen(false)}
-          >
-            <EnvelopeSimple aria-hidden="true" />
-            <span className="pop__stack">
-              Contact
-              <span className="pop__sub">{CONTACT_EMAIL}</span>
-            </span>
-          </a>
+          <DeveloperContact
+            variant="menu"
+            heading={`Contact ${DEVELOPER_NAME}`}
+            note="Problems, feedback or ideas"
+            onPick={() => setOpen(false)}
+          />
           <button
             type="button"
             role="menuitem"

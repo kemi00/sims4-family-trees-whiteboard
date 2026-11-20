@@ -20,6 +20,20 @@ export const EA_FAN_CONTENT_URL =
 /** Inbox for problems, feedback, suggestions, or ideas. */
 export const CONTACT_EMAIL = 'giggle.34richter@icloud.com';
 
-export const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(
-  'Family Trees Whiteboard',
-)}`;
+/** An email to the developer, with this subject. */
+export function contactMailto(subject = 'Family Trees Whiteboard'): string {
+  return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+}
+
+/** The developer, as they sign. */
+export const DEVELOPER_NAME = 'kemi';
+
+/** The developer on Threads. */
+export const CONTACT_THREADS = '@kemi01234';
+export const CONTACT_THREADS_URL = 'https://www.threads.com/@kemi01234';
+
+/** The developer's profile picture (public/developer.webp), from the app's own files. */
+export function developerPictureUrl(): string {
+  const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+  return `${base}developer.webp`;
+}

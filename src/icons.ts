@@ -41,6 +41,7 @@ export { Plus } from '@phosphor-icons/react/Plus';
 export { Scroll } from '@phosphor-icons/react/Scroll';
 export { Selection } from '@phosphor-icons/react/Selection';
 export { Skull } from '@phosphor-icons/react/Skull';
+export { ThreadsLogo } from '@phosphor-icons/react/ThreadsLogo';
 export { Trash } from '@phosphor-icons/react/Trash';
 export { TreeStructure } from '@phosphor-icons/react/TreeStructure';
 export { UploadSimple } from '@phosphor-icons/react/UploadSimple';
