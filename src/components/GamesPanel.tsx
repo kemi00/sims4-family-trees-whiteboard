@@ -1,3 +1,5 @@
+import { packIconUrl } from '../lib/packs.ts';
+
 type Props = {
   /** Every game, including those with no sims on the board. */
   packs: string[];
@@ -47,7 +49,14 @@ export function GamesPanel({
               checked={on}
               onChange={(e) => onToggle(p, e.target.checked)}
             />
-            <i style={{ background: colors.get(p) ?? '#9aa0a6' }} />
+            {/* The game's icon in a ring of its world's colour, as the worlds list shows pictures. */}
+            {packIconUrl(p) ? (
+              <span className="lg__world" style={{ borderColor: colors.get(p) ?? '#9aa0a6' }} aria-hidden="true">
+                <img src={packIconUrl(p)} alt="" width={16} height={16} />
+              </span>
+            ) : (
+              <span className="lg__world lg__world--blank" style={{ borderColor: colors.get(p) ?? '#9aa0a6' }} aria-hidden="true" />
+            )}
             <span>{p}</span>
             <b>{n}</b>
           </label>

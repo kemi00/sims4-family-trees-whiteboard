@@ -4,6 +4,7 @@ import { worldFrame, worldTagMetrics } from '../lib/geometry.ts';
 import { nodesForWorld, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { worldColor } from '../lib/utils.ts';
 import { worldIconUrl } from '../lib/places.ts';
+import { worldPackIconUrl } from '../lib/packs.ts';
 import { frameWithLots, type LotBox } from '../lib/lotBoxes.ts';
 import {
   worldCounts,
@@ -305,19 +306,33 @@ export const WorldLayer = memo(function WorldLayer({
                 style={{ pointerEvents: 'none' }}
               />
             )}
+            {pill.packCx !== null && worldPackIconUrl(c.w) && (
+              // The game the world comes from, at the pill's round end.
+              <g style={{ pointerEvents: 'none' }}>
+                <circle cx={c.paintX + pill.packCx} cy={c.paintY + pill.nameY} r={10.5 * s} fill="#ffffff" />
+                <image
+                  href={worldPackIconUrl(c.w)}
+                  x={c.paintX + pill.packCx - 9.5 * s}
+                  y={c.paintY + pill.nameY - 9.5 * s}
+                  width={19 * s}
+                  height={19 * s}
+                  preserveAspectRatio="xMidYMid meet"
+                />
+              </g>
+            )}
             {worldIconUrl(c.w) ? (
               // The world's picture stands for the grip: the whole tag is
-              // the handle. It fits the pill's round end, before the name.
+              // the handle. It sits before the name, after the game's icon.
               <g style={{ pointerEvents: 'none' }}>
                 <circle
-                  cx={c.paintX + 15.5 * s}
+                  cx={c.paintX + pill.pictureCx}
                   cy={c.paintY + pill.nameY}
                   r={10.5 * s}
                   fill="#ffffff"
                 />
                 <image
                   href={worldIconUrl(c.w)}
-                  x={c.paintX + 6 * s}
+                  x={c.paintX + pill.pictureCx - 9.5 * s}
                   y={c.paintY + pill.nameY - 9.5 * s}
                   width={19 * s}
                   height={19 * s}

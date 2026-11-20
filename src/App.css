@@ -237,6 +237,9 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .board-tip__head{font-weight:650}
 .board-tip--rich .board-tip__head{font-size:12px}
 .board-tip__note{color:var(--tip-text);font-weight:500}
+/* A world's game, with its icon, under its name. */
+.board-tip__game{display:flex;align-items:center;gap:5px;margin-top:2px;color:var(--tip-text);font-weight:500}
+.board-tip__game img{flex:none;border-radius:50%}
 .board-tip--rich .board-tip__note{margin-top:3px}
 .board-tip__rows{display:flex;flex-direction:column;gap:3px;margin-top:8px;padding-top:8px;border-top:1px solid #ffffff24}
 .board-tip__row{display:flex;align-items:center;gap:7px}
@@ -952,11 +955,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .gpanel .gph button:where(:not(.iconbtn)):hover{background:var(--hover)}
 .gpanel .grow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;cursor:pointer}
 .gpanel .grow:hover{background:var(--hover)}
-.gpanel .grow i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
-.gpanel .grow>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.gpanel .grow>span:not(.lg__world){flex:1;min-width:0;overflow-wrap:anywhere}
 .gpanel .grow b{color:var(--ink-3);font-weight:600;font-size:11px}
-.gpanel .grow--none>span,.gpanel .grow--none b{color:var(--ink-3)}
-.gpanel .grow--none i{opacity:.45}
+.gpanel .grow--none>span:not(.lg__world),.gpanel .grow--none b{color:var(--ink-3)}
+.gpanel .grow--none .lg__world{opacity:.45}
 .gpanel input[type=checkbox]{width:15px;height:15px;accent-color:#1b6cd6;cursor:pointer;flex:0 0 auto}
 /*
  * The bar's group (Up next, Dynasties, Story, Filters) and the Log open in

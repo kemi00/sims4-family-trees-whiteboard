@@ -3,6 +3,7 @@ import { dynastyKey } from './generations.ts';
 import { textWidth } from './textWidth.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import type { RichTip } from './boardTip.ts';
+import { worldPack, worldPackIconUrl } from './packs.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -111,6 +112,10 @@ const COUNT_FONT = 12;
 const ICON = 12;
 const NAME_X = 31;
 const PAD_R = 14;
+/** The game's icon at the tag's round end, the world's picture after it: this much wider. */
+const PACK_SLOT = 23;
+/** Centre of the first round thing in the tag, from its left. */
+const LEAD_CX = 15.5;
 /** Second line under the name, used zoomed out (see {@link worldTagLayout}). */
 const LINE2_H = 16;
 
@@ -129,6 +134,10 @@ export type WorldTagLayout = {
   nameY: number;
   handleX: number;
   nameX: number;
+  /** Centre x of the game's icon, at the round end; null for a world with no game (Not in any world). */
+  packCx: number | null;
+  /** Centre x of the world's picture: after the game's icon, or at the round end. */
+  pictureCx: number;
   fontSize: number;
   counts: {
     y: number;
@@ -233,12 +242,17 @@ function tagAtScale(
   s: number,
 ): WorldTagLayout {
   const nameW = textWidth(name, WORLD_TAG_FONT, 800);
-  const nameEnd = NAME_X + nameW;
+  // A world from a game shows that game's icon first, its picture after: the tag grows to fit.
+  const lead = worldPackIconUrl(name) ? PACK_SLOT : 0;
+  const nameX = NAME_X + lead;
+  const nameEnd = nameX + nameW;
   const base = {
     scale: s,
     nameY: (WORLD_TAG_PILL_H / 2) * s,
-    handleX: 14 * s,
-    nameX: NAME_X * s,
+    handleX: (14 + lead) * s,
+    nameX: nameX * s,
+    packCx: lead ? LEAD_CX * s : null,
+    pictureCx: (LEAD_CX + lead) * s,
     fontSize: WORLD_TAG_FONT * s,
   };
   if (!counts) {
@@ -247,7 +261,7 @@ function tagAtScale(
   const simW = textWidth(String(counts.sims), COUNT_FONT, 600);
   const homeW = textWidth(String(counts.households), COUNT_FONT, 600);
   const stacked = zoom > 0 && zoom < LABEL_MIN_K;
-  const start = stacked ? NAME_X : nameEnd + 10;
+  const start = stacked ? nameX : nameEnd + 10;
   const simIconX = stacked ? start : start + 9;
   const simTextX = simIconX + ICON + 3;
   const homeIconX = simTextX + simW + 8;
@@ -361,8 +375,10 @@ export function worldTip(name: string, c: WorldCounts): RichTip {
     foot.push(`Plus ${extra.length ? `${extra.join(', ')} and ${last}` : last}.`);
   }
   if (c.hidden) foot.push(`Filters hide ${c.hidden} more.`);
+  const game = worldPack(name);
   return {
     head: name,
+    ...(game ? { game } : {}),
     ...(name === NOT_IN_WORLD ? { note: NOT_IN_WORLD_EXPLAINED } : {}),
     rows,
     ...(foot.length ? { foot: foot.join(' ') } : {}),

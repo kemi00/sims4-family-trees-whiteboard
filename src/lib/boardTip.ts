@@ -13,6 +13,8 @@ export type TipIcon = 'sims' | 'households' | 'dynasties';
 /** A tip with a heading, a line on what it is, rows with the tag's icons, and a quiet last line. */
 export type RichTip = {
   head: string;
+  /** The game it comes from, with its icon, under the heading (a world's). */
+  game?: string;
   note?: string;
   rows: { icon: TipIcon; text: string; aside?: string }[];
   foot?: string;

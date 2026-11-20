@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Crown, House, User } from '../icons.ts';
 import { boardTipPin, parseRichTip, placeTip, type RichTip, type TipIcon } from '../lib/boardTip.ts';
+import { packIconUrl } from '../lib/packs.ts';
 
 /** Hover this long before a tip shows; moving straight on to the next one shows it at once. */
 const SHOW_DELAY_MS = 400;
@@ -20,6 +21,12 @@ function RichBody({ tip }: { tip: RichTip }) {
   return (
     <>
       <div className="board-tip__head">{tip.head}</div>
+      {tip.game && (
+        <div className="board-tip__game">
+          {packIconUrl(tip.game) && <img src={packIconUrl(tip.game)} alt="" width={14} height={14} />}
+          {tip.game}
+        </div>
+      )}
       {tip.note && <div className="board-tip__note">{tip.note}</div>}
       <div className="board-tip__rows">
         {tip.rows.map((r) => {

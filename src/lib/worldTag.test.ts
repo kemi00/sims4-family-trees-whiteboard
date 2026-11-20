@@ -114,6 +114,7 @@ describe('a world tag’s tip', () => {
   it('says what each of the tag’s numbers counts, row by row', () => {
     assert.deepEqual(worldTip('Willow Creek', worldCounts(members, shown)), {
       head: 'Willow Creek',
+      game: 'Base Game',
       rows: [
         { icon: 'sims', text: '4 sims', aside: '1 unhoused' },
         { icon: 'households', text: '2 households' },
@@ -186,6 +187,19 @@ describe('world tag layout', () => {
     const at1 = worldTagLayout('Sulani', counts, 1);
     assert.ok(near.scale > 1);
     assert.ok(Math.abs(near.w - at1.w * near.scale) < 1e-6);
+  });
+});
+
+describe('a world tag’s game', () => {
+  it('leads with the game’s icon, the world’s picture after it, the tag wider for it', () => {
+    const counts = worldCounts(members, shown);
+    const sequoia = worldTagLayout('San Sequoia', counts, 1);
+    const none = worldTagLayout('Not in any world', counts, 1);
+    assert.ok(sequoia.packCx !== null && sequoia.pictureCx > sequoia.packCx);
+    assert.ok(sequoia.nameX > sequoia.pictureCx);
+    // No game, no icon: the picture keeps the round end.
+    assert.equal(none.packCx, null);
+    assert.ok(none.nameX < sequoia.nameX);
   });
 });
 
