@@ -3,7 +3,7 @@ import { isOngoingCouple } from './coupleStory.ts';
 import type { ChronicleEntry } from './chronicle.ts';
 import { MAGIC_REALM, homeWorld, realmGid } from './realm.ts';
 import { isUnhousedGid } from './unhoused.ts';
-import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DESCENDANTS, HI_DYNASTY_CHIPS, HI_FAMILY_CHIPS, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, HI_ROMANCE, HI_SIBLINGS, hiDynastyChip, householdChipSize, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
+import { AGES_H, DECEASED_STATE, GENDER_CHIPS, HI_DESCENDANTS, HI_DYNASTY_CHIPS, HI_FAMILY_CHIPS, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, HI_ROMANCE, HI_SIBLINGS, hiDynastyChip, householdChipRange, HI_AGE_UNSET, HI_GAME_CHIPS, HI_IN_GAME, HI_NO_DYNASTY, HI_PLANNED, LEGACY_NOT_IN_WORLD, NEW_SIM_GENDERS, NOT_IN_WORLD, type HiDynastyRole } from './constants.ts';
 import type {
   DeceasedMark,
   Edge,
@@ -475,46 +475,56 @@ export type HighlightSets = {
   siblings?: ReadonlySet<string>;
   /** Planned babies, not born yet. */
   unborn?: ReadonlySet<string>;
-  /** Each household's living sims, by its box (householdSizes): the household size chips. */
+  /** Planned sims, not in your game yet (isPlannedSim): In your game › Not yet picks them, Yes the rest. */
+  planned?: ReadonlySet<string>;
+  /** Each household's living sims and pets, planned ones too, by its box (householdSizes): the household size range. */
   householdSizes?: ReadonlyMap<string, number>;
 };
 
 /**
- * Age/species chips OR with each other, Not born yet among them; gender
- * chips OR with each other and AND with that set, and so do the dynasty role
- * chips. The family chips come in groups, each narrowing the rest: Single,
- * In a romance and Married; Descendants and No descendants; Siblings and No
- * siblings. Within a group they add up, so both sides of a pair is everyone.
- * Household size chips OR with each other and narrow the rest; a planned
- * baby is in no household size yet. Pets ignore family, household and
- * dynasty chips, and only glow for their species chip, which a gender chip
- * narrows like it does ages. The deceased never match.
+ * Age/species chips OR with each other, Not born yet and Age not set among
+ * them; gender chips OR with each other and AND with that set, and so do the
+ * dynasty chips (None among them). The family chips come in groups, each
+ * narrowing the rest: Single, In a romance and Married; Descendants and No
+ * descendants; Siblings and No siblings; and In your game, Yes and Not yet.
+ * Within a group they add up, so both sides of a pair is everyone. The
+ * household size range narrows the rest, counting everyone at home, planned
+ * babies and pets too, as the game's limit does. Pets ignore family,
+ * household and dynasty chips, and only glow for their species chip, which a
+ * gender chip narrows like it does ages. The deceased never match.
  */
 export function isHighlightMatch(
   n: SimNode,
   hi: ReadonlySet<string>,
   hiSingle: boolean,
-  { partnered, married = NO_IDS, descendants = NO_IDS, siblings = NO_IDS, unborn = NO_IDS, householdSizes }: HighlightSets,
+  { partnered, married = NO_IDS, descendants = NO_IDS, siblings = NO_IDS, unborn = NO_IDS, planned = NO_IDS, householdSizes }: HighlightSets,
 ): boolean {
   if (hi.size === 0 && !hiSingle) return true;
   if (n.state === DECEASED_STATE) return false;
   let genders = 0;
   let roles = 0;
   let family = 0;
-  const sizes: number[] = [];
+  const ranges: { min: number; max: number | null }[] = [];
   for (const h of hi) {
     if (GENDER_CHIPS.has(h)) genders++;
     else if (HI_DYNASTY_CHIPS.has(h)) roles++;
-    else if (HI_FAMILY_CHIPS.has(h)) family++;
+    else if (HI_FAMILY_CHIPS.has(h) || HI_GAME_CHIPS.has(h)) family++;
     else {
-      const size = householdChipSize(h);
-      if (size !== null) sizes.push(size);
+      const range = householdChipRange(h);
+      if (range) ranges.push(range);
     }
   }
-  const kinds = hi.size - genders - roles - family - sizes.length;
+  const kinds = hi.size - genders - roles - family - ranges.length;
   const genderOk = genders === 0 || hi.has(n.gender);
   if (isPet(n)) return !!n.species && hi.has(n.species) && genderOk;
-  const ageOk = kinds === 0 || hi.has(n.age) || (hi.has(HI_NOT_BORN) && unborn.has(n.id));
+  // Each sim is in one life stage chip: its own, Not born yet, or Age not set.
+  const staged = hasLifeStage(n);
+  const notBorn = !staged && unborn.has(n.id);
+  const ageOk =
+    kinds === 0 ||
+    (staged && hi.has(n.age)) ||
+    (hi.has(HI_NOT_BORN) && notBorn) ||
+    (hi.has(HI_AGE_UNSET) && !staged && !notBorn);
   // Each group: no pick is everyone; picks add up within it.
   const group = (picks: [boolean, boolean][]) => !picks.some(([on]) => on) || picks.some(([on, ok]) => on && ok);
   const isPartnered = partnered.has(n.id);
@@ -532,10 +542,15 @@ export function isHighlightMatch(
     [hi.has(HI_SIBLINGS), siblings.has(n.id)],
     [hi.has(HI_NO_SIBLINGS), !siblings.has(n.id)],
   ]);
-  const sizeOk = !sizes.length || (!unborn.has(n.id) && sizes.includes(householdSizes?.get(n.gid) ?? -1));
+  const gameOk = group([
+    [hi.has(HI_IN_GAME), !planned.has(n.id)],
+    [hi.has(HI_PLANNED), planned.has(n.id)],
+  ]);
+  const size = householdSizes?.get(n.gid);
+  const sizeOk = !ranges.length || (size !== undefined && ranges.some((r) => size >= r.min && (r.max === null || size <= r.max)));
   const standing = roles ? dynastyStanding(n) : null;
-  const roleOk = roles === 0 || (!!standing && hi.has(hiDynastyChip(standing)));
-  return ageOk && genderOk && partnerOk && kidsOk && siblingsOk && sizeOk && roleOk;
+  const roleOk = roles === 0 || (standing ? hi.has(hiDynastyChip(standing)) : hi.has(HI_NO_DYNASTY));
+  return ageOk && genderOk && partnerOk && kidsOk && siblingsOk && gameOk && sizeOk && roleOk;
 }
 
 /** Married to a sim who is alive, now (their story's last step): the Married highlight. */
@@ -574,15 +589,21 @@ export function descendantIdSet(edges: Edge[], alive: (id: string) => boolean = 
   return ids;
 }
 
+/** A life stage the board knows: Infant to Elder. A planned sim with none chosen, or an unknown, has none. */
+export function hasLifeStage(n: Pick<SimNode, 'age'>): boolean {
+  return (AGES_H as readonly string[]).includes(n.age);
+}
+
 /**
- * Each household's living sims, by its box: the deceased, pets and planned
- * babies not born yet don't count, and the Unhoused sims boxes are no
- * household.
+ * Each household's living sims and pets, by its box, planned ones too (a
+ * baby not born yet among them): what the game counts toward its limit of
+ * eight, once your plans happen. The deceased don't count, and the
+ * Unhoused sims boxes are no household.
  */
-export function householdSizes(nodes: readonly SimNode[], unborn: ReadonlySet<string> = NO_IDS): Map<string, number> {
+export function householdSizes(nodes: readonly SimNode[]): Map<string, number> {
   const sizes = new Map<string, number>();
   for (const n of nodes) {
-    if (n.state === DECEASED_STATE || isPet(n) || unborn.has(n.id) || isUnhousedGid(n.gid)) continue;
+    if (n.state === DECEASED_STATE || isUnhousedGid(n.gid)) continue;
     sizes.set(n.gid, (sizes.get(n.gid) ?? 0) + 1);
   }
   return sizes;

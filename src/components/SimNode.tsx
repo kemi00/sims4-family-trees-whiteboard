@@ -5,7 +5,7 @@ import { dynastyPhrase } from '../lib/generations.ts';
 import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch, type HighlightSets } from '../lib/utils.ts';
-import { NOT_YET_AGE, cardName, isPlannedSim } from '../lib/plan.ts';
+import { NOT_YET_AGE, PLANNED_MOVES_IN, cardName, isPlannedSim } from '../lib/plan.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 type Props = {
@@ -27,8 +27,10 @@ type Props = {
   generation?: string;
   /** Why their plan is off track ("Off plan: Beatrice married Adekoya…"): a ⚠ before the name. */
   offPlan?: string;
-  /** A planned sim not in the game yet: "Not born yet" in place of the life stage. */
+  /** A planned sim with no life stage yet: "Not born yet", or "Age not set", in place of it. */
   notYet?: string;
+  /** A planned sim who isn't a planned child: "Planned: moves in" on the last line, in place of how they play. */
+  plannedMoveIn?: boolean;
   /**
    * An unnamed planned child's parents (parentsLines, longest first), on
    * the card's last line so planned siblings and cousins tell apart.
@@ -106,6 +108,7 @@ export const SimNodeView = memo(function SimNodeView({
   generation,
   offPlan,
   notYet,
+  plannedMoveIn,
   parents,
   babyPlus = false,
   partnerPlus = false,
@@ -133,7 +136,7 @@ export const SimNodeView = memo(function SimNodeView({
   const match = ageMatch && bloodMatch && familyMatch;
   const dim = (highlighting || !!bloodlineIds || !!familyIds) && !match;
   const ageClass = (highlighting || !!familyIds) && match ? 'agehl' : dim ? 'agedim' : '';
-  const detail = cardDetailLine(n);
+  const detail = plannedMoveIn ? PLANNED_MOVES_IN : cardDetailLine(n);
   const h = n.h || CARD_H;
   const role = n.dynastyRole ? DYNASTY_ROLES[n.dynastyRole] : null;
   const name = `${offPlan ? '⚠ ' : ''}${role ? role.mark + ' ' : ''}${cardName(n)}`;

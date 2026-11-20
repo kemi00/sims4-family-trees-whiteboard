@@ -3,7 +3,7 @@ import { withoutPastUnions } from './coupleStory.ts';
 import { DECEASED_STATE, DYNASTY_ROLES } from './constants.ts';
 import { dynastyGenerations, dynastyKey } from './generations.ts';
 import { dayOf, dayText, seasonNow } from './lifeClock.ts';
-import { NOT_YET_AGE, cardName, isPlannedSim } from './plan.ts';
+import { NOT_YET_AGE, cardName, isPlannedSim, notYetText } from './plan.ts';
 import { successionLine } from './succession.ts';
 import { edgeSourceOf, isPet } from './utils.ts';
 import type { StoryLine } from './chronicle.ts';
@@ -95,13 +95,14 @@ const slugOf = (s: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '') || 'poster';
 
-function cardOf(n: SimNode, onDynastyPoster = false): PosterCard {
+/** A sim's poster card; `child`: a planned sim with parents, not born yet rather than with no age set. */
+function cardOf(n: SimNode, onDynastyPoster = false, child = false): PosterCard {
   const planned = isPlannedSim(n);
   const role = n.dynastyRole && n.dynastyPlan !== 'none' && n.dynasty ? n.dynastyRole : undefined;
   return {
     id: n.id,
     name: cardName(n),
-    stage: isPet(n) ? (n.species ?? 'Pet') : planned && (n.age === NOT_YET_AGE || !n.age) ? 'Not born yet' : n.age,
+    stage: isPet(n) ? (n.species ?? 'Pet') : planned && (n.age === NOT_YET_AGE || !n.age) ? notYetText(child) : n.age,
     ...(role
       ? {
           role: `${DYNASTY_ROLES[role].mark} ${DYNASTY_ROLES[role].noun}${onDynastyPoster ? '' : ` of the ${n.dynasty} dynasty`}`,
@@ -245,11 +246,12 @@ function posterRows(
     links,
     new Map(nodes.map((n) => [n.id, n])),
   );
+  const parented = new Set(links.filter((e) => e.type === 'parent').map((e) => e.b));
   return {
     rows: r.rows.map((sims, i) => ({
       ...(rows[i]!.label ? { label: rows[i]!.label } : {}),
       cards: sims.map((n) => {
-        const c = cardOf(n, onDynastyPoster);
+        const c = cardOf(n, onDynastyPoster, parented.has(n.id));
         const notes = r.notes.get(n.id);
         return notes ? { ...c, notes } : c;
       }),

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { SimNode } from '../types/whiteboard.ts';
-import { HI_DESCENDANTS, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, HI_ROMANCE, HI_SIBLINGS, hiDynastyChip, hiHouseholdChip } from './constants.ts';
+import { HI_AGE_UNSET, HI_DESCENDANTS, HI_IN_GAME, HI_MARRIED, HI_NO_CHILDREN, HI_NO_DYNASTY, HI_NO_SIBLINGS, HI_NOT_BORN, HI_PLANNED, HI_ROMANCE, HI_SIBLINGS, hiDynastyChip, hiHouseholdChip, hiHouseholdRange } from './constants.ts';
 import { highlightActive, highlightPhrase, highlightSummary } from './highlight.ts';
 
 const sim = (id: string, extra: Partial<SimNode>): SimNode =>
@@ -41,6 +41,18 @@ describe('the highlight in words', () => {
     assert.equal(highlightPhrase(new Set([HI_MARRIED, hiHouseholdChip(2)]), false, 1), 'married sim in a 2-sim household');
     assert.equal(highlightPhrase(new Set([HI_NOT_BORN]), false, 3), 'babies not born yet');
     assert.equal(highlightPhrase(new Set([HI_NOT_BORN, 'Infant']), false, 1), 'baby not born yet or infant');
+  });
+
+  it('says household ranges, planned sims, an age not set and no dynasty', () => {
+    assert.equal(highlightPhrase(new Set([hiHouseholdRange(2, 4)]), false, 6), 'sims in households of 2 to 4');
+    assert.equal(highlightPhrase(new Set([hiHouseholdRange(8, null)]), false, 1), 'sim in a household of 8 or more');
+    assert.equal(highlightPhrase(new Set([hiHouseholdRange(1, 3)]), false, 4), 'sims in households of up to 3');
+    assert.equal(highlightPhrase(new Set([HI_PLANNED, 'Young Adult']), false, 2), 'planned young adults');
+    assert.equal(highlightPhrase(new Set([HI_IN_GAME, HI_MARRIED]), false, 2), 'married sims in your game');
+    assert.equal(highlightPhrase(new Set([HI_IN_GAME, HI_PLANNED]), false, 9), 'sims');
+    assert.equal(highlightPhrase(new Set([HI_AGE_UNSET]), false, 2), 'sims with no age set');
+    assert.equal(highlightPhrase(new Set([HI_NO_DYNASTY]), false, 5), 'sims who are in no dynasty');
+    assert.equal(highlightPhrase(new Set([HI_NO_DYNASTY, hiDynastyChip('head')]), false, 5), 'sims who are dynasty heads or in no dynasty');
   });
 
   it('is on when any chip is', () => {

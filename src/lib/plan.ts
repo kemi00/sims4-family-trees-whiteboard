@@ -107,10 +107,18 @@ export function numberPlannedSims(nodes: SimNode[]): SimNode[] {
   return changed ? out : nodes;
 }
 
-/** "Not born yet" for a planned child, "Not in the game yet" for anyone else planned. */
+/**
+ * A planned sim's life stage while it has none: "Not born yet" for a
+ * planned child, whose stage that is; "Age not set" for anyone else
+ * planned, who joins at a stage you choose. Being planned isn't an age: the
+ * card says it on its last line ("Planned: moves in").
+ */
 export function notYetText(plannedChild: boolean): string {
-  return plannedChild ? 'Not born yet' : 'Not in the game yet';
+  return plannedChild ? 'Not born yet' : 'Age not set';
 }
+
+/** The last line of a planned sim's card who isn't a planned child: they join your game later. */
+export const PLANNED_MOVES_IN = 'Planned: moves in';
 
 const COUPLE: ReadonlySet<EdgeType> = new Set(['marriage', 'romance']);
 

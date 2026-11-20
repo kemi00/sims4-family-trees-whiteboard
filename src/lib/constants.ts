@@ -200,20 +200,37 @@ export const HI_DESCENDANTS = 'family:descendants';
 export const HI_SIBLINGS = 'family:siblings';
 /** Every family chip in the set: each pair narrows the others, its own two sides add up. */
 export const HI_FAMILY_CHIPS: ReadonlySet<string> = new Set([HI_MARRIED, HI_ROMANCE, HI_DESCENDANTS, HI_NO_CHILDREN, HI_SIBLINGS, HI_NO_SIBLINGS]);
-/** A household size chip: households of `n` living sims. */
+/** A household size chip of one size, `n` at home (boards from before the range kept these). */
 export const hiHouseholdChip = (n: number): string => `household:${n}`;
-/** The size a household size chip picks, or null for another chip. */
-export const householdChipSize = (h: string): number | null => {
-  const m = /^household:(\d+)$/.exec(h);
-  return m ? Number(m[1]) : null;
+/** The household size range: from `min` to `max` at home, or `min` and more with null. */
+export const hiHouseholdRange = (min: number, max: number | null): string => `household:${min}-${max ?? ''}`;
+/** The sizes a household size key picks, from `min` to `max` (null: no top), or null for another chip. */
+export const householdChipRange = (h: string): { min: number; max: number | null } | null => {
+  const one = /^household:(\d+)$/.exec(h);
+  if (one) return { min: Number(one[1]), max: Number(one[1]) };
+  const m = /^household:(\d+)-(\d*)$/.exec(h);
+  if (!m) return null;
+  const min = Number(m[1]);
+  const max = m[2] ? Number(m[2]) : null;
+  return max !== null && max < min ? { min: max, max: min } : { min, max };
 };
+/** The game's limit on sims and pets in one household (mods can raise it). */
+export const HOUSEHOLD_LIMIT = 8;
 /** A life stage chip before Infant: planned babies, not born yet. */
 export const HI_NOT_BORN = 'life:not-born';
+/** A life stage chip for living sims whose life stage the board doesn't have: planned with none chosen, or unknown. */
+export const HI_AGE_UNSET = 'life:age-unset';
+/** In your game: the sims a save brought; planned, not in your game yet. */
+export const HI_IN_GAME = 'game:in';
+export const HI_PLANNED = 'game:planned';
+export const HI_GAME_CHIPS: ReadonlySet<string> = new Set([HI_IN_GAME, HI_PLANNED]);
 /** A dynasty role chip, head to outcast; `member` is a member with no role. */
 export const HI_DYNASTY = ['head', 'heir', 'member', 'outcast'] as const;
 export type HiDynastyRole = (typeof HI_DYNASTY)[number];
 export const hiDynastyChip = (role: HiDynastyRole): string => `dynasty:${role}`;
-export const HI_DYNASTY_CHIPS: ReadonlySet<string> = new Set(HI_DYNASTY.map(hiDynastyChip));
+/** In no dynasty at all. */
+export const HI_NO_DYNASTY = 'dynasty:none';
+export const HI_DYNASTY_CHIPS: ReadonlySet<string> = new Set([...HI_DYNASTY.map(hiDynastyChip), HI_NO_DYNASTY]);
 
 /** The gender of a sim whose pronouns are neither she nor he. */
 export const NON_BINARY = 'Non-Binary';

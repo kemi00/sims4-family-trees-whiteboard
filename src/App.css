@@ -1242,6 +1242,16 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hlrow:first-child{border-top:none;padding-top:4px}
 .hlrow__label{padding:6px 0 0 4px;font-size:11px;font-weight:700;line-height:1.25;color:var(--ink-3);letter-spacing:.02em}
 @media (pointer:coarse){.hlrow__label{padding-top:15px}.gpanel .hlsum .hlsum__clear{min-height:44px;margin:-12px -4px -12px 0;padding:0 4px}}
+/* Household size: a range from the fewest to the most at home, with steppers. */
+.hlrange{display:flex;flex-direction:column;gap:7px;min-width:0}
+.hlrange__line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hlrange__to{font-size:12px;color:var(--ink-3)}
+.hlstep{display:inline-flex;align-items:center;height:28px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);overflow:hidden}
+.gpanel .hlstep button{width:28px;height:28px;padding:0;border:0;border-radius:0;background:none;font-size:15px;font-weight:600;color:var(--ink-2)}
+.gpanel .hlstep button:hover{background:var(--hover)}
+.hlstep output{min-width:28px;text-align:center;font-size:12.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.hlrange__note{margin:0;font-size:11px;line-height:1.4;color:var(--ink-3)}
+@media (pointer:coarse){.hlstep{height:44px}.gpanel .hlstep button{width:44px;height:44px}}
 /* A phone: the row's name sits above its choices, so they get the whole width. */
 @media (max-width:520px){.hlrow{grid-template-columns:minmax(0,1fr);gap:6px}.hlrow__label{padding:0 0 0 4px}}
 .menu button:where(:not(.iconbtn)):hover{background:#e7eefb}
@@ -1262,6 +1272,12 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .cmenu__sub{font-size:11px;font-weight:400;color:var(--ink-2)}
 .menu .cmenu__pick[aria-checked=true]{background:var(--accent-soft);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .menu .cmenu__pick[aria-checked=true]:hover{background:var(--accent-soft-hi)}
+.addmenu__label{display:block;margin:6px 2px 4px;font-size:11px;font-weight:700;color:var(--ink-3)}
+.pmenu__kinds.addmenu__choices{display:flex;flex-wrap:wrap}
+.menu .addmenu__choices .pmenu__kind{flex:1 0 auto;width:auto;justify-content:center}
+.addmenu__note{margin:2px 2px 8px;font-size:11px;line-height:1.4;color:var(--ink-3)}
+.menu .addmenu__go{display:flex;width:100%;justify-content:center;margin:0;padding:8px 12px;border-radius:var(--r-control);background:var(--accent);color:#fff;font-size:12.5px;font-weight:700}
+.menu .addmenu__go:hover{background:var(--accent-strong);color:#fff}
 .menu .pmenu__back{display:inline-flex;align-items:center;gap:4px;width:auto;margin:0;padding:2px 6px 2px 2px;background:transparent;color:var(--ink)}
 .menu .pmenu__back:hover{background:var(--hover)}
 .pmenu__back svg{width:13px;height:13px;color:var(--ink-3)}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { growHousehold, landMovedCards, type Box as LandBox } from '../lib/landing.ts';
 import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
-import { ADDED_HOUSEHOLD, AGES_H, CARD_H, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, TILE, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
+import { ADDED_HOUSEHOLD, AGES_H, CARD_H, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, householdChipRange, NOT_IN_WORLD, STATUS_FLASH_MS, TILE, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import { freeLotsIn, homeLotFields, householdLots, lotKey, lotPick, saveLotCatalog, vacantLotsIn, type GameLot } from '../lib/places.ts';
 import { frameWithLots, lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
@@ -102,7 +102,7 @@ import {
   type ConnectionLogEntry,
 } from '../lib/connectionLog.ts';
 import { aKind, newPetFields, petKindsAvailable, petPack, youngWord } from '../lib/pets.ts';
-import { type HighlightSets, cleanNote, edgeSourceOf, endedByPassing, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, siblingIdSet, marriedIdSet, descendantIdSet, householdSizes, randomNewSimGender, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
+import { type HighlightSets, cleanNote, edgeSourceOf, endedByPassing, fileStamp, isUserE, migrateWhiteboardData, nextEidc, ageUpPatch, isLaterSimAge, parentLinkMakesCycle, partneredIdSet, siblingIdSet, marriedIdSet, descendantIdSet, householdSizes, sanitizeEdges, siblingsShareParents, theHousehold, uKey, worldColor } from '../lib/utils.ts';
 import { parseSaveGame, type ParsedSave } from '../lib/savegame/parseSave.ts';
 import {
   fillMissingSavePacks,
@@ -1469,7 +1469,12 @@ export function useWhiteboard() {
     else if (sel?.type === 'link') deleteLinks(sel.ids);
   }, [simsToDelete, sel, deleteSims, deleteLinks]);
 
-  const addSim = useCallback((svgWidth: number, svgHeight: number, species?: string) => {
+  /**
+   * A planned sim on the board, or a pet with `species`: a sim at the life
+   * stage and gender `sim` asks for (the add menu's), named "Planned Sim"
+   * until you name them. Nothing is guessed: no gender means none decided.
+   */
+  const addSim = useCallback((svgWidth: number, svgHeight: number, species?: string, sim?: { age?: string; gender?: string }) => {
     pushUndo(species ? `Add ${aKind(species)}` : 'Add a new sim');
     trackAction(species ? '/action/create-pet' : '/action/create-sim');
     const id = 'new' + eidcRef.current++;
@@ -1490,11 +1495,11 @@ export function useWhiteboard() {
     const n: SimNode = {
       id,
       gid,
-      first: 'New',
+      first: '',
       sur: 'Sim',
-      age: 'Young Adult',
+      age: sim?.age ?? 'Young Adult',
       state: 'Sim',
-      gender: randomNewSimGender(),
+      gender: sim?.gender ?? GENDER_NOT_KNOWN,
       hh,
       world,
       nb: neighbour,
@@ -1582,8 +1587,13 @@ export function useWhiteboard() {
    * with no room where it is, the household moves whole to free room in its
    * world. Returns the new sim's id.
    */
+  /**
+   * A planned sim moving into household `gid`, or a pet with `species`: at
+   * the life stage and gender `sim` asks for, with the household's last
+   * name, "Planned Goth" until you name them.
+   */
   const addSimToHousehold = useCallback(
-    (gid: string, species?: string): string | null => {
+    (gid: string, species?: string, sim?: { age?: string; gender?: string }): string | null => {
       const g = groups.find((x) => x.gid === gid);
       const home = nodes.filter((n) => n.gid === gid);
       const chrome = householdChrome(home, g);
@@ -1595,11 +1605,11 @@ export function useWhiteboard() {
       const n: SimNode = {
         id,
         gid,
-        first: 'New',
+        first: '',
         sur,
-        age: 'Young Adult',
+        age: sim?.age ?? 'Young Adult',
         state: 'Sim',
-        gender: randomNewSimGender(),
+        gender: sim?.gender ?? GENDER_NOT_KNOWN,
         hh: g.hh,
         world: g.world,
         nb: g.nb,
@@ -1735,7 +1745,7 @@ export function useWhiteboard() {
   );
   /** Off-plan links and each sim's reason, for the board. */
   const offPlan = useMemo(() => offPlanMarks(planIssues, nameOfCore), [planIssues, nameOfCore]);
-  /** Planned sims with planned parents: "Not born yet" rather than "Not in the game yet". */
+  /** Planned sims with planned parents: "Not born yet" rather than "Age not set". */
   const plannedChildIds = useMemo(() => {
     const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
     return new Set(edges.filter((e) => e.type === 'parent' && planned.has(e.b)).map((e) => e.b));
@@ -1752,7 +1762,8 @@ export function useWhiteboard() {
       descendants: descendantIdSet(shownEdges, alive),
       siblings: siblingIds,
       unborn: plannedChildIds,
-      householdSizes: householdSizes(nodesCore, plannedChildIds),
+      planned: new Set(nodesCore.filter(isPlannedSim).map((n) => n.id)),
+      householdSizes: householdSizes(nodesCore),
     }),
     [partneredIds, siblingIds, shownEdges, alive, plannedChildIds, nodesCore],
   );
@@ -3949,6 +3960,15 @@ export function useWhiteboard() {
     setHiSingle((on) => !on);
   }, []);
 
+  /** The household size range, one at a time: `key` (hiHouseholdRange), or null for any size. */
+  const setHouseholdRange = useCallback((key: string | null) => {
+    setHiAges((s) => {
+      const next = new Set([...s].filter((h) => householdChipRange(h) === null));
+      if (key) next.add(key);
+      return next;
+    });
+  }, []);
+
   /**
    * Move sims to a household on the board, or to a new one, as one undo
    * step. Their cards stay where they are, as a single sim's do; the
@@ -4453,6 +4473,7 @@ export function useWhiteboard() {
     setHiddenPlay,
     toggleAge,
     toggleSingle,
+    setHouseholdRange,
     setHiAges,
     setHiSingle,
     setHiddenPacks,

@@ -332,10 +332,8 @@ export default function App() {
         label: 'Add a sim',
         detail: 'A new card on the board',
         words: 'new create person card',
-        run: () => {
-          const { w, h } = boardSize();
-          wb.addSim(w, h);
-        },
+        // Asks their life stage and gender first, as the bar's Add does.
+        run: () => wb.setAddMenu({ x: 12, y: 8 }),
       },
       ...wb.petKinds.map((k) => ({
         id: `add-${k.species.toLowerCase()}`,

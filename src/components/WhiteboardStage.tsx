@@ -93,18 +93,18 @@ import { BoardTip } from './BoardTip.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { PartnerMenu } from './PartnerMenu.tsx';
 import { ChildMenu } from './ChildMenu.tsx';
-import { AddKindMenu } from './AddKindMenu.tsx';
+import { AddKindMenu, type JoiningCouple } from './AddKindMenu.tsx';
 import { ChroniclePanel } from './ChroniclePanel.tsx';
 import { LookBackBar } from './LookBackBar.tsx';
 import { pastNode } from '../lib/lookBack.ts';
 import { connectOptions } from '../lib/connectOptions.ts';
-import { isUnionEdge, nextStepLabel, nextSteps, storiesByPair, storySteps, type StoryStep } from '../lib/coupleStory.ts';
+import { isOngoingCouple, isUnionEdge, nextStepLabel, nextSteps, storiesByPair, storySteps, type StoryStep } from '../lib/coupleStory.ts';
 import { Legend } from './Legend.tsx';
 import { keyMarks } from '../lib/keyMarks.ts';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
-import { cardName, isPlannedSim, notYetText, parentsLines } from '../lib/plan.ts';
+import { cardName, isPlannedSim, notYetText, parentsLines, shortName } from '../lib/plan.ts';
 import { moveInChoices } from '../lib/partners.ts';
 import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/householdPlan.ts';
 import { HouseholdBrief } from './HouseholdBrief.tsx';
@@ -1589,11 +1589,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
   const [nameFocusId, setNameFocusId] = useState<string | null>(null);
   const onAddSim = useCallback((gid: string, ev: { clientX: number; clientY: number }) => {
     const w = wbRef.current;
-    // With no pet pack on there is nothing to choose: a sim, as before.
-    if (!w.petKinds.length) {
-      setNameFocusId(w.addSimToHousehold(gid));
-      return;
-    }
+    // Who joins is always asked: a baby, a sim moving in (their stage and gender), or a pet.
     const sr = stageRef.current?.getBoundingClientRect();
     w.setAddMenu({ gid, x: ev.clientX - (sr?.left ?? 0), y: ev.clientY - (sr?.top ?? 0) + 14 });
   }, [stageRef]);
@@ -1684,6 +1680,23 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     return n ? cardName(n) : 'someone';
   };
   const hhOf = (gid: string) => householdName(gid, wb.groups, wb.nodes);
+  /**
+   * Couples a household's baby could be of: together now (a romance or a
+   * marriage, its story's last step), both living sims, one of them living
+   * there. The household's ＋ offers each one's baby.
+   */
+  const joiningCouples = (gid: string): JoiningCouple[] => {
+    const dead = (id: string) => wb.byid[id]?.state === DECEASED_STATE;
+    const out: JoiningCouple[] = [];
+    for (const e of wb.edges) {
+      if (!isOngoingCouple(e, wb.edges) || endedByPassing(e, dead)) continue;
+      const a = wb.byid[e.a];
+      const b = wb.byid[e.b];
+      if (!a || !b || a.species || b.species || (a.gid !== gid && b.gid !== gid)) continue;
+      out.push({ a: a.id, b: b.id, names: `${shortName(a)} ＋ ${shortName(b)}` });
+    }
+    return out;
+  };
   const pickSim = (id: string) => {
     const r = svgRef.current?.getBoundingClientRect();
     wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
@@ -2059,6 +2072,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 notYet={
                   isPlannedSim(n) ? notYetText(wb.plannedChildIds.has(n.id)) : undefined
                 }
+                plannedMoveIn={isPlannedSim(n) && !wb.plannedChildIds.has(n.id)}
                 parents={n.first.trim() ? undefined : plannedParentsOf(n.id)}
                 dynastyTag={n.dynasty ? wb.dynastyNames.get(dynastyKey(n) ?? '')?.tag : undefined}
                 dynastyRisk={dynastyRiskOf(n)}
@@ -2447,11 +2461,34 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       )}
       {wb.addMenu && (
         <AddKindMenu
+          key={wb.addMenu.gid ?? 'board'}
           x={wb.addMenu.x}
           y={wb.addMenu.y}
-          title={wb.addMenu.gid ? `Add to ${hhOf(wb.addMenu.gid)}` : 'Add to the board'}
+          title={wb.addMenu.gid ? `Who’s joining ${hhOf(wb.addMenu.gid)}?` : 'Add to the board'}
           kinds={wb.petKinds}
-          onPick={(species) => {
+          {...(wb.addMenu.gid
+            ? {
+                couples: joiningCouples(wb.addMenu.gid),
+                onBaby: (c: JoiningCouple) => {
+                  const at = wb.addMenu!;
+                  wb.setAddMenu(null);
+                  // As a couple's ＋: it asks the last name, and the home when they live apart.
+                  wb.requestInfantOfCouple(c.a, c.b, 0, 0, at.x, at.y);
+                },
+              }
+            : {})}
+          onSim={(choice) => {
+            const at = wb.addMenu!;
+            wb.setAddMenu(null);
+            if (at.gid) setNameFocusId(wb.addSimToHousehold(at.gid, undefined, choice));
+            else {
+              const r = svgRef.current?.getBoundingClientRect();
+              const id = wb.addSim(r?.width ?? 800, r?.height ?? 600, undefined, choice);
+              wb.setEditNodeId(id);
+              setNameFocusId(id);
+            }
+          }}
+          onPet={(species) => {
             const at = wb.addMenu!;
             wb.setAddMenu(null);
             if (at.gid) setNameFocusId(wb.addSimToHousehold(at.gid, species));

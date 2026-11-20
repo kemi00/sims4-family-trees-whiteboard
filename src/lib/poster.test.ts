@@ -39,7 +39,16 @@ describe('posters', () => {
       ],
     );
     assert.equal(p.rows[0]!.cards[1]!.role, '👑 Head of the Goth dynasty');
-    assert.deepEqual([p.rows[1]!.cards[2]!.stage, p.rows[1]!.cards[2]!.planned], ['Not born yet', true]);
+    // A planned sim with no parents on the poster has no age set; with them, it's a baby not born yet.
+    assert.deepEqual([p.rows[1]!.cards[2]!.stage, p.rows[1]!.cards[2]!.planned], ['Age not set', true]);
+    const withParents = householdPoster({
+      group,
+      nodes: [mortimer, bella, cassandra, alexander, baby, cat],
+      links: [...edges, { id: 'e5', a: 'm', b: 'k', type: 'parent' }, { id: 'e6', a: 'b', b: 'k', type: 'parent' }],
+      lot: 'Ophelia Villa',
+    });
+    const planned = withParents.rows.flatMap((r) => r.cards).find((c) => c.id === 'k')!;
+    assert.deepEqual([planned.stage, planned.planned], ['Not born yet', true]);
     assert.equal(p.rows[2]!.cards[0]!.stage, 'Cat');
     assert.equal(p.slug, 'goth-household');
     assert.equal(p.calendar, '');

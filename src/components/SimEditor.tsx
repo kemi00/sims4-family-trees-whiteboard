@@ -315,7 +315,7 @@ type Props = {
   focusName?: boolean;
   /** Every plan the game went against (planConflicts); the editor shows this sim's. */
   planIssues: PlanConflict[];
-  /** A planned sim with planned parents: "Not born yet" rather than "Not in the game yet". */
+  /** A planned sim with planned parents: "Not born yet" rather than "Age not set". */
   plannedChild: boolean;
   onResolvePlan: (edgeId: string, choice: PlanChoice) => void;
   /** A sim from the save fills this planned sim (linkPlannedSim). */
@@ -1156,7 +1156,8 @@ export function SimEditor({
                 aria-describedby={life ? 'edLifeSum' : undefined}
                 onChange={(e) => setAge(e.target.value)}
               >
-                {planned && <option value={NOT_YET_AGE}>{notYetText(plannedChild)}</option>}
+                {/* Not born yet is a planned child's stage; anyone else planned joins at a stage you choose, "Age not set" kept only while it is. */}
+                {planned && (plannedChild || age === NOT_YET_AGE) && <option value={NOT_YET_AGE}>{notYetText(plannedChild)}</option>}
                 {(isPet ? PET_AGES : AGES).map((a) => (
                   <option key={a} value={a}>
                     {isPet ? petAgeLabel(species, a) : a}
@@ -1169,7 +1170,7 @@ export function SimEditor({
             <div>
               <label htmlFor="edGender">Gender</label>
               <select id="edGender" value={gender} onChange={(e) => setGender(e.target.value)}>
-                {planned && <option value={GENDER_NOT_KNOWN}>Not known yet</option>}
+                {planned && <option value={GENDER_NOT_KNOWN}>{plannedChild ? 'Not known yet' : 'Not decided'}</option>}
                 {(isPet ? PET_GENDERS : GENDERS).map((g) => (
                   <option key={g} value={g}>
                     {g}

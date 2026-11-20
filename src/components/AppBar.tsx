@@ -159,14 +159,14 @@ export function AppBar({
   const addNewSim = () => {
     const r = svgRef.current?.getBoundingClientRect();
     if (!r) return;
-    // With a pet pack on: a sim or a pet, from a menu under the button.
+    // Who to add, from a menu under the button: a sim (their stage and gender asked) or a pet.
     const at = addBtnRef.current?.getBoundingClientRect();
     // Open from here: the button closes it again.
     if (wb.addMenu && !wb.addMenu.gid) {
       wb.setAddMenu(null);
       return;
     }
-    if (wb.petKinds.length && at) {
+    if (at) {
       wb.setAddMenu({ x: Math.max(8, at.left - r.left), y: Math.max(8, at.bottom - r.top + 6) });
       return;
     }

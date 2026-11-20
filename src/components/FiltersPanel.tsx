@@ -146,6 +146,7 @@ export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList
           packVis={wb.nodeVis}
           onToggle={wb.toggleAge}
           onToggleSingle={wb.toggleSingle}
+          onSetRange={wb.setHouseholdRange}
           onClear={() => {
             wb.setHiAges(new Set());
             wb.setHiSingle(false);

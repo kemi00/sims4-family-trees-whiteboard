@@ -1,5 +1,5 @@
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { GENDER_CHIPS, HI_DESCENDANTS, HI_DYNASTY_CHIPS, HI_FAMILY_CHIPS, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_ROMANCE, HI_SIBLINGS, householdChipSize, SPECIES_H } from './constants.ts';
+import { GENDER_CHIPS, HI_DESCENDANTS, HI_DYNASTY_CHIPS, HI_FAMILY_CHIPS, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_ROMANCE, HI_GAME_CHIPS, HI_PLANNED, HI_SIBLINGS, householdChipRange, SPECIES_H } from './constants.ts';
 
 /** What Load JSON would discard from the current board. */
 export type LoadJsonRisk = {
@@ -155,8 +155,9 @@ export function filterChangeNote(
   const pets = file.hiAges.filter((h) => (SPECIES_H as readonly string[]).includes(h)).length;
   const roles = file.hiAges.filter((h) => HI_DYNASTY_CHIPS.has(h)).length;
   const family = file.hiAges.filter((h) => HI_FAMILY_CHIPS.has(h));
-  const sizes = file.hiAges.filter((h) => householdChipSize(h) !== null).length;
-  const ages = file.hiAges.length - genders - pets - roles - family.length - sizes;
+  const sizes = file.hiAges.filter((h) => householdChipRange(h) !== null).length;
+  const game = file.hiAges.filter((h) => HI_GAME_CHIPS.has(h));
+  const ages = file.hiAges.length - genders - pets - roles - family.length - sizes - game.length;
   // Each family pick in words, as the panel's chips say it.
   const FAMILY_WORDS: Record<string, string> = {
     [HI_ROMANCE]: 'sims in a romance',
@@ -172,6 +173,7 @@ export function filterChangeNote(
     pets && count(pets, 'pet species', 'pet species'),
     file.hiSingle && 'single sims',
     ...family.map((h) => FAMILY_WORDS[h]),
+    ...game.map((h) => (h === HI_PLANNED ? 'planned sims' : 'sims in your game')),
     sizes && count(sizes, 'household size', 'household sizes'),
     roles && count(roles, 'dynasty role', 'dynasty roles'),
   ].filter(Boolean);

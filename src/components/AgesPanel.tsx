@@ -4,26 +4,31 @@ import {
   DECEASED_STATE,
   DYNASTY_ROLES,
   GENDERS,
+  HI_AGE_UNSET,
   HI_DESCENDANTS,
   HI_DYNASTY,
   HI_DYNASTY_CHIPS,
+  HI_IN_GAME,
   HI_MARRIED,
   HI_NO_CHILDREN,
+  HI_NO_DYNASTY,
   HI_NO_SIBLINGS,
   HI_NOT_BORN,
+  HI_PLANNED,
   HI_ROMANCE,
   HI_SIBLINGS,
+  HOUSEHOLD_LIMIT,
   NEW_SIM_GENDERS,
   SPECIES,
   SPECIES_H,
   hiDynastyChip,
-  hiHouseholdChip,
-  householdChipSize,
+  hiHouseholdRange,
+  householdChipRange,
   type HiDynastyRole,
 } from '../lib/constants.ts';
 import { highlightActive, highlightSummary } from '../lib/highlight.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
-import { dynastyStanding, isPet, type HighlightSets } from '../lib/utils.ts';
+import { dynastyStanding, hasLifeStage, isPet, type HighlightSets } from '../lib/utils.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 /** The dynasty chips: the card's mark, then the game's word. */
@@ -43,6 +48,8 @@ type Props = {
   packVis: (n: SimNode) => boolean;
   onToggle: (age: string) => void;
   onToggleSingle: () => void;
+  /** The household size range, one at a time (hiHouseholdRange), or null for any size. */
+  onSetRange: (key: string | null) => void;
   onClear: () => void;
 };
 
@@ -55,6 +62,7 @@ export function AgesPanel({
   packVis,
   onToggle,
   onToggleSingle,
+  onSetRange,
   onClear,
 }: Props) {
   // Counts follow what the board shows: hidden games and play types are left
@@ -65,22 +73,42 @@ export function AgesPanel({
   const cntAge = (a: string) => sims.filter((n) => n.age === a).length;
   const cntSpecies = (s: string) =>
     pets.filter((n) => n.species === s).length;
-  const { partnered, married = new Set<string>(), descendants = new Set<string>(), siblings = new Set<string>(), unborn = new Set<string>() } = sets;
+  const { partnered, married = new Set<string>(), descendants = new Set<string>(), siblings = new Set<string>(), unborn = new Set<string>(), planned = new Set<string>() } = sets;
   const cnt = (ok: (n: SimNode) => boolean) => sims.filter(ok).length;
   const cntGender = (g: string) => cnt((n) => n.gender === g);
-  const cntUnborn = cnt((n) => unborn.has(n.id));
-  // Household sizes: living sims at home, counted by how many their household has.
-  const bySize = new Map<number, number>();
+  // Every sim in one life stage chip: its own, Not born yet, or Age not set (isHighlightMatch).
+  const notBorn = (n: SimNode) => !hasLifeStage(n) && unborn.has(n.id);
+  const cntUnborn = cnt(notBorn);
+  const cntUnset = cnt((n) => !hasLifeStage(n) && !notBorn(n));
+  const cntPlanned = cnt((n) => planned.has(n.id));
+  // Household sizes: everyone at home, sims and pets, planned ones too, as the game's limit counts them.
+  const homeSizes = new Map<string, number>();
   for (const n of sims) {
-    if (unborn.has(n.id) || isUnhousedGid(n.gid)) continue;
+    if (isUnhousedGid(n.gid)) continue;
     const size = sets.householdSizes?.get(n.gid);
-    if (size) bySize.set(size, (bySize.get(size) ?? 0) + 1);
+    if (size) homeSizes.set(n.gid, size);
   }
-  for (const h of hiAges) {
-    const size = householdChipSize(h);
-    if (size !== null && !bySize.has(size)) bySize.set(size, 0);
-  }
-  const sizes = [...bySize.keys()].sort((a, b) => a - b);
+  const biggest = Math.max(HOUSEHOLD_LIMIT, ...homeSizes.values());
+  const rangeKey = [...hiAges].find((h) => householdChipRange(h) !== null) ?? null;
+  const range = rangeKey ? householdChipRange(rangeKey)! : null;
+  const fullKey = hiHouseholdRange(HOUSEHOLD_LIMIT, null);
+  const inRange = (size: number, r: { min: number; max: number | null }) => size >= r.min && (r.max === null || size <= r.max);
+  /** Sims and households a range picks. */
+  const reach = (r: { min: number; max: number | null }) => {
+    const homes = [...homeSizes].filter(([, size]) => inRange(size, r));
+    const gids = new Set(homes.map(([gid]) => gid));
+    return { homes: homes.length, sims: sims.filter((n) => gids.has(n.gid)).length };
+  };
+  const shownRange = range ?? { min: 1, max: null };
+  const lo = shownRange.min;
+  const hi = shownRange.max ?? biggest;
+  /** A new range from the steppers: "or more" when the top reaches the biggest household. */
+  const setRange = (min: number, max: number) => {
+    const a = Math.max(1, Math.min(min, max));
+    const b = Math.max(a, max);
+    onSetRange(a <= 1 && b >= biggest ? null : hiHouseholdRange(a, b >= biggest ? null : b));
+  };
+  const picked = range ? reach(range) : null;
   const rowId = useId();
   type Chip = { key: string; text: ReactNode; title?: string; count: number; on: boolean; toggle: () => void; data?: Record<string, string> };
   /** One choice: its name and its count, light; an empty one dims but stays where it is. */
@@ -98,13 +126,27 @@ export function AgesPanel({
     </button>
   );
   /** One question, its name in the left column and its choices beside it: picks in a row add up, rows narrow each other. */
-  const row = (key: string, label: string, chips: Chip[], title?: string) => (
+  const rowOf = (key: string, label: string, body: ReactNode, title?: string) => (
     <div className="hlrow" role="group" aria-labelledby={`${rowId}-${key}`} key={key}>
       <span className="hlrow__label" id={`${rowId}-${key}`} title={title}>
         {label}
       </span>
-      <div className="agechips">{chips.map(chipButton)}</div>
+      {body}
     </div>
+  );
+  const row = (key: string, label: string, chips: Chip[], title?: string) =>
+    rowOf(key, label, <div className="agechips">{chips.map(chipButton)}</div>, title);
+  /** One end of the household range: fewer, the number, more. */
+  const stepper = (label: string, value: number, shown: string, set: (v: number) => void, min: number, max: number) => (
+    <span className="hlstep" role="group" aria-label={label}>
+      <button type="button" aria-label={`${label}: one fewer`} onClick={() => set(Math.max(min, value - 1))}>
+        −
+      </button>
+      <output aria-live="polite">{shown}</output>
+      <button type="button" aria-label={`${label}: one more`} onClick={() => set(Math.min(max, value + 1))}>
+        +
+      </button>
+    </span>
   );
   const chip = (key: string, text: string, title: string, ok: (n: SimNode) => boolean): Chip => ({
     key,
@@ -171,7 +213,30 @@ export function AgesPanel({
             on: hiAges.has(HI_NOT_BORN),
             toggle: toggleKey(HI_NOT_BORN),
           },
+          // Only when someone has no life stage: a planned sim with none chosen, or an unknown.
+          ...(cntUnset > 0 || hiAges.has(HI_AGE_UNSET)
+            ? [
+                {
+                  key: HI_AGE_UNSET,
+                  text: 'Age not set',
+                  title: 'Living sims whose life stage the board doesn’t have: planned with none chosen, or unknown. Choose one in their editor.',
+                  count: cntUnset,
+                  on: hiAges.has(HI_AGE_UNSET),
+                  toggle: toggleKey(HI_AGE_UNSET),
+                },
+              ]
+            : []),
         ])}
+        {(cntPlanned > 0 || hiAges.has(HI_IN_GAME) || hiAges.has(HI_PLANNED)) &&
+          row(
+            'game',
+            'In your game',
+            [
+              chip(HI_IN_GAME, 'Yes', 'Sims your save brought', (n) => !planned.has(n.id)),
+              chip(HI_PLANNED, 'Not yet', 'Planned on the board, not in your game yet: babies not born yet and sims to come', (n) => planned.has(n.id)),
+            ],
+            'Sims your save brought, or planned ones not in your game yet',
+          )}
         {row(
           'gender',
           'Gender',
@@ -207,33 +272,52 @@ export function AgesPanel({
           ],
           'Living siblings on the board, half and adoptive ones too',
         )}
-        {sizes.length > 0 &&
-          row(
+        {homeSizes.size > 0 &&
+          rowOf(
             'home',
-            'Sims at home',
-            sizes.map((size) => {
-              const key = hiHouseholdChip(size);
-              const count = bySize.get(size) ?? 0;
-              const homes = Math.round(count / size);
-              return {
-                key,
-                text: String(size),
-                title: `${homes === 1 ? '1 household' : `${homes} households`} of ${size === 1 ? '1 living sim' : `${size} living sims`}: ${count === 1 ? '1 sim' : `${count} sims`}. The deceased, pets and babies not born yet don't count.`,
-                count,
-                on: hiAges.has(key),
-                toggle: toggleKey(key),
-              };
-            }),
-            'How many living sims their household has. The deceased, pets and babies not born yet don’t count.',
+            'Household size',
+            <div className="hlrange">
+              <div className="hlrange__line">
+                {stepper('Fewest at home', lo, String(lo), (v) => setRange(v, hi), 1, biggest)}
+                <span className="hlrange__to">to</span>
+                {/* The top at the biggest household is no top at all: "8+". */}
+                {stepper('Most at home', hi, shownRange.max === null ? `${hi}+` : String(hi), (v) => setRange(lo, v), 1, biggest)}
+              </div>
+              <div className="agechips">
+                {chipButton({
+                  key: fullKey,
+                  text: `Full: ${HOUSEHOLD_LIMIT} or more`,
+                  title: `Households at the game’s limit of ${HOUSEHOLD_LIMIT} sims and pets, or past it with mods or plans`,
+                  count: reach({ min: HOUSEHOLD_LIMIT, max: null }).homes,
+                  on: rangeKey === fullKey,
+                  toggle: () => onSetRange(rangeKey === fullKey ? null : fullKey),
+                })}
+                {range && (
+                  <button type="button" onClick={() => onSetRange(null)}>
+                    Any size
+                  </button>
+                )}
+              </div>
+              <p className="hlrange__note">
+                {picked
+                  ? `${picked.sims === 1 ? '1 sim' : `${picked.sims} sims`} in ${picked.homes === 1 ? '1 household' : `${picked.homes} households`}. `
+                  : ''}
+                Sims and pets at home, planned ones too, as the game counts toward its limit of {HOUSEHOLD_LIMIT}.
+              </p>
+            </div>,
+            'How many sims and pets live in their household, planned ones too',
           )}
         {dynasties &&
           row(
             'dynasty',
             'Dynasty',
-            HI_DYNASTY.map((r) => {
-              const key = hiDynastyChip(r);
-              return { key, text: ROLE_CHIP[r].text, title: ROLE_CHIP[r].title, count: cntRole(r), on: hiAges.has(key), toggle: toggleKey(key), data: { 'data-role': r } };
-            }),
+            [
+              ...HI_DYNASTY.map((r) => {
+                const key = hiDynastyChip(r);
+                return { key, text: ROLE_CHIP[r].text, title: ROLE_CHIP[r].title, count: cntRole(r), on: hiAges.has(key), toggle: toggleKey(key), data: { 'data-role': r } };
+              }),
+              chip(HI_NO_DYNASTY, 'None', 'In no dynasty', (n) => !dynastyStanding(n)),
+            ],
           )}
         {pets.length > 0 &&
           row(

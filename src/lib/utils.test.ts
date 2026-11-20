@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
-import { DECEASED_STATE, HI_DESCENDANTS, HI_MARRIED, HI_NO_CHILDREN, HI_NO_SIBLINGS, HI_NOT_BORN, HI_ROMANCE, HI_SIBLINGS, hiDynastyChip, hiHouseholdChip } from './constants.ts';
+import { DECEASED_STATE, HI_AGE_UNSET, HI_DESCENDANTS, HI_IN_GAME, HI_MARRIED, HI_NO_CHILDREN, HI_NO_DYNASTY, HI_NO_SIBLINGS, HI_NOT_BORN, HI_PLANNED, HI_ROMANCE, HI_SIBLINGS, hiDynastyChip, hiHouseholdChip, hiHouseholdRange, householdChipRange } from './constants.ts';
 import { unhousedGid } from './unhoused.ts';
 import { descendantIdSet, householdSizes, partneredIdSet, parentIdSet, siblingIdSet, cleanNote, currentGid, currentWorldName, isHighlightMatch, joinNotes, migrateWhiteboardData, NOTE_MAX, parentLinkMakesCycle } from './utils.ts';
 
@@ -271,21 +271,62 @@ describe('the family pairs and household sizes in the highlight', () => {
     assert.deepEqual(pick([HI_SIBLINGS, HI_NO_SIBLINGS]), ['a', 'b', 'c', 'd', 'e']);
   });
 
-  it('picks sims by how many living sims their household has', () => {
+  it('picks sims by how many their household has, one size or a range', () => {
     assert.deepEqual(pick([hiHouseholdChip(1)]), ['e']);
     assert.deepEqual(pick([hiHouseholdChip(1), hiHouseholdChip(4)]), ['a', 'b', 'c', 'd', 'e']);
     assert.deepEqual(pick([hiHouseholdChip(4)], true), ['d']);
+    assert.deepEqual(pick([hiHouseholdRange(2, 4)]), ['a', 'b', 'c', 'd']);
+    assert.deepEqual(pick([hiHouseholdRange(1, 3)]), ['e']);
+    assert.deepEqual(pick([hiHouseholdRange(4, null)]), ['a', 'b', 'c', 'd']);
+    assert.deepEqual(pick([hiHouseholdRange(5, null)]), []);
   });
 
-  it('counts a household’s living sims, not the deceased, pets, babies to come or the Unhoused', () => {
+  it('reads a range either way round, and an old single size', () => {
+    assert.deepEqual(householdChipRange(hiHouseholdRange(2, null)), { min: 2, max: null });
+    assert.deepEqual(householdChipRange('household:6-2'), { min: 2, max: 6 });
+    assert.deepEqual(householdChipRange(hiHouseholdChip(3)), { min: 3, max: 3 });
+    assert.equal(householdChipRange('Teen'), null);
+  });
+
+  it('counts everyone at home toward the game’s limit, pets and babies to come too, not the deceased or the Unhoused', () => {
     const nodes = [
       { id: 'p', gid: 'W||Home', state: 'Sim' },
       { id: 'q', gid: 'W||Home', state: DECEASED_STATE },
       { id: 'r', gid: 'W||Home', state: 'Sim', species: 'Cat' },
-      { id: 's', gid: 'W||Home', state: 'Sim' },
+      { id: 's', gid: 'W||Home', state: 'Sim', added: true },
       { id: 't', gid: unhousedGid('W'), state: 'Sim' },
     ] as SimNode[];
-    assert.deepEqual([...householdSizes(nodes, new Set(['s']))], [['W||Home', 1]]);
+    assert.deepEqual([...householdSizes(nodes)], [['W||Home', 3]]);
+  });
+
+  it('puts each sim in one life stage: its own, Not born yet, or Age not set', () => {
+    const people = [
+      { id: 'ya', age: 'Young Adult' },
+      { id: 'baby', age: 'Unknown' },
+      { id: 'newcomer', age: 'Unknown' },
+      { id: 'adoptee', age: 'Child' },
+    ].map((x) => ({ ...x, first: x.id, sur: 'X', gender: 'Female', state: 'Sim', gid: 'W||Duo' }) as SimNode);
+    const s = { partnered: new Set<string>(), unborn: new Set(['baby', 'adoptee']), planned: new Set(['baby', 'newcomer', 'adoptee']) };
+    const who = (hi: string[]) => people.filter((n) => isHighlightMatch(n, new Set(hi), false, s)).map((n) => n.id);
+    assert.deepEqual(who([HI_NOT_BORN]), ['baby']);
+    assert.deepEqual(who([HI_AGE_UNSET]), ['newcomer']);
+    assert.deepEqual(who(['Child']), ['adoptee']);
+    // In your game: planned or not, narrowing the life stage.
+    assert.deepEqual(who([HI_PLANNED]), ['baby', 'newcomer', 'adoptee']);
+    assert.deepEqual(who([HI_IN_GAME]), ['ya']);
+    assert.deepEqual(who([HI_PLANNED, 'Child']), ['adoptee']);
+    assert.deepEqual(who([HI_PLANNED, HI_IN_GAME]), ['ya', 'baby', 'newcomer', 'adoptee']);
+  });
+
+  it('picks sims in no dynasty with None, beside the roles', () => {
+    const people = [
+      { id: 'head', dynasty: 'Goth', dynastyRole: 'head' },
+      { id: 'member', dynasty: 'Goth' },
+      { id: 'none' },
+    ].map((x) => ({ ...x, first: x.id, sur: 'X', age: 'Adult', gender: 'Female', state: 'Sim', gid: 'W||Duo' }) as SimNode);
+    const who = (hi: string[]) => people.filter((n) => isHighlightMatch(n, new Set(hi), false, { partnered: new Set() })).map((n) => n.id);
+    assert.deepEqual(who([HI_NO_DYNASTY]), ['none']);
+    assert.deepEqual(who([HI_NO_DYNASTY, hiDynastyChip('head')]), ['head', 'none']);
   });
 
   it('knows descendants past a child who passed away', () => {
