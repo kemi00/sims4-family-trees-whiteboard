@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "3f7c612",
+   "date": "2026-11-21",
+   "text": "Adding a sim or pet from the top bar now asks where they'll live: a household, a free lot, just a world, or \"Not decided yet\". Nothing waits on it: a ⚠ Needs a home tag with \"Choose a home\" reminds you. Households with more sims and pets than the game's limit of 8 get a ⚠ on their tag; using a mod that raises it? Change the limit there or under Your save."
+  },
+  {
    "sha": "de773c1",
    "date": "2026-11-21",
    "text": "Planned sims are clearer. A household's ＋ now asks who's joining: a baby of a couple there, a sim moving in (you choose their life stage and gender), or a pet. Planned cards say \"Not born yet\" or \"Planned: moves in\". In Filters › Highlight every sim is counted, there's a new In your game row, household size is a range like 2 to 4 or \"Full: 8 or more\", and Dynasty has None."
