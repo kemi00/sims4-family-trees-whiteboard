@@ -50,6 +50,8 @@ type Props = {
   onToggleSingle: () => void;
   /** The household size range, one at a time (hiHouseholdRange), or null for any size. */
   onSetRange: (key: string | null) => void;
+  /** The household limit the board warns past (the game's 8, a mod's number), or null for none. */
+  limit?: number | null;
   onClear: () => void;
 };
 
@@ -63,6 +65,7 @@ export function AgesPanel({
   onToggle,
   onToggleSingle,
   onSetRange,
+  limit = HOUSEHOLD_LIMIT,
   onClear,
 }: Props) {
   // Counts follow what the board shows: hidden games and play types are left
@@ -88,10 +91,10 @@ export function AgesPanel({
     const size = sets.householdSizes?.get(n.gid);
     if (size) homeSizes.set(n.gid, size);
   }
-  const biggest = Math.max(HOUSEHOLD_LIMIT, ...homeSizes.values());
+  const biggest = Math.max(limit ?? HOUSEHOLD_LIMIT, ...homeSizes.values());
   const rangeKey = [...hiAges].find((h) => householdChipRange(h) !== null) ?? null;
   const range = rangeKey ? householdChipRange(rangeKey)! : null;
-  const fullKey = hiHouseholdRange(HOUSEHOLD_LIMIT, null);
+  const fullKey = hiHouseholdRange(limit ?? HOUSEHOLD_LIMIT, null);
   const inRange = (size: number, r: { min: number; max: number | null }) => size >= r.min && (r.max === null || size <= r.max);
   /** Sims and households a range picks. */
   const reach = (r: { min: number; max: number | null }) => {
@@ -284,14 +287,15 @@ export function AgesPanel({
                 {stepper('Most at home', hi, shownRange.max === null ? `${hi}+` : String(hi), (v) => setRange(lo, v), 1, biggest)}
               </div>
               <div className="agechips">
-                {chipButton({
-                  key: fullKey,
-                  text: `Full: ${HOUSEHOLD_LIMIT} or more`,
-                  title: `Households at the game’s limit of ${HOUSEHOLD_LIMIT} sims and pets, or past it with mods or plans`,
-                  count: reach({ min: HOUSEHOLD_LIMIT, max: null }).homes,
-                  on: rangeKey === fullKey,
-                  toggle: () => onSetRange(rangeKey === fullKey ? null : fullKey),
-                })}
+                {limit !== null &&
+                  chipButton({
+                    key: fullKey,
+                    text: `Full: ${limit} or more`,
+                    title: `Households at the household limit of ${limit} sims and pets, or past it with plans`,
+                    count: reach({ min: limit, max: null }).homes,
+                    on: rangeKey === fullKey,
+                    toggle: () => onSetRange(rangeKey === fullKey ? null : fullKey),
+                  })}
                 {range && (
                   <button type="button" onClick={() => onSetRange(null)}>
                     Any size
@@ -302,7 +306,9 @@ export function AgesPanel({
                 {picked
                   ? `${picked.sims === 1 ? '1 sim' : `${picked.sims} sims`} in ${picked.homes === 1 ? '1 household' : `${picked.homes} households`}. `
                   : ''}
-                Sims and pets at home, planned ones too, as the game counts toward its limit of {HOUSEHOLD_LIMIT}.
+                {limit === null
+                  ? 'Sims and pets at home, planned ones too.'
+                  : `Sims and pets at home, planned ones too, as the game counts toward the household limit of ${limit}.`}
               </p>
             </div>,
             'How many sims and pets live in their household, planned ones too',

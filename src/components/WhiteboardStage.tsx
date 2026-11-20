@@ -10,7 +10,7 @@ import {
 import { flushSync } from 'react-dom';
 import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import { boardTipPin } from '../lib/boardTip.ts';
-import { border, unionAtPoint, unionGeom, viewportWorldRect, wheelViewport, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
+import { border, dominantWorldInViewport, unionAtPoint, unionGeom, viewportWorldRect, wheelViewport, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
 import { householdChrome, tileSnapOrigin } from '../lib/tiles.ts';
 import {
   CARD_H,
@@ -94,6 +94,9 @@ import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { PartnerMenu } from './PartnerMenu.tsx';
 import { ChildMenu } from './ChildMenu.tsx';
 import { AddKindMenu, type JoiningCouple } from './AddKindMenu.tsx';
+import { HomeMenu } from './HomeMenu.tsx';
+import { LimitMenu } from './LimitMenu.tsx';
+import { homePlaces, needsHome } from '../lib/whereTheyLive.ts';
 import { ChroniclePanel } from './ChroniclePanel.tsx';
 import { LookBackBar } from './LookBackBar.tsx';
 import { pastNode } from '../lib/lookBack.ts';
@@ -1585,6 +1588,16 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     [],
   );
 
+  /** A household's "⚠ 9 of 8" and a Needs a home box's "Choose a home": menus where they were clicked. */
+  const onOpenLimit = useCallback((gid: string, ev: { clientX: number; clientY: number }) => {
+    const sr = stageRef.current?.getBoundingClientRect();
+    wbRef.current.setLimitMenu({ gid, x: ev.clientX - (sr?.left ?? 0), y: ev.clientY - (sr?.top ?? 0) + 14 });
+  }, [stageRef]);
+  const onChooseHome = useCallback((gid: string, ev: { clientX: number; clientY: number }) => {
+    const sr = stageRef.current?.getBoundingClientRect();
+    wbRef.current.setHomeMenu({ gid, x: ev.clientX - (sr?.left ?? 0), y: ev.clientY - (sr?.top ?? 0) + 14 });
+  }, [stageRef]);
+
   /** A sim added with a household's + opens to its name, ready to type. */
   const [nameFocusId, setNameFocusId] = useState<string | null>(null);
   const onAddSim = useCallback((gid: string, ev: { clientX: number; clientY: number }) => {
@@ -1611,8 +1624,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
         freeLots: wb.show.groups && wb.freeLots.size > 0,
         offPlan: wb.offPlan.sims.size > 0 || wb.offPlan.edges.size > 0,
         closing: [...wb.planTally.values()].some((t) => !!t.closing),
+        householdWarn: wb.show.groups && (wb.overLimit.size > 0 || wb.visibleNodes.some((n) => needsHome(n.gid))),
       }),
-    [wb.visibleNodes, wb.shownEdges, wb.show.groups, wb.freeLots, wb.offPlan, wb.planTally],
+    [wb.visibleNodes, wb.shownEdges, wb.show.groups, wb.freeLots, wb.offPlan, wb.planTally, wb.overLimit],
   );
 
   // What of the board is on screen, for new sims to land where you can see
@@ -1680,6 +1694,22 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     return n ? cardName(n) : 'someone';
   };
   const hhOf = (gid: string) => householdName(gid, wb.groups, wb.nodes);
+  /** Every household, free lot and world, for the where-they-live picker. */
+  const homePlaceList = useMemo(
+    () =>
+      homePlaces({
+        groups: wb.groups,
+        sizes: wb.highlightSets.householdSizes ?? new Map(),
+        freeLots: wb.freeLots,
+        worlds: wb.worlds.map((w) => w.name),
+      }),
+    [wb.groups, wb.highlightSets, wb.freeLots, wb.worlds],
+  );
+  /** The world filling the view, whose places the picker lists first. */
+  const worldInView = () => {
+    const r = svgRef.current?.getBoundingClientRect();
+    return dominantWorldInViewport(wb.nodes, wb.groups, wb.nodeVis, wb.viewport, r?.width ?? 800, r?.height ?? 600);
+  };
   /**
    * Couples a household's baby could be of: together now (a romance or a
    * marriage, its story's last step), both living sims, one of them living
@@ -2120,6 +2150,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             onOpenPlan={wb.setBriefGid}
             homes={wb.homes}
             lastPlayedGid={wb.saveGame?.lastPlayedGid}
+            overLimit={wb.overLimit}
+            householdLimit={wb.householdLimit}
+            onOpenLimit={onOpenLimit}
+            onChooseHome={onChooseHome}
           />
           <LotLayer
             boxes={wb.lotBoxes}
@@ -2254,6 +2288,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             </span>
             <SaveStatus
               game={wb.saveGame}
+              limit={wb.householdLimit}
+              onLimit={wb.setHouseholdLimit}
               onRecap={wb.recap ? () => wb.setRecapOpen(true) : undefined}
               onStory={() => {
                 wb.setRecapOpen(false);
@@ -2477,31 +2513,79 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 },
               }
             : {})}
-          onSim={(choice) => {
+          {...(wb.addMenu.gid ? {} : { where: { places: homePlaceList, inView: worldInView(), limit: wb.householdLimit } })}
+          onSim={(choice, to) => {
             const at = wb.addMenu!;
             wb.setAddMenu(null);
             if (at.gid) setNameFocusId(wb.addSimToHousehold(at.gid, undefined, choice));
             else {
               const r = svgRef.current?.getBoundingClientRect();
-              const id = wb.addSim(r?.width ?? 800, r?.height ?? 600, undefined, choice);
-              wb.setEditNodeId(id);
-              setNameFocusId(id);
+              const id = wb.addSimWhere(r?.width ?? 800, r?.height ?? 600, undefined, choice, to ?? { kind: 'none' });
+              if (id) {
+                wb.setEditNodeId(id);
+                setNameFocusId(id);
+              }
             }
           }}
-          onPet={(species) => {
+          onPet={(species, to) => {
             const at = wb.addMenu!;
             wb.setAddMenu(null);
             if (at.gid) setNameFocusId(wb.addSimToHousehold(at.gid, species));
             else {
               const r = svgRef.current?.getBoundingClientRect();
-              const id = wb.addSim(r?.width ?? 800, r?.height ?? 600, species);
-              wb.setEditNodeId(id);
-              setNameFocusId(id);
+              const id = wb.addSimWhere(r?.width ?? 800, r?.height ?? 600, species, undefined, to ?? { kind: 'none' });
+              if (id) {
+                wb.setEditNodeId(id);
+                setNameFocusId(id);
+              }
             }
           }}
           onClose={() => wb.setAddMenu(null)}
         />
       )}
+      {wb.homeMenu && (() => {
+        const at = wb.homeMenu;
+        const ids = wb.nodes.filter((n) => n.gid === at.gid).map((n) => n.id);
+        const first = ids[0] ? wb.byid[ids[0]] : undefined;
+        return (
+          <HomeMenu
+            key={at.gid}
+            x={at.x}
+            y={at.y}
+            who={ids.length === 1 && first ? cardName(first) : `${ids.length} sims`}
+            count={ids.length}
+            places={homePlaceList}
+            inView={first?.world ?? null}
+            limit={wb.householdLimit}
+            onPick={(to) => {
+              wb.setHomeMenu(null);
+              wb.placeSims(ids, to);
+            }}
+            onClose={() => wb.setHomeMenu(null)}
+          />
+        );
+      })()}
+      {wb.limitMenu && (() => {
+        const at = wb.limitMenu;
+        const size = wb.overLimit.get(at.gid) ?? wb.highlightSets.householdSizes?.get(at.gid) ?? 0;
+        return (
+          <LimitMenu
+            key={at.gid}
+            x={at.x}
+            y={at.y}
+            household={hhOf(at.gid)}
+            size={size}
+            limit={wb.householdLimit}
+            onMoveOut={() => {
+              wb.setLimitMenu(null);
+              wb.setSelectMode(true);
+              wb.flashStatus('Click who moves out, then choose Move to household… in the bar.');
+            }}
+            onLimit={wb.setHouseholdLimit}
+            onClose={() => wb.setLimitMenu(null)}
+          />
+        );
+      })()}
       {wb.childMenu && (
         <ChildMenu
           key={wb.childMenu.parents.join('|')}

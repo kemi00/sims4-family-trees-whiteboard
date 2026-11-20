@@ -596,6 +596,8 @@ export function AppBar({
         >
           <SaveDetails
             game={wb.saveGame}
+            limit={wb.householdLimit}
+            onLimit={wb.setHouseholdLimit}
             {...(wb.recap
               ? {
                   onRecap: () => {

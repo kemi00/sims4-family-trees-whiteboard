@@ -4,6 +4,7 @@ import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_H, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, householdChipRange, NOT_IN_WORLD, STATUS_FLASH_MS, TILE, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import { freeLotsIn, homeLotFields, householdLots, lotKey, lotPick, saveLotCatalog, vacantLotsIn, type GameLot } from '../lib/places.ts';
+import { choiceWorld, householdsOverLimit, readHouseholdLimit, writeHouseholdLimit, type HomeChoice } from '../lib/whereTheyLive.ts';
 import { frameWithLots, lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
 import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
@@ -506,6 +507,16 @@ export function useWhiteboard() {
   const [childMenu, setChildMenu] = useState<ChildMenuState | null>(null);
   /** What to add, a sim or a pet: from the toolbar's Add, or a household's ＋ (`gid`). In stage pixels. */
   const [addMenu, setAddMenu] = useState<{ gid?: string; x: number; y: number } | null>(null);
+  /** A Needs a home box's "Choose a home", and where it opened. */
+  const [homeMenu, setHomeMenu] = useState<{ gid: string; x: number; y: number } | null>(null);
+  /** A household's "⚠ 9 of 8", and where it opened. */
+  const [limitMenu, setLimitMenu] = useState<{ gid: string; x: number; y: number } | null>(null);
+  /** The household limit the board warns past: the game's 8, a mod's number, or null for none. Kept in this browser. */
+  const [householdLimit, setHouseholdLimitState] = useState<number | null>(() => readHouseholdLimit());
+  const setHouseholdLimit = useCallback((n: number | null) => {
+    setHouseholdLimitState(n);
+    writeHouseholdLimit(n);
+  }, []);
   const [logOpen, setLogOpen] = useState(false);
   /** Up next is open, and the households skipped in it until the next save import. */
   const [upNextOpen, setUpNextOpen] = useState(false);
@@ -1750,6 +1761,11 @@ export function useWhiteboard() {
     const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
     return new Set(edges.filter((e) => e.type === 'parent' && planned.has(e.b)).map((e) => e.b));
   }, [nodesCore, edges]);
+  /** Households past the household limit, with how many live there (sims and pets, planned ones too). */
+  const overLimit = useMemo(
+    () => householdsOverLimit(householdSizes(nodesCore), householdLimit),
+    [nodesCore, householdLimit],
+  );
   /**
    * What the highlight chips ask about each sim, in one: partnered and
    * married, a living descendant or sibling, not born yet, and each
@@ -3983,6 +3999,8 @@ export function useWhiteboard() {
       world: string,
       houseGid: string,
       newName?: string,
+      /** Part of a step already on the undo stack (a sim added and placed): no undo of its own. */
+      quiet = false,
     ): { dest: MoveDestination; moved: number; back: number } | null => {
       const dest = moveDestination(groups, nodes, worlds, world, houseGid, newName, lotCatalog);
       if (!dest) return null;
@@ -3991,9 +4009,11 @@ export function useWhiteboard() {
       const homes = gameHomes(nodes, householdMoves);
       const back = [...patches.keys()].filter((id) => homes.get(id) === dest.gid).length;
       const [only] = patches.keys();
-      pushUndo(
-        `Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${dest.isNew && dest.lot ? named(dest.lot) : theHousehold(dest.hh, named)}`,
-      );
+      if (!quiet) {
+        pushUndo(
+          `Move ${patches.size === 1 && only ? simCalled(only) : `${patches.size} sims`} to ${dest.isNew && dest.lot ? named(dest.lot) : theHousehold(dest.hh, named)}`,
+        );
+      }
       const newGroup: Group | null = dest.isNew
         ? { gid: dest.gid, hh: dest.hh, world: dest.world, nb: dest.nb, lot: dest.lot, lotZone: dest.lotZone, color: dest.color, x: 0, y: 0, w: 0, h: 0 }
         : null;
@@ -4018,12 +4038,13 @@ export function useWhiteboard() {
    * world it only changes lots, and from another it moves there whole.
    */
   const moveIntoLot = useCallback(
-    (ids: string[], lot: GameLot, name: string) => {
+    (ids: string[], lot: GameLot, name: string, quiet = false) => {
       const movers = ids.map((id) => byid[id]).filter((n): n is SimNode => !!n);
       if (!movers.length || !freeLotsIn(lot.world, homes, lotCatalog).some((l) => lotKey(l) === lotKey(lot))) return;
       const gids = new Set(movers.map((n) => n.gid));
       const [only] = gids;
-      const g = gids.size === 1 && only && !isUnhousedGid(only) ? groups.find((x) => x.gid === only) : undefined;
+      // The Unhoused and Needs a home boxes are no household to move whole: their sims start one there.
+      const g = gids.size === 1 && only && !isUnhousedGid(only) && !only.endsWith(`||${ADDED_HOUSEHOLD}`) ? groups.find((x) => x.gid === only) : undefined;
       const whole = !!g && nodes.filter((n) => n.gid === g.gid).every((n) => ids.includes(n.id));
       if (g && whole && g.world === lot.world) {
         const was = homes.get(g.gid);
@@ -4044,7 +4065,7 @@ export function useWhiteboard() {
         moveHouseholdToWorld(g.gid, lot.world, lotPick(lot));
         return;
       }
-      const done = moveSimsToHousehold(ids, lot.world, lotPick(lot), name);
+      const done = moveSimsToHousehold(ids, lot.world, lotPick(lot), name, quiet);
       if (!done || !done.moved) return;
       setMultiSel({ kind: 'nodes', ids: movers.map((n) => n.id) });
       const who = done.moved === 1 ? cardName(movers[0]!) : `${done.moved} sims`;
@@ -4053,6 +4074,80 @@ export function useWhiteboard() {
       );
     },
     [byid, groups, nodes, nodesCore, edges, homes, lotCatalog, pushUndo, pinCardsToCurrentPlaces, flashStatus, moveHouseholdToWorld, moveSimsToHousehold],
+  );
+
+  /**
+   * Sims go where `to` says: a household, a new one on a free lot (called
+   * by their last name, or the lot's when they have none yet), or only a
+   * world, into its Needs a home box; not decided, Not in any world's. A
+   * home still to choose is never a block: its box's tag says so. `quiet`
+   * folds it into the step already on the undo stack.
+   */
+  const placeSims = useCallback(
+    (ids: string[], to: HomeChoice, quiet = false) => {
+      const movers = ids.map((id) => byid[id]).filter((n): n is SimNode => !!n);
+      if (!movers.length) return;
+      if (to.kind === 'lot') {
+        const sur = householdSurnames(movers, '')[0]?.trim();
+        moveIntoLot(ids, to.lot, sur && sur !== 'Sim' ? sur : to.lot.name, quiet);
+        return;
+      }
+      if (to.kind === 'household') {
+        moveSimsToHousehold(ids, to.world, to.gid, undefined, quiet);
+        return;
+      }
+      const world = choiceWorld(to);
+      const done = moveSimsToHousehold(ids, world, NEW_HOUSEHOLD, ADDED_HOUSEHOLD, quiet);
+      if (!done?.moved) return;
+      const who = done.moved === 1 ? named(cardName(movers[0]!)) : `${done.moved} sims`;
+      flashStatus(
+        to.kind === 'none'
+          ? `${who} ${done.moved === 1 ? 'waits' : 'wait'} in ${NOT_IN_WORLD} for now. Choose a home when you know, from the ⚠ Needs a home tag.`
+          : `${who} ${done.moved === 1 ? 'moves' : 'move'} to ${named(world)}, with no home yet. Choose one when you know, from the ⚠ Needs a home tag.`,
+      );
+    },
+    [byid, moveIntoLot, moveSimsToHousehold, flashStatus],
+  );
+
+  /** A sim or pet added from the bar, once it's on the board: then where it was asked to live. */
+  const [pendingHome, setPendingHome] = useState<{ id: string; to: HomeChoice } | null>(null);
+  useEffect(() => {
+    if (!pendingHome) return;
+    const n = byid[pendingHome.id];
+    if (!n) return;
+    const { id, to } = pendingHome;
+    setPendingHome(null);
+    // Already where it was asked to be: the world in view, with no home yet.
+    if (to.kind === 'world' && n.world === to.world) return;
+    placeSims([id], to, true);
+    // Somewhere else: the view goes to them once they've landed.
+    setFrameAfter({ id, world: choiceWorld(to) });
+  }, [pendingHome, byid, placeSims]);
+  /** A sim just placed in another world or Not in any world: framed where they landed. */
+  const [frameAfter, setFrameAfter] = useState<{ id: string; world: string } | null>(null);
+  useEffect(() => {
+    if (!frameAfter) return;
+    const n = byid[frameAfter.id];
+    if (!n || n.world !== frameAfter.world) return;
+    setFrameAfter(null);
+    // Framed on them, not held where they were on screen as a move keeps them.
+    viewAnchorRef.current = null;
+    const area = visibleAreaRef.current?.();
+    frameSim(n, area?.w ?? 800, area?.h ?? 600);
+  }, [frameAfter, byid, frameSim]);
+
+  /**
+   * The bar's Add, with where they live asked: into a household as its ＋
+   * adds; anywhere else, added in view and then placed, one undo step.
+   */
+  const addSimWhere = useCallback(
+    (svgWidth: number, svgHeight: number, species: string | undefined, sim: { age?: string; gender?: string } | undefined, to: HomeChoice): string | null => {
+      if (to.kind === 'household') return addSimToHousehold(to.gid, species, sim);
+      const id = addSim(svgWidth, svgHeight, species, sim);
+      setPendingHome({ id, to });
+      return id;
+    },
+    [addSim, addSimToHousehold],
   );
 
   const moveSimToHousehold = useCallback(
@@ -4474,6 +4569,15 @@ export function useWhiteboard() {
     toggleAge,
     toggleSingle,
     setHouseholdRange,
+    householdLimit,
+    setHouseholdLimit,
+    overLimit,
+    homeMenu,
+    setHomeMenu,
+    limitMenu,
+    setLimitMenu,
+    placeSims,
+    addSimWhere,
     setHiAges,
     setHiSingle,
     setHiddenPacks,

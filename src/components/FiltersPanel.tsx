@@ -147,6 +147,7 @@ export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList
           onToggle={wb.toggleAge}
           onToggleSingle={wb.toggleSingle}
           onSetRange={wb.setHouseholdRange}
+          limit={wb.householdLimit}
           onClear={() => {
             wb.setHiAges(new Set());
             wb.setHiSingle(false);

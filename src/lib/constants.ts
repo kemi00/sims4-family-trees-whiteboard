@@ -326,6 +326,8 @@ export const UNION_MIN_GAP = (PILL_HALF_W + PILL_CLEAR) * 2;
 
 /** Placeholder household name for a sim created with Add Sim, before they join a house. */
 export const ADDED_HOUSEHOLD = '(added)';
+/** How the board names that box on its tag: a decision still to make, never a block. */
+export const NEEDS_HOME_LABEL = '⚠ Needs a home';
 
 /**
  * The board's place for sims with no home lot — the game's "Currently Not

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CalendarBlank, CaretUp, Flower, Leaf, Snowflake, Sun } from '../icons.ts';
+import { HouseholdLimitControl } from './HouseholdLimitControl.tsx';
 import { trackAction } from '../lib/analytics.ts';
 import {
   agingSummary,
@@ -42,7 +43,20 @@ const SEASON_ICON = { Spring: Flower, Summer: Sun, Fall: Leaf, Winter: Snowflake
  * What the board knows of the save it last read: the game time, then the
  * options that decide ages. Read only: they change in the game.
  */
-export function SaveDetails({ game, onRecap, onStory }: { game: SaveGameInfo; onRecap?: () => void; onStory?: () => void }) {
+export function SaveDetails({
+  game,
+  onRecap,
+  onStory,
+  limit,
+  onLimit,
+}: {
+  game: SaveGameInfo;
+  onRecap?: () => void;
+  onStory?: () => void;
+  /** The household limit the board warns past: a game rule a mod may change, so the player sets it here. */
+  limit?: number | null;
+  onLimit?: (n: number | null) => void;
+}) {
   const day = dayOf(game.clock);
   const rows: [string, string][] = [
     ['Game time', `${clockText(game.clock)}${game.seasonDays ? ` · ${yearText(yearOf(day, game.seasonDays))}` : ''}`],
@@ -86,6 +100,16 @@ export function SaveDetails({ game, onRecap, onStory }: { game: SaveGameInfo; on
         {read ? `, read ${read}` : ''}. To change these options, use Game Options in the game,
         then load the save again.
       </p>
+      {onLimit && (
+        <div className="savechip__board">
+          <div className="pop__head">On the board</div>
+          <HouseholdLimitControl limit={limit ?? null} onLimit={onLimit} />
+          <p className="savechip__note">
+            The board warns when a household has more sims and pets than this. Raised it with a mod like MCCC? Set its
+            number.
+          </p>
+        </div>
+      )}
     </>
   );
 }
@@ -95,7 +119,19 @@ export function SaveDetails({ game, onRecap, onStory }: { game: SaveGameInfo; on
  * status about the board, not an action, so it lives with the board's other
  * status rather than in the top bar. Opens the save details above it.
  */
-export function SaveStatus({ game, onRecap, onStory }: { game: SaveGameInfo; onRecap?: () => void; onStory?: () => void }) {
+export function SaveStatus({
+  game,
+  onRecap,
+  onStory,
+  limit,
+  onLimit,
+}: {
+  game: SaveGameInfo;
+  onRecap?: () => void;
+  onStory?: () => void;
+  limit?: number | null;
+  onLimit?: (n: number | null) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -139,6 +175,7 @@ export function SaveStatus({ game, onRecap, onStory }: { game: SaveGameInfo; onR
         <div className="pop pop--save savestatus__pop" role="dialog" aria-label="Your save">
           <SaveDetails
             game={game}
+            {...(onLimit ? { limit: limit ?? null, onLimit } : {})}
             {...(onRecap
               ? {
                   onRecap: () => {

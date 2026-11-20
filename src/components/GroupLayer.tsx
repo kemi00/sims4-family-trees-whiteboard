@@ -3,6 +3,7 @@ import type { Group, SimNode } from '../types/whiteboard.ts';
 import { rectsIntersect, type WorldRect } from '../lib/marquee.ts';
 import { nodesForGid, type NodeBuckets } from '../lib/nodeIndex.ts';
 import { HH_TAG_STACK_GAP } from '../lib/constants.ts';
+import { needsHome, sizeOfLimit } from '../lib/whereTheyLive.ts';
 import { planBadge, type PlanTally } from '../lib/householdPlan.ts';
 import { animalLaneDivider, householdChrome, tagPillWidth, UNHOUSED_MARK_W } from '../lib/tiles.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
@@ -44,6 +45,14 @@ type Props = {
   homes?: ReadonlyMap<string, GameLot>;
   /** The household the save was last played in: a soft glow, no label. */
   lastPlayedGid?: string;
+  /** Households past the household limit, and how many live there: a ⚠ chip on the tag. */
+  overLimit?: ReadonlyMap<string, number>;
+  /** The household limit: the game's 8, a mod's number, or null for none. */
+  householdLimit?: number | null;
+  /** The ⚠ chip: what the limit means, and what to do. */
+  onOpenLimit?: (gid: string, ev: { clientX: number; clientY: number }) => void;
+  /** A Needs a home box's "Choose a home". */
+  onChooseHome?: (gid: string, ev: { clientX: number; clientY: number }) => void;
 };
 
 /** The neighbourhood icon in a household tag, where the grip would be. */
@@ -76,6 +85,10 @@ export const GroupLayer = memo(function GroupLayer({
   onOpenPlan,
   homes,
   lastPlayedGid,
+  overLimit,
+  householdLimit = null,
+  onOpenLimit,
+  onChooseHome,
 }: Props) {
   if (!show) return null;
 
@@ -106,6 +119,8 @@ export const GroupLayer = memo(function GroupLayer({
         const selected = !!selectedGids?.has(g0.gid);
         /** Unhoused sims: not a home, so a dotted box, an outlined tag and no Age up. */
         const unhoused = isUnhousedGid(g0.gid);
+        /** The board's box for sims with no home yet: "Choose a home" in place of the ＋. */
+        const homeless = needsHome(g0.gid);
         const nbIcon = unhoused ? undefined : neighbourhoodIconUrl(g0.world, g0.nb);
         /** A neighbourhood the game draws no picture of that we have: a blank disc. */
         const nbBlank = !unhoused && !nbIcon && !!g0.nb && g0.nb !== '-';
@@ -188,6 +203,14 @@ export const GroupLayer = memo(function GroupLayer({
           );
         }
 
+        // The tag's row after Age up: ＋ (or Choose a home), the plan badge, then a ⚠ past the limit.
+        const chooseW = homeless ? tagPillWidth('Choose a home', 18) : 0;
+        const firstX = (homeless ? addX + chooseW : addX + addW) + HH_TAG_STACK_GAP;
+        const badge = !unhoused && labels && onOpenPlan ? planBadge(tallies?.get(g0.gid)) : null;
+        const badgeW = badge ? tagPillWidth(badge.text, 18) : 0;
+        const over = labels && onOpenLimit ? overLimit?.get(g0.gid) : undefined;
+        const overText = over !== undefined ? `⚠ ${sizeOfLimit(over, householdLimit)}` : '';
+        const overX = firstX + (badge ? badgeW + HH_TAG_STACK_GAP : 0);
         return (
           <g key={g0.gid} data-gid={g0.gid}>
             <g
@@ -196,7 +219,9 @@ export const GroupLayer = memo(function GroupLayer({
               data-tip={
                 unhoused
                   ? 'Unhoused sims\nTownies the game made as you played. Premade sims with no home keep their own households.'
-                  : `${homeLine(homes?.get(g0.gid), g0.nb)}${g0.gid === lastPlayedGid ? 'The household you last played, when the game saved.\n' : ''}Click for this household’s plan, drag to move it.`
+                  : homeless
+                    ? 'Needs a home\nSims you added with no household or lot yet. Nothing waits on it: choose a home when you know.'
+                    : `${homeLine(homes?.get(g0.gid), g0.nb)}${g0.gid === lastPlayedGid ? 'The household you last played, when the game saved.\n' : ''}Click for this household’s plan, drag to move it.`
               }
               onPointerDown={(ev) => {
                 ev.stopPropagation();
@@ -318,7 +343,31 @@ export const GroupLayer = memo(function GroupLayer({
                 </text>
               </g>
             )}
-            {!unhoused && labels && onAddSim && (
+            {homeless && labels && onChooseHome && (
+              <g
+                className="hh-home"
+                role="button"
+                aria-label="Choose a home for them"
+                style={{ cursor: 'pointer' }}
+                onPointerDown={(ev) => ev.stopPropagation()}
+                onClick={(ev) => onChooseHome(g0.gid, ev)}
+                data-tip="Choose a household, a free lot or a world for them"
+              >
+                <rect x={addX} y={ageY} width={chooseW} height={pillH} rx={8} fill="#fff" stroke={g0.color} strokeWidth={1.5} />
+                <text
+                  x={addX + chooseW / 2}
+                  y={textY(ageY)}
+                  dominantBaseline="middle"
+                  fontSize={12}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill={g0.color}
+                >
+                  Choose a home
+                </text>
+              </g>
+            )}
+            {!unhoused && !homeless && labels && onAddSim && (
               <g
                 className="hh-add"
                 role="button"
@@ -352,12 +401,10 @@ export const GroupLayer = memo(function GroupLayer({
                 </text>
               </g>
             )}
-            {!unhoused && labels && onOpenPlan && (() => {
-              const badge = planBadge(tallies?.get(g0.gid));
-              if (!badge) return null;
+            {badge && onOpenPlan && (() => {
               const tone = BADGE[badge.tone];
-              const x = addX + addW + HH_TAG_STACK_GAP;
-              const w = tagPillWidth(badge.text, 18);
+              const x = firstX;
+              const w = badgeW;
               return (
                 <g
                   className="hh-plan"
@@ -384,6 +431,30 @@ export const GroupLayer = memo(function GroupLayer({
                 </g>
               );
             })()}
+            {over !== undefined && onOpenLimit && (
+              <g
+                className="hh-limit"
+                role="button"
+                aria-label={`${g0.hh}: ${over} sims and pets, past the household limit of ${householdLimit}`}
+                style={{ cursor: 'pointer' }}
+                onPointerDown={(ev) => ev.stopPropagation()}
+                onClick={(ev) => onOpenLimit(g0.gid, ev)}
+                data-tip={`${over} sims and pets live here, past the household limit of ${householdLimit}.\nClick for what to do, or to change the limit.`}
+              >
+                <rect x={overX} y={ageY} width={tagPillWidth(overText, 18)} height={pillH} rx={8} fill={BADGE.offPlan.fill} stroke={BADGE.offPlan.stroke} strokeWidth={1.5} />
+                <text
+                  x={overX + tagPillWidth(overText, 18) / 2}
+                  y={textY(ageY)}
+                  dominantBaseline="middle"
+                  fontSize={12}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill={BADGE.offPlan.text}
+                >
+                  {overText}
+                </text>
+              </g>
+            )}
           </g>
         );
       })}

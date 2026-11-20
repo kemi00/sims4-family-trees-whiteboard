@@ -1,10 +1,12 @@
 import {
+  ADDED_HOUSEHOLD,
   CARD_H,
   CARD_MIN_W,
   HH_TAG_BAND,
   HH_TAG_INSET,
   HH_TAG_PILL_H,
   HH_TAG_STACK_GAP,
+  NEEDS_HOME_LABEL,
   NOT_IN_WORLD,
   TILE,
   UNHOUSED_HH,
@@ -57,11 +59,13 @@ export type HouseholdLabel = Pick<Group, 'hh' | 'nb' | 'world' | 'lot' | 'lotZon
 
 export function householdLabel(g: HouseholdLabel | undefined | null): string {
   if (!g) return '';
-  if (g.lotZone && g.lot) return `${g.hh}  ·  ${g.lot}`;
+  // The board's box for sims with no home yet: what it waits on, not a household's name.
+  const hh = g.hh === ADDED_HOUSEHOLD ? NEEDS_HOME_LABEL : g.hh;
+  if (g.lotZone && g.lot) return `${hh}  ·  ${g.lot}`;
   // Not in any world names no world: the world's own tag says so, and the
   // long name would run every tag there past its cards.
   const world = g.world === NOT_IN_WORLD ? null : g.world;
-  return [g.hh, g.nb && g.nb !== '-' && g.nb !== g.world ? g.nb : null, world]
+  return [hh, g.nb && g.nb !== '-' && g.nb !== g.world ? g.nb : null, world]
     .filter(Boolean)
     .join('  ·  ');
 }

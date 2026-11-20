@@ -80,3 +80,5 @@ export { ArrowRight } from '@phosphor-icons/react/ArrowRight';
 export { Key } from '@phosphor-icons/react/Key';
 export { FolderOpen } from '@phosphor-icons/react/FolderOpen';
 export { Translate } from '@phosphor-icons/react/Translate';
+export { GlobeHemisphereWest } from '@phosphor-icons/react/GlobeHemisphereWest';
+export { Question } from '@phosphor-icons/react/Question';

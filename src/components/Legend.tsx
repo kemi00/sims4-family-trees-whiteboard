@@ -245,7 +245,7 @@ type Props = {
 };
 
 /** The plan marks, for "Your plans": violet until a save has them. */
-const PLAN_MARKS: KeyMark[] = ['added', 'plannedRole', 'offPlan', 'closing', 'otherLink'];
+const PLAN_MARKS: KeyMark[] = ['added', 'plannedRole', 'offPlan', 'closing', 'householdWarn', 'otherLink'];
 
 /**
  * The key: what each board mark means, in four groups (family lines,
@@ -521,6 +521,17 @@ function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; shee
                 }
                 label="Closing"
                 note="a planned couple running out of time for babies: its plan says whom to play"
+              />
+            )}
+            {has('householdWarn') && (
+              <KeyRow
+                sample={
+                  <span className="lgk__badge lgk__badge--warn" aria-label="Amber warning on a household tag">
+                    ⚠ 9 of 8
+                  </span>
+                }
+                label="⚠ On a household tag"
+                note="a decision waits, never a block: a home still to choose, or more sims and pets than the household limit"
               />
             )}
             {has('otherLink') && (

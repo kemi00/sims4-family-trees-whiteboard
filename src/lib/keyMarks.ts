@@ -26,6 +26,7 @@ export type KeyMark =
   | 'plannedRole'
   | 'offPlan'
   | 'closing'
+  | 'householdWarn'
   | 'otherLink';
 
 export const ALL_KEY_MARKS: ReadonlySet<KeyMark> = new Set<KeyMark>([
@@ -45,6 +46,7 @@ export const ALL_KEY_MARKS: ReadonlySet<KeyMark> = new Set<KeyMark>([
   'plannedRole',
   'offPlan',
   'closing',
+  'householdWarn',
   'otherLink',
 ]);
 
@@ -58,6 +60,8 @@ export function keyMarks(board: {
   offPlan: boolean;
   /** A household tag has a closing badge. */
   closing: boolean;
+  /** A household tag has a ⚠: a home still to choose, or past the household limit. */
+  householdWarn?: boolean;
 }): Set<KeyMark> {
   const out = new Set<KeyMark>();
   const dead = new Set(board.nodes.filter((n) => n.state === DECEASED_STATE).map((n) => n.id));
@@ -80,5 +84,6 @@ export function keyMarks(board: {
   if (board.freeLots) out.add('freeLots');
   if (board.offPlan) out.add('offPlan');
   if (board.closing) out.add('closing');
+  if (board.householdWarn) out.add('householdWarn');
   return out;
 }

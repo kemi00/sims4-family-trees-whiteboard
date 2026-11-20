@@ -883,6 +883,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lgk__emoji{font-size:14px;line-height:1}
 .lgk__emoji--planned{opacity:.4}
 .lgk__badge{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1.5px solid var(--warn-strong);border-radius:9px;background:#fff;color:var(--warn);font-size:10.5px;font-weight:700;line-height:1;white-space:nowrap}
+.lgk__badge--warn{background:var(--warn-soft)}
 .lgk__text{min-width:0}
 .lgk__note{display:block;margin-top:1px;font-size:11.5px;line-height:1.4;color:var(--ink-3)}
 /* Family lines: where (style) down the side, whether in your save (colour) across the top. */
@@ -1247,11 +1248,11 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hlrange__line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .hlrange__to{font-size:12px;color:var(--ink-3)}
 .hlstep{display:inline-flex;align-items:center;height:28px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);overflow:hidden}
-.gpanel .hlstep button{width:28px;height:28px;padding:0;border:0;border-radius:0;background:none;font-size:15px;font-weight:600;color:var(--ink-2)}
-.gpanel .hlstep button:hover{background:var(--hover)}
+.gpanel .hlstep button,.menu .hlstep button,.pop .hlstep button{display:inline-flex;align-items:center;justify-content:center;width:28px;min-height:0;height:28px;padding:0;border:0;border-radius:0;background:none;font-size:15px;font-weight:600;color:var(--ink-2)}
+.gpanel .hlstep button:hover,.menu .hlstep button:hover,.pop .hlstep button:hover{background:var(--hover)}
 .hlstep output{min-width:28px;text-align:center;font-size:12.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .hlrange__note{margin:0;font-size:11px;line-height:1.4;color:var(--ink-3)}
-@media (pointer:coarse){.hlstep{height:44px}.gpanel .hlstep button{width:44px;height:44px}}
+@media (pointer:coarse){.hlstep{height:44px}.gpanel .hlstep button,.menu .hlstep button,.pop .hlstep button{width:44px;height:44px}}
 /* A phone: the row's name sits above its choices, so they get the whole width. */
 @media (max-width:520px){.hlrow{grid-template-columns:minmax(0,1fr);gap:6px}.hlrow__label{padding:0 0 0 4px}}
 .menu button:where(:not(.iconbtn)):hover{background:#e7eefb}
@@ -1278,6 +1279,31 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .addmenu__note{margin:2px 2px 8px;font-size:11px;line-height:1.4;color:var(--ink-3)}
 .menu .addmenu__go{display:flex;width:100%;justify-content:center;margin:0;padding:8px 12px;border-radius:var(--r-control);background:var(--accent);color:#fff;font-size:12.5px;font-weight:700}
 .menu .addmenu__go:hover{background:var(--accent-strong);color:#fff}
+/* Where they'll live (WherePicker): the world in view's homes and lots, search, and Not decided yet. */
+.addmenu__who{margin:-2px 2px 8px;font-size:11.5px;color:var(--ink-2)}
+.where__head{margin:10px 2px 4px;font-size:11px;font-weight:700;color:var(--ink-3)}
+.where__list{max-height:min(46vh,300px);overflow:auto;overscroll-behavior:contain;margin:6px -2px 0;padding:0 2px}
+.menu .where__row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:9px;width:100%;margin:4px 0;padding:7px 9px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;text-align:left;white-space:normal}
+.menu .where__row:hover{background:var(--hover);border-color:var(--accent)}
+.where__icon{width:18px;height:18px;color:var(--ink-3)}
+.where__icon--home{color:var(--accent)}
+.where__icon--lot{color:var(--done)}
+.where__text{display:flex;flex-direction:column;gap:1px;min-width:0}
+.where__title{font-size:12.5px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.where__sub{font-size:11px;font-weight:400;color:var(--ink-2);overflow-wrap:anywhere}
+.where__meta{font-size:11px;font-weight:600;color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.where__meta--past{color:var(--warn)}
+.where__none{margin:8px 2px;font-size:11.5px;color:var(--ink-3)}
+/* The household limit: a household's ⚠ menu, and Your save. */
+.limitmenu{max-width:320px}
+.limitmenu__text{margin:0 2px 10px;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.limitmenu__note{margin:6px 2px 0;font-size:11px;line-height:1.4;color:var(--ink-3)}
+.limitctl{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+.limitctl__label{font-size:12px;font-weight:600;color:var(--ink-2)}
+.menu .limitctl .limitctl__btn,.pop .limitctl .limitctl__btn{display:inline-flex;width:auto;min-height:28px;padding:0 9px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);color:var(--ink-2);font-size:11.5px;font-weight:600}
+.menu .limitctl .limitctl__btn:hover,.pop .limitctl .limitctl__btn:hover{background:var(--hover)}
+.savechip__board{margin-top:10px}
+.savechip__board .limitctl{margin-top:4px;padding-top:0;border-top:none}
 .menu .pmenu__back{display:inline-flex;align-items:center;gap:4px;width:auto;margin:0;padding:2px 6px 2px 2px;background:transparent;color:var(--ink)}
 .menu .pmenu__back:hover{background:var(--hover)}
 .pmenu__back svg{width:13px;height:13px;color:var(--ink-3)}
