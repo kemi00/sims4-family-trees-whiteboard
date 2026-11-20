@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   HH_TAG_INSET,
   LABEL_MIN_K,
+  NOT_IN_WORLD_EXPLAINED,
   TILE,
   WORLD_TAG_PILL_H,
   WORLD_TITLE_BAND,
@@ -99,7 +100,7 @@ describe('world tag counts', () => {
     );
     assert.equal(
       worldCountsText('Not in any world', worldCounts([card('u1', 'Not in any world||Unhoused sims'), card('u2', 'Not in any world||Unhoused sims')], () => true)),
-      'Not in any world: 2 sims in Unhoused sims.',
+      `Not in any world: 2 sims in Unhoused sims. ${NOT_IN_WORLD_EXPLAINED}`,
     );
     assert.equal(
       worldCountsText('Tartosa', worldCounts([card('a', 'g1')], () => true)),

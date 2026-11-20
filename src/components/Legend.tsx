@@ -11,6 +11,8 @@ import {
   LINK_STROKE,
   LINK_STROKE_ACROSS,
   NOT_IN_WORLD,
+  NOT_IN_WORLD_EXPLAINED,
+  NOT_IN_WORLD_SHORT,
   OTHER_LINK_WIDTH,
   UEDIT,
   linkDash,
@@ -443,6 +445,17 @@ function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; shee
             }
             note="sims, households and dynasties"
           />
+          {has('notInWorld') && (
+            <KeyRow
+              sample={
+                <Sample label="The Not in any world tag">
+                  <rect x={1} y={4} width={SW - 2} height={SH - 8} rx={(SH - 8) / 2} fill="#9aa0a6" />
+                </Sample>
+              }
+              label={NOT_IN_WORLD}
+              note={NOT_IN_WORLD_EXPLAINED}
+            />
+          )}
           {has('unhoused') && (
             <KeyRow
               sample={
@@ -615,7 +628,9 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
                   disabled={!live}
                   title={
                     live
-                      ? `Zoom to ${w.name}`
+                      ? w.name === NOT_IN_WORLD
+                        ? `Zoom to ${w.name}. ${NOT_IN_WORLD_EXPLAINED}`
+                        : `Zoom to ${w.name}`
                       : `${w.name}: hidden, its game is switched off`
                   }
                   onClick={() => onPickWorld(w.name)}
@@ -631,7 +646,14 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
                     // same ring, left blank inside.
                     <span className="lg__world lg__world--blank" style={{ borderColor: w.color }} aria-hidden="true" />
                   )}
-                  {w.name}
+                  {w.name === NOT_IN_WORLD ? (
+                    <span className="lg__worldname">
+                      {w.name}
+                      <small>{NOT_IN_WORLD_SHORT}</small>
+                    </span>
+                  ) : (
+                    w.name
+                  )}
                 </button>
               );
             })}

@@ -1,4 +1,4 @@
-import { DECEASED_STATE } from './constants.ts';
+import { DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { edgeSourceOf, endedByPassing, isPet } from './utils.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
@@ -20,6 +20,7 @@ export type KeyMark =
   | 'fromSave'
   | 'pets'
   | 'unhoused'
+  | 'notInWorld'
   | 'freeLots'
   | 'added'
   | 'plannedRole'
@@ -38,6 +39,7 @@ export const ALL_KEY_MARKS: ReadonlySet<KeyMark> = new Set<KeyMark>([
   'fromSave',
   'pets',
   'unhoused',
+  'notInWorld',
   'freeLots',
   'added',
   'plannedRole',
@@ -73,6 +75,7 @@ export function keyMarks(board: {
     if (n.state === DECEASED_STATE) out.add('deceased');
     if (isPet(n)) out.add('pets');
     if (isUnhousedGid(n.gid)) out.add('unhoused');
+    if (n.world === NOT_IN_WORLD) out.add('notInWorld');
   }
   if (board.freeLots) out.add('freeLots');
   if (board.offPlan) out.add('offPlan');

@@ -2492,6 +2492,14 @@ type ColumnWorld = {
  * household on the board a place in the columns.
  */
 export const LOTS_EPOCH = 10;
+/**
+ * From this epoch Not in any world comes after the worlds, as a column of its
+ * own at the end, not a band over them: the board opens on the worlds, and a
+ * tester took the band on top for the main family tree. A column, not a band
+ * under them, so every world keeps its room to grow down. Its households go
+ * A to Z, the Unhoused sims box last.
+ */
+export const NOT_IN_WORLD_AFTER_EPOCH = 11;
 
 /** Key of a world's Free lots box in the packed bases, beside the cards'. */
 export function lotsBaseKey(world: string): string {
@@ -2609,9 +2617,11 @@ function packNotInWorldColumns(
 
 /**
  * Worlds in columns by household count (see worldColumns), left-aligned and
- * evenly spaced, under one band of Not in any world whose households sit
- * over their game's world (see packNotInWorldColumns). Null when there is no
- * world but Not in any world to line up.
+ * evenly spaced. Before NOT_IN_WORLD_AFTER_EPOCH, Not in any world is one
+ * band over them, its households over their game's world (see
+ * packNotInWorldColumns); from it, a column of its own after the last world
+ * (packNotInWorldColumn). Null when there is no world but Not in any world
+ * to line up.
  */
 function placeWorldsInColumns(
   byWorld: Map<string, SimNode[]>,
@@ -2663,7 +2673,9 @@ function placeWorldsInColumns(
   const packWorld = worldOfPack(byWorld);
   const worldWidths = cols.map((col) => Math.max(...col.map((w) => w.extent.w)));
   const other = byWorld.get(OTHER_WORLD) ?? [];
-  const parts = other.length
+  // Over the worlds before NOT_IN_WORLD_AFTER_EPOCH; a column after them from it.
+  const after = epoch >= NOT_IN_WORLD_AFTER_EPOCH;
+  const parts = other.length && !after
     ? packNotInWorldColumns(
         other,
         edges,
@@ -2689,6 +2701,7 @@ function placeWorldsInColumns(
   const bandTop = tileCeil(LAYOUT.originY + LAYOUT.worldTitle);
   const bandH = Math.max(0, ...parts.map((p) => p.extent.h));
   const worldsTop = bandH ? tileCeil(bandTop + bandH + COLUMN_GAP) : bandTop;
+  let worldsBottom = worldsTop;
   let x = left;
   for (let c = 0; c < Math.max(cols.length, parts.length); c++) {
     const col = cols[c] ?? [];
@@ -2708,6 +2721,7 @@ function placeWorldsInColumns(
         bottom = lotTop + w.lots.h;
       }
       top = tileCeil(bottom + COLUMN_STACK_GAP);
+      worldsBottom = Math.max(worldsBottom, bottom);
     }
     // Room for the column's world tags as they grow zoomed out, too.
     const width = Math.max(
@@ -2716,7 +2730,37 @@ function placeWorldsInColumns(
     );
     x = tileCeil(x + width + COLUMN_GAP);
   }
+  if (after && other.length) {
+    // A column of its own after the last world, about as tall as the tallest.
+    const block = packNotInWorldColumn(other, edges, epoch, worldsBottom - worldsTop);
+    put(block.placed, block.extent, x, worldsTop);
+  }
   return bases;
+}
+
+/**
+ * Not in any world as one column (NOT_IN_WORLD_AFTER_EPOCH): its households
+ * A to Z, the Unhoused sims box last, widening until it is about as tall as
+ * `targetH`, the tallest world column.
+ */
+function packNotInWorldColumn(mem: SimNode[], edges: Edge[], epoch: number, targetH: number): NotInWorldPart {
+  const byGid = new Map<string, SimNode[]>();
+  for (const n of mem) {
+    if (!byGid.has(n.gid)) byGid.set(n.gid, []);
+    byGid.get(n.gid)!.push(n);
+  }
+  const households = [...byGid.entries()].sort((a, b) =>
+    (a[1][0]?.hh ?? a[0]).localeCompare(b[1][0]?.hh ?? b[0]),
+  );
+  const all = otherWorldTiles(households, edges, epoch);
+  const tiles = [...all.filter((t) => !t.unhoused), ...all.filter((t) => t.unhoused)];
+  let k = Math.max(1, ...tiles.map((t) => t.colSpan));
+  let part = packNotInWorldPart(tiles, k, epoch);
+  while (targetH > 0 && part.extent.h - HH_TAG_BAND > targetH && k < NOT_IN_WORLD_MAX_COLS) {
+    k += 1;
+    part = packNotInWorldPart(tiles, k, epoch);
+  }
+  return part;
 }
 
 /**

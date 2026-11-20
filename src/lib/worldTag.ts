@@ -1,17 +1,4 @@
-import {
-  DECEASED_STATE,
-  NOT_IN_WORLD,
-  HH_TAG_INSET,
-  LABEL_MIN_K,
-  TILE,
-  WORLD_TAG_FONT,
-  WORLD_TAG_HIT_PAD_SCREEN_PX,
-  WORLD_TAG_MIN_SCREEN_PX,
-  WORLD_TAG_NORMAL_ZOOM,
-  WORLD_TAG_PILL_H,
-  WORLD_TAG_ZOOM_OUT_MAX,
-  WORLD_TITLE_BAND,
-} from './constants.ts';
+import { DECEASED_STATE, NOT_IN_WORLD, HH_TAG_INSET, LABEL_MIN_K, TILE, WORLD_TAG_FONT, WORLD_TAG_HIT_PAD_SCREEN_PX, WORLD_TAG_MIN_SCREEN_PX, WORLD_TAG_NORMAL_ZOOM, WORLD_TAG_PILL_H, WORLD_TAG_ZOOM_OUT_MAX, WORLD_TITLE_BAND, NOT_IN_WORLD_EXPLAINED } from './constants.ts';
 import { dynastyKey } from './generations.ts';
 import { textWidth } from './textWidth.ts';
 import { isUnhousedGid } from './unhoused.ts';
@@ -335,6 +322,7 @@ export function worldCountsText(name: string, c: WorldCounts): string {
     text += `, plus ${extra.length ? `${extra.join(', ')} and ${last}` : last}`;
   }
   text += '.';
+  if (name === NOT_IN_WORLD) text += ` ${NOT_IN_WORLD_EXPLAINED}`;
   if (c.dynasties) {
     const planned =
       c.plannedDynasties === 0

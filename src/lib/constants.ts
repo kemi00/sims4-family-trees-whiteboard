@@ -132,7 +132,7 @@ export const WORLD_TAG_HIT_PAD_SCREEN_PX = 10;
  * older epoch back to {@link OLDEST_PINNABLE_EPOCH} are pinned in place on
  * load; unstamped ones are re-packed.
  */
-export const LAYOUT_EPOCH = 10;
+export const LAYOUT_EPOCH = 11;
 /**
  * Oldest epoch whose packing rules are still implemented. Boards saved under
  * it or later are pinned to where they were on screen, not re-packed.
@@ -315,6 +315,11 @@ export const ADDED_HOUSEHOLD = '(added)';
  * in World" — and for anyone else whose world is not on the board.
  */
 export const NOT_IN_WORLD = 'Not in any world';
+/** What Not in any world is, in a few words: beside its tag and in the worlds list. */
+export const NOT_IN_WORLD_SHORT = 'No home lot yet';
+/** What Not in any world is, said in full: its tips and the key. */
+export const NOT_IN_WORLD_EXPLAINED =
+  'Sims with no home lot: households your game hasn’t placed in a house yet, and townies. They join a world when they move in somewhere.';
 /** Earlier names of {@link NOT_IN_WORLD}, renamed when a board loads. */
 export const LEGACY_NOT_IN_WORLD = ['Other', 'Other / Townie'] as const;
 

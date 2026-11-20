@@ -643,19 +643,42 @@ describe('world columns', () => {
     assert.equal(inFirst.length, 4);
   });
 
-  it("puts Not in any world over its game's world, the rest at the end", () => {
-    const fia = at('fia');
-    assert.ok(fia.x >= left('Ondarion') && fia.x + fia.w <= right('Ondarion') + TILE * 3);
-    assert.ok(at('lone').x > right('Ondarion'), 'a game with no world goes after the worlds');
-    assert.ok(at('t1').x > right('Ondarion'), 'so does Unhoused sims');
-    const worldsTop = Math.min(...laid.filter((n) => n.world !== OTHER_WORLD).map((n) => n.y));
-    for (const n of cards(OTHER_WORLD)) assert.ok(n.y + n.h < worldsTop, n.id);
+  it('puts Not in any world in a column of its own after the worlds, their tops level', () => {
+    const worlds = laid.filter((n) => n.world !== OTHER_WORLD);
+    const worldsRight = Math.max(...worlds.map((n) => n.x + n.w));
+    for (const n of cards(OTHER_WORLD)) assert.ok(n.x > worldsRight, n.id);
+    assert.equal(top(OTHER_WORLD), Math.min(...worlds.map((n) => n.y)));
   });
 
-  it('sits each share of Not in any world right on its column', () => {
-    // Shares are bottom-aligned, so the band's lowest row is the same for all.
-    const bottoms = new Set([at('fia'), at('lone')].map((n) => n.y + n.h));
-    assert.equal(bottoms.size, 1);
+  it('lists its households A to Z, the Unhoused sims box last', () => {
+    // Acosta before Seasonal, and the Unhoused sims box after both.
+    const order = ['fia', 'lone', 't1'].map(at);
+    const reading = (n: SimNode) => n.y * 1e6 + n.x;
+    assert.ok(reading(order[0]!) < reading(order[1]!));
+    assert.ok(reading(order[1]!) < reading(order[2]!));
+  });
+
+  describe('on a board laid out before (layout 10)', () => {
+    const old = snapNodesToTiles(computeLayout(nodes, allWorlds, [], 10));
+    const oldAt = (id: string) => old.find((n) => n.id === id)!;
+    const oldCards = (world: string) => old.filter((n) => n.world === world);
+    const oldRight = (world: string) => Math.max(...oldCards(world).map((n) => n.x + n.w));
+    const oldLeft = (world: string) => Math.min(...oldCards(world).map((n) => n.x));
+
+    it("keeps Not in any world over its game's world, the rest at the end", () => {
+      const fia = oldAt('fia');
+      assert.ok(fia.x >= oldLeft('Ondarion') && fia.x + fia.w <= oldRight('Ondarion') + TILE * 3);
+      assert.ok(oldAt('lone').x > oldRight('Ondarion'), 'a game with no world goes after the worlds');
+      assert.ok(oldAt('t1').x > oldRight('Ondarion'), 'so does Unhoused sims');
+      const worldsTop = Math.min(...old.filter((n) => n.world !== OTHER_WORLD).map((n) => n.y));
+      for (const n of oldCards(OTHER_WORLD)) assert.ok(n.y + n.h < worldsTop, n.id);
+    });
+
+    it('sits each share of Not in any world right on its column', () => {
+      // Shares are bottom-aligned, so the band's lowest row is the same for all.
+      const bottoms = new Set([oldAt('fia'), oldAt('lone')].map((n) => n.y + n.h));
+      assert.equal(bottoms.size, 1);
+    });
   });
 });
 

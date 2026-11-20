@@ -4,7 +4,7 @@ import { linkStep, named } from '../lib/undoNames.ts';
 import seedData from '../data/whiteboard.json';
 import { ADDED_HOUSEHOLD, AGES_H, CARD_H, DECEASED_STATE, DYNASTY_ROLES, FOCUS_SIM_K, NOT_IN_WORLD, STATUS_FLASH_MS, TILE, UEDIT, ZOOM_MIN } from '../lib/constants.ts';
 import { freeLotsIn, homeLotFields, householdLots, lotKey, lotPick, saveLotCatalog, vacantLotsIn, type GameLot } from '../lib/places.ts';
-import { lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
+import { frameWithLots, lotBoxCols, placeLotBoxes } from '../lib/lotBoxes.ts';
 import { idsForMultiSel } from '../lib/marquee.ts';
 import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
@@ -60,6 +60,7 @@ import {
   dominantWorldInViewport,
   snapHouseholdDelta,
   snapPosition,
+  worldFrame,
   zoomFloor,
   zoomViewportAt,
   type SnapSticky,
@@ -3016,7 +3017,13 @@ export function useWhiteboard() {
       const inWorld = (n: SimNode) => nodeVis(n) && n.world === world;
       const lots = lotBoxes.get(world);
       if (!nodes.some(inWorld) && !lots) return;
-      const [x0, y0, x1, y1] = withLots(nodes.some(inWorld) ? bbox(nodes, inWorld) : null, lots ? [lots] : []);
+      // The world as drawn, its frame and free lots, with a tile above for
+      // its tag, which rises out of the frame when zoomed out: a tall world,
+      // framed by its height, keeps its name in view.
+      const frame = frameWithLots(worldFrame(world, nodes, groups, nodeVis, nodeBuckets), lots);
+      const [x0, y0, x1, y1] = frame
+        ? [frame.l, frame.t - TILE, frame.r, frame.b]
+        : withLots(nodes.some(inWorld) ? bbox(nodes, inWorld) : null, lots ? [lots] : []);
       const w = x1 - x0;
       const h = y1 - y0;
       const pad = 80;
@@ -3032,7 +3039,7 @@ export function useWhiteboard() {
         ty: (svgHeight - h * k) / 2 - y0 * k,
       });
     },
-    [nodes, nodeVis, lotBoxes],
+    [nodes, nodeVis, lotBoxes, groups, nodeBuckets],
   );
 
   const boardBounds = useMemo(

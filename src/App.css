@@ -854,6 +854,10 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .lgk__empty{margin:4px 0 0;font-size:12px;line-height:1.5;color:var(--ink-2)}
 /* World rows are buttons: picking one frames that world on the canvas. */
 .lg--world{width:100%;margin:1.5px -4px;padding:1.5px 4px;border:0;border-radius:5px;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.lg__worldname{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+.lg__worldname small{font-size:10px;font-weight:500;color:var(--ink-3)}
+/* What Not in any world is, beside its tag on the board. */
+.whandle__note{fill:var(--ink-3)}
 .lg--world:hover:not(:disabled){background:var(--hover)}
 .lg--world:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
 /* Faded rather than hidden, so the colour key stays readable as a reference. */
