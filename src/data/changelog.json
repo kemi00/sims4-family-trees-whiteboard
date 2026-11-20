@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "d1e93d1",
+   "date": "2026-11-20",
+   "text": "A sim's, household's or dynasty's story now has a switch under the search: their story or everyone's, and back again."
+  },
+  {
    "sha": "fccad29",
    "date": "2026-11-20",
    "text": "The prestige bar now fills to where the dynasty is in its level, as in the game, and says how far: \"25% of Prestige Level 8\"."
