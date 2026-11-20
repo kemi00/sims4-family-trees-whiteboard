@@ -1,7 +1,7 @@
 import { TREE_NAMES } from '../../data/treeNames.ts';
 import { homeWorld } from '../realm.ts';
 import { AGES_H, NON_BINARY } from '../constants.ts';
-import { RESIDENTIAL_RENTAL_VENUE } from '../places.ts';
+import { RESIDENTIAL_RENTAL_VENUE, worldOfLotHashes } from '../places.ts';
 import type { DynastyRole, PairTag, SaveLotZone, SimPronouns } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
@@ -784,12 +784,68 @@ function idField(fields: ReturnType<typeof decodeFields>, n: number): string {
 }
 
 /**
+ * Each world's id in a save (field 4 of its world record), with the name the
+ * game gives it in English. The id is the game's own and the same in every
+ * save, while the name (field 3) is written in the game's language, and
+ * some world records have none. Read from two separate games (Slot 6 and
+ * Slot 8). Worlds missing here are known by their lots, or by name.
+ */
+const SAVE_WORLD_NAMES: Readonly<Record<number, string>> = {
+  8086: 'Willow Creek',
+  15740: 'Oasis Springs',
+  47880: 'Sylvan Glade',
+  47902: 'Forgotten Grotto',
+  65983: 'Granite Falls',
+  72179: 'Office Site',
+  72479: 'Office Site',
+  72480: 'Magnolia Promenade',
+  88224: 'Office Site',
+  93517: 'Newcrest',
+  99995: 'Windenburg',
+  117425: 'San Myshuno',
+  146196: 'Forgotten Hollow',
+  160112: 'Brindleton Bay',
+  176583: 'Selvadorada',
+  197663: 'Del Sol Valley',
+  208768: 'StrangerVille',
+  216823: 'Sulani',
+  221598: 'Britechester',
+  222656: 'Glimmerbrook',
+  230656: 'The Magic Realm',
+  235805: 'Evergreen Harbor',
+  246370: 'Mt. Komorebi',
+  263602: 'Henford-on-Bagley',
+  287506: 'Tartosa',
+  290968: 'Copperdale',
+  310555: 'Moonwood Mill',
+  326726: 'San Sequoia',
+  329915: 'Chestnut Ridge',
+  359471: 'Tomarang',
+  395690: 'Ciudad Enamorada',
+  415482: 'Ravenwood',
+  417419: 'Nordhaven',
+  455807: 'Innisgreen',
+  474272: 'Gibbi Point',
+  487001: 'Ondarion',
+};
+
+/**
+ * A save's world, by the name the board knows it by: first its id, then
+ * the lots the game puts in it, and only then the name the save stores.
+ * A game in another language stores "Willow Creek" in that language, so
+ * the name alone would leave every household in no world.
+ */
+export function saveWorldName(id: number, stored: string, lotHashes: Iterable<number>): string {
+  return SAVE_WORLD_NAMES[id] ?? worldOfLotHashes(lotHashes) ?? stored.trim();
+}
+
+/**
  * Where each household lives. Lot records sit under SaveGameData field 4
- * (world): field 3 is the world name, each nested field 5 a lot with its zone
- * id (2) and owner (4, whose field 3 is the household id). Household records
- * (field 5) name their home zone. A household with no home lot (an unhoused
- * townie) is left out. Only strings from the file are used — no zone→world
- * table.
+ * (world): field 4 is the world's id, field 3 its name in the game's
+ * language, each nested field 5 a lot with its zone id (2), its id (5) and
+ * owner (4, whose field 3 is the household id). Household records (field 5)
+ * name their home zone. A household with no home lot (an unhoused townie)
+ * is left out. The world is named by saveWorldName.
  */
 function parseWorldIndex(saveGame: Uint8Array): {
   householdWorld: Record<string, string>;
@@ -833,17 +889,22 @@ function parseWorldIndex(saveGame: Uint8Array): {
     }
     if (rec.field !== 4) continue;
     const fields = decodeFields(rec.bytes);
-    let world = '';
+    let stored = '';
+    let id = 0;
     for (const f of fields) {
-      if (f.field === 3 && f.bytes) world = utf8(f.bytes) ?? '';
+      if (f.field === 3 && f.bytes) stored = utf8(f.bytes) ?? '';
+      if (f.field === 4 && !f.bytes) id = Number(f.int);
     }
+    const lots = fields.filter((f) => f.field === 5 && f.bytes).map((f) => decodeFields(f.bytes!));
+    const lotHashes = lots.flatMap((lot) => {
+      const hash = lot.find((x) => x.field === 5 && !x.bytes)?.int;
+      return hash ? [Number(hash)] : [];
+    });
     // A region inside another world (the Magic Realm, in Glimmerbrook) is that world.
-    world = homeWorld(world);
+    const world = homeWorld(saveWorldName(id, stored, lotHashes));
     if (!world) continue;
     worlds.add(world);
-    for (const f of fields) {
-      if (f.field !== 5 || !f.bytes) continue;
-      const lot = decodeFields(f.bytes);
+    for (const lot of lots) {
       const zone = idField(lot, 2);
       if (zone) zoneWorld.set(zone, world);
       const hash = lot.find((x) => x.field === 5 && !x.bytes)?.int;

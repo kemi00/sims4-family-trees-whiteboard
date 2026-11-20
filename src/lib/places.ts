@@ -98,6 +98,39 @@ export function lotWorlds(): string[] {
   return [...WORLDS.keys()];
 }
 
+/** Each lot id, with the worlds the game puts it in. */
+let worldsByLotHash: Map<number, string[]> | null = null;
+
+/**
+ * The world whose lots these are, by the lot ids a save stores (the same in
+ * every language): the world most of them belong to. Undefined when none is
+ * known, or two worlds tie.
+ */
+export function worldOfLotHashes(hashes: Iterable<number>): string | undefined {
+  if (!worldsByLotHash) {
+    worldsByLotHash = new Map();
+    for (const [world, places] of WORLDS) {
+      for (const { hash } of places.lots) {
+        const worlds = worldsByLotHash.get(hash) ?? [];
+        if (!worlds.includes(world)) worlds.push(world);
+        worldsByLotHash.set(hash, worlds);
+      }
+    }
+  }
+  const votes = new Map<string, number>();
+  for (const hash of new Set(hashes)) {
+    for (const world of worldsByLotHash.get(hash) ?? []) votes.set(world, (votes.get(world) ?? 0) + 1);
+  }
+  let best: string | undefined;
+  let top = 0;
+  let tied = false;
+  for (const [world, n] of votes) {
+    if (n > top) [best, top, tied] = [world, n, false];
+    else if (n === top) tied = true;
+  }
+  return tied ? undefined : best;
+}
+
 export type LotCatalog = ReadonlyMap<string, readonly GameLot[]>;
 
 /** Overlay the save's current venue and rental units on the shipped map. */

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { freeLotsIn, householdLots, lotPick, saveLotCatalog } from '../places.ts';
+import { freeLotsIn, householdLots, lotPick, saveLotCatalog, worldOfLotHashes } from '../places.ts';
 import { moveDestination } from '../householdMove.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { mergeSaveIntoBoard } from './mergeSave.ts';
@@ -618,6 +618,73 @@ describe('households', () => {
 
   it('takes the household name from the household when a sim\'s copy is blank', () => {
     assert.equal(sim('Maira').household, 'Watson');
+  });
+});
+
+/**
+ * A world record as a game in another language writes it: the world's id
+ * (field 4), its name in that language (3, left out when absent), and lots
+ * of [zone id, owning household id, the game's lot id].
+ */
+function localWorldRecord(id: number, name: string, lots: [number, number, number][]): Uint8Array {
+  return encodeBytes(
+    4,
+    concat(
+      ...(name ? [encodeString(3, name)] : []),
+      encodeVarintField(4, id),
+      ...lots.map(([zone, owner, hash]) =>
+        encodeBytes(5, concat(encodeVarintField(2, zone), encodeBytes(4, encodeVarintField(3, owner)), encodeVarintField(5, hash))),
+      ),
+    ),
+  );
+}
+
+describe('worlds in a game that is not in English', () => {
+  /** One household (10) on a lot (zone 100) of the world `record` describes. */
+  const parseWith = (record: Uint8Array) =>
+    parseSaveGame(saveOf(
+      record,
+      householdRecord(10, 'Гот', 100),
+      encodeBytes(6, simBlob({ id: 1, householdId: 10, zone: 100, first: 'Белла', last: 'Гот', household: 'Гот', gender: 8192, age: 16 })),
+    ));
+  // Brook Bungalow and Pique Hearth, two of Willow Creek's lots.
+  const WILLOW_LOTS = [1468068720, 1046187072];
+
+  it('knows a world by its id, whatever language its name is in', () => {
+    const parsed = parseWith(localWorldRecord(8086, 'Віллоу-Крік', [[100, 10, WILLOW_LOTS[0]!]]));
+    assert.equal(parsed.sims[0]!.world, 'Willow Creek');
+    assert.deepEqual(parsed.worlds, ['Willow Creek']);
+  });
+
+  it('knows a world whose record has no name, as in some saves', () => {
+    const parsed = parseWith(localWorldRecord(329915, '', [[100, 10, 699991114]]));
+    assert.equal(parsed.sims[0]!.world, 'Chestnut Ridge');
+  });
+
+  it('knows a world it has no id for by the lots the game puts in it', () => {
+    const parsed = parseWith(localWorldRecord(1, 'Віллоу-Крік', [[100, 10, WILLOW_LOTS[0]!], [101, 0, WILLOW_LOTS[1]!]]));
+    assert.equal(parsed.sims[0]!.world, 'Willow Creek');
+  });
+
+  it('keeps the save\'s own name when neither its id nor its lots are known', () => {
+    const parsed = parseWith(localWorldRecord(1, 'Новий світ', [[100, 10, 12345]]));
+    assert.equal(parsed.sims[0]!.world, 'Новий світ');
+  });
+
+  it('puts the Magic Realm in Glimmerbrook by its id', () => {
+    const parsed = parseWith(localWorldRecord(230656, 'Магічне царство', [[100, 10, 12345]]));
+    assert.equal(parsed.sims[0]!.world, 'Glimmerbrook');
+  });
+});
+
+describe('worldOfLotHashes', () => {
+  it('names the world most of the lots belong to', () => {
+    assert.equal(worldOfLotHashes([1468068720, 1046187072, 12345]), 'Willow Creek');
+  });
+
+  it('names none for lots no world has, or when two worlds tie', () => {
+    assert.equal(worldOfLotHashes([12345]), undefined);
+    assert.equal(worldOfLotHashes([1468068720, 699991114]), undefined);
   });
 });
 
