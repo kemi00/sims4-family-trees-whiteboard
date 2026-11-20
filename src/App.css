@@ -1465,10 +1465,12 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .dynp__risk svg,.slist__risk svg{flex:none;width:13px;height:13px;display:inline-block;color:var(--warn-strong)}
 .slist__risk{margin-top:3px}
 .dynp__tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin:4px 0 2px}
-.dynp__sort{display:inline-flex;padding:2px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
-.dynp .dynp__sortopt{padding:3px 8px;border:none;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11px;font-weight:600;white-space:nowrap}
-.dynp .dynp__sortopt:hover{background:var(--hover);color:var(--ink)}
-.dynp .dynp__sortopt[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1f}
+/* One switch look: the Dynasties sort and the Story's whose-story switch. */
+.dynp__sort,.seg{display:inline-flex;align-self:flex-start;padding:2px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
+.dynp .dynp__sortopt,.seg .seg__opt{padding:3px 8px;border:none;border-radius:6px;background:transparent;color:var(--ink-2);font:inherit;font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer}
+.dynp .dynp__sortopt:hover,.seg .seg__opt:hover{background:var(--hover);color:var(--ink)}
+.dynp .dynp__sortopt[aria-pressed=true],.seg .seg__opt[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1f}
+.seg .seg__opt:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .dynp .dynp__riskonly{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);color:var(--warn);font-size:11px;font-weight:600;white-space:nowrap}
 .dynp .dynp__riskonly svg{color:var(--warn-strong)}
 .dynp .dynp__riskonly:hover{background:var(--warn-soft)}

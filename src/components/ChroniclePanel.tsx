@@ -12,8 +12,6 @@ type Props = {
   /** A dynasty's story: its key, for its prestige. */
   dynasties?: readonly string[];
   onGoToSim: (id: string) => void;
-  /** Back to the whole story, from one sim's, household's or dynasty's. */
-  onShowAll: () => void;
   onClose: () => void;
 };
 
@@ -21,6 +19,12 @@ type Props = {
 const uploaded = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+/** "Thebe household" for "the Thebe household": whose story, on its switch. */
+const scopeName = (label: string) => {
+  const name = label.replace(/^the /, '');
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
 };
 
 /** "Nov 13", "Nov 13 and Nov 18", "Nov 13, Nov 14 and Nov 18". */
@@ -31,12 +35,15 @@ const inWords = (list: readonly string[]) =>
  * The board's story, newest first: each day of the game a save was
  * uploaded on, and what happened by then, back to where the story starts.
  * Uploads on the same day of the game are one day. Opened on
- * one sim's, household's or dynasty's story, it shows theirs only, with
- * the whole story a click away. A search narrows it to names.
+ * one sim's, household's or dynasty's story, it shows theirs, with a
+ * switch to everyone's and back. A search narrows it to names.
  */
-export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onShowAll, onClose }: Props) {
+export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onClose }: Props) {
   const [query, setQuery] = useState('');
-  const set = useMemo(() => (ids ? new Set(ids) : null), [ids]);
+  /** Opened on someone's story: theirs, or everyone's, a switch either way. */
+  const [everyone, setEveryone] = useState(false);
+  const theirs = !!ids && !everyone;
+  const set = useMemo(() => (ids && !everyone ? new Set(ids) : null), [ids, everyone]);
   const keys = useMemo(() => new Set(dynasties ?? []), [dynasties]);
   const shown = useMemo(
     () => [...entries].reverse().map((e) => entryAbout(e, set, query, keys)).filter((e): e is ChronicleEntry => !!e),
@@ -47,22 +54,12 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
     <BarPanel
       id="story"
       className="chron"
-      title={ids ? `The story of ${label}` : 'Story'}
-      description={
-        ids ? (
-          <>
-            What happened to them, save by save.{' '}
-            <button type="button" className="barpanel__link" onClick={onShowAll}>
-              The whole story
-            </button>
-          </>
-        ) : (
-          'What happened in your game, save by save'
-        )
-      }
+      title={theirs ? `The story of ${label}` : 'Story'}
+      description={theirs ? 'What happened to them, save by save.' : 'What happened in your game, save by save'}
       onClose={onClose}
       tools={
         entries.length > 0 && (
+          <>
           <input
             type="search"
             className="barpanel__search"
@@ -80,6 +77,17 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
               }
             }}
           />
+          {ids && (
+            <div className="seg" role="group" aria-label="Whose story">
+              <button type="button" className="seg__opt" aria-pressed={!everyone} onClick={() => setEveryone(false)}>
+                {scopeName(label)}
+              </button>
+              <button type="button" className="seg__opt" aria-pressed={everyone} onClick={() => setEveryone(true)}>
+                Everyone
+              </button>
+            </div>
+          )}
+          </>
         )
       }
     >
@@ -90,7 +98,11 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onSh
           </p>
         ) : !shown.length ? (
           <p className="chron__empty">
-            {query.trim() ? `Nothing in the story matches “${query.trim()}”.` : `Nothing has happened to ${label} in your saves yet.`}
+            {query.trim()
+              ? `Nothing in the story matches “${query.trim()}”.`
+              : theirs
+                ? `Nothing has happened to ${label} in your saves yet.`
+                : 'Nothing has happened in your saves yet.'}
           </p>
         ) : (
           days.map((day) => {

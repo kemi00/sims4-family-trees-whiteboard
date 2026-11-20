@@ -2502,6 +2502,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       )}
       {wb.chronicleView && (
         <ChroniclePanel
+          // A new story opened starts on whose it is.
+          key={`${wb.chronicleView.label}|${wb.chronicleView.ids?.length ?? 'all'}`}
           entries={wb.chronicle}
           label={wb.chronicleView.label}
           ids={wb.chronicleView.ids}
@@ -2510,7 +2512,6 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             const r = svgRef.current?.getBoundingClientRect();
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
           }}
-          onShowAll={() => wb.setChronicleView({ label: 'your board', ids: null })}
           onClose={() => wb.setChronicleView(null)}
         />
       )}
