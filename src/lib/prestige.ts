@@ -9,6 +9,25 @@ import type { DynastyStanding } from '../types/whiteboard.ts';
  */
 export const PRESTIGE_LEVEL_STARTS = [0, 100, 450, 1350, 3300, 6700, 11100, 16100, 21100, 26100, 31100] as const;
 
+/**
+ * How far into its level a dynasty is, 0 to 1, toward the next: null at
+ * Level 10. The game shows it rounded down: the Capps' 17,383 points are
+ * 25.7% of the way from Level 7 to 8, and the game said "25% of Prestige
+ * Level 8".
+ */
+export function prestigeProgress(points: number): number | null {
+  const level = prestigeLevel(points);
+  const from = PRESTIGE_LEVEL_STARTS[level]!;
+  const to = PRESTIGE_LEVEL_STARTS[level + 1];
+  return to === undefined ? null : Math.min(1, Math.max(0, (points - from) / (to - from)));
+}
+
+/** "25% of Prestige Level 8", as the game says it; null at Level 10. */
+export function prestigeProgressText(points: number): string | null {
+  const p = prestigeProgress(points);
+  return p === null ? null : `${Math.floor(p * 100)}% of Prestige Level ${prestigeLevel(points) + 1}`;
+}
+
 /** The Prestige Level, 0 to 10, the game shows for these prestige points. */
 export function prestigeLevel(points: number): number {
   let level = 0;
@@ -32,7 +51,11 @@ export function prestigeLevelText(s: DynastyStanding | undefined): string | null
 export function standingText(s: DynastyStanding | undefined): string {
   if (!s) return '';
   return [
-    s.prestige !== undefined ? `Prestige Level ${prestigeLevel(s.prestige)} (${Math.floor(s.prestige).toLocaleString('en-US')} prestige)` : '',
+    s.prestige !== undefined
+      ? `Prestige Level ${prestigeLevel(s.prestige)} (${Math.floor(s.prestige).toLocaleString('en-US')} prestige)${
+          prestigeProgressText(s.prestige) ? `, ${prestigeProgressText(s.prestige)}` : ''
+        }`
+      : '',
     s.perkPoints !== undefined ? `${plural(s.perkPoints, 'perk point')} to spend` : '',
     s.perks !== undefined ? `${plural(s.perks, 'perk')} active` : '',
   ]

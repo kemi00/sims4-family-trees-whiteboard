@@ -1448,12 +1448,15 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .dynp__prestige{flex:none;font-size:11px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .dynp__count{flex:none;font-size:11px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .dynp__standing{display:block;margin:3px 0 2px}
-/* A dynasty's Prestige Level as the game draws it: gold stars on a blue bar. */
-.prestige{display:inline-flex;align-items:center;gap:7px;max-width:100%}
-.prestige__stars{display:inline-flex;align-items:center;gap:1px;padding:2px 6px;border-radius:999px;background:var(--accent-strong);box-shadow:inset 0 0 0 1px #0b2f6640}
-.prestige__star{width:11px;height:11px;flex:none;color:#ffffff40}
+/* A dynasty's Prestige Level as the game draws it: ten stars on a dark bar,
+   filled blue to its level and as far into the next, the stars it reached gold. */
+.prestige{display:inline-flex;align-items:center;flex-wrap:wrap;gap:2px 7px;max-width:100%}
+.prestige__stars{--pad:5px;position:relative;display:inline-flex;align-items:center;gap:1px;padding:2px var(--pad);border-radius:999px;background:var(--ink);overflow:hidden}
+.prestige__fill{position:absolute;left:0;top:0;bottom:0;width:calc(var(--pad) + (100% - 2 * var(--pad)) * var(--fill));background:var(--accent)}
+.prestige__star{position:relative;width:11px;height:11px;flex:none;color:#ffffff4d}
 .prestige__star--on{color:var(--celebrate)}
 .prestige__label{font-size:11px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.prestige__next{font-weight:500;color:var(--ink-3)}
 .dynp__holders{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:11.5px;color:var(--ink)}
 .dynp__who--planned{color:var(--ink-3)}
 .dynp__who--none{color:#8a5a00}
