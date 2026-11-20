@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { flushSync } from 'react-dom';
+import { boardTipPin } from '../lib/boardTip.ts';
 import { border, unionAtPoint, unionGeom, viewportWorldRect, wheelViewport, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
 import { householdChrome, tileSnapOrigin } from '../lib/tiles.ts';
 import {
@@ -87,6 +88,7 @@ import type { CoupleLots } from './MoveToLotForm.tsx';
 import { homeRoom } from '../lib/homeRoom.ts';
 import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
+import { BoardTip } from './BoardTip.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { PartnerMenu } from './PartnerMenu.tsx';
 import { ChildMenu } from './ChildMenu.tsx';
@@ -1447,6 +1449,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       } else if (hh && ev.type === 'pointerup') {
         // A click on a household's name, not a drag: open its plan.
         wb.setBriefGid(hh.gid);
+      } else if (world && ev.type === 'pointerup' && ev.pointerType !== 'mouse') {
+        // A tap on a world's tag, not a drag: no hover on a touch screen, so the tap shows its tip.
+        const tag = svgRef.current?.querySelector(`.whandle[data-world="${CSS.escape(world.world)}"]`);
+        if (tag) boardTipPin.open(tag);
       }
       hhDragRef.current = null;
       worldDragRef.current = null;
@@ -2551,6 +2557,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
         }}
       />
       <Hint introReady={tipsReady} />
+      <BoardTip />
       <Minimap wb={wb} svgRef={svgRef} camera={liveCamera} />
       <ViewControls wb={wb} svgRef={svgRef} />
       {wb.lookBackAt !== null && wb.chronicle.length >= 2 && (

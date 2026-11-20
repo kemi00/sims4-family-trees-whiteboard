@@ -112,6 +112,7 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
                 out it is a bar in the world's colour, its words hidden. */}
             <g
               className={onMoveBox ? 'lots__tag lots__tag--drag' : 'lots__tag'}
+              data-tip={`Vacant lots in ${box.world}\nPlanned households keep their reservations. Click an unreserved lot to move sims in. Drag this tag to move the box.`}
               // Drag the tag to move the box: only you move it, and it stays where you put it.
               onPointerDown={(ev) => {
                 if (!onMoveBox || ev.button !== 0) return;
@@ -134,7 +135,6 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
                 setDrag(null);
               }}
             >
-              <title>{`Vacant lots in ${box.world}. Planned households keep their reservations. Click an unreserved lot to move sims in. Drag this tag to move the box.`}</title>
               <rect
                 x={box.l + HH_TAG_INSET}
                 y={box.t + HH_TAG_INSET}
@@ -185,8 +185,8 @@ export const LotLayer = memo(function LotLayer({ boxes, worlds, show, labels, cu
                   // starts on a lot moves nobody.
                   onPointerDown={(ev) => ev.stopPropagation()}
                   onClick={(ev) => { if (!lot.reservedFor) onPickLot?.(lot, ev.clientX, ev.clientY); }}
+                  data-tip={lotTip(lot)}
                 >
-                  <title>{lotTip(lot)}</title>
                   <rect
                     className="lot__tile"
                     x={x}

@@ -2,6 +2,7 @@ import { DECEASED_STATE, NOT_IN_WORLD, HH_TAG_INSET, LABEL_MIN_K, TILE, WORLD_TA
 import { dynastyKey } from './generations.ts';
 import { textWidth } from './textWidth.ts';
 import { isUnhousedGid } from './unhoused.ts';
+import type { RichTip } from './boardTip.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -322,7 +323,6 @@ export function worldCountsText(name: string, c: WorldCounts): string {
     text += `, plus ${extra.length ? `${extra.join(', ')} and ${last}` : last}`;
   }
   text += '.';
-  if (name === NOT_IN_WORLD) text += ` ${NOT_IN_WORLD_EXPLAINED}`;
   if (c.dynasties) {
     const planned =
       c.plannedDynasties === 0
@@ -335,5 +335,37 @@ export function worldCountsText(name: string, c: WorldCounts): string {
     text += ` ${plural(c.dynasties, 'dynasty', 'dynasties')}${planned}.`;
   }
   if (c.hidden) text += ` Filters hide ${c.hidden} more.`;
+  if (name === NOT_IN_WORLD) text += ` ${NOT_IN_WORLD_EXPLAINED}`;
   return text;
 }
+
+/** What a world's tag means, row by row with the tag's own icons. */
+export function worldTip(name: string, c: WorldCounts): RichTip {
+  const rows: RichTip['rows'] = [];
+  const unhoused = c.unhoused && c.unhoused < c.sims ? `${c.unhoused} unhoused` : c.unhoused ? 'all unhoused' : '';
+  rows.push({ icon: 'sims', text: plural(c.sims, 'sim', 'sims'), ...(unhoused ? { aside: unhoused } : {}) });
+  rows.push({ icon: 'households', text: plural(c.households, 'household', 'households') });
+  if (c.dynasties) {
+    const planned =
+      !c.plannedDynasties ? '' : c.plannedDynasties === c.dynasties ? (c.dynasties === 1 ? 'planned' : 'all planned') : `${c.plannedDynasties} planned`;
+    rows.push({ icon: 'dynasties', text: plural(c.dynasties, 'dynasty', 'dynasties'), ...(planned ? { aside: planned } : {}) });
+  }
+  const extra = [
+    c.pets ? plural(c.pets, 'pet', 'pets') : '',
+    c.deceased ? `${c.deceased} deceased` : '',
+    c.relatives ? plural(c.relatives, 'relative from the family tree', 'relatives from the family tree') : '',
+  ].filter(Boolean);
+  const foot: string[] = [];
+  if (extra.length) {
+    const last = extra.pop()!;
+    foot.push(`Plus ${extra.length ? `${extra.join(', ')} and ${last}` : last}.`);
+  }
+  if (c.hidden) foot.push(`Filters hide ${c.hidden} more.`);
+  return {
+    head: name,
+    ...(name === NOT_IN_WORLD ? { note: NOT_IN_WORLD_EXPLAINED } : {}),
+    rows,
+    ...(foot.length ? { foot: foot.join(' ') } : {}),
+  };
+}
+

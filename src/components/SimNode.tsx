@@ -251,8 +251,8 @@ export const SimNodeView = memo(function SimNodeView({
             fontWeight={700}
             fill="#1b2b3a"
             fontStyle={isPlannedSim(n) && !n.first.trim() ? 'italic' : undefined}
+            data-tip={roleTitle || offPlan ? [offPlan, roleTitle].filter(Boolean).join('\n') : undefined}
           >
-            {(roleTitle || offPlan) && <title>{[offPlan, roleTitle].filter(Boolean).join('\n')}</title>}
             {offPlan && <tspan fill="#b45309">⚠ </tspan>}
             {role && <tspan fillOpacity={rolePlanned ? 0.4 : undefined}>{role.mark} </tspan>}
             {cardName(n)}
@@ -263,8 +263,7 @@ export const SimNodeView = memo(function SimNodeView({
             {n.species ? ` · ${n.species}` : ''}
           </text>
           {lastLines.length > 0 && (
-            <text x={16} y={72} fontSize={10.5} fill="#697380">
-              {lastTitle && <title>{lastTitle}</title>}
+            <text x={16} y={72} fontSize={10.5} fill="#697380" data-tip={lastTitle || undefined}>
               {fitParts(lastLines, (n.w || CARD_MIN_W) - 16 - 30).map((p, i) =>
                 p.risk ? (
                   <tspan key={i} fill="#b45309" fontWeight={600}>
@@ -337,8 +336,7 @@ export const SimNodeView = memo(function SimNodeView({
           WhiteboardStage), where double-clicking the card is easy to miss.
           Drawn only with the text, like Age up, so it is never a blank spot. */}
       {labels && (
-        <g className="node__more" transform={`translate(${n.w - 17},${h - 17})`}>
-          <title>Edit or move this sim</title>
+        <g className="node__more" transform={`translate(${n.w - 17},${h - 17})`} data-tip="Edit or move this sim">
           <circle className="node__more-bg" r={11} />
           {[-5, 0, 5].map((dy) => (
             <circle key={dy} cy={dy} r={1.7} />
@@ -348,10 +346,11 @@ export const SimNodeView = memo(function SimNodeView({
       {/* Where a child's line leaves the card, so it reads as "a child
           below"; the same ＋ as a couple's. Clicked through WhiteboardStage. */}
       {labels && babyPlus && (
-        <g className="node__baby" transform={`translate(${(n.w || CARD_MIN_W) / 2},${h})`}>
-          <title>
-            {n.species ? `Plan a ${youngWord(n.species)} of ${cardName(n)}` : `Add a child of ${cardName(n)}: a new sim, or one to adopt`}
-          </title>
+        <g
+          className="node__baby"
+          transform={`translate(${(n.w || CARD_MIN_W) / 2},${h})`}
+          data-tip={n.species ? `Plan a ${youngWord(n.species)} of ${cardName(n)}` : `Add a child of ${cardName(n)}: a new sim, or one to adopt`}
+        >
           <circle r={PILL_H / 2} fill={UEDIT} stroke="#fff" strokeWidth={1.4} />
           <text y={4.5} fontSize={13} fontWeight={700} textAnchor="middle" fill="#fff">
             ＋
@@ -368,8 +367,8 @@ export const SimNodeView = memo(function SimNodeView({
             className="node__partner"
             data-side={side}
             transform={`translate(${side === 'left' ? 0 : n.w || CARD_MIN_W},${h / 2})`}
+            data-tip={`Plan a partner for ${cardName(n)}`}
           >
-            <title>Plan a partner for {cardName(n)}</title>
             <circle r={PILL_H / 2} fill={UEDIT} stroke="#fff" strokeWidth={1.4} />
             <text y={4} fontSize={11} fontWeight={700} textAnchor="middle" fill="#fff">
               ♥

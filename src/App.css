@@ -229,6 +229,23 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  .tool__tip-what .named{color:var(--name-on-ink);font-weight:650}
 }
 
+/* The board's own tips (BoardTip): the toolbar tips' ink, for anything on
+   the board or in its panel with data-tip. The first line is what it is,
+   the rest quieter. A world's tag has rows with the tag's own icons. */
+.board-tip{position:fixed;left:0;top:0;z-index:70;display:flex;flex-direction:column;gap:3px;width:max-content;max-width:min(300px, calc(100vw - 24px));padding:7px 11px 8px;border-radius:8px;background:var(--ink);color:#fff;font-size:11px;font-weight:600;line-height:1.4;letter-spacing:.01em;text-align:left;white-space:normal;overflow-wrap:anywhere;box-shadow:var(--lift);pointer-events:none;animation:board-tip-in .12s ease}
+.board-tip--rich{gap:0;padding:9px 12px 10px;min-width:180px}
+.board-tip__head{font-weight:650}
+.board-tip--rich .board-tip__head{font-size:12px}
+.board-tip__note{color:var(--tip-text);font-weight:500}
+.board-tip--rich .board-tip__note{margin-top:3px}
+.board-tip__rows{display:flex;flex-direction:column;gap:3px;margin-top:8px;padding-top:8px;border-top:1px solid #ffffff24}
+.board-tip__row{display:flex;align-items:center;gap:7px}
+.board-tip__row svg{flex:none;width:12px;height:12px;color:var(--tip-quiet)}
+.board-tip__aside{margin-left:auto;padding-left:14px;color:var(--tip-quiet);font-weight:500}
+.board-tip__foot{margin-top:7px;color:var(--tip-quiet);font-weight:500}
+@keyframes board-tip-in{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){.board-tip{animation:none}}
+
 /* A name in a sentence (see the chrome tokens). */
 .named{color:var(--name)}
 #status .named{color:var(--name-on-ink)}

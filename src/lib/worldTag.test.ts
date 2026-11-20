@@ -15,6 +15,7 @@ import {
   worldTagBox,
   worldTagLayout,
   worldTagLift,
+  worldTip,
   worldTotals,
 } from './worldTag.ts';
 import type { SimNode } from '../types/whiteboard.ts';
@@ -106,6 +107,31 @@ describe('world tag counts', () => {
       worldCountsText('Tartosa', worldCounts([card('a', 'g1')], () => true)),
       'Tartosa: 1 sim in 1 household.',
     );
+  });
+});
+
+describe('a world tag’s tip', () => {
+  it('says what each of the tag’s numbers counts, row by row', () => {
+    assert.deepEqual(worldTip('Willow Creek', worldCounts(members, shown)), {
+      head: 'Willow Creek',
+      rows: [
+        { icon: 'sims', text: '4 sims', aside: '1 unhoused' },
+        { icon: 'households', text: '2 households' },
+      ],
+      foot: 'Plus 1 pet, 1 deceased and 1 relative from the family tree. Filters hide 1 more.',
+    });
+  });
+
+  it('says what Not in any world is, and which dynasties are planned', () => {
+    const counts = { ...worldCounts([card('u1', 'Not in any world||Unhoused sims')], () => true), dynasties: 2, plannedDynasties: 1 };
+    const tip = worldTip('Not in any world', counts);
+    assert.equal(tip.note, NOT_IN_WORLD_EXPLAINED);
+    assert.deepEqual(tip.rows, [
+      { icon: 'sims', text: '1 sim', aside: 'all unhoused' },
+      { icon: 'households', text: '0 households' },
+      { icon: 'dynasties', text: '2 dynasties', aside: '1 planned' },
+    ]);
+    assert.equal(tip.foot, undefined);
   });
 });
 

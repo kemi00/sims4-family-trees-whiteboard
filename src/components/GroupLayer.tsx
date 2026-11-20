@@ -193,6 +193,11 @@ export const GroupLayer = memo(function GroupLayer({
             <g
               className={selected ? 'hhandle hhandle--sel' : 'hhandle'}
               style={{ cursor: 'grab' }}
+              data-tip={
+                unhoused
+                  ? 'Unhoused sims\nTownies the game made as you played. Premade sims with no home keep their own households.'
+                  : `${homeLine(homes?.get(g0.gid), g0.nb)}${g0.gid === lastPlayedGid ? 'The household you last played, when the game saved.\n' : ''}Click for this household’s plan, drag to move it.`
+              }
               onPointerDown={(ev) => {
                 ev.stopPropagation();
                 const base: Record<string, { ox: number; oy: number }> = {};
@@ -210,18 +215,6 @@ export const GroupLayer = memo(function GroupLayer({
                 onHouseholdDragStart(g0.gid, wx, wy, base, ev);
               }}
             >
-              {unhoused ? (
-                <title>
-                  Unhoused sims: townies the game made as you played. Premade sims
-                  with no home keep their own households.
-                </title>
-              ) : (
-                <title>
-                  {g0.gid === lastPlayedGid ? 'The household you last played, when the game saved.\n' : ''}
-                  {homeLine(homes?.get(g0.gid), g0.nb)}
-                  Click for this household’s plan · drag to move the household
-                </title>
-              )}
               <rect
                 x={headerX}
                 y={headerY}
@@ -300,8 +293,8 @@ export const GroupLayer = memo(function GroupLayer({
                   ev.stopPropagation();
                   onAgeUp(g0.gid);
                 }}
+                data-tip="Age up this household"
               >
-                <title>Age up this household</title>
                 <rect
                   x={ageX}
                   y={ageY}
@@ -334,8 +327,8 @@ export const GroupLayer = memo(function GroupLayer({
                 // or a stray tap while zooming adds nobody.
                 onPointerDown={(ev) => ev.stopPropagation()}
                 onClick={(ev) => onAddSim(g0.gid, ev)}
+                data-tip="Add a sim or a pet to this household"
               >
-                <title>Add a sim or a pet to this household</title>
                 <rect
                   x={addX}
                   y={ageY}
@@ -374,8 +367,8 @@ export const GroupLayer = memo(function GroupLayer({
                   // Acts on click, like the +, so a pan that starts here opens nothing.
                   onPointerDown={(ev) => ev.stopPropagation()}
                   onClick={() => onOpenPlan(g0.gid)}
+                  data-tip={`${badge.title}\nClick for the household’s plan.`}
                 >
-                  <title>{`${badge.title}. Click for the household’s plan.`}</title>
                   <rect x={x} y={ageY} width={w} height={pillH} rx={8} fill={tone.fill} stroke={tone.stroke} strokeWidth={1.5} />
                   <text
                     x={x + w / 2}

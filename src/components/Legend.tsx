@@ -203,10 +203,11 @@ function WorldTotalsRow({ totals, hidden }: { totals: WorldTotals; hidden: World
   return (
     <dl className="lg-totals">
       <div
-        title={
+        data-tip-side="left"
+        data-tip={
           hidden.length
-            ? `${plural(totals.worlds, 'world has', 'worlds have')} sims on the board. Filters hide ${hidden.map((w) => w.name).join(' and ')}.`
-            : `${plural(totals.worlds, 'world has', 'worlds have')} sims on the board.`
+            ? `${plural(totals.worlds, 'world has', 'worlds have')} sims on the board\nFilters hide ${hidden.map((w) => w.name).join(' and ')}.`
+            : `${plural(totals.worlds, 'world has', 'worlds have')} sims on the board`
         }
       >
         <dt>{totals.worlds === 1 ? 'world' : 'worlds'}</dt>
@@ -214,10 +215,11 @@ function WorldTotalsRow({ totals, hidden }: { totals: WorldTotals; hidden: World
         {worldsNote && <dd className="lg-totals__note">{worldsNote}</dd>}
       </div>
       <div
-        title={
+        data-tip-side="left"
+        data-tip={
           totals.outside
-            ? `${plural(inWorlds, 'household', 'households')} in worlds and ${totals.outside} not in any world.`
-            : `${plural(totals.households, 'household', 'households')} in worlds.`
+            ? `${plural(inWorlds, 'household', 'households')} in worlds and ${totals.outside} not in any world`
+            : `${plural(totals.households, 'household', 'households')} in worlds`
         }
       >
         <dt>{totals.households === 1 ? 'household' : 'households'}</dt>
@@ -626,12 +628,16 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
                   className="lg lg--world"
                   /* Nothing to frame when the world's sims are all filtered out. */
                   disabled={!live}
-                  title={
+                  data-tip-side="left"
+                  data-tip={
                     live
                       ? w.name === NOT_IN_WORLD
-                        ? `Zoom to ${w.name}. ${NOT_IN_WORLD_EXPLAINED}`
+                        ? `Zoom to ${w.name}\n${NOT_IN_WORLD_EXPLAINED}`
                         : `Zoom to ${w.name}`
-                      : `${w.name}: hidden, its game is switched off`
+                      : `${w.name} is hidden\nIts game is switched off.`
+                  }
+                  aria-description={
+                    live ? (w.name === NOT_IN_WORLD ? NOT_IN_WORLD_EXPLAINED : undefined) : 'Hidden: its game is switched off'
                   }
                   onClick={() => onPickWorld(w.name)}
                 >

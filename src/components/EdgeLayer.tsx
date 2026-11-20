@@ -179,8 +179,7 @@ export function DivorcePill({ x, y, color }: { x: number; y: number; color: stri
 /** An off-plan couple: an amber ring round the badge and a ⚠ at its corner. */
 export function OffPlanMark({ x, y }: { x: number; y: number }) {
   return (
-    <g pointerEvents="none">
-      <title>Off plan: your game went another way</title>
+    <g pointerEvents="none" data-tip="Off plan: your game went another way">
       <rect
         x={x - PILL_HALF_W - 2}
         y={y - PILL_H / 2 - 2}
@@ -216,8 +215,8 @@ function AddInfantPlus({
       aria-label="Add a child of this couple: a new sim, or one they adopt"
       style={{ cursor: 'pointer' }}
       onPointerDown={onPointerDown}
+      data-tip="Add a child of this couple: a new sim, or one they adopt"
     >
-      <title>Add a child of this couple: a new sim, or one they adopt</title>
       <circle
         cx={x}
         cy={y}
@@ -308,8 +307,7 @@ function StoryCount({ x, y, n }: { x: number; y: number; n: number }) {
   const cx = x - PILL_HALF_W;
   const cy = y - PILL_H / 2;
   return (
-    <g pointerEvents="none">
-      <title>{`${n} planned steps in their story`}</title>
+    <g pointerEvents="none" data-tip={`${n} planned steps in their story`}>
       <circle cx={cx} cy={cy} r={7} fill={UEDIT} stroke="#fff" strokeWidth={1.4} />
       <text x={cx} y={cy + 3.4} fontSize={9.5} fontWeight={800} textAnchor="middle" fill="#fff">
         {n > 9 ? '9+' : n}
@@ -537,6 +535,7 @@ export const EdgeLayer = memo(function EdgeLayer({
           <g
             key={u.edgeId}
             className={`${linkClass(sq, [u.edgeId], focusEdgeIds)}${passed ? ' union--passed' : ''}`}
+            data-tip={passed ? 'Together until a passing\nNothing to divorce or plan.' : undefined}
             data-ends={JSON.stringify([u.a, u.b])}
             {...chromeDataProps([u.a, u.b], worldById, gidById)}
             style={{ cursor: connectMode ? 'crosshair' : undefined }}
@@ -572,7 +571,6 @@ export const EdgeLayer = memo(function EdgeLayer({
                 onAddInfant={onAddInfant}
               />
             )}
-            {passed && <title>Together until a passing: nothing to divorce or plan</title>}
           </g>
         );
       })}
@@ -589,8 +587,8 @@ export const EdgeLayer = memo(function EdgeLayer({
               e.stopPropagation();
               onLinkClick(m.ids, e);
             }}
+            data-tip="Secret parent"
           >
-            <title>Secret parent</title>
             <SecretBadge x={m.at[0]} y={m.at[1]} color={sq ? '#1b6cd6' : COL.blood} />
           </g>
         );

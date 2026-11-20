@@ -8,6 +8,7 @@ import { frameWithLots, type LotBox } from '../lib/lotBoxes.ts';
 import {
   worldCounts,
   worldCountsText,
+  worldTip,
   worldTagBox,
   worldTagLayout,
   worldTagLift,
@@ -264,8 +265,10 @@ export const WorldLayer = memo(function WorldLayer({
             className={selected ? 'whandle whandle--sel' : 'whandle'}
             style={{ cursor: 'grab' }}
             onPointerDown={beginDrag}
+            data-tip-rich={JSON.stringify(worldTip(c.w, c.counts))}
+            data-tip-align="start"
+            aria-label={worldCountsText(c.w, c.counts)}
           >
-            <title>{worldCountsText(c.w, c.counts)}</title>
             {/* Hit target = chip + modest pad only (never a full-frame strip). */}
             <rect
               x={c.x}
@@ -276,6 +279,7 @@ export const WorldLayer = memo(function WorldLayer({
               stroke="none"
             />
             <rect
+              data-tip-anchor=""
               x={c.paintX}
               y={c.paintY}
               width={pill.w}
