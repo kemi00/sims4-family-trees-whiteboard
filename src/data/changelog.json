@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "1ab2684",
+   "date": "2026-11-20",
+   "text": "If the board ever crashes, you'll see a short message instead of a blank page, with Reload and Copy a problem report. The report now keeps the error even after you reload, so it can be fixed."
+  },
+  {
    "sha": "41baaeb",
    "date": "2026-11-20",
    "text": "Highlight's Family rows have both sides now: Single, In a romance or Married; Descendants or No descendants; Siblings or No siblings. A new Household size row lights up sims in households of 1, 2, 3 or more living sims."
