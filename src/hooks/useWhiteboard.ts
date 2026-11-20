@@ -109,6 +109,7 @@ import {
   mergeSaveIntoBoard,
   seedNameKeysFromNodes,
   type SaveMergeResult,
+  uploadInfo,
 } from '../lib/savegame/mergeSave.ts';
 import type {
   BoardMultiSel,
@@ -3529,7 +3530,7 @@ export function useWhiteboard() {
       setEdges(result.edges);
       setGroups(result.groups);
       setPairStatus(result.pairStatus);
-      setSaveGame(result.saveGame);
+      setSaveGame(result.saveGame ? { ...result.saveGame, lastUpload: uploadInfo(result.summary, mode) } : result.saveGame);
       // Nothing on an untouched starter roster is the player's arrangement,
       // so a merge into it is laid out afresh, as Replace is.
       const fresh = mode === 'merge' && isUntouchedStarter(nodesCore, seed.nodes);

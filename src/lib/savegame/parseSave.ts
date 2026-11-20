@@ -2,7 +2,7 @@ import { TREE_NAMES } from '../../data/treeNames.ts';
 import { homeWorld } from '../realm.ts';
 import { AGES_H, NON_BINARY } from '../constants.ts';
 import { RESIDENTIAL_RENTAL_VENUE, worldOfLotHashes } from '../places.ts';
-import type { DynastyRole, PairTag, SaveLotZone, SimPronouns } from '../../types/whiteboard.ts';
+import type { DynastyRole, PairTag, SaveLotZone, SaveReadInfo, SaveWorldRecord, SimPronouns } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
 import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
@@ -134,6 +134,8 @@ export type ParsedSave = {
   /** World name strings present in the save (installed worlds), from the file. */
   worlds?: string[];
   lotZones?: SaveLotZone[];
+  /** Counts and world records, with no names, for the problem report. */
+  read?: SaveReadInfo;
   /** Friendship and romance statuses from the save's relationship records. */
   pairs?: ParsedSavePair[];
   /** Family-tree people with no sim; `rels` link them like sims. */
@@ -835,8 +837,16 @@ const SAVE_WORLD_NAMES: Readonly<Record<number, string>> = {
  * A game in another language stores "Willow Creek" in that language, so
  * the name alone would leave every household in no world.
  */
-export function saveWorldName(id: number, stored: string, lotHashes: Iterable<number>): string {
-  return SAVE_WORLD_NAMES[id] ?? worldOfLotHashes(lotHashes) ?? stored.trim();
+export function saveWorldName(
+  id: number,
+  stored: string,
+  lotHashes: Iterable<number>,
+): { name: string; by: SaveWorldRecord['by'] } {
+  const known = SAVE_WORLD_NAMES[id];
+  if (known) return { name: known, by: 'id' };
+  const byLots = worldOfLotHashes(lotHashes);
+  if (byLots) return { name: byLots, by: 'lots' };
+  return { name: stored.trim(), by: 'name' };
 }
 
 /**
@@ -856,6 +866,8 @@ function parseWorldIndex(saveGame: Uint8Array): {
   unhoused: Set<string>;
   worlds: string[];
   lotZones: SaveLotZone[];
+  /** Counts and each world record, with no names, for the problem report. */
+  read: Omit<SaveReadInfo, 'sims'>;
 } {
   const zoneWorld = new Map<string, string>();
   const zoneLot = new Map<string, NonNullable<ParsedSaveSim['lot']>>();
@@ -866,6 +878,7 @@ function parseWorldIndex(saveGame: Uint8Array): {
   const householdName: Record<string, string> = {};
   const listed = new Set<string>();
   const worlds = new Set<string>();
+  const records: (SaveWorldRecord & { zones: Set<string> })[] = [];
   for (const rec of decodeFields(saveGame)) {
     if (!rec.bytes) continue;
     // ZoneData also exists for empty units. The world record often only
@@ -900,12 +913,16 @@ function parseWorldIndex(saveGame: Uint8Array): {
       const hash = lot.find((x) => x.field === 5 && !x.bytes)?.int;
       return hash ? [Number(hash)] : [];
     });
+    const found = saveWorldName(id, stored, lotHashes);
     // A region inside another world (the Magic Realm, in Glimmerbrook) is that world.
-    const world = homeWorld(saveWorldName(id, stored, lotHashes));
+    const world = homeWorld(found.name);
+    const record = { id, stored: stored.trim(), world, by: found.by, lots: lots.length, homes: 0, zones: new Set<string>() };
+    records.push(record);
     if (!world) continue;
     worlds.add(world);
     for (const lot of lots) {
       const zone = idField(lot, 2);
+      if (zone) record.zones.add(zone);
       if (zone) zoneWorld.set(zone, world);
       const hash = lot.find((x) => x.field === 5 && !x.bytes)?.int;
       if (zone && hash) {
@@ -947,6 +964,10 @@ function parseWorldIndex(saveGame: Uint8Array): {
     if (occupied.has(lot.zone)) lot.occupied = true;
   }
   const unhoused = new Set([...listed].filter((id) => !homeZone.has(id) && !ownerWorld.has(id)));
+  for (const zone of homeZone.values()) {
+    const record = records.find((r) => r.zones.has(zone));
+    if (record) record.homes += 1;
+  }
   return {
     householdWorld,
     householdName,
@@ -954,6 +975,11 @@ function parseWorldIndex(saveGame: Uint8Array): {
     unhoused,
     worlds: [...worlds].sort((a, b) => a.localeCompare(b)),
     lotZones,
+    read: {
+      households: listed.size,
+      unhoused: unhoused.size,
+      worlds: records.map(({ zones: _zones, ...r }) => r),
+    },
   };
 }
 
@@ -1077,7 +1103,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     sims.push(sim);
   }
   if (!sims.length) throw new Error('No sims found in this save');
-  const { householdWorld, householdName, householdLot, unhoused, worlds, lotZones } = parseWorldIndex(data);
+  const { householdWorld, householdName, householdLot, unhoused, worlds, lotZones, read } = parseWorldIndex(data);
   for (const sim of sims) {
     const world = householdWorld[sim.householdId];
     if (world) sim.world = world;
@@ -1120,6 +1146,7 @@ export function parseSaveGame(buf: Uint8Array): ParsedSave {
     householdWorld,
     worlds,
     ...(lotZones.length ? { lotZones } : {}),
+    read: { sims: sims.length, ...read },
     pairs,
     relatives,
     ...(dynasties ? { dynasties: true as const } : {}),

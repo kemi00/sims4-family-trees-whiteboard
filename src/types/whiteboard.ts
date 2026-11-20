@@ -256,6 +256,48 @@ export interface SaveGameInfo {
    */
   prestige?: Record<string, number>;
   lotZones?: SaveLotZone[];
+  /** What the board read from the save, with no names: for the problem report. */
+  read?: SaveReadInfo;
+  /** What the last upload did, in counts: for the problem report. */
+  lastUpload?: SaveUploadInfo;
+}
+
+/** A world record in an uploaded save, as the problem report lists it. */
+export interface SaveWorldRecord {
+  /** The game's id for the world, the same in every save and language. */
+  id: number;
+  /** Its name as the save stores it: in the game's language, or empty. */
+  stored: string;
+  /** The board world it was taken as; empty when none could be found. */
+  world: string;
+  /** How it was found: by its id, by its lots, or by the stored name. */
+  by: 'id' | 'lots' | 'name';
+  lots: number;
+  /** Households whose home lot is in it. */
+  homes: number;
+}
+
+/** Counts read from an uploaded save, and its world records. */
+export interface SaveReadInfo {
+  sims: number;
+  households: number;
+  /** Households the save lists with no home lot. */
+  unhoused: number;
+  worlds: SaveWorldRecord[];
+}
+
+/** What the last upload did to the board, in counts. */
+export interface SaveUploadInfo {
+  mode: 'merge' | 'replace';
+  updated: number;
+  added: number;
+  toNotInWorld: number;
+  unhoused: number;
+  relatives: number;
+  skipped: number;
+  /** World names in the save that are not a board world (game text, no player names). */
+  extraWorlds: string[];
+  hidePacks: string[];
 }
 
 export type EdgeType =

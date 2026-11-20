@@ -1,5 +1,6 @@
 import {
   ArrowCounterClockwise,
+  ClipboardText,
   DotsThreeVertical,
   DownloadSimple,
   EnvelopeSimple,
@@ -9,9 +10,11 @@ import {
   type Icon,
 } from '../icons.ts';
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import { copyText } from '../lib/clipboard.ts';
 import { CONTACT_EMAIL, CONTACT_MAILTO } from '../lib/credits.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import { CreditsPanel } from './CreditsPanel.tsx';
+import { ProblemReportPanel } from './ProblemReportPanel.tsx';
 import { StepText } from './StepText.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
@@ -40,6 +43,8 @@ type Props = {
   folded?: FoldedItem[];
   /** The menu's wrapper, so a popover opened from a folded item can hang off it. */
   wrapRef?: RefObject<HTMLDivElement | null>;
+  /** The problem report's text, made when it is asked for (problemReport). */
+  onProblemReport?: () => string;
 };
 
 /** File actions, kept out of the bar because they are used rarely. */
@@ -54,9 +59,12 @@ export function OverflowMenu({
   label = 'Save, load, contact, and credits',
   folded = [],
   wrapRef: outerWrapRef,
+  onProblemReport,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
+  /** The problem report just copied, and whether the copy worked (null while copying). */
+  const [report, setReport] = useState<{ text: string; copied: boolean | null } | null>(null);
   const ownWrapRef = useRef<HTMLDivElement>(null);
   const wrapRef = outerWrapRef ?? ownWrapRef;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -65,17 +73,19 @@ export function OverflowMenu({
   const { popRef, style: popStyle } = useDropdownPosition(open, wrapRef);
 
   useEffect(() => {
-    if (!open && !creditsOpen) return;
+    if (!open && !creditsOpen && !report) return;
     const onPointer = (ev: PointerEvent) => {
       if (!wrapRef.current?.contains(ev.target as Node)) {
         setOpen(false);
         setCreditsOpen(false);
+        setReport(null);
       }
     };
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
         ev.stopPropagation();
         if (creditsOpen) setCreditsOpen(false);
+        else if (report) setReport(null);
         else setOpen(false);
       }
     };
@@ -85,7 +95,7 @@ export function OverflowMenu({
       document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [open, creditsOpen, wrapRef]);
+  }, [open, creditsOpen, report, wrapRef]);
 
   useEffect(() => {
     if (open) firstItemRef.current?.focus();
@@ -180,6 +190,26 @@ export function OverflowMenu({
             <ArrowCounterClockwise aria-hidden="true" />
             Reset the board
           </button>
+          {onProblemReport && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setCreditsOpen(false);
+                const text = onProblemReport();
+                setReport({ text, copied: null });
+                // Copied in the click itself: browsers allow it only then.
+                void copyText(text).then((ok) => setReport((r) => (r?.text === text ? { ...r, copied: ok } : r)));
+              }}
+            >
+              <ClipboardText aria-hidden="true" />
+              <span className="pop__stack">
+                Copy a problem report
+                <span className="pop__sub">For the developer, with no names</span>
+              </span>
+            </button>
+          )}
           <a
             href={CONTACT_MAILTO}
             role="menuitem"
@@ -211,6 +241,7 @@ export function OverflowMenu({
             role="menuitem"
             onClick={() => {
               setOpen(false);
+              setReport(null);
               setCreditsOpen(true);
             }}
           >
@@ -223,6 +254,14 @@ export function OverflowMenu({
         <CreditsPanel
           anchorRect={wrapRef.current?.getBoundingClientRect() ?? null}
           onClose={() => setCreditsOpen(false)}
+        />
+      )}
+      {report && (
+        <ProblemReportPanel
+          anchorRect={wrapRef.current?.getBoundingClientRect() ?? null}
+          text={report.text}
+          copied={report.copied}
+          onClose={() => setReport(null)}
         />
       )}
       <input

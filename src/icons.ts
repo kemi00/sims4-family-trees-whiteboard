@@ -11,6 +11,8 @@ export { CaretDown } from '@phosphor-icons/react/CaretDown';
 export { CaretLeft } from '@phosphor-icons/react/CaretLeft';
 export { CaretUp } from '@phosphor-icons/react/CaretUp';
 export { Check } from '@phosphor-icons/react/Check';
+export { ClipboardText } from '@phosphor-icons/react/ClipboardText';
+export { Copy } from '@phosphor-icons/react/Copy';
 export { CornersOut } from '@phosphor-icons/react/CornersOut';
 export { Crown } from '@phosphor-icons/react/Crown';
 export { DotsThreeVertical } from '@phosphor-icons/react/DotsThreeVertical';

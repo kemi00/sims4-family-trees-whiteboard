@@ -656,6 +656,16 @@ describe('worlds in a game that is not in English', () => {
     assert.deepEqual(parsed.worlds, ['Willow Creek']);
   });
 
+  it('keeps each world record for the problem report: id, stored name, how it was found, homes', () => {
+    const parsed = parseWith(localWorldRecord(8086, 'Віллоу-Крік', [[100, 10, WILLOW_LOTS[0]!], [101, 0, WILLOW_LOTS[1]!]]));
+    assert.deepEqual(parsed.read, {
+      sims: 1,
+      households: 1,
+      unhoused: 0,
+      worlds: [{ id: 8086, stored: 'Віллоу-Крік', world: 'Willow Creek', by: 'id', lots: 2, homes: 1 }],
+    });
+  });
+
   it('knows a world whose record has no name, as in some saves', () => {
     const parsed = parseWith(localWorldRecord(329915, '', [[100, 10, 699991114]]));
     assert.equal(parsed.sims[0]!.world, 'Chestnut Ridge');

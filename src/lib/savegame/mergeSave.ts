@@ -14,6 +14,7 @@ import type {
   PairStatus,
   PairTag,
   SaveGameInfo,
+  SaveUploadInfo,
   SimLife,
   SimNode,
   World,
@@ -26,6 +27,21 @@ import {
   type ParsedSaveSim,
   type ParsedTreeRelative,
 } from './parseSave.ts';
+
+/** What an upload did, in counts and game text only: kept for the problem report. */
+export function uploadInfo(s: SaveMergeSummary, mode: SaveUploadInfo['mode']): SaveUploadInfo {
+  return {
+    mode,
+    updated: s.matched,
+    added: s.added,
+    toNotInWorld: s.toNotInWorld.length,
+    unhoused: s.unhoused.length,
+    relatives: s.relatives.length,
+    skipped: s.skipped.length,
+    extraWorlds: s.extraWorlds,
+    hidePacks: s.hidePacks,
+  };
+}
 
 export type SaveMergeSummary = {
   matched: number;
@@ -1691,6 +1707,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
           ...(lastPlayedGid ? { lastPlayedGid } : {}),
           ...(prestige ? { prestige } : {}),
           ...(parsed.lotZones ? { lotZones: parsed.lotZones } : {}),
+          ...(parsed.read ? { read: parsed.read } : {}),
         }
       : saveGameRead;
 

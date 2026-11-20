@@ -25,6 +25,10 @@ import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
+import changelog from '../data/changelog.json';
+import { AUTOSAVE_KEY } from '../lib/autosave.ts';
+import { recentErrors } from '../lib/errorLog.ts';
+import { draftKB, problemReport, reportEnv } from '../lib/problemReport.ts';
 import { filterCounts } from '../lib/filterCount.ts';
 import type { LinksView } from '../lib/family.ts';
 import { saveChipText } from '../lib/lifeClock.ts';
@@ -537,6 +541,42 @@ export function AppBar({
         }
         folded={folded}
         wrapRef={moreRef}
+        onProblemReport={() => {
+          const latest = changelog.entries[0];
+          return problemReport({
+            build: typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev',
+            ...(latest ? { latestUpdate: { sha: latest.sha, date: latest.date } } : {}),
+            now: new Date(),
+            env: reportEnv(),
+            nodes: wb.nodes,
+            edges: wb.edges,
+            groups: wb.groups,
+            worlds: wb.worlds,
+            saveGame: wb.saveGame,
+            shownWorlds: wb.liveWorlds,
+            freeLots: wb.freeLots,
+            filters: {
+              hiddenPacks: [...wb.hiddenPacks].filter((p) => wb.packCounts.get(p)),
+              hiddenPlay: wb.hiddenPlay.size,
+              highlightAges: [...wb.hiAges],
+              single: wb.hiSingle,
+              bloodline: !!wb.bloodlineId,
+              hideSecrets: wb.hideSecrets,
+              hideDeceased: wb.hideDeceased,
+            },
+            layers: { ...wb.show },
+            plans: {
+              plannedBabies: wb.plannedChildIds.size,
+              offPlanSims: wb.offPlan.sims.size,
+              offPlanLinks: wb.offPlan.edges.size,
+              issues: wb.planIssues.length,
+              logEntries: wb.connectionLog.length,
+              storyPages: wb.chronicle.length,
+            },
+            storage: { draftKB: draftKB(AUTOSAVE_KEY), staleTab: wb.staleTab, fromDraft: wb.fromBrowserDraft },
+            errors: recentErrors(),
+          });
+        }}
       />
       {linksFrom === 'more' && linksMenu}
       {compact && saveOpen && wb.saveGame && (
