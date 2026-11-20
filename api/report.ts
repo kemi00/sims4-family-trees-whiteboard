@@ -16,7 +16,8 @@
  */
 
 const DEFAULT_REPO = 'kemi00/sims4-family-trees-reports';
-const REPORT_START = 'Sims 4 Dynasty Whiteboard: problem report';
+/** How a report starts; the second is the older name, still sent by tabs opened before the rename. */
+const REPORT_STARTS = ['The Sims 4 Family Tree Planner: problem report', 'Sims 4 Dynasty Whiteboard: problem report'];
 /** Reports run 3 to 8 thousand characters; a big save's worlds can add more. */
 const MAX_REPORT = 30_000;
 const MAX_NOTE = 2_000;
@@ -93,7 +94,7 @@ export async function handle(request: Request, env: ReportEnv, deps: ReportDeps)
   } catch {
     return json(400, { error: 'not-a-report' });
   }
-  if (!report.startsWith(REPORT_START)) return json(400, { error: 'not-a-report' });
+  if (!REPORT_STARTS.some((s) => report.startsWith(s))) return json(400, { error: 'not-a-report' });
   if (report.length > MAX_REPORT || note.length > MAX_NOTE) return json(413, { error: 'too-big' });
 
   const token = env.REPORTS_GITHUB_TOKEN;

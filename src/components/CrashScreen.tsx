@@ -26,7 +26,7 @@ function crashReport(): string {
   } catch (e) {
     // The crash screen must never crash: the errors alone, as plain lines.
     return [
-      `Sims 4 Dynasty Whiteboard: problem report (build ${BUILD})`,
+      `The Sims 4 Family Tree Planner: problem report (build ${BUILD})`,
       `The report couldn't be made: ${String(e).slice(0, 200)}`,
       ...recentErrors().map((x) => `${x.at}${x.crash ? ' (the page went blank)' : ''} ${x.message}${x.where ? ` @ ${x.where}` : ''}${x.components ? ` in ${x.components}` : ''}`),
     ].join('\n');

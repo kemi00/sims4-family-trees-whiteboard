@@ -4,7 +4,7 @@ import { handle, issueFor, type ReportDeps } from '../../api/report.ts';
 import { sendReport } from './sendReport.ts';
 
 const REPORT = [
-  'Sims 4 Dynasty Whiteboard: problem report',
+  'The Sims 4 Family Tree Planner: problem report',
   'Made 2026-11-20T17:55:27.935Z · build dc28e8d · layout 11',
   'Page translated by the browser to uk · the board stepped around swapped text 2 times',
   'Recent errors:',
@@ -49,6 +49,11 @@ describe('the report function', () => {
     assert.equal((await handle(request('{not json'), env, deps())).status, 400);
     assert.equal((await handle(request({ report: REPORT }, { origin: 'https://elsewhere.example' }), env, deps())).status, 403);
     assert.equal((await handle(request({ report: REPORT + 'x'.repeat(40_000) }), env, deps())).status, 413);
+  });
+
+  it('still takes a report under the board’s older name, from a tab opened before the rename', async () => {
+    const older = REPORT.replace('The Sims 4 Family Tree Planner', 'Sims 4 Dynasty Whiteboard');
+    assert.equal((await handle(request({ report: older }), env, deps())).status, 201);
   });
 
   it('says it isn’t set up without a token, and never calls GitHub', async () => {

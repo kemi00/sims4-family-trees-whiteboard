@@ -92,7 +92,7 @@ export function problemReport(input: ProblemReportInput): string {
   const out: string[] = [];
   const line = (s = '') => out.push(s);
 
-  line('Sims 4 Dynasty Whiteboard: problem report');
+  line('The Sims 4 Family Tree Planner: problem report');
   line(
     `Made ${input.now.toISOString()} · build ${input.build} · layout ${LAYOUT_EPOCH}` +
       (input.latestUpdate ? ` · newest update ${input.latestUpdate.sha} (${input.latestUpdate.date})` : ''),

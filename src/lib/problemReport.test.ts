@@ -90,6 +90,7 @@ describe('problemReport', () => {
   });
 
   it('says what the browser, game and last upload were', () => {
+    assert.ok(text.startsWith('The Sims 4 Family Tree Planner: problem report\n'));
     assert.match(text, /build abc1234/);
     assert.match(text, /Language uk-UA, en/);
     assert.match(text, /day 12 \(clock \d+\) · "Normal · Winter, day \d+ of 14" · 14-day seasons/);
