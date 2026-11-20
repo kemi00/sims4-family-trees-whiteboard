@@ -93,3 +93,48 @@ export function worldPackIconUrl(world: string): string | undefined {
   const pack = worldPack(world);
   return pack ? packIconUrl(pack) : undefined;
 }
+
+/** Dynasties, their roles and prestige, and secret lovers and children come with it. */
+export const ROYALTY_AND_LEGACY = 'Royalty & Legacy';
+
+/**
+ * Life states that come with a game. The rest (Ghost, PlantSim, Skeleton
+ * and a sim's own) the board offers to everyone.
+ */
+export const LIFE_STATE_GAME: Readonly<Record<string, string>> = {
+  Vampire: 'Vampires',
+  Spellcaster: 'Realm of Magic',
+  Werewolf: 'Werewolves',
+  Mermaid: 'Island Living',
+  Fairy: 'Enchanted by Nature',
+  Alien: 'Get to Work',
+  Servo: 'Discover University',
+  'Imaginary Friend': 'Adventure Awaits',
+};
+
+/** The life states to offer: those of the player's games, and whatever the sim is already. */
+export function lifeStatesOffered(states: readonly string[], hasGame: (pack: string) => boolean, current: string): string[] {
+  return states.filter((s) => s === current || !LIFE_STATE_GAME[s] || hasGame(LIFE_STATE_GAME[s]!));
+}
+
+const fold = (s: string) => s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/**
+ * The games a save doesn't have, as far as it can tell. A game whose
+ * worlds are all missing from the save's worlds is one the player doesn't
+ * own (a save holds only the worlds of the games installed); Seasons is
+ * missing when the calendar is days alone. A game with no world of its own
+ * (Paranormal Stuff) can't be told, so it isn't listed.
+ */
+export function gamesMissingFromSave(saveWorlds: readonly string[], calendar?: 'seasons' | 'days'): string[] {
+  const have = new Set(saveWorlds.map(fold));
+  const owned = new Set<string>();
+  const games = new Set<string>();
+  for (const [world, pack] of Object.entries(WORLD_PACK)) {
+    games.add(pack);
+    if (have.has(fold(world))) owned.add(pack);
+  }
+  const missing = [...games].filter((g) => !owned.has(g));
+  if (calendar === 'days') missing.push('Seasons');
+  return missing.sort((a, b) => a.localeCompare(b));
+}

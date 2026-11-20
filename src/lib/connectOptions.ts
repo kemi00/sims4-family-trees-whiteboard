@@ -20,6 +20,8 @@ export type ConnectSection = { title: string | null; options: ConnectOption[] };
  * links only to a pet of its kind, as a parent, child, co-parent or
  * sibling; a pet and a sim keep only the menu's other link.
  */
+const SECRET_CHOICES = new Set<string>(['secretromance', 'secretparent', 'secretchildof']);
+
 export function connectOptions(opts: {
   a: SimNode;
   b: SimNode;
@@ -27,6 +29,8 @@ export function connectOptions(opts: {
   unborn?: ReadonlySet<string>;
   cycle?: { parent?: string; childof?: string };
   hideSibling?: boolean;
+  /** Secret lovers and secret parents come with Royalty & Legacy: false leaves them out. */
+  secrets?: boolean;
 }): { now: string | null; sections: ConnectSection[] } {
   const { a, b, edges } = opts;
   const pair = uKey(a.id, b.id);
@@ -136,11 +140,13 @@ export function connectOptions(opts: {
         : last?.type === 'divorced'
           ? 'divorced'
           : (parentNow(ab, a, b) ?? parentNow(ba, b, a));
+  // Without Royalty & Legacy, no secrets to plan.
+  const offered = (o: ConnectOption) => opts.secrets !== false || !SECRET_CHOICES.has(o.choice);
   return {
     now,
     sections: [
-      { title: 'Couple', options: couple.map(petRule) },
-      { title: 'Family', options: family.map(petRule) },
+      { title: 'Couple', options: couple.filter(offered).map(petRule) },
+      { title: 'Family', options: family.filter(offered).map(petRule) },
       { title: null, options: [{ choice: 'custom' }] },
     ],
   };

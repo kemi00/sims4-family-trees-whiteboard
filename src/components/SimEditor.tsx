@@ -1,5 +1,6 @@
 import { removalLabel, simLinkRows } from '../lib/simLinks.ts';
-import { CloseButton } from './CloseButton.tsx';
+import { CloseButton, IconButton } from './CloseButton.tsx';
+import { lifeStatesOffered, packIconUrl, ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import { PET_AGES, PET_GENDERS, PET_KINDS, petAgeLabel, petPack, type PetKind } from '../lib/pets.ts';
 import { PetFamily } from './PetFamily.tsx';
 import {
@@ -13,7 +14,7 @@ import {
 } from 'react';
 import { AGES, DECEASED_STATE, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import { Info, Trash } from '../icons.ts';
+import { BookOpenText, Info, Trash } from '../icons.ts';
 import { trackAction } from '../lib/analytics.ts';
 import {
   dynastyKey,
@@ -247,9 +248,9 @@ const PLAYABILITY_OPTIONS = pinnedAlpha(PLAYABILITY, 'Resident');
  * The editor's sections, by what you came to do: change the sim, see their
  * place in the family, or look up where they come from.
  */
-type Tab = 'sim' | 'family' | 'details';
+type Tab = 'sim' | 'family' | 'partners' | 'details';
 
-const TAB_LABELS: Record<Tab, string> = { sim: 'Sim', family: 'Family', details: 'Details' };
+const TAB_LABELS: Record<Tab, string> = { sim: 'Sim', family: 'Family', partners: 'Partners', details: 'Details' };
 
 /**
  * The tab last used, so going through sims to check one thing (each one's
@@ -331,6 +332,8 @@ type Props = {
   onPlanYoung: (parentIds: string[]) => void;
   /** The pets your packs allow, for a pet added on the board to change its kind. */
   petKinds: readonly PetKind[];
+  /** Whether the player has a game: its features show only then (life states, dynasty). */
+  hasGame?: (pack: string) => boolean;
   /** Open the Chronicle on this sim's story; absent while the story is empty. */
   onStory?: () => void;
 };
@@ -367,12 +370,16 @@ export function SimEditor({
   onLinkParent,
   onPlanYoung,
   petKinds,
+  hasGame = () => true,
   onStory,
 }: Props) {
   const compact = useCompactChrome();
   const isPet = !!n.species;
   // Pets have no dynasty and no partners: their Family tab is parents, young and siblings.
-  const tabs: Tab[] = ['sim', 'family', 'details'];
+  // A sim's partner search, a planning tool with its own filters, is a tab of its own.
+  const tabs: Tab[] = isPet ? ['sim', 'family', 'details'] : ['sim', 'family', 'partners', 'details'];
+  // Dynasties come with Royalty & Legacy; one the sim is in already still shows.
+  const showDynasty = hasGame(ROYALTY_AND_LEGACY) || !!n.dynasty;
   /** This sim's plans the game went against. */
   const myIssues = planIssues.filter((c) => c.a === n.id || c.b === n.id || c.children.includes(n.id));
   const planned = isPlannedSim(n);
@@ -1015,7 +1022,19 @@ export function SimEditor({
       }
     >
       <div className="ed__head">
-        <CloseButton className="ed__close" label="Close the editor" title="Close without saving (Esc)" onClick={onClose} />
+        {/* The sim's story, behind the same book as the household plan's. */}
+        <div className={onStory ? 'ed__tools ed__tools--two' : 'ed__tools'}>
+          {onStory && (
+            <IconButton
+              label={`The story of ${cardName(n)}`}
+              title={`Story: what happened to ${n.first || cardName(n)} in your saves`}
+              onClick={onStory}
+            >
+              <BookOpenText aria-hidden="true" />
+            </IconButton>
+          )}
+          <CloseButton label="Close the editor" title="Close without saving (Esc)" onClick={onClose} />
+        </div>
         <div className="edpair edpair--name">
           <div>
             <label htmlFor="edFirst">First name</label>
@@ -1184,7 +1203,7 @@ export function SimEditor({
             <div>
               <label htmlFor="edState">Life state</label>
               <select id="edState" value={state} onChange={(e) => setState(e.target.value)}>
-                {(isPet ? PET_STATES : LIFE_STATE_OPTIONS).map((s) => (
+                {(isPet ? PET_STATES : lifeStatesOffered(LIFE_STATE_OPTIONS, hasGame, state)).map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
@@ -1278,11 +1297,6 @@ export function SimEditor({
               See the {n.hh} household’s plan
             </button>
           )}
-          {onStory && (
-            <button type="button" className="edlink edlink--plan" onClick={onStory}>
-              📖 {n.first || cardName(n)}’s story
-            </button>
-          )}
           {planned && (
             <>
               <button
@@ -1343,6 +1357,7 @@ export function SimEditor({
           </div>
         )}
         {!isPet && (
+          <>
           <div role="tabpanel" id="edPanel-family" aria-labelledby="edTab-family" hidden={tab !== 'family'}>
             {(myIssues.length > 0 || n.plannedAs) && (
               <section className="edplan" aria-labelledby="edPlanHead">
@@ -1413,6 +1428,8 @@ export function SimEditor({
                 </ul>
               </section>
             )}
+            {showDynasty && (
+            <>
             <div className="edlabel">
               <label htmlFor="edDynastyPick">Dynasty</label>
               {renamable && (
@@ -1618,6 +1635,8 @@ export function SimEditor({
                 </ol>
               </>
             )}
+            </>
+            )}
             {gen && (
               <>
                 <div className="edlabel">
@@ -1691,6 +1710,8 @@ export function SimEditor({
                 </div>
               </>
             )}
+          </div>
+          <div role="tabpanel" id="edPanel-partners" aria-labelledby="edTab-partners" hidden={tab !== 'partners'}>
             <div className="edlabel">
               <span className="edlabel__text" id="edPartnersLabel">
                 Possible partners
@@ -1813,6 +1834,7 @@ export function SimEditor({
               </button>
             )}
           </div>
+          </>
         )}
 
         <div role="tabpanel" id="edPanel-details" aria-labelledby="edTab-details" hidden={tab !== 'details'}>
@@ -1832,7 +1854,10 @@ export function SimEditor({
           <dl className="ro edfacts" aria-labelledby="edOriginLabel">
             <div className="edlife__row">
               <dt>Game pack</dt>
-              <dd>{n.pack || '—'}</dd>
+              <dd className="edfacts__pack">
+                {n.pack && packIconUrl(n.pack) && <img src={packIconUrl(n.pack)} alt="" width={18} height={18} />}
+                {n.pack || '—'}
+              </dd>
             </div>
             <div className="edlife__row">
               <dt>Household</dt>

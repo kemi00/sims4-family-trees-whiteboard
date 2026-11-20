@@ -1908,7 +1908,10 @@ describe('ages, game options and first heads from the save', () => {
       game: game(),
     };
     const first = merge(parsed, []);
-    assert.deepEqual(first.saveGame, {
+    // The games it lacks: here, every world but Willow Creek's, and Seasons (its calendar is days).
+    const { gamesMissing, ...info } = first.saveGame!;
+    assert.ok(gamesMissing?.includes('Royalty & Legacy') && gamesMissing.includes('Seasons') && !gamesMissing.includes('Base Game'));
+    assert.deepEqual(info, {
       fileName: 'Slot_00000006.save',
       importedAt: 'now',
       clock: 11_135_049,

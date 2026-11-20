@@ -1,4 +1,5 @@
 import { DECEASED_STATE, NON_BINARY, UNHOUSED_HH } from '../constants.ts';
+import { gamesMissingFromSave } from '../packs.ts';
 import { advanceSuccession } from '../succession.ts';
 import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
 import { dynastyKey, rememberFirstHeads } from '../generations.ts';
@@ -1722,6 +1723,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
           ...(dynastyStanding ? { dynastyStanding } : {}),
           ...(parsed.lotZones ? { lotZones: parsed.lotZones } : {}),
           ...(parsed.read ? { read: parsed.read } : {}),
+          // The games this save doesn't have: their features stay off on the board (packs.ts).
+          gamesMissing: gamesMissingFromSave(worldsFromParsed(parsed), saveGameRead.calendar),
         }
       : saveGameRead;
 

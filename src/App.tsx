@@ -15,6 +15,7 @@ import { ConnectionLogPanel } from './components/ConnectionLogPanel.tsx';
 import { DevUpdatesDialog } from './components/DevUpdatesDialog.tsx';
 import { UpNextPanel } from './components/UpNextPanel.tsx';
 import { DynastiesPanel } from './components/DynastiesPanel.tsx';
+import { ROYALTY_AND_LEGACY } from './lib/packs.ts';
 import { FiltersPanel } from './components/FiltersPanel.tsx';
 import { HighlightList, type ListOf } from './components/HighlightList.tsx';
 import { highlightActive } from './lib/highlight.ts';
@@ -539,7 +540,7 @@ export default function App() {
               }
             />
         )}
-        {wb.dynastiesOpen && (
+        {wb.dynastiesOpen && wb.hasGame(ROYALTY_AND_LEGACY) && (
             <DynastiesPanel
               rows={dynastyRows}
               labelOf={dynastyLabelOf}

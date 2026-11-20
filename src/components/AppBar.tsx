@@ -1,3 +1,4 @@
+import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import {
   CalendarBlank,
   Check,
@@ -265,13 +266,18 @@ export function AppBar({
           note: 'A suggested order to play your households in',
           onSelect: openUpNext,
         },
-        {
-          id: 'dynasties',
-          icon: Crown,
-          label: 'Dynasties',
-          note: 'Every dynasty, with its members',
-          onSelect: openDynasties,
-        },
+        // Dynasties come with Royalty & Legacy: no button without it.
+        ...(wb.hasGame(ROYALTY_AND_LEGACY)
+          ? [
+              {
+                id: 'dynasties',
+                icon: Crown,
+                label: 'Dynasties',
+                note: 'Every dynasty, with its members',
+                onSelect: openDynasties,
+              },
+            ]
+          : []),
         {
           id: 'story',
           icon: BookOpenText,
@@ -469,7 +475,7 @@ export function AppBar({
           Up next
         </ToolButton>
       )}
-      {!compact && (
+      {!compact && wb.hasGame(ROYALTY_AND_LEGACY) && (
         <ToolButton
           id="btnDynasties"
           icon={Crown}

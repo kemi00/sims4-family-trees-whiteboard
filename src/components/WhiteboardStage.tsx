@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { flushSync } from 'react-dom';
+import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import { boardTipPin } from '../lib/boardTip.ts';
 import { border, unionAtPoint, unionGeom, viewportWorldRect, wheelViewport, zoomViewportAt, type SnapSticky } from '../lib/geometry.ts';
 import { householdChrome, tileSnapOrigin } from '../lib/tiles.ts';
@@ -2400,6 +2401,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
               childof: wb.parentCycleReason(menu.b, menu.a) ?? undefined,
             },
             hideSibling: siblingsShareParents(menu.a, menu.b, wb.edges),
+            secrets: wb.hasGame(ROYALTY_AND_LEGACY),
           })}
           onConfirm={(type) => {
             if (type === 'divorce' || type === 'breakup') {
@@ -2686,6 +2688,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             wb.planPetYoung(ids);
           }}
           petKinds={wb.petKinds}
+          hasGame={wb.hasGame}
           {...(wb.chronicle.length
             ? {
                 onStory: () => {

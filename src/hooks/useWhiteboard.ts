@@ -429,8 +429,6 @@ export function useWhiteboard() {
   const [hiddenPlay, setHiddenPlay] = useState<Set<string>>(
     () => new Set(boot.hiddenPlay || []),
   );
-  /** Pets you can add: those whose pack isn't switched off in Games. */
-  const petKinds = useMemo(() => petKindsAvailable(hiddenPacks), [hiddenPacks]);
   const [show, setShow] = useState<ShowToggles>({
     groups: true,
     worlds: true,
@@ -534,6 +532,18 @@ export function useWhiteboard() {
   );
   /** Game clock and aging options from the last save import. */
   const [saveGame, setSaveGame] = useState<SaveGameInfo | null>(() => boot.saveGame ?? null);
+  /**
+   * The games the player doesn't have, whose features stay off: as the
+   * save says once one is uploaded (gamesMissing), the Games filter before
+   * that. Hiding a game's sims in Games doesn't take its features away.
+   */
+  const gamesOff = useMemo<ReadonlySet<string>>(
+    () => (saveGame?.gamesMissing ? new Set(saveGame.gamesMissing) : hiddenPacks),
+    [saveGame, hiddenPacks],
+  );
+  const hasGame = useCallback((pack: string) => !gamesOff.has(pack), [gamesOff]);
+  /** Pets you can add: those of the games you have. */
+  const petKinds = useMemo(() => petKindsAvailable(gamesOff), [gamesOff]);
   /** The board's story, one entry per save upload (the chronicle). */
   const [chronicle, setChronicle] = useState<ChronicleEntry[]>(() => boot.chronicle ?? []);
   /** The Chronicle panel, open on the whole story or on one sim's, household's or dynasty's. */
@@ -4375,6 +4385,7 @@ export function useWhiteboard() {
     addSim,
     addSimToHousehold,
     petKinds,
+    hasGame,
     organiseBoard,
     updateNode,
     setDynastyGenRoot,

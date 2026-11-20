@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { packIconUrl, worldPack, worldPackIconUrl } from './packs.ts';
+import { gamesMissingFromSave, lifeStatesOffered, packIconUrl, worldPack, worldPackIconUrl } from './packs.ts';
 
 const seed = JSON.parse(readFileSync(new URL('../data/whiteboard.json', import.meta.url), 'utf8')) as {
   nodes: { pack: string }[];
@@ -29,5 +29,26 @@ describe('the games’ icons', () => {
 
   it('has none for a game it doesn’t know', () => {
     assert.equal(packIconUrl('A Pack Yet To Come'), undefined);
+  });
+});
+
+describe('the games a save has', () => {
+  it('lacks a game when none of its worlds are in the save, and Seasons with a calendar of days', () => {
+    const missing = gamesMissingFromSave(['Willow Creek', 'Ondarion', 'Brindleton Bay'], 'days');
+    assert.ok(!missing.includes('Base Game'));
+    assert.ok(!missing.includes('Royalty & Legacy'));
+    assert.ok(!missing.includes('Cats & Dogs'));
+    assert.ok(missing.includes('Horse Ranch'));
+    assert.ok(missing.includes('Seasons'));
+    // A game with no world of its own can't be told: never listed.
+    assert.ok(!missing.includes('Paranormal Stuff'));
+    assert.ok(!gamesMissingFromSave(['Oasis Springs'], 'seasons').includes('Seasons'));
+  });
+
+  it('offers only the life states of the player’s games, and the sim’s own', () => {
+    const states = ['Sim', 'Ghost', 'Vampire', 'Mermaid', 'Werewolf'];
+    const has = (p: string) => p === 'Island Living';
+    assert.deepEqual(lifeStatesOffered(states, has, 'Sim'), ['Sim', 'Ghost', 'Mermaid']);
+    assert.deepEqual(lifeStatesOffered(states, has, 'Vampire'), ['Sim', 'Ghost', 'Vampire', 'Mermaid']);
   });
 });

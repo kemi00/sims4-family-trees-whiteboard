@@ -1,4 +1,5 @@
 import { CaretRight, Check, GameController, Highlighter, IdentificationBadge, LockSimple, Skull, UsersThree, type Icon } from '../icons.ts';
+import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
 import { simName } from '../lib/connectionLog.ts';
@@ -171,6 +172,8 @@ export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList
           disabled={!(wb.bloodlineId || wb.sel?.type === 'node')}
           onClick={wb.toggleBloodline}
         />
+        {/* Secrets come with Royalty & Legacy: without it, no toggle for what can't be there. */}
+        {(wb.hasGame(ROYALTY_AND_LEGACY) || wb.hasSecrets || wb.hideSecrets) && (
         <ToggleRow
           icon={LockSimple}
           label="Hide secrets"
@@ -183,6 +186,7 @@ export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList
           disabled={!wb.hasSecrets && !wb.hideSecrets}
           onClick={wb.toggleHideSecrets}
         />
+        )}
         <ToggleRow
           icon={Skull}
           label="Hide deceased"

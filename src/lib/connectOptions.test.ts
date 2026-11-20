@@ -71,3 +71,12 @@ describe('connectOptions', () => {
     assert.match(options([]).get('adoptedby')!.why ?? '', /Star isn’t younger than Agora/);
   });
 });
+
+describe('connectOptions without Royalty & Legacy', () => {
+  it('leaves out secret lovers and secret parents', () => {
+    const choices = connectOptions({ a: star, b: agora, edges: [], secrets: false })
+      .sections.flatMap((s) => s.options.map((o) => o.choice));
+    for (const c of ['secretromance', 'secretparent', 'secretchildof']) assert.ok(!choices.includes(c as ConnectChoice), c);
+    assert.ok(choices.includes('romance') && choices.includes('parent'));
+  });
+});

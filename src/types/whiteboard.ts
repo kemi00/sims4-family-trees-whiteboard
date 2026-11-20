@@ -256,6 +256,12 @@ export interface SaveGameInfo {
    */
   dynastyStanding?: Record<string, DynastyStanding>;
   lotZones?: SaveLotZone[];
+  /**
+   * The games this save doesn't have (packs.ts gamesMissingFromSave): their
+   * features (dynasties, secrets, pets, life states) stay off. Absent on
+   * boards from before, where the Games filter stands in.
+   */
+  gamesMissing?: string[];
   /** What the board read from the save, with no names: for the problem report. */
   read?: SaveReadInfo;
   /** What the last upload did, in counts: for the problem report. */
