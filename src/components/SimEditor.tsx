@@ -368,7 +368,7 @@ export function SimEditor({
 }: Props) {
   const compact = useCompactChrome();
   // A drawer on a phone: half, full, or folded to its bar, typed edits kept.
-  const drawer = useSheet(editorRef, { enabled: compact, head: '.edpair--name' });
+  const drawer = useSheet(editorRef, { enabled: compact, head: '.ed__titlebar' });
   const isPet = !!n.species;
   // Pets have no dynasty and no partners: their Family tab is parents, young and siblings.
   const tabs: Tab[] = isPet ? ['sim', 'family'] : ['sim', 'life', 'family'];
@@ -1156,8 +1156,12 @@ export function SimEditor({
     >
       <SheetGrabber sheet={drawer} what={`the editor for ${cardName(n)}`} />
       <div className="ed__head">
-        {/* The sim's story, behind the same book as the household plan's. */}
-        <div className={onStory ? 'ed__tools ed__tools--three' : 'ed__tools ed__tools--two'}>
+        {/* The title bar: whose panel this is (the name as the card says it,
+            following what's typed), then what acts on the whole panel. The
+            name boxes below get the full width. A folded drawer shows this bar. */}
+        <div className="ed__titlebar">
+          <h2 className="ed__title">{cardName({ ...n, first, sur, planLabel }) || cardName(n)}</h2>
+          {/* The sim's story, behind the same book as the household plan's. */}
           {onStory && (
             <IconButton
               label={`The story of ${cardName(n)}`}

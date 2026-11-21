@@ -23,7 +23,6 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 @media (pointer:coarse){ .iconbtn{width:44px;height:44px} .iconbtn svg{width:18px;height:18px} }
 @media (prefers-reduced-motion:reduce){ .iconbtn{transition:none} }
 /* Placement only: the editor's close sits in its corner, beside the name fields. */
-.editor .ed__tools{position:absolute;top:4px;right:4px;z-index:3;display:flex}
 /* The Legend sheet's header stays in reach while the sheet scrolls. */
 .legend-sheethead{position:sticky;top:-12px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-12px -12px 0;padding:8px 8px 8px 16px;background:var(--chrome);border-bottom:1px solid var(--line);font-size:14px;color:var(--ink)}
 
@@ -1486,16 +1485,12 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .selbar__go:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .selbar__tip{margin:4px 0 0;font-size:10.5px;color:var(--ink-2)}
 .selbar__form{margin-top:8px;padding:8px;border:1px solid #dbe6f5;border-radius:8px;background:#f7fafe}
-/* The close button keeps a gutter of its own beside the name fields, so it
-   never sits on the last name; 24px, a comfortable size to hit. */
-.editor .edpair--name{padding-right:34px}
-/* The ⋮ (and the story's book) beside the close button: room for each. */
-.editor .ed__tools--two ~ .edpair--name{padding-right:66px}
-.editor .ed__tools--three ~ .edpair--name{padding-right:98px}
-@media (pointer:coarse){
- .editor .ed__tools--two ~ .edpair--name{padding-right:90px}
- .editor .ed__tools--three ~ .edpair--name{padding-right:134px}
-}
+/* The title bar: the sim's name, then Story, ⋮ and ✕ on one centre line,
+   like every panel's head. The ✕ sits 4px from the corner, as before; the
+   name boxes below take the full width. A long name wraps, never cut. */
+.editor .ed__titlebar{position:relative;display:flex;align-items:center;min-height:32px;margin:-6px -6px 4px 0}
+.editor .ed__title{flex:1 1 auto;min-width:0;margin:0;padding:4px 6px 4px 0;font-size:15px;font-weight:700;line-height:1.3;color:var(--ink);overflow-wrap:anywhere}
+@media (pointer:coarse){ .editor .ed__titlebar{min-height:44px} }
 /* The ⋮ menu: Copy Sim ID, and Delete, red only in here. */
 .editor .edmenu{position:absolute;top:calc(100% + 2px);right:0;z-index:4;display:flex;flex-direction:column;min-width:200px;max-width:min(260px,calc(100vw - 32px));padding:4px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:var(--lift)}
 .editor .edmenu__item{display:flex;align-items:center;justify-content:flex-start;gap:7px;width:100%;padding:8px 10px;border:none;border-radius:7px;background:transparent;color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
