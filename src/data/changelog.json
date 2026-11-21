@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "8384403",
+   "date": "2026-11-21",
+   "text": "The board now tells you when a plan can happen instead of whether the game allows it. Any living sim can be a planned child's parent or adopt, children and babies not born yet too, and their card says when they're grown, such as \"Young Adult in 10 days of playing the Goth household\". The notes about teens needing a mod and elders not carrying babies are gone. Planning says \"Ready when…\" right away, and a planned adoption reads as one in the household's plan: \"Rashidah Watson adopts Planned Watson\"."
+  },
+  {
    "sha": "0fb5866",
    "date": "2026-11-21",
    "text": "Every highlight now ends the same way: Clear. Bloodline's \"Show everyone\" and the \"Done\" on a family's or a dynasty's highlight are Clear now, as the Highlight chips' already was, and every Clear is a quiet grey button instead of a bright blue one. Blue is for going on, red for deleting, and clearing a highlight is neither."
