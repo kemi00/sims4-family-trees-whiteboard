@@ -1193,6 +1193,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       const patched = patchMatched(slot, sim, true, rosterOf(sim), !!parsed.dynasties, boardDynastyIds);
       patched.plannedAs = plannedSnapshot(slot, now);
       delete patched.planLabel;
+      delete patched.arrives;
       nodes[i] = patched;
       claimedSlots.push(patched.id);
       claimed.add(patched.id);

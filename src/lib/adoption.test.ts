@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { adopteeSearch, whyCantAdopt, whyNotAdopt } from './adoption.ts';
+import { adoptWarning, adopteeSearch, whyCantAdopt, whyNotAdopt } from './adoption.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
 function sim(id: string, age: string, extra: Partial<SimNode> = {}): SimNode {
@@ -55,10 +55,14 @@ describe('adoption', () => {
   ];
   const unborn = new Set(['Bump']);
 
-  it('lets young adults and older adopt, not teens or pets', () => {
+  it('lets young adults and older adopt, and a teen with a warning; not children or pets', () => {
     assert.equal(whyCantAdopt(dani), null);
+    assert.equal(adoptWarning(dani), null);
     assert.equal(whyCantAdopt(sim('Old', 'Elder')), null);
-    assert.match(whyCantAdopt(sim('T', 'Teen')) ?? '', /young adults and older/);
+    assert.equal(whyCantAdopt(sim('T', 'Teen')), null);
+    assert.match(adoptWarning(sim('T', 'Teen')) ?? '', /young adults and older/);
+    assert.match(whyCantAdopt(sim('C', 'Child')) ?? '', /children/);
+    assert.match(whyCantAdopt(sim('U', 'Unknown')) ?? '', /life stage first/);
     assert.match(whyCantAdopt(sim('P', 'Adult', { species: 'Cat' })) ?? '', /Pets/);
   });
 
@@ -87,8 +91,10 @@ describe('adoption', () => {
     assert.deepEqual(ids, ['Tot']);
     // Neither can adopt the other.
     assert.ok(!adopteeSearch({ ids: ['Elda', 'Mum'], nodes, edges, unborn }).some((h) => h.id === 'Elda' || h.id === 'Mum'));
+    // A teen adopting with her sister: younger than both, family to neither.
+    assert.deepEqual(adopteeSearch({ ids: ['Dani', 'Teen'], nodes, edges, unborn }).map((h) => h.id), ['Tot', 'Kid']);
     // Both must be old enough.
-    assert.deepEqual(adopteeSearch({ ids: ['Dani', 'Teen'], nodes, edges, unborn }), []);
+    assert.deepEqual(adopteeSearch({ ids: ['Dani', 'Kid'], nodes, edges, unborn }), []);
   });
 
   it('narrows by name', () => {

@@ -6,6 +6,7 @@ import {
   linkPlannedSim,
   numberPlannedSims,
   parentsLines,
+  plannedChildLines,
   overruledParentLinks,
   moveToUndo,
   planConflicts,
@@ -72,6 +73,28 @@ describe('telling planned sims apart', () => {
     const lines = parentsLines([sim('Jules', { first: 'Jules' }), kid('new1', 'Le Chien', { planNo: 1 }), kid('new2', 'Romeo', { planLabel: 'Spouse' })]);
     assert.deepEqual(lines, ['Child of Jules ＋ Le Chien (1) ＋ Spouse', 'Jules ＋ Le Chien (1) ＋ Spouse']);
     assert.deepEqual(parentsLines([]), []);
+  });
+
+  it('says who adopts an unnamed planned child, or that it has no parents on the board', () => {
+    const star = sim('Star', { first: 'Star', sur: 'Okafor' });
+    assert.deepEqual(parentsLines([star], true), ['Adopted by Star', 'Star']);
+    assert.deepEqual(plannedChildLines([star], true, true), { lines: ['Adopted by Star', 'Star'], title: 'Adopted by Star Okafor' });
+    assert.deepEqual(plannedChildLines([star], false, true)?.lines, ['Child of Star', 'Star']);
+    assert.deepEqual(plannedChildLines([], false, true), {
+      lines: ['Parents not on the board'],
+      title: 'Parents not on the board: link any with Connect',
+    });
+    // A sim moving in is no one's child: their card says so its own way.
+    assert.equal(plannedChildLines([], false, false), undefined);
+  });
+
+  it('remembers how a planned child arrives through a fill and its undo', () => {
+    const kid = planned('Kid', { first: '', sur: 'Okafor', age: 'Toddler', arrives: 'adopted' });
+    const real = sim('Ana', { age: 'Toddler' });
+    const linked = linkPlannedSim([kid, real], [], 'Kid', 'Ana', 'now');
+    assert.equal(linked.nodes.find((x) => x.id === 'Ana')!.plannedAs?.arrives, 'adopted');
+    const back = unlinkPlannedSim(linked.nodes, linked.edges, 'Ana', () => 'P', () => 'u1');
+    assert.equal(back.nodes.find((x) => x.id === 'P')!.arrives, 'adopted');
   });
 
   it('prefers a plan label to the number', () => {

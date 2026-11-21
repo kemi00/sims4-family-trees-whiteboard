@@ -8,7 +8,7 @@ import { CaretLeft } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
 import { hasNoHome } from '../lib/partners.ts';
-import { adopteeSearch, whyCantAdopt } from '../lib/adoption.ts';
+import { adoptWarning, adopteeSearch, whyCantAdopt } from '../lib/adoption.ts';
 import { simCardClass } from '../lib/simCard.ts';
 import type { ChildMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
@@ -153,6 +153,9 @@ export function ChildMenu({
       !cant && all.length === 0
         ? `No one younger${couple ? ' than both' : ''} who isn’t family already.`
         : null;
+    // A teen can adopt as a plan: the game wants a young adult or older, so it says so.
+    const warnOne = !cant ? adopters.map((a) => [a, adoptWarning(a)] as const).find(([, w]) => w) : undefined;
+    const warn = warnOne ? `${cardName(warnOne[0])} is a teen: ${warnOne[1]}` : null;
     return shell(
       `Add a child of ${name}`,
       <>
@@ -173,6 +176,7 @@ export function ChildMenu({
               none ??
               `Someone younger${couple ? ' than both' : ''} who isn’t family yet: ${all.length} to pick from`}
           </span>
+          {warn && <span className="cmenu__warn">{`⚠ ${warn}`}</span>}
         </button>
       </>,
     );

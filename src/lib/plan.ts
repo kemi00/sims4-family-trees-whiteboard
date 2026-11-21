@@ -63,12 +63,34 @@ export function shortName(n: Pick<SimNode, 'first' | 'sur' | 'planLabel' | 'plan
 
 /**
  * Whose child a planned sim is, for its card, longest first so the card
- * can take the first that fits: "Child of Jules ＋ Bess", "Jules ＋ Bess".
+ * can take the first that fits: "Child of Jules ＋ Bess", "Jules ＋ Bess";
+ * adopted, "Adopted by Bess".
  */
-export function parentsLines(parents: SimNode[]): string[] {
+export function parentsLines(parents: SimNode[], adopted = false): string[] {
   if (!parents.length) return [];
   const who = parents.map(shortName).join(' ＋ ');
-  return [`Child of ${who}`, who];
+  return adopted ? [`Adopted by ${who}`, who] : [`Child of ${who}`, who];
+}
+
+/** A planned child's card line when it has no parents on the board. */
+export const NO_PARENTS_LINE = 'Parents not on the board';
+
+/**
+ * The last line of an unnamed planned child's card, and its tip: their
+ * parents, adopted or not; or, for a child planned with none, that their
+ * parents aren't on the board. Nothing for anyone else.
+ */
+export function plannedChildLines(
+  parents: SimNode[],
+  adopted: boolean,
+  child: boolean,
+): { lines: string[]; title: string } | undefined {
+  if (parents.length) {
+    const names = parents.map(cardName).join(' and ');
+    return { lines: parentsLines(parents, adopted), title: adopted ? `Adopted by ${names}` : `Child of ${names}` };
+  }
+  if (!child) return undefined;
+  return { lines: [NO_PARENTS_LINE], title: `${NO_PARENTS_LINE}: link any with Connect` };
 }
 
 /**
@@ -443,6 +465,7 @@ export function plannedSnapshot(slot: SimNode, at: string): NonNullable<SimNode[
     age: slot.age,
     ...(slot.planLabel ? { planLabel: slot.planLabel } : {}),
     ...(slot.planNo ? { planNo: slot.planNo } : {}),
+    ...(slot.arrives ? { arrives: slot.arrives } : {}),
     gid: slot.gid,
     hh: slot.hh,
     world: slot.world,
@@ -612,6 +635,7 @@ export function unlinkPlannedSim(
     added: true,
     ...(was.planLabel ? { planLabel: was.planLabel } : {}),
     ...(was.planNo ? { planNo: was.planNo } : {}),
+    ...(was.arrives ? { arrives: was.arrives } : {}),
   };
   const swap = (x: string) => (x === id ? pid : x);
   const next: Edge[] = [];

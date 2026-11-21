@@ -157,6 +157,7 @@ function nodeIdentity(n: SimNode) {
     life: n.life ?? null,
     planLabel: n.planLabel ?? null,
     planNo: n.planNo ?? null,
+    arrives: n.arrives ?? null,
     plannedAs: n.plannedAs ?? null,
   };
 }

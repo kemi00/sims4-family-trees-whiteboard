@@ -91,6 +91,7 @@ import {
   lotsBaseKey,
 } from '../lib/layout.ts';
 import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
+import type { ChildChoice } from '../lib/childParents.ts';
 import { holdUntouchedCards } from '../lib/holdLayout.ts';
 import { lineageIds } from '../lib/bloodline.ts';
 import { hasNoHome, livesApart } from '../lib/partners.ts';
@@ -1756,10 +1757,29 @@ export function useWhiteboard() {
   );
   /** Off-plan links and each sim's reason, for the board. */
   const offPlan = useMemo(() => offPlanMarks(planIssues, nameOfCore), [planIssues, nameOfCore]);
-  /** Planned sims with planned parents: "Not born yet" rather than "Age not set". */
-  const plannedChildIds = useMemo(() => {
-    const planned = new Set(nodesCore.filter(isPlannedSim).map((n) => n.id));
-    return new Set(edges.filter((e) => e.type === 'parent' && planned.has(e.b)).map((e) => e.b));
+  /**
+   * Planned children: those not born yet ("Not born yet" rather than "Age
+   * not set"), with parents or planned born with none; and those adopted,
+   * by their adopters or planned adopted with none. Neither is a sim moving in.
+   */
+  const { plannedChildIds, plannedAdoptedIds } = useMemo(() => {
+    const planned = new Map(nodesCore.filter(isPlannedSim).map((n) => [n.id, n]));
+    const links = new Map<string, { born: number; adopted: number }>();
+    for (const e of edges) {
+      if (e.type !== 'parent' || !planned.has(e.b)) continue;
+      const l = links.get(e.b) ?? { born: 0, adopted: 0 };
+      if (e.adopted) l.adopted++;
+      else l.born++;
+      links.set(e.b, l);
+    }
+    const unborn = new Set<string>();
+    const adopted = new Set<string>();
+    for (const [id, n] of planned) {
+      const l = links.get(id);
+      if (n.arrives === 'adopted' || (l && !l.born && l.adopted)) adopted.add(id);
+      else if (n.arrives === 'born' || l) unborn.add(id);
+    }
+    return { plannedChildIds: unborn, plannedAdoptedIds: adopted };
   }, [nodesCore, edges]);
   /** Households past the household limit, with how many live there (sims and pets, planned ones too). */
   const overLimit = useMemo(
@@ -2121,19 +2141,34 @@ export function useWhiteboard() {
   );
 
   /**
-   * A planned baby of `parentIds` (a couple, or one sim alone) in household
-   * `destGid`, taking last name `sur`, placed near its parents beside its full
-   * siblings: those with the same parents, and no other.
+   * A planned child of `parentIds` (a couple, one sim alone, or none) in
+   * household `destGid`, taking last name `sur`, placed near its parents
+   * beside its full siblings: those with the same parents, and no other.
+   * With none, or none living there, it joins the household as a sim
+   * moving in would. `how` is from "A child": born or adopted (its links
+   * then marked adopted), at a life stage and gender for an adoption.
    */
   const addPlannedBaby = useCallback(
-    (parentIds: string[], destGid: string, sur: string) => {
+    (
+      parentIds: string[],
+      destGid: string,
+      sur: string,
+      how?: { arrives: 'born' | 'adopted'; age?: string; gender?: string },
+    ): string | null => {
       const ps = parentIds.map((id) => byid[id]);
-      if (!ps.length || ps.some((p) => !p)) return;
+      if (ps.some((p) => !p) || (!ps.length && !how)) return null;
       const parents = ps as SimNode[];
-      const a = parents[0]!;
-      pushUndo(`Plan a child of ${parents.map((p) => named(cardName(p))).join(' and ')}`);
-      const host = parents.find((p) => p.gid === destGid) ?? a;
+      const a = parents[0];
       const g = groups.find((x) => x.gid === destGid);
+      const host = parents.find((p) => p.gid === destGid) ?? a;
+      if (!g && !host) return null;
+      const adopted = how?.arrives === 'adopted';
+      const who = parents.map((p) => named(p.first || cardName(p))).join(' ＋ ');
+      pushUndo(
+        parents.length
+          ? `Plan ${adopted ? 'an adoption by' : 'a child of'} ${parents.map((p) => named(cardName(p))).join(' and ')}`
+          : `Plan ${adopted ? 'an adopted child' : 'a child'} in ${named(g?.hh ?? host!.hh)}`,
+      );
       const dest = g
         ? {
             gid: g.gid,
@@ -2143,24 +2178,24 @@ export function useWhiteboard() {
             color: g.color,
           }
         : {
-            gid: host.gid,
-            hh: host.hh,
-            world: host.world,
-            nb: host.nb,
-            color: host.color,
+            gid: host!.gid,
+            hh: host!.hh,
+            world: host!.world,
+            nb: host!.nb,
+            color: host!.color,
           };
       const id = 'new' + eidcRef.current++;
       // Pets have young of their kind: a planned kitten of two cats.
-      const species = parents.every((p) => p.species && p.species === a.species) ? a.species : undefined;
+      const species = a && parents.every((p) => p.species && p.species === a.species) ? a.species : undefined;
       // A planned child: no made-up name, gender or stage until the game has them.
       const infant: SimNode = {
         id,
         gid: dest.gid,
         first: '',
         sur: sur || 'Sim',
-        age: NOT_YET_AGE,
+        age: how?.age ?? NOT_YET_AGE,
         state: 'Sim',
-        gender: GENDER_NOT_KNOWN,
+        gender: how?.gender ?? GENDER_NOT_KNOWN,
         hh: dest.hh,
         world: dest.world,
         nb: dest.nb,
@@ -2178,10 +2213,24 @@ export function useWhiteboard() {
         w: 0,
         h: 0,
         added: true,
+        ...(how ? { arrives: how.arrives } : {}),
         ...(species ? { species, state: 'Pet', sur: '', pack: petPack(species) } : {}),
       };
       const size = measureCard(infant);
-      const { x, y } = childAddSpot(parents, dest.gid, nodes, edges, snap);
+      const home = nodes.filter((n) => n.gid === dest.gid);
+      const chrome = householdChrome(home, g);
+      // Under parents living there, beside full siblings; with none there,
+      // where a sim moving in would go.
+      const atHome = parents.some((p) => p.gid === dest.gid);
+      const { x, y } =
+        atHome || !chrome || !home.length
+          ? parents.length
+            ? childAddSpot(parents, dest.gid, nodes, edges, snap)
+            : { x: g?.x ?? 0, y: g?.y ?? 0 }
+          : householdAddSpot(home, nodes, chrome.boxR);
+      const anchor = atHome
+        ? host!
+        : (home.filter((n) => !n.species).sort((p, q) => q.y - p.y || p.x - q.x)[0] ?? home[0] ?? host);
       const bundleId = 'b' + eidcRef.current++;
       const createdAt = new Date().toISOString();
       const nextEdges: Edge[] = [...edges];
@@ -2194,6 +2243,7 @@ export function useWhiteboard() {
           source: 'planned',
           createdAt,
           bundleId,
+          ...(adopted ? { adopted: true } : {}),
         });
       });
       // Under the parents, beside full siblings, when the household has room
@@ -2207,7 +2257,7 @@ export function useWhiteboard() {
         gid: dest.gid,
         block: [{ ...infant, x, y, ...size }],
         spots: [{ x, y }],
-        near: { x: host.x, y: host.y + CARD_H + TILE },
+        near: anchor ? { x: anchor.x, y: anchor.y + (atHome ? CARD_H : anchor.h) + TILE } : undefined,
         view: viewRect(),
         obstacles: lotRoom,
       });
@@ -2216,8 +2266,15 @@ export function useWhiteboard() {
       setEdges(nextEdges);
       setSel({ type: 'node', id });
       setInfantHouseMenu(null);
-      trackAction(parentIds.length > 1 ? '/action/add-infant' : '/action/add-infant-one-parent');
-      const who = parents.map((p) => named(p.first || cardName(p))).join(' ＋ ');
+      trackAction(
+        adopted
+          ? '/action/add-adopted-child'
+          : !parentIds.length
+            ? '/action/add-child-no-parents'
+            : parentIds.length > 1
+              ? '/action/add-infant'
+              : '/action/add-infant-one-parent',
+      );
       const room = placeNote(r);
       const name = sur || 'Sim';
       const one = `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${sur ? named(name) : name}`;
@@ -2226,15 +2283,37 @@ export function useWhiteboard() {
         flashStatus(
           `Planned a ${young} of ${who}, not born yet.${room}${parentIds.length > 1 ? '' : ` Add its other parent in its editor’s Family tab if there is one.`}`,
         );
-        return;
+        return id;
+      }
+      const stage = (how?.age ?? '').toLowerCase();
+      if (adopted) {
+        flashStatus(
+          parents.length
+            ? `Planned: ${who} ${parents.length > 1 ? 'adopt' : 'adopts'} ${stage ? `a ${stage}, ` : ''}${one}.${room}`
+            : `Planned: an adopted ${stage || 'child'}, ${one}, joins ${named(dest.hh)}, with no parents on the board.${room} Link their parents with Connect whenever you like.`,
+        );
+        return id;
       }
       flashStatus(
-        parentIds.length > 1
-          ? `Planned a child of ${who}: ${one}, not born yet.${room} Give them a plan label in the editor.`
-          : `Planned a child of ${who}: ${one}, not born yet.${room} Link another parent with Connect if there is one.`,
+        !parents.length
+          ? `Planned a child in ${named(dest.hh)}: ${one}, not born yet, with no parents on the board.${room} Link their parents with Connect whenever you like.`
+          : parentIds.length > 1
+            ? `Planned a child of ${who}: ${one}, not born yet.${room} Give them a plan label in the editor.`
+            : `Planned a child of ${who}: ${one}, not born yet.${room} Link another parent with Connect if there is one.`,
       );
+      return id;
     },
     [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, viewRect, revealBox, lotRoom],
+  );
+
+  /** "A child" from a household's ＋: born or adopted, of the parents chosen (two, one or none). */
+  const addChildToHousehold = useCallback(
+    (gid: string, choice: ChildChoice): string | null =>
+      addPlannedBaby(choice.parents, gid, choice.sur, {
+        arrives: choice.arrives,
+        ...(choice.arrives === 'adopted' ? { age: choice.age, gender: choice.gender } : {}),
+      }),
+    [addPlannedBaby],
   );
 
   const addInfantOfCouple = useCallback(
@@ -4435,6 +4514,7 @@ export function useWhiteboard() {
     moveInWith,
     infantHouseChoices,
     requestInfantOfCouple,
+    addChildToHousehold,
     requestInfantOfSim,
     planPetYoung,
     renameDynasty,
@@ -4510,6 +4590,7 @@ export function useWhiteboard() {
     planIssues,
     offPlan,
     plannedChildIds,
+    plannedAdoptedIds,
     plannedParents,
     familyGens,
     generationOf,

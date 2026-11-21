@@ -246,7 +246,9 @@ function posterRows(
     links,
     new Map(nodes.map((n) => [n.id, n])),
   );
-  const parented = new Set(links.filter((e) => e.type === 'parent').map((e) => e.b));
+  // Not born yet: a planned sim with a birth parent, or planned born with none.
+  const parented = new Set(links.filter((e) => e.type === 'parent' && !e.adopted).map((e) => e.b));
+  for (const n of nodes) if (n.arrives === 'born') parented.add(n.id);
   return {
     rows: r.rows.map((sims, i) => ({
       ...(rows[i]!.label ? { label: rows[i]!.label } : {}),

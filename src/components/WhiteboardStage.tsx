@@ -93,7 +93,9 @@ import { BoardTip } from './BoardTip.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { PartnerMenu } from './PartnerMenu.tsx';
 import { ChildMenu } from './ChildMenu.tsx';
-import { AddKindMenu, type JoiningCouple } from './AddKindMenu.tsx';
+import { AddKindMenu } from './AddKindMenu.tsx';
+import type { ParentPair } from './NewChildForm.tsx';
+import { householdParents } from '../lib/childParents.ts';
 import { HomeMenu } from './HomeMenu.tsx';
 import { LimitMenu } from './LimitMenu.tsx';
 import { homePlaces, needsHome } from '../lib/whereTheyLive.ts';
@@ -107,7 +109,7 @@ import { keyMarks } from '../lib/keyMarks.ts';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
-import { cardName, isPlannedSim, notYetText, parentsLines, shortName } from '../lib/plan.ts';
+import { cardName, isPlannedSim, notYetText, plannedChildLines, shortName } from '../lib/plan.ts';
 import { moveInChoices } from '../lib/partners.ts';
 import { eldersOf, householdName, itemsFor, unblockedBy } from '../lib/householdPlan.ts';
 import { HouseholdBrief } from './HouseholdBrief.tsx';
@@ -1711,13 +1713,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     return dominantWorldInViewport(wb.nodes, wb.groups, wb.nodeVis, wb.viewport, r?.width ?? 800, r?.height ?? 600);
   };
   /**
-   * Couples a household's baby could be of: together now (a romance or a
-   * marriage, its story's last step), both living sims, one of them living
-   * there. The household's ＋ offers each one's baby.
+   * Couples together now (a romance or a marriage, its story's last step),
+   * both living sims, one of them living there: "A child" offers each as a
+   * quick pick for its parents, never picked for you.
    */
-  const joiningCouples = (gid: string): JoiningCouple[] => {
+  const joiningCouples = (gid: string): ParentPair[] => {
     const dead = (id: string) => wb.byid[id]?.state === DECEASED_STATE;
-    const out: JoiningCouple[] = [];
+    const out: ParentPair[] = [];
     for (const e of wb.edges) {
       if (!isOngoingCouple(e, wb.edges) || endedByPassing(e, dead)) continue;
       const a = wb.byid[e.a];
@@ -1731,11 +1733,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     const r = svgRef.current?.getBoundingClientRect();
     wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
   };
-  /** An unnamed planned child's parents, for its card. */
+  /** An unnamed planned child's parents or adopters, for its card; "Parents not on the board" for one planned with none. */
   const plannedParentsOf = (id: string) => {
     const list = (wb.plannedParents.get(id) ?? []).map((p) => wb.byid[p]).filter((p): p is SimNode => !!p);
-    if (!list.length) return undefined;
-    return { lines: parentsLines(list), title: `Child of ${list.map(cardName).join(' and ')}` };
+    const adopted = wb.plannedAdoptedIds.has(id);
+    return plannedChildLines(list, adopted, adopted || wb.plannedChildIds.has(id));
   };
   /** "no heir" when the sim's dynasty is at risk; nothing for the deceased or one planned to leave it. */
   const dynastyRiskOf = (n: SimNode) => simDynastyRisk(n, wb.dynastyRisks);
@@ -2102,7 +2104,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 notYet={
                   isPlannedSim(n) ? notYetText(wb.plannedChildIds.has(n.id)) : undefined
                 }
-                plannedMoveIn={isPlannedSim(n) && !wb.plannedChildIds.has(n.id)}
+                plannedMoveIn={isPlannedSim(n) && !wb.plannedChildIds.has(n.id) && !wb.plannedAdoptedIds.has(n.id)}
                 parents={n.first.trim() ? undefined : plannedParentsOf(n.id)}
                 dynastyTag={n.dynasty ? wb.dynastyNames.get(dynastyKey(n) ?? '')?.tag : undefined}
                 dynastyRisk={dynastyRiskOf(n)}
@@ -2504,12 +2506,25 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           kinds={wb.petKinds}
           {...(wb.addMenu.gid
             ? {
-                couples: joiningCouples(wb.addMenu.gid),
-                onBaby: (c: JoiningCouple) => {
-                  const at = wb.addMenu!;
-                  wb.setAddMenu(null);
-                  // As a couple's ＋: it asks the last name, and the home when they live apart.
-                  wb.requestInfantOfCouple(c.a, c.b, 0, 0, at.x, at.y);
+                child: {
+                  household: householdParents(wb.nodes, wb.addMenu.gid, wb.plannedChildIds),
+                  members: wb.nodes.filter((n) => n.gid === wb.addMenu!.gid),
+                  home: hhOf(wb.addMenu.gid),
+                  hh: wb.groups.find((g) => g.gid === wb.addMenu!.gid)?.hh ?? '',
+                  nodes: wb.nodes,
+                  unborn: wb.plannedChildIds,
+                  pairs: joiningCouples(wb.addMenu.gid),
+                  cards: { dynasties: wb.dynastyNames, risks: wb.dynastyRisks },
+                  onAdd: (choice) => {
+                    const gid = wb.addMenu!.gid!;
+                    wb.setAddMenu(null);
+                    wb.addChildToHousehold(gid, choice);
+                  },
+                  onAdoptExisting: (adopters) => {
+                    const at = wb.addMenu!;
+                    wb.setAddMenu(null);
+                    wb.openChildMenu(adopters, at.x, at.y, undefined, 'adopt');
+                  },
                 },
               }
             : {})}

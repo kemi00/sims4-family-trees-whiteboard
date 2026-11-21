@@ -70,6 +70,13 @@ export interface SimNode {
    */
   planNo?: number;
   /**
+   * How a planned child joins, when chosen from a household's ＋ ("A
+   * child"): born, or adopted. Their parents are links, if any; this says
+   * a child with none is still a child (Not born yet, Parents not on the
+   * board), not a sim moving in.
+   */
+  arrives?: 'born' | 'adopted';
+  /**
    * What this card was while planned, before a sim from the save filled it:
    * the editor's "Planned as Heir 1", and what Unlink restores.
    */
@@ -156,6 +163,8 @@ export interface PlannedAs {
   planLabel?: string;
   /** Its number among planned sims of its surname, to restore on Unlink. */
   planNo?: number;
+  /** How it was planned to join (born or adopted), to restore on Unlink. */
+  arrives?: 'born' | 'adopted';
   /** Its household box, to return to on Unlink. */
   gid: string;
   hh: string;

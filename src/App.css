@@ -1281,6 +1281,22 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu .addmenu__go:hover{background:var(--accent-strong);color:#fff}
 /* Where they'll live (WherePicker): the world in view's homes and lots, search, and Not decided yet. */
 .addmenu__who{margin:-2px 2px 8px;font-size:11.5px;color:var(--ink-2)}
+.cmenu__warn{font-size:11px;font-weight:400;color:var(--warn)}
+/* A child from a household's ＋ (NewChildForm): parents ticked on the shared sim card, up to two. */
+.childform__pairs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 2px 6px;font-size:11px;color:var(--ink-3)}
+.menu .childform__pair{display:inline-flex;width:auto;margin:0;padding:3px 9px;border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);color:var(--ink-2);font-size:11px;font-weight:600}
+.menu .childform__pair:hover{background:var(--hover);color:var(--ink)}
+.menu .childform__pair[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-strong)}
+.simcards .simcard.simcard--pick{position:relative;padding-right:32px}
+.simcards .simcard.simcard--pick::after{content:'';position:absolute;right:9px;top:50%;box-sizing:border-box;width:16px;height:16px;margin-top:-8px;border:1.5px solid var(--rule);border-radius:50%;background:#fff}
+.simcards .simcard.simcard--pick[aria-pressed=true]{background:var(--simcard-hover);border-color:var(--simcard-hover-line)}
+.simcards .simcard.simcard--pick[aria-pressed=true]::after{content:'✓';border-color:var(--accent);background:var(--accent);color:#fff;font-size:10px;font-weight:800;line-height:13px;text-align:center}
+.simcards .simcard.simcard--pick:disabled{opacity:.5;cursor:not-allowed}
+.simcards .simcard.simcard--pick:disabled:hover{background:#fff;border-color:var(--simcard-line)}
+.childform__find{margin:6px 0 2px}
+.childform__ask{margin:2px 2px 4px;font-size:11px;font-weight:600;color:var(--warn)}
+.childform__or{margin:10px 2px 2px;font-size:11px;font-weight:700;color:var(--ink-3)}
+.childform__after{margin:6px 2px 0}
 .where__head{margin:10px 2px 4px;font-size:11px;font-weight:700;color:var(--ink-3)}
 .where__list{max-height:min(46vh,300px);overflow:auto;overscroll-behavior:contain;margin:6px -2px 0;padding:0 2px}
 .menu .where__row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:9px;width:100%;margin:4px 0;padding:7px 9px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;text-align:left;white-space:normal}

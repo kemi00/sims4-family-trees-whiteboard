@@ -8,12 +8,22 @@ import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 /** Life stages that can adopt, as in the game: young adults and older. */
 export const ADOPTER_AGES: readonly string[] = ['Young Adult', 'Adult', 'Elder'];
 
-/** Why `n` can't adopt, or null when they can. */
+/**
+ * Why `n` can't adopt on the board, or null when they can. A teen can, as a
+ * plan (a mod allows it): adoptWarning says the game doesn't. Pets, the
+ * deceased, the young and anyone with no life stage yet can't.
+ */
 export function whyCantAdopt(n: SimNode): string | null {
   if (n.species) return 'Pets don’t adopt.';
   if (n.state === DECEASED_STATE) return 'The deceased don’t adopt.';
-  if (!ADOPTER_AGES.includes(n.age)) return 'Only young adults and older can adopt.';
-  return null;
+  if (n.age === 'Teen' || ADOPTER_AGES.includes(n.age)) return null;
+  if (['Infant', 'Toddler', 'Child'].includes(n.age)) return 'Infants, toddlers and children don’t adopt.';
+  return 'Choose their life stage first: adopting takes a teen or older.';
+}
+
+/** What the game says against `n` adopting, though the board lets them: a teen. */
+export function adoptWarning(n: SimNode): string | null {
+  return n.age === 'Teen' ? 'the game lets young adults and older adopt' : null;
 }
 
 /** A sim the adoption picker lists. */

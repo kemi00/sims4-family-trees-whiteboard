@@ -8,9 +8,7 @@ import { CaretLeft } from '../icons.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import type { HomeChoice, HomePlace } from '../lib/whereTheyLive.ts';
 import { WherePicker } from './WherePicker.tsx';
-
-/** A couple whose baby can join: its two sims and how the menu names them. */
-export type JoiningCouple = { a: string; b: string; names: string };
+import { NewChildForm, type NewChildProps } from './NewChildForm.tsx';
 
 /** A sim moving in, as the menu asks for them: a life stage, and a gender or none decided. */
 export type NewSimChoice = { age: string; gender: string };
@@ -22,10 +20,8 @@ type Props = {
   title: string;
   /** The pets your packs allow (petKindsAvailable). */
   kinds: readonly PetKind[];
-  /** Couples a baby could be planned for, from a household's ＋; none from the bar. */
-  couples?: readonly JoiningCouple[];
-  /** A planned baby of a couple. */
-  onBaby?: (couple: JoiningCouple) => void;
+  /** From a household's ＋: "A child", born or adopted, its parents chosen (none from the bar). */
+  child?: NewChildProps;
   /** A planned sim, at the life stage and gender chosen; from the bar, where they live too. */
   onSim: (choice: NewSimChoice, to?: HomeChoice) => void;
   /** A pet of that species; from the bar, where it lives too. */
@@ -39,18 +35,18 @@ const GENDER_CHOICES = [...NEW_SIM_GENDERS, GENDER_NOT_KNOWN] as const;
 const genderLabel = (g: string) => (g === GENDER_NOT_KNOWN ? 'Not decided' : g);
 
 /**
- * Who joins, from a household's ＋ or the bar's Add: a baby of a couple
- * there (which asks its last name and home as a couple's ＋ does), a sim
- * moving in, or a pet your packs allow. A sim moving in asks their life
- * stage and gender first, with Young Adult and Not decided picked: the
- * board guesses neither. Every one is planned, named "Planned" and their
- * last name until you name them.
+ * Who joins, from a household's ＋ or the bar's Add: a child there, born
+ * or adopted, whose parents you choose (NewChildForm: two, one or none,
+ * never guessed from a romance), a sim moving in, or a pet your packs
+ * allow. A sim moving in asks their life stage and gender first, with
+ * Young Adult and Not decided picked: the board guesses neither. Every one
+ * is planned, named "Planned" and their last name until you name them.
  */
-export function AddKindMenu({ x, y, title, kinds, couples = [], onBaby, onSim, onPet, where, onClose }: Props) {
+export function AddKindMenu({ x, y, title, kinds, child, onSim, onPet, where, onClose }: Props) {
   const { compact, ref, style } = useFitMenuInStage(x, y);
   // The bar's Add button toggles the menu itself.
   useLightDismiss(ref, onClose, { keep: '#btnAdd' });
-  const [step, setStep] = useState<'pick' | 'sim' | 'where'>('pick');
+  const [step, setStep] = useState<'pick' | 'sim' | 'child' | 'where'>('pick');
   /** Who they are, kept while the bar's Add asks where they live. */
   const [who, setWho] = useState<{ sim: NewSimChoice } | { species: string } | null>(null);
   const [age, setAge] = useState<string>('Young Adult');
@@ -60,8 +56,8 @@ export function AddKindMenu({ x, y, title, kinds, couples = [], onBaby, onSim, o
   const id = useId();
   useEffect(() => {
     // A frame later: the menu is hidden while it measures where it fits.
-    // The where step focuses its own search.
-    if (step === 'where') return;
+    // The where and child steps focus their own first control.
+    if (step === 'where' || step === 'child') return;
     const f = requestAnimationFrame(() => (step === 'sim' ? addRef.current : firstRef.current)?.focus());
     return () => cancelAnimationFrame(f);
   }, [step]);
@@ -69,17 +65,17 @@ export function AddKindMenu({ x, y, title, kinds, couples = [], onBaby, onSim, o
     if (e.key !== 'Escape') return;
     e.stopPropagation();
     if (step === 'where') setStep(who && 'sim' in who ? 'sim' : 'pick');
-    else if (step === 'sim') setStep('pick');
+    else if (step === 'sim' || step === 'child') setStep('pick');
     else onClose();
   };
-  const fromHousehold = !!onBaby;
+  const fromHousehold = !!child;
   return (
     <div
       ref={ref}
       id="menu"
       className={compact ? 'menu menu--sheet pmenu' : 'menu pmenu'}
       role="dialog"
-      aria-label={step === 'where' ? 'Where will they live?' : step === 'sim' ? 'A sim moving in' : title}
+      aria-label={step === 'where' ? 'Where will they live?' : step === 'sim' ? 'A sim moving in' : step === 'child' ? 'A child' : title}
       style={style}
       onKeyDown={close}
       onPointerDown={(e) => e.stopPropagation()}
@@ -90,10 +86,10 @@ export function AddKindMenu({ x, y, title, kinds, couples = [], onBaby, onSim, o
             <CaretLeft aria-hidden="true" weight="bold" />
             <b>Where will they live?</b>
           </button>
-        ) : step === 'sim' ? (
+        ) : step === 'sim' || step === 'child' ? (
           <button type="button" className="pmenu__back" onClick={() => setStep('pick')}>
             <CaretLeft aria-hidden="true" weight="bold" />
-            <b>{fromHousehold ? 'A sim moving in' : 'A sim'}</b>
+            <b>{step === 'child' ? 'A child' : fromHousehold ? 'A sim moving in' : 'A sim'}</b>
           </button>
         ) : (
           <b>{title}</b>
@@ -102,15 +98,14 @@ export function AddKindMenu({ x, y, title, kinds, couples = [], onBaby, onSim, o
       </div>
       {step === 'pick' ? (
         <>
-          {onBaby &&
-            couples.map((c, i) => (
-              <button key={`${c.a}|${c.b}`} ref={i === 0 ? firstRef : undefined} type="button" className="cmenu__pick" onClick={() => onBaby(c)}>
-                <span className="cmenu__title">A baby</span>
-                <span className="cmenu__sub">{c.names}, not born yet</span>
-              </button>
-            ))}
+          {child && (
+            <button ref={firstRef} type="button" className="cmenu__pick" onClick={() => setStep('child')}>
+              <span className="cmenu__title">A child</span>
+              <span className="cmenu__sub">Born or adopted; you choose the parents, if any</span>
+            </button>
+          )}
           <button
-            ref={onBaby && couples.length ? undefined : firstRef}
+            ref={child ? undefined : firstRef}
             type="button"
             className="cmenu__pick"
             onClick={() => setStep('sim')}
@@ -136,6 +131,8 @@ export function AddKindMenu({ x, y, title, kinds, couples = [], onBaby, onSim, o
             </button>
           ))}
         </>
+      ) : step === 'child' && child ? (
+        <NewChildForm {...child} />
       ) : step === 'where' && where && who ? (
         <>
           <p className="addmenu__who">
