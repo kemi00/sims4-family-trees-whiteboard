@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "b231b5c",
+   "date": "2026-11-21",
+   "text": "Bloodline now reaches as far as you choose: a sim's Children, all their Descendants, or Ancestors too, picked on its banner. Its List goes generation by generation (Children, Grandchildren, Great-grandchildren), with \"Child of Tybalt\" on each card. Adopted children count, marked \"Adopted\", unless you untick \"Count adopted children\". A sim's Family tab shows their descendants, such as \"1 child, 2 grandchildren\", with Light up."
+  },
+  {
    "sha": "4858a01",
    "date": "2026-11-21",
    "text": "The ⚠ Needs a home box now stands out like the board's other warnings: an amber tag, an amber dashed edge and an amber \"Choose a home\" button. Its plan panel is titled \"⚠ Needs a home\" too, instead of \"(added)\"."
