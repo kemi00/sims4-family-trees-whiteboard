@@ -144,7 +144,8 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   content:attr(data-tooltip);
   position:absolute;
   left:50%;
-  transform:translateX(-50%);
+  /* Centred, then slid inside the window by --tip-shift (ToolButton's fitTip). */
+  transform:translateX(calc(-50% + var(--tip-shift, 0px)));
   z-index:40;
   width:max-content;
   padding:6px 10px;
@@ -167,20 +168,6 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   top:calc(100% + 8px);
   bottom:auto;
  }
- /* Everything past the spacer sits against the right edge, where a centred
-    tip has nowhere to go. Anchor those to the button's right edge instead so
-    they grow inwards. The first tool has the same problem on the left once
-    the brand name drops at narrower widths. */
- .appbar__spacer ~ * .tool[data-tooltip]::after{
-  left:auto;
-  right:0;
-  transform:none;
- }
- .appbar > .tool:first-of-type[data-tooltip]::after{
-  left:0;
-  right:auto;
-  transform:none;
- }
  .viewctl .tool[data-tooltip]::after,
  .viewctl__zoom[data-tooltip]::after{
   bottom:calc(100% + 8px);
@@ -197,7 +184,7 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   position:absolute;
   top:calc(100% + 8px);
   left:50%;
-  transform:translateX(-50%);
+  transform:translateX(calc(-50% + var(--tip-shift, 0px)));
   z-index:40;
   display:flex;
   flex-direction:column;
@@ -219,8 +206,6 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
   pointer-events:none;
   transition:opacity .12s ease;
  }
- .appbar__spacer ~ * .tool__tip{left:auto;right:0;transform:none}
- .appbar > .tool:first-of-type .tool__tip{left:0;right:auto;transform:none}
  .tool:hover .tool__tip,
  .tool:focus-visible .tool__tip{opacity:1}
  .tool__tip-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
@@ -744,6 +729,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 #status{position:absolute;left:calc((100% - var(--legend-inset,0px)) / 2);top:12px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;box-shadow:var(--lift);display:none;max-width:min(520px, calc(100% - 24px));text-align:center;line-height:1.35;z-index:8}
 /* Session cue sits with view controls (bottom-center), not on the legend. */
 #autosave-cue{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);right:auto;bottom:calc(12px + 40px + 8px);transform:translateX(-50%);z-index:6;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 8px;max-width:min(420px, calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px));padding:5px 10px;border:1px solid var(--line);border-radius:var(--r-control);background:var(--chrome);color:var(--ink-2);font-size:11px;font-weight:600;letter-spacing:.02em;box-shadow:var(--lift);user-select:none;text-align:center}
+.autosave-cue__group{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 8px}
 .autosave-cue__label{color:var(--ink-2);pointer-events:none}
 .autosave-cue__sep{color:var(--ink-3);font-weight:500;pointer-events:none}
 .autosave-cue__file{max-width:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink);pointer-events:none}
@@ -2035,6 +2021,18 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
    Phones keep the narrow cue (it sits beside the minimap) and reach the save
    from More instead. */
 @media (min-width:641px){ #autosave-cue{width:max-content;max-width:min(560px, calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px))} }
+/* Too narrow a gap between the minimap and the corner (the Key open in a
+   small window): the zoom bar, status line and selection bar rise above the
+   minimap, in a column beside the tips button, at their own width, and stay
+   put as the Key opens and closes (data-dock, set by Legend). */
+#stage[data-dock=above]{--dock-x:calc(12px + 34px + 8px);--dock-w:calc(100% - var(--legend-inset,0px) - 66px);--dock-up:calc(var(--minimap-h) + 8px)}
+#stage[data-dock=above] .viewctl{left:var(--dock-x);transform:none;bottom:calc(12px + var(--dock-up))}
+#stage[data-dock=above] #autosave-cue{left:var(--dock-x);transform:none;bottom:calc(12px + 40px + 8px + var(--dock-up));max-width:var(--dock-w);flex-direction:column;align-items:flex-start;text-align:left}
+/* Stacked, its halves are a line each, with no dot left at a line's end. */
+#stage[data-dock=above] #autosave-cue .autosave-cue__sep--group{display:none}
+#stage[data-dock=above] .autosave-cue__group{justify-content:flex-start}
+#stage[data-dock=above] .selbar{left:var(--dock-x);transform:none;bottom:calc(12px + 40px + 8px + 28px + 8px + var(--dock-up));width:min(440px, var(--dock-w))}
+#stage[data-dock=above] .lookback{left:var(--dock-x);transform:none;bottom:calc(64px + var(--dock-up));width:min(520px, var(--dock-w))}
 @media (max-width:640px){ #autosave-cue .savestatus,#autosave-cue .savestatus-sep{display:none} }
 .savestatus{position:relative;display:inline-flex}
 .savestatus__btn{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;margin:-2px -2px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--ink);font:inherit;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}

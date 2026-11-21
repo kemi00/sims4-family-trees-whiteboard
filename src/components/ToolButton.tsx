@@ -33,6 +33,27 @@ type Props = {
   onClick?: () => void;
 };
 
+/** The window edge a tip keeps clear of. */
+const TIP_MARGIN = 8;
+
+/**
+ * Keeps a button's tip inside the window: centred under the button, then
+ * slid along (--tip-shift) by as much as it would stick out past an edge,
+ * wherever the button sits in the bar and however long its tip is.
+ */
+function fitTip(btn: HTMLElement) {
+  btn.style.removeProperty('--tip-shift');
+  const rich = btn.querySelector<HTMLElement>('.tool__tip');
+  const w = rich ? rich.offsetWidth : parseFloat(getComputedStyle(btn, '::after').width);
+  if (!w) return;
+  const r = btn.getBoundingClientRect();
+  const left = r.left + r.width / 2 - w / 2;
+  const right = left + w;
+  const edge = document.documentElement.clientWidth - TIP_MARGIN;
+  const shift = left < TIP_MARGIN ? TIP_MARGIN - left : right > edge ? edge - right : 0;
+  if (shift) btn.style.setProperty('--tip-shift', `${Math.round(shift)}px`);
+}
+
 export function ToolButton({
   icon: Glyph,
   label,
@@ -71,7 +92,13 @@ export function ToolButton({
         if (e.detail > 0) setQuiet(true);
         onClick?.();
       }}
-      onPointerEnter={() => setQuiet(false)}
+      onPointerEnter={(e) => {
+        setQuiet(false);
+        // After the tip renders: a rich tip mounts once the button isn't quiet.
+        const btn = e.currentTarget;
+        requestAnimationFrame(() => fitTip(btn));
+      }}
+      onFocus={(e) => fitTip(e.currentTarget)}
       onPointerLeave={() => setQuiet(false)}
     >
       <Glyph aria-hidden="true" />

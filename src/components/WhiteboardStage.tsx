@@ -2259,38 +2259,41 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
         />
       )}
       <div id="autosave-cue">
-        <span className="autosave-cue__label">
-          {wb.staleTab ? 'Autosave paused' : 'Autosave on'}
+        {/* Two halves, the board's and the save's: stacked above the minimap (data-dock), each is a line. */}
+        <span className="autosave-cue__group">
+          <span className="autosave-cue__label">
+            {wb.staleTab ? 'Autosave paused' : 'Autosave on'}
+          </span>
+          <span className="autosave-cue__sep" aria-hidden="true">
+            ·
+          </span>
+          <span
+            className={
+              wb.sourceFileName
+                ? 'autosave-cue__file'
+                : 'autosave-cue__file autosave-cue__file--muted'
+            }
+            title={wb.boardSourceLabel}
+          >
+            {wb.boardSourceLabel}
+          </span>
         </span>
-        <span className="autosave-cue__sep" aria-hidden="true">
-          ·
-        </span>
-        <span
-          className={
-            wb.sourceFileName
-              ? 'autosave-cue__file'
-              : 'autosave-cue__file autosave-cue__file--muted'
-          }
-          title={wb.boardSourceLabel}
-        >
-          {wb.boardSourceLabel}
-        </span>
-        {!wb.saveGame && onOpenSave && (
-          <>
-            <span className="autosave-cue__sep" aria-hidden="true">
-              ·
-            </span>
-            {/* The step that makes the board theirs, in reach until a save is on it. */}
+        {(wb.saveGame || onOpenSave) && (
+          <span
+            className={wb.saveGame ? 'autosave-cue__sep autosave-cue__sep--group savestatus-sep' : 'autosave-cue__sep autosave-cue__sep--group'}
+            aria-hidden="true"
+          >
+            ·
+          </span>
+        )}
+        <span className="autosave-cue__group">
+          {!wb.saveGame && onOpenSave && (
+            // The step that makes the board theirs, in reach until a save is on it.
             <button type="button" className="autosave-cue__open" onClick={onOpenSave}>
               Upload your save
             </button>
-          </>
-        )}
-        {wb.saveGame && (
-          <>
-            <span className="autosave-cue__sep savestatus-sep" aria-hidden="true">
-              ·
-            </span>
+          )}
+          {wb.saveGame && (
             <SaveStatus
               game={wb.saveGame}
               limit={wb.householdLimit}
@@ -2301,8 +2304,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 wb.setChronicleView({ label: 'your board', ids: null });
               }}
             />
-          </>
-        )}
+          )}
         <button
           type="button"
           className="autosave-cue__reset"
@@ -2327,6 +2329,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
         >
           Reset the board
         </button>
+        </span>
       </div>
       {/* One banner at a time; a stale tab matters more than the bloodline view. */}
       {wb.staleTab ? (
