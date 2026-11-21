@@ -1,4 +1,5 @@
 import { removalLabel, simLinkRows } from '../lib/simLinks.ts';
+import { needsHome } from '../lib/whereTheyLive.ts';
 import { CloseButton, IconButton } from './CloseButton.tsx';
 import { lifeStatesOffered, packIconUrl, ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import { PET_AGES, PET_GENDERS, PET_KINDS, petAgeLabel, petPack, type PetKind } from '../lib/pets.ts';
@@ -1295,7 +1296,7 @@ export function SimEditor({
           )}
           {n.hh && !isUnhousedGid(n.gid) && (
             <button type="button" className="edlink edlink--plan" onClick={onOpenPlan}>
-              See the {n.hh} household’s plan
+              {needsHome(n.gid) ? 'See the plan for the sims who need a home' : `See the ${n.hh} household’s plan`}
             </button>
           )}
           {planned && (

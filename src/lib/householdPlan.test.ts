@@ -457,6 +457,8 @@ describe('household moves', () => {
     assert.deepEqual([...householdsNotInGame(nodes, done)], []);
     // A household everyone left on the board is still named from its key.
     assert.equal(householdName('W||Bjergsen', [], nodes), 'the Bjergsen household');
+    // The Needs a home box is no household.
+    assert.equal(householdName('W||(added)', [], nodes), 'the sims who need a home');
   });
 });
 

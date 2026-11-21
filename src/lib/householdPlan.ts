@@ -547,6 +547,8 @@ export function unblockedBy(items: PlanItem[], gid: string): PlanItem[] {
 export function householdName(gid: string, groups: Group[], nodes: SimNode[]): string {
   const hh = groups.find((g) => g.gid === gid)?.hh ?? nodes.find((n) => n.gid === gid)?.hh ?? gid.split('||')[1] ?? '';
   if (isUnhousedGid(gid)) return 'the unhoused sims';
+  // The board's box for sims with no home yet is no household: "the (added) household" said nothing.
+  if (gid.endsWith(`||${ADDED_HOUSEHOLD}`)) return 'the sims who need a home';
   return hh ? theHousehold(hh) : 'their household';
 }
 

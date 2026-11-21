@@ -12,6 +12,8 @@ import { windowText, type PlanWindow } from '../lib/matchClock.ts';
 import type { Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 import { WorldMoveForm } from './WorldMoveForm.tsx';
 import { BookOpenText, ImageSquare } from '../icons.ts';
+import { NEEDS_HOME_LABEL } from '../lib/constants.ts';
+import { needsHome } from '../lib/whereTheyLive.ts';
 
 type Props = {
   group: Group;
@@ -100,6 +102,9 @@ export function HouseholdBrief({
   useLightDismiss(ref, onClose, { keep: '.menu' });
   const [moveOpen, setMoveOpen] = useState(false);
   const place = [lot, livingPlace(group.nb, group.world)].filter(Boolean).join(', ');
+  /** The board's box for sims with no home yet: titled for what it waits on, in the ⚠ chips' amber. */
+  const homeless = needsHome(group.gid);
+  const whose = homeless ? 'the sims who need a home' : `the ${group.hh} household`;
   const hover = (ids: string[]) => ({
     onMouseEnter: () => onHover(ids),
     onMouseLeave: () => onHover(null),
@@ -127,18 +132,18 @@ export function HouseholdBrief({
       ref={ref}
       className={sheet ? 'brief brief--sheet' : 'brief'}
       role="dialog"
-      aria-label={`The ${group.hh} household’s plan`}
+      aria-label={homeless ? 'The plan for the sims who need a home' : `The ${group.hh} household’s plan`}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <header className="brief__head">
-        <span className="brief__dot" style={{ background: group.color }} aria-hidden />
+        <span className="brief__dot" style={{ background: homeless ? 'var(--warn-strong)' : group.color }} aria-hidden />
         <div className="brief__title">
-          <b>{group.hh}</b>
+          <b className={homeless ? 'brief__warn' : undefined}>{homeless ? NEEDS_HOME_LABEL : group.hh}</b>
           {place && <span>{place}</span>}
         </div>
         {onStory && (
           <IconButton
-            label={`The story of the ${group.hh} household`}
+            label={`The story of ${whose}`}
             title="Story: what happened to this household in your saves"
             onClick={onStory}
           >
@@ -147,7 +152,7 @@ export function HouseholdBrief({
         )}
         {onPoster && (
           <IconButton
-            label={`Make a poster of the ${group.hh} household`}
+            label={`Make a poster of ${whose}`}
             title="Poster: a picture of this household to keep or share"
             onClick={onPoster}
           >

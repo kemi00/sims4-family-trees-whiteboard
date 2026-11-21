@@ -67,6 +67,9 @@ const BADGE = {
   waiting: { fill: '#ffffff', stroke: '#aeb9c7', text: '#5a6675' },
 } as const;
 
+/** A Needs a home box's edge and grip: the ⚠ chips' amber, a little soft. */
+const WARN = { edge: '#b45309aa' } as const;
+
 export const GroupLayer = memo(function GroupLayer({
   groups,
   nodes,
@@ -160,10 +163,12 @@ export const GroupLayer = memo(function GroupLayer({
                 width={boxR - boxL}
                 height={boxB - boxT}
                 rx={14}
-                fill={selected ? '#1b6cd622' : g0.color + (unhoused ? '08' : '12')}
-                stroke={selected ? '#1b6cd6' : g0.color + (unhoused ? '88' : '55')}
-                strokeWidth={selected ? 3 : unhoused ? 2 : 1.5}
-                strokeDasharray={selected ? undefined : unhoused ? '0.1 7' : '2 4'}
+                // Needs a home: an amber dashed edge, as a ⚠ chip is amber, so the
+                // decision still to make shows from afar.
+                fill={selected ? '#1b6cd622' : g0.color + (unhoused ? '08' : homeless ? '0a' : '12')}
+                stroke={selected ? '#1b6cd6' : homeless ? WARN.edge : g0.color + (unhoused ? '88' : '55')}
+                strokeWidth={selected ? 3 : unhoused || homeless ? 2 : 1.5}
+                strokeDasharray={selected ? undefined : unhoused ? '0.1 7' : homeless ? '7 5' : '2 4'}
                 strokeLinecap={unhoused && !selected ? 'round' : undefined}
                 vectorEffect={selected ? 'non-scaling-stroke' : undefined}
                 style={{ pointerEvents: 'none' }}
@@ -246,9 +251,9 @@ export const GroupLayer = memo(function GroupLayer({
                 width={labelW}
                 height={pillH}
                 rx={8}
-                fill={selected ? '#1b6cd6' : unhoused ? '#fbfcfe' : g0.color + '22'}
-                stroke={selected ? '#ffffff' : g0.color + (unhoused ? 'aa' : '55')}
-                strokeWidth={selected ? 2 : unhoused ? 1.5 : 1}
+                fill={selected ? '#1b6cd6' : homeless ? BADGE.offPlan.fill : unhoused ? '#fbfcfe' : g0.color + '22'}
+                stroke={selected ? '#ffffff' : homeless ? BADGE.offPlan.stroke : g0.color + (unhoused ? 'aa' : '55')}
+                strokeWidth={selected ? 2 : unhoused || homeless ? 1.5 : 1}
                 strokeDasharray={unhoused && !selected ? '4 3' : undefined}
                 vectorEffect={selected ? 'non-scaling-stroke' : undefined}
               />
@@ -282,7 +287,7 @@ export const GroupLayer = memo(function GroupLayer({
                       y={textY(headerY)}
                       dominantBaseline="middle"
                       fontSize={12}
-                      fill={selected ? '#ffffffbb' : g0.color + '99'}
+                      fill={selected ? '#ffffffbb' : homeless ? WARN.edge : g0.color + '99'}
                     >
                       ⠿
                     </text>
@@ -300,7 +305,7 @@ export const GroupLayer = memo(function GroupLayer({
                     dominantBaseline="middle"
                     fontSize={12}
                     fontWeight={700}
-                    fill={selected ? '#fff' : g0.color}
+                    fill={selected ? '#fff' : homeless ? BADGE.offPlan.text : g0.color}
                   >
                     {label}
                   </text>
@@ -353,7 +358,7 @@ export const GroupLayer = memo(function GroupLayer({
                 onClick={(ev) => onChooseHome(g0.gid, ev)}
                 data-tip="Choose a household, a free lot or a world for them"
               >
-                <rect x={addX} y={ageY} width={chooseW} height={pillH} rx={8} fill="#fff" stroke={g0.color} strokeWidth={1.5} />
+                <rect x={addX} y={ageY} width={chooseW} height={pillH} rx={8} fill={BADGE.closing.fill} stroke={BADGE.closing.stroke} strokeWidth={1.5} />
                 <text
                   x={addX + chooseW / 2}
                   y={textY(ageY)}
@@ -361,7 +366,7 @@ export const GroupLayer = memo(function GroupLayer({
                   fontSize={12}
                   fontWeight={700}
                   textAnchor="middle"
-                  fill={g0.color}
+                  fill={BADGE.closing.text}
                 >
                   Choose a home
                 </text>
