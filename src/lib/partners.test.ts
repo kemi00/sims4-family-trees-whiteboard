@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode, SimLife } from '../types/whiteboard.ts';
-import { bloodRelatives, gapText, livesApart, moveInChoices, partnerCandidates, partnerSearch } from './partners.ts';
+import { bloodRelatives, coupleLine, couplesNow, filterPartners, gapText, livesApart, moveInChoices, partnerCandidates, partnerCounts, partnerOptions, partnerSearch, partnerWorlds } from './partners.ts';
 import { NOT_IN_WORLD } from './constants.ts';
 import { unhousedGid } from './unhoused.ts';
 
@@ -160,5 +160,55 @@ describe('a couple who live apart', () => {
       ['away>glen'],
     );
     assert.deepEqual(moveInChoices(iris, flora), []);
+  });
+});
+
+describe('the ♥ finder', () => {
+  const ya = (id: string, extra: Partial<SimNode> = {}) => sim(id, 'Young Adult', { life: life('Young Adult', 3), world: 'Oasis Springs', gid: `Oasis Springs||${id}`, ...extra });
+  const nodes = [
+    ya('Johnny', { gender: 'Male' }),
+    ya('Bob', { gender: 'Male', world: 'Willow Creek', gid: 'Willow Creek||Pancakes' }),
+    ya('Eliza', { world: 'Willow Creek', gid: 'Willow Creek||Pancakes' }),
+    ya('Cordelia', { world: 'Ondarion', gid: 'Ondarion||Thebe' }),
+    ya('Fia', { world: NOT_IN_WORLD, gid: `${NOT_IN_WORLD}||Acosta` }),
+    ya('Thiago', { gender: 'Male', world: 'Ondarion', gid: 'Ondarion||Thebe' }),
+    ya('Dina'),
+    ya('Siobhan', { world: 'Willow Creek', gid: 'Willow Creek||Fyres' }),
+    ya('Sergio', { gender: 'Male', world: 'Willow Creek', gid: 'Willow Creek||Bro' }),
+  ];
+  const edges: Edge[] = [
+    { id: 'm1', a: 'Bob', b: 'Eliza', type: 'marriage', source: 'save' },
+    { id: 'm2', a: 'Cordelia', b: 'Thiago', type: 'marriage', source: 'save' },
+    { id: 's', a: 'Cordelia', b: 'Fia', type: 'romance', source: 'save', secret: true },
+    { id: 'r', a: 'Siobhan', b: 'Sergio', type: 'romance', source: 'planned' },
+  ];
+
+  it('lists married sims too, each saying who they are with, by name', () => {
+    const list = partnerOptions({ id: 'Johnny', nodes, edges });
+    assert.equal(list.length, 8);
+    const couples = couplesNow(nodes, edges);
+    const line = (id: string) => coupleLine(couples.get(id), (x) => x);
+    assert.equal(line('Bob'), 'Married to Eliza');
+    assert.equal(line('Cordelia'), 'Married to Thiago · secret romance with Fia');
+    assert.equal(line('Fia'), 'Secret romance with Cordelia');
+    assert.equal(line('Siobhan'), 'In a romance with Sergio (planned)');
+    assert.equal(line('Dina'), '');
+    assert.equal(coupleLine([
+      { type: 'romance', secret: false, with: 'A', planned: false },
+      { type: 'romance', secret: false, with: 'B', planned: false },
+      { type: 'romance', secret: false, with: 'C', planned: false },
+    ], (x) => x), 'In a romance with A, B and C');
+  });
+
+  it('filters by relationship and world, counting each menu with the other filters on', () => {
+    const list = partnerOptions({ id: 'Johnny', nodes, edges });
+    const any = { stage: 'Young Adult', gender: '', relation: '' as const, world: '', housedOnly: false };
+    assert.deepEqual(Object.fromEntries(partnerCounts(list, any, 'relation')), { married: 4, romance: 3, single: 1 });
+    assert.deepEqual(filterPartners(list, { ...any, relation: 'single' }).map((o) => o.id), ['Dina']);
+    // No home hides Fia, and her romance with her.
+    assert.deepEqual(Object.fromEntries(partnerCounts(list, { ...any, housedOnly: true }, 'relation')), { married: 4, romance: 2, single: 1 });
+    const worlds = partnerCounts(list, any, 'world');
+    assert.deepEqual(partnerWorlds(worlds, 'Oasis Springs', ''), ['Oasis Springs', 'Ondarion', 'Willow Creek', NOT_IN_WORLD]);
+    assert.deepEqual(partnerWorlds(partnerCounts(list, { ...any, relation: 'single' }, 'world'), 'Oasis Springs', 'Ondarion'), ['Oasis Springs', 'Ondarion']);
   });
 });

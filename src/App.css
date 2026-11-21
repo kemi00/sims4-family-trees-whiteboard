@@ -946,7 +946,20 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor{position:fixed;background:#fff;border:1px solid #cdd3da;border-radius:var(--r-surface);box-shadow:0 8px 24px #0003;padding:6px;z-index:50;font-size:12px;display:none}
 .menu button:where(:not(.iconbtn)){display:block;width:100%;text-align:left;margin:2px 0;border:none;background:#f5f6f8;white-space:normal;line-height:1.3}
 /* ── partner menu (the ♥ on a card's side) ── */
-.menu.pmenu{width:300px;padding:10px}
+.menu.pmenu{width:330px;padding:10px}
+/* The ♥ finder's filters: Age and Gender, then Relationship and World (the wider), then no home. */
+.pmenu__filters{margin:7px 0 0;padding:0;border:none;min-width:0}
+.pmenu__filters:disabled{opacity:.45}
+.pmenu__row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pmenu__row + .pmenu__row{margin-top:6px}
+.pmenu__row--wide{grid-template-columns:minmax(140px,auto) 1fr}
+.pmenu__row select{min-width:0;width:100%;height:32px;box-sizing:border-box;padding:0 6px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:12px}
+.pmenu__row select:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.menu .pmenu__check{display:flex;align-items:center;gap:7px;margin:7px 2px 6px;padding:0;font-size:12px;font-weight:500;color:var(--ink-2);text-transform:none;letter-spacing:0;cursor:pointer}
+.pmenu__check input{margin:0;width:14px;height:14px}
+.menu .pmenu__more{display:inline-block;width:auto;margin:6px 2px 0;padding:0;border:none;background:none;color:var(--accent-strong);font-size:11.5px;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.menu .pmenu__more:hover{background:none;color:var(--accent)}
+@media (pointer:coarse){ .pmenu__row select{height:40px} }
 .pmenu__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;font-size:12.5px;color:var(--ink)}
 .pmenu__kinds{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:2px;margin:0 0 8px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip)}
 .menu .pmenu__kind{margin:0;padding:5px 8px;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11.5px;font-weight:600;text-align:center}
@@ -955,7 +968,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .pmenu__search,.slist__find{display:block;box-sizing:border-box;width:100%;height:32px;padding:0 10px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--ink);font:inherit;font-size:12.5px}
 .pmenu__search:focus,.slist__find:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
 .pmenu__label{min-height:4px;margin:6px 2px 2px;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-3)}
-.pmenu .pmenu__list{max-height:240px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.pmenu .pmenu__list{max-height:300px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
 .pmenu__empty{margin:4px 2px;color:var(--ink-2)}
 .pmenu__hint{margin:8px 2px 0;font-size:11px;color:var(--ink-3)}
 .pmenu__done{margin:0 0 6px;font-weight:600;color:var(--done)}

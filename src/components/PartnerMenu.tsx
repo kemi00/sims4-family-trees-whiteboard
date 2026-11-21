@@ -6,7 +6,21 @@ import { dynastyRiskMap } from '../lib/dynastyMenu.ts';
 import { SimCard } from './SimCard.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
-import { moveInChoices, partnerSearch } from '../lib/partners.ts';
+import {
+  coupleLine,
+  couplesNow,
+  filterPartners,
+  moveInChoices,
+  partnerBand,
+  partnerCounts,
+  partnerOptions,
+  partnerSearch,
+  partnerWorlds,
+  type PartnerFilters,
+  type PartnerRelation,
+} from '../lib/partners.ts';
+import { withoutSecretLinks } from '../lib/secrets.ts';
+import { NOT_IN_WORLD } from '../lib/constants.ts';
 import { MoveInAsk } from './MoveInAsk.tsx';
 import type { CoupleLots } from './MoveToLotForm.tsx';
 import { simCardClass } from '../lib/simCard.ts';
@@ -27,7 +41,44 @@ type Props = {
   /** Once picked, both can move onto a free lot instead (none when no world has one). */
   lots?: CoupleLots & { who: string };
   onClose: () => void;
+  /** Secrets hidden (Filters): a secret romance isn't named on a card. */
+  hideSecrets?: boolean;
+  /** Light these sims up on the board while their card is pointed at; null to stop. */
+  onHover?: (ids: string[] | null) => void;
 };
+
+/** Cards listed before "Show more". */
+const SHOWN = 6;
+
+const GENDERS = ['Female', 'Male', 'Non-Binary'] as const;
+
+/** A life stage as the Age menu says it: "Young adults". */
+const STAGE_PLURAL: Record<string, string> = {
+  Infant: 'Infants',
+  Toddler: 'Toddlers',
+  Child: 'Children',
+  Teen: 'Teens',
+  'Young Adult': 'Young adults',
+  Adult: 'Adults',
+  Elder: 'Elders',
+};
+
+const RELATIONS: { value: PartnerRelation; label: string }[] = [
+  { value: 'single', label: 'Single' },
+  { value: 'romance', label: 'In a romance' },
+  { value: 'married', label: 'Married' },
+];
+
+/** Where this browser remembers "Hide sims with no home", for every finder. */
+const HOUSED_ONLY_KEY = 'partners-housed-only';
+
+function readHousedOnly(): boolean {
+  try {
+    return localStorage.getItem(HOUSED_ONLY_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * The partner menu, from the ♥ on a card's side. Pick the link, then the
@@ -35,7 +86,7 @@ type Props = {
  * click them on the board. For a marriage or a romance, two who live apart
  * are then asked about one household (MoveInAsk), as Connect asks.
  */
-export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPick, onMove, lots, onClose }: Props) {
+export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPick, onMove, lots, onClose, hideSecrets, onHover }: Props) {
   const { compact, ref, style, sheet } = useFitMenuInStage(menu.x, menu.y, menu.picked ? {} : { keep: '.node' });
   // A sim's card is a pick: clicking one on the board makes them the partner.
   // Once picked, a press anywhere else keeps them apart and closes the menu.
@@ -48,10 +99,53 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
   const me = byid[menu.id];
   const picked = menu.picked ? byid[menu.picked] : undefined;
 
+  // The filters: each finder starts at their own life stage, any gender, anyone, any world.
+  const [stagePick, setStagePick] = useState<string | null>(null);
+  const [gender, setGender] = useState('');
+  const [relation, setRelation] = useState<'' | PartnerRelation>('');
+  const [world, setWorld] = useState('');
+  const [housedOnly, setHousedOnlyState] = useState(readHousedOnly);
+  const [all, setAll] = useState(false);
+  const setHousedOnly = (on: boolean) => {
+    setHousedOnlyState(on);
+    try {
+      localStorage.setItem(HOUSED_ONLY_KEY, on ? '1' : '0');
+    } catch {
+      // Private mode: forgotten when the page closes.
+    }
+  };
+  const options = useMemo(
+    () => (me ? partnerOptions({ id: me.id, nodes, edges, game: saveGame }) : []),
+    [me, nodes, edges, saveGame],
+  );
+  /** Who each sim is with, as the board shows it: with secrets hidden, a secret romance isn't there. */
+  const couples = useMemo(() => couplesNow(nodes, hideSecrets ? withoutSecretLinks(edges) : edges), [nodes, edges, hideSecrets]);
+  const band = me ? (partnerBand(me.age) ?? []) : [];
+  const base: PartnerFilters = { stage: '', gender, relation, world, housedOnly };
+  const stageCounts = partnerCounts(options, base, 'stage');
+  // Their own stage until another is picked, or the first with anyone in it.
+  const stage =
+    stagePick ?? (me && stageCounts.get(me.age) ? me.age : (band.find((st) => stageCounts.get(st)) ?? me?.age ?? ''));
+  const filters: PartnerFilters = { ...base, stage };
+  const relationCounts = partnerCounts(options, filters, 'relation');
+  const worldCounts = partnerCounts(options, filters, 'world');
+  const worlds = partnerWorlds(worldCounts, me?.world ?? '', world);
+  const listed = filterPartners(options, filters);
+  const searching = !!query.trim();
   const hits = useMemo(
-    () => (me ? partnerSearch({ id: me.id, nodes, edges, query, game: saveGame }) : []),
+    () => (me && query.trim() ? partnerSearch({ id: me.id, nodes, edges, query, game: saveGame }) : []),
     [me, nodes, edges, query, saveGame],
   );
+  /** What the list shows: every match for a name, else the filtered partners, the first few until Show more. */
+  const shown = searching
+    ? hits.map((h) => ({ id: h.id, candidate: h.candidate, related: h.related }))
+    : (all ? listed : listed.slice(0, SHOWN)).map((o) => ({ id: o.id, candidate: o.candidate, related: false }));
+  // Nothing stays lit once the menu closes (the latest onHover, not the first).
+  const hoverRef = useRef(onHover);
+  useEffect(() => {
+    hoverRef.current = onHover;
+  });
+  useEffect(() => () => hoverRef.current?.(null), []);
   const dynasties = useMemo(() => dynastyNames(nodes), [nodes]);
   const risks = useMemo(() => dynastyRiskMap(nodes), [nodes]);
   useEffect(() => {
@@ -98,8 +192,17 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
     );
   }
 
-  const hit = hits[Math.min(active, hits.length - 1)];
+  const hit = shown[Math.min(active, shown.length - 1)];
   const optionId = (id: string) => `${listId}-${id}`;
+  const nameOf = (id: string) => (byid[id] ? cardName(byid[id]!) : 'someone not on the board');
+  const anyone = [...relationCounts.values()].reduce((a, b) => a + b, 0);
+  const anyWorld = [...worldCounts.values()].reduce((a, b) => a + b, 0);
+  const own = me.world && me.world !== NOT_IN_WORLD && worldCounts.has(me.world) ? me.world : '';
+  const others = worlds.filter((w) => w !== own && w !== NOT_IN_WORLD);
+  const reset = () => {
+    setActive(0);
+    setAll(false);
+  };
   return (
     <div
       ref={ref}
@@ -134,11 +237,11 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
         className="pmenu__search"
         type="search"
         role="combobox"
-        aria-expanded={hits.length > 0}
+        aria-expanded={shown.length > 0}
         aria-controls={listId}
         aria-activedescendant={hit ? optionId(hit.id) : undefined}
         aria-label="Find a partner by name"
-        placeholder="Type a name…"
+        placeholder="Find by name"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -148,7 +251,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             const step = e.key === 'ArrowDown' ? 1 : -1;
-            setActive((i) => Math.max(0, Math.min(hits.length - 1, i + step)));
+            setActive((i) => Math.max(0, Math.min(shown.length - 1, i + step)));
           } else if (e.key === 'Enter' && hit && !e.nativeEvent.isComposing) {
             e.preventDefault();
             onPick(hit.id);
@@ -160,18 +263,94 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
           }
         }}
       />
-      <p className="pmenu__label">
-        {query.trim()
-          ? hits.length
-            ? `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`
-            : ''
-          : hits.length
-            ? 'Closest in life'
-            : ''}
-      </p>
-      {hits.length > 0 ? (
+      {/* The filters, in the order they narrow, each with how many it leaves. A name searched looks everywhere. */}
+      <fieldset className="pmenu__filters" disabled={searching} aria-label="Filters">
+        <div className="pmenu__row">
+          <select
+            aria-label="Life stage"
+            value={stage}
+            onChange={(e) => {
+              setStagePick(e.target.value);
+              reset();
+            }}
+          >
+            {band.map((st) => (
+              <option key={st} value={st}>{`${STAGE_PLURAL[st] ?? st} (${stageCounts.get(st) ?? 0})`}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Gender"
+            value={gender}
+            onChange={(e) => {
+              setGender(e.target.value);
+              reset();
+            }}
+          >
+            <option value="">Any gender</option>
+            {GENDERS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="pmenu__row pmenu__row--wide">
+          <select
+            aria-label="Relationship"
+            value={relation}
+            onChange={(e) => {
+              setRelation(e.target.value as '' | PartnerRelation);
+              reset();
+            }}
+          >
+            <option value="">{`Anyone (${anyone})`}</option>
+            {RELATIONS.map((r) => (
+              <option key={r.value} value={r.value}>{`${r.label} (${relationCounts.get(r.value) ?? 0})`}</option>
+            ))}
+          </select>
+          <select
+            aria-label="World"
+            value={world}
+            onChange={(e) => {
+              setWorld(e.target.value);
+              reset();
+            }}
+          >
+            <option value="">{`Any world (${anyWorld})`}</option>
+            {own && (
+              <optgroup label="Their world">
+                <option value={own}>{`${own} (${worldCounts.get(own) ?? 0})`}</option>
+              </optgroup>
+            )}
+            {others.length > 0 && (
+              <optgroup label="Other worlds">
+                {others.map((w) => (
+                  <option key={w} value={w}>{`${w} (${worldCounts.get(w) ?? 0})`}</option>
+                ))}
+              </optgroup>
+            )}
+            {worlds.includes(NOT_IN_WORLD) && (
+              <optgroup label="No home">
+                <option value={NOT_IN_WORLD}>{`${NOT_IN_WORLD} (${worldCounts.get(NOT_IN_WORLD) ?? 0})`}</option>
+              </optgroup>
+            )}
+          </select>
+        </div>
+        <label className="pmenu__check" title="Not in any world, and the Unhoused sims in each world">
+          <input
+            type="checkbox"
+            checked={housedOnly}
+            onChange={(e) => {
+              setHousedOnly(e.target.checked);
+              reset();
+            }}
+          />
+          <span>Hide sims with no home</span>
+        </label>
+      </fieldset>
+      {shown.length > 0 ? (
         <ul id={listId} className="simcards pmenu__list" role="listbox" aria-label="Partners">
-          {hits.map((h, i) => {
+          {shown.map((h, i) => {
             const p = byid[h.id];
             if (!p) return null;
             return (
@@ -180,10 +359,21 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
                   type="button"
                   tabIndex={-1}
                   className={simCardClass(p, i === active)}
-                  onMouseEnter={() => setActive(i)}
+                  onMouseEnter={() => {
+                    setActive(i);
+                    onHover?.([h.id]);
+                  }}
+                  onMouseLeave={() => onHover?.(null)}
                   onClick={() => onPick(h.id)}
                 >
-                  <SimCard sim={p} {...(h.candidate ? { candidate: h.candidate } : {})} dynasties={dynasties} risks={risks} related={h.related} married={h.married} />
+                  <SimCard
+                    sim={p}
+                    {...(h.candidate ? { candidate: h.candidate } : {})}
+                    dynasties={dynasties}
+                    risks={risks}
+                    related={h.related}
+                    couples={coupleLine(couples.get(h.id), nameOf)}
+                  />
                 </button>
               </li>
             );
@@ -191,10 +381,19 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
         </ul>
       ) : (
         <p className="pmenu__empty">
-          {query.trim() ? `No sim matches “${query.trim()}”.` : 'No one suggested: type a name.'}
+          {searching ? `No sim matches “${query.trim()}”.` : 'No one left with these filters: try another world or relationship.'}
         </p>
       )}
-      <p className="pmenu__hint">Or click them on the board.</p>
+      {!searching && listed.length > SHOWN && (
+        <button type="button" className="edlink pmenu__more" onClick={() => setAll(!all)}>
+          {all ? 'Show fewer' : `Show ${listed.length - SHOWN} more`}
+        </button>
+      )}
+      <p className="pmenu__hint">
+        {searching
+          ? `Every sim named like “${query.trim()}”, at any age, in any world, family too. Clear the name for the filters.`
+          : 'Closest in age first, older or younger; then A to Z. Point at one to light them up on the board, or click them there.'}
+      </p>
     </div>
   );
 }

@@ -2463,6 +2463,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             wb.closePartnerMenu();
           }}
           onClose={wb.closePartnerMenu}
+          hideSecrets={wb.hideSecrets}
+          onHover={(ids) => wb.setBriefHover(ids ? new Set(ids) : null)}
         />
       )}
       {wb.addMenu && (
@@ -2805,9 +2807,14 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             const lit = wb.bloodlineId === editNode.id;
             return { text, lit, onToggle: () => (lit ? wb.setBloodlineId(null) : wb.showBloodline(editNode.id)) };
           })()}
-          onPickPartner={(id) => {
-            const r = svgRef.current?.getBoundingClientRect();
-            wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);
+          onPlanPartner={() => {
+            // The ♥ finder opens where the editor was, as from beside their card.
+            const sr = stageRef.current?.getBoundingClientRect();
+            const er = editorRef.current?.getBoundingClientRect();
+            const x = er && sr ? er.left - sr.left : 0;
+            const y = er && sr ? er.top - sr.top : 0;
+            wb.setEditNodeId(null);
+            wb.openPartnerMenu(editNode.id, 'right', x, y);
           }}
           left={editorPos.left}
           top={editorPos.top}

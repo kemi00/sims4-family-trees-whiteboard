@@ -26,6 +26,11 @@ export type SimCardOptions = {
   /** A blood relative: found by name, never suggested. */
   related?: boolean;
   married?: boolean;
+  /**
+   * Who they're with now, by name ("Married to Bob Pancakes"), first on the
+   * amber line in place of a bare "married" or "in a romance" (coupleLine).
+   */
+  couples?: string;
   /** More to weigh, after the rest (the adoption list's "has 2 parents"). */
   extra?: string[];
 };
@@ -71,7 +76,13 @@ export function simCardLines(p: SimNode, o: SimCardOptions): SimCardLines {
   const flags: SimCardFlag[] = o.brief
     ? []
     : [
-        ...[o.related ? 'related' : '', o.married ? 'married' : c?.taken ? 'in a romance' : '', frozen ? 'not aging now' : '', phrase]
+        ...[
+          o.couples ?? '',
+          o.related ? 'related' : '',
+          o.couples !== undefined ? '' : o.married ? 'married' : c?.taken ? 'in a romance' : '',
+          frozen ? 'not aging now' : '',
+          phrase,
+        ]
           .filter(Boolean)
           .map((text) => ({ text })),
         ...(risk ? [{ text: 'at risk', risk: true as const }] : []),
