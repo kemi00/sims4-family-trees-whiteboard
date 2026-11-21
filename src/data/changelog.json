@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "9317c1c",
+   "date": "2026-11-21",
+   "text": "Opening the Key in a smaller window no longer squeezes the line with the save's day into a narrow column. When there isn't room for it and the zoom bar between the minimap and the Key, both move up above the minimap at their full width, and stay there while the Key opens and closes. The tips on the top bar's buttons also stay inside the window now: the Filters tip used to run off its right edge."
+  },
+  {
    "sha": "43f7a3f",
    "date": "2026-11-21",
    "text": "The sim editor has a Life tab: each sim's job or school with its level or grade (\"Writer, Level 3 of 10\", \"High School Student, Grade C\"), their aspiration, personality traits apart from the ones earned in play, and skills, highest first, all read from your save and named as the game names them. The editor is calmer too. Details folds into the Sim tab, Save and Cancel show only once you've changed something, and Delete and Copy Sim ID moved into a ⋮ menu. The Sim tab says the age once, as a when (\"Elder in 20 days of playing the Goth household\"), and where they live in one card with one Move. On the Family tab, links have quiet bins and the dynasty is one card until you change it, with every choice said in full."
