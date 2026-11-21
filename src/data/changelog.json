@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "4cc46f2",
+   "date": "2026-11-22",
+   "text": "The sim editor opens with a title bar: the sim's name, then Story, ⋮ and ✕ on one line. The first and last name boxes get the full width, so long names are no longer cut off, and a folded drawer on a phone shows just that bar."
+  },
+  {
    "sha": "b24cd16",
    "date": "2026-11-21",
    "text": "Finding a partner happens in one place now: the ♥ beside a card. It has filters for life stage, gender, relationship (anyone, single, in a romance, married) and world, each showing how many sims it leaves, plus Hide sims with no home. Married sims are in the list too, and every card says who they're with, by name, such as \"Married to Thiago Abrantes · secret romance with Fia Acosta\". Pointing at a card lights that sim up on the board. The sim editor no longer has a Partners tab: its Family tab has \"♥ Plan a partner\", which opens the same finder."
