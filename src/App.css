@@ -393,14 +393,21 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
 .devcontact--panel .devcontact__link:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .devcontact--panel .devcontact__link svg{width:14px;height:14px;flex:none;color:var(--ink-3)}
 
-/* ── floating view controls ──────────────────────────────────────────────── */
-/* Viewport chrome: bottom-centre of the free board, between the minimap and
-   the corner's world list and key (--legend-inset, set by Legend). */
-.viewctl{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);right:auto;bottom:12px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:2px;padding:4px;background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:var(--lift)}
+/* ── the board panel ─────────────────────────────────────────────────────── */
+/* Your board in one card, bottom left: its save (head), its map (minimap)
+   and its view (zoom strip). One width, the zoom strip's; it keeps its
+   corner and size whatever opens beside it, the Key included. */
+.boardpanel{position:absolute;left:12px;bottom:12px;z-index:6;display:flex;flex-direction:column;width:max-content;max-width:calc(100% - 24px);box-sizing:border-box;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);box-shadow:var(--lift);user-select:none}
+/* The head's text wraps to the strip's width rather than widening the panel. */
+.boardpanel__head{contain:inline-size;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 6px;padding:6px 6px 6px 11px;border-bottom:1px solid var(--line);color:var(--ink-2);font-size:11px;font-weight:600;letter-spacing:.02em;line-height:1.4}
+.boardpanel__line{grid-column:1;min-width:0;overflow-wrap:anywhere}
+.boardpanel__tips{grid-column:2;grid-row:1 / span 2;align-self:start;display:flex}
+.boardpanel__save{grid-column:1;min-width:0;display:flex}
+.viewctl{display:flex;align-items:center;justify-content:space-between;gap:2px;padding:4px;border-top:1px solid var(--line)}
 .viewctl__rule{width:1px;height:20px;background:var(--rule);margin:0 3px;flex:0 0 auto}
 .viewctl__zoom{position:relative;min-width:46px;text-align:center;font-size:11.5px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;cursor:default}
 
-.minimap{position:absolute;left:12px;bottom:12px;z-index:6;width:var(--minimap-w);height:var(--minimap-h);background:var(--chrome);border:1px solid var(--line);border-radius:var(--r-surface);box-shadow:var(--lift);overflow:hidden;touch-action:none}
+.minimap{position:relative;contain:inline-size;height:var(--minimap-h);background:var(--chrome);overflow:hidden;touch-action:none}
 .minimap__svg{width:100%;height:100%;display:block;cursor:pointer}
 .minimap__view{pointer-events:none}
 
@@ -433,7 +440,7 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text;
  .tool,.findbtn,.gpanel button,.menu button,.editor button,.agechips button{transition:none}
  .gpanel button:active,.menu button:active,.editor button:active,.agechips button:active{transform:none}
 }
-#stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:var(--canvas);--minimap-w:220px;--minimap-h:140px}
+#stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:var(--canvas);--minimap-h:128px}
 #stage.stage--select svg{cursor:crosshair}
 /* Space held: the hand, over everything on the board. */
 #stage.stage--hand svg,#stage.stage--hand svg *{cursor:grab!important}
@@ -591,7 +598,7 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 #hint.hint{
   position:absolute;
   left:12px;
-  bottom:calc(12px + var(--minimap-h) + 8px);
+  bottom:calc(12px + var(--panel-h, 220px) + 8px);
   z-index:8;
   width:min(320px, calc(100% - 24px));
   max-height:min(62vh, 520px);
@@ -706,12 +713,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hint__more-list li + li{margin-top:6px}
 .hint__more-list b{color:var(--ink)}
 #hintIcon{
-  position:absolute;
-  left:12px;
-  bottom:calc(12px + var(--minimap-h) + 8px);
-  z-index:8;
-  width:34px;
-  height:34px;
+  flex:none;
+  width:28px;
+  height:28px;
   border-radius:50%;
   border:1px solid var(--line);
   background:var(--chrome);
@@ -720,25 +724,16 @@ svg{width:100%;height:100%;display:block;touch-action:none}
   display:none;
   align-items:center;
   justify-content:center;
-  box-shadow:var(--lift);
   padding:0;
 }
-#hintIcon svg{width:18px;height:18px}
-#hintIcon:hover{background:var(--hover);color:var(--ink)}
+#hintIcon svg{width:16px;height:16px}
+#hintIcon:hover,#hintIcon[aria-expanded=true]{background:var(--hover);color:var(--ink)}
 #hintIcon:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 #status{position:absolute;left:calc((100% - var(--legend-inset,0px)) / 2);top:12px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;box-shadow:var(--lift);display:none;max-width:min(520px, calc(100% - 24px));text-align:center;line-height:1.35;z-index:8}
-/* Session cue sits with view controls (bottom-center), not on the legend. */
-#autosave-cue{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);right:auto;bottom:calc(12px + 40px + 8px);transform:translateX(-50%);z-index:6;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 8px;max-width:min(420px, calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px));padding:5px 10px;border:1px solid var(--line);border-radius:var(--r-control);background:var(--chrome);color:var(--ink-2);font-size:11px;font-weight:600;letter-spacing:.02em;box-shadow:var(--lift);user-select:none;text-align:center}
-.autosave-cue__group{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 8px}
 .autosave-cue__label{color:var(--ink-2);pointer-events:none}
 .autosave-cue__sep{color:var(--ink-3);font-weight:500;pointer-events:none}
-.autosave-cue__file{max-width:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink);pointer-events:none}
+.autosave-cue__file{font-weight:500;color:var(--ink);pointer-events:none}
 .autosave-cue__file--muted{color:var(--ink-3);font-weight:500}
-.autosave-cue__reset{padding:0;border:none;background:none;font:inherit;font-size:11px;font-weight:600;color:var(--accent-strong);cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
-.autosave-cue__reset:hover{color:var(--accent)}
-.autosave-cue__reset:disabled{color:var(--ink-3);text-decoration:none;cursor:default;opacity:.42}
-.autosave-cue__reset:disabled:hover{color:var(--ink-3)}
-.autosave-cue__reset:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring);border-radius:4px}
 /* Until a save is on the board, the step that makes it theirs. */
 .autosave-cue__open{padding:0;border:none;background:none;font:inherit;font-size:11px;font-weight:700;color:var(--accent-strong);cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
 .autosave-cue__open:hover{color:var(--accent)}
@@ -782,12 +777,16 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  .welcome__foot{flex-direction:column;align-items:stretch;text-align:center}
  .welcome__board{min-height:44px}
 }
-.bloodline-banner{position:absolute;left:calc((100% - var(--legend-inset,0px)) / 2);top:48px;transform:translateX(-50%);z-index:7;pointer-events:auto;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;max-width:min(520px, calc(100% - 24px));padding:8px 10px 8px 13px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;box-shadow:var(--lift)}
+/* What's happening now, at the top of the free board, under the status
+   messages: one banner, looking back through saves, a box selection. */
+.topstack{position:absolute;left:calc((100% - var(--legend-inset,0px)) / 2);top:48px;transform:translateX(-50%);z-index:7;display:flex;flex-direction:column;align-items:center;gap:8px;width:min(620px, calc(100% - var(--legend-inset,0px) - 24px));pointer-events:none}
+.topstack > *{pointer-events:auto}
+.bloodline-banner{position:relative;pointer-events:auto;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;max-width:min(520px, 100%);box-sizing:border-box;padding:8px 10px 8px 13px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;box-shadow:var(--lift)}
 .bloodline-banner p{margin:0;flex:1 1 12em;min-width:0}
 .family-banner__roles{display:block;margin-top:2px;font-weight:500;color:var(--ink-2)}
 .bloodline-banner__count{font-weight:500;color:var(--ink-3);white-space:nowrap}
 /* Wider than Bloodline's: it also holds the Close / Extended switch. */
-.bloodline-banner.family-banner{max-width:min(620px, calc(100% - 24px))}
+.bloodline-banner.family-banner{max-width:100%}
 /* Close / Extended: a two-way switch, quieter than Done beside it. */
 .family-banner__scope{display:inline-flex;flex:0 0 auto;margin-left:auto;padding:2px;gap:2px;border-radius:9px;background:var(--recess);border:1px solid var(--line)}
 .bloodline-banner .family-banner__scope button{height:24px;margin:0;padding:0 9px;border:none;border-radius:7px;background:transparent;color:var(--ink-2);font-weight:600}
@@ -1447,9 +1446,20 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .hhmove .movego{white-space:normal;line-height:1.3}
 .hhmove .movego--alt,.editor .movego--alt{background:#fff;border:1px solid var(--rule);color:var(--ink-2)}
 .hhmove .movego--alt:hover,.editor .movego--alt:hover{background:var(--hover);color:var(--ink)}
-.selbar{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);bottom:calc(12px + 40px + 8px + 28px + 8px);transform:translateX(-50%);z-index:7;width:min(440px, calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px));box-sizing:border-box;padding:8px 8px 8px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;line-height:1.35;box-shadow:var(--lift)}
+.selbar{position:relative;width:min(440px, 100%);box-sizing:border-box;padding:8px 8px 8px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);color:var(--ink);font-size:12px;line-height:1.35;box-shadow:var(--lift)}
 .selbar__row{display:flex;align-items:center;gap:8px}
 .selbar__what{flex:1 1 auto;min-width:0;margin:0;overflow-wrap:anywhere}
+/* Too narrow for names and buttons side by side (a phone, or the Key open
+   in a small window): the names get the bar's width, the buttons a row of
+   their own under them. */
+.selbar{container:selbar / inline-size}
+@container selbar (max-width:420px){
+ .selbar__row{flex-wrap:wrap}
+ .selbar__what{flex:1 1 calc(100% - 40px);overflow-wrap:normal}
+ .selbar__row .selbar__go{order:2}
+ .selbar__row .selbar__alt{order:2}
+ .selbar__row .selbar__del{order:3}
+}
 .selbar__go{flex:0 0 auto;height:28px;padding:0 11px;border:1px solid transparent;border-radius:var(--r-control);background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
 .selbar__go:hover{background:var(--accent-strong)}
 .selbar__alt{flex:0 0 auto;height:28px;padding:0 11px;border:1px solid var(--rule);border-radius:var(--r-control);background:#fff;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
@@ -1832,17 +1842,14 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .barpanel__end:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 @media (pointer:coarse){.barpanel__end{height:40px;margin-top:-8px}}
 /* The board's corner controls rise above a folded drawer, never under it. */
-.viewctl,.minimap,#autosave-cue,#hintIcon,.selbar,#hint:not(.hint--sheet){translate:0 calc(-1 * var(--sheet-lift, 0px));transition:translate .26s cubic-bezier(.2,.8,.2,1)}
-@media (prefers-reduced-motion:reduce){.viewctl,.minimap,#autosave-cue,#hintIcon,.selbar,#hint:not(.hint--sheet){transition:none}}
+.boardpanel,#hint:not(.hint--sheet){translate:0 calc(-1 * var(--sheet-lift, 0px));transition:translate .26s cubic-bezier(.2,.8,.2,1)}
+@media (prefers-reduced-motion:reduce){.boardpanel,#hint:not(.hint--sheet){transition:none}}
 
 /* Keep in sync with CHROME_COMPACT_MAX_PX in src/lib/constants.ts */
 @media (max-width:640px){
- /* The zoom bar is too wide to sit beside the minimap: it keeps the bottom
-    edge, the minimap stands on it, the status line beside the minimap and
-    the tips button above it. --zoom-h is the zoom bar's height. */
- #stage{--minimap-w:160px;--minimap-h:100px;--zoom-h:42px;--dock-b:max(12px, env(safe-area-inset-bottom,0px))}
- /* Touch-sized zoom buttons (44px, plus the bar's padding and border). */
- @media (pointer:coarse){ #stage{--zoom-h:54px} }
+ /* The same board panel, with a shorter map: the board needs the height. */
+ #stage{--minimap-h:86px}
+ .boardpanel{left:max(12px, env(safe-area-inset-left,0px));bottom:max(12px, env(safe-area-inset-bottom,0px))}
  .appbar{height:auto;min-height:calc(var(--bar-h) + env(safe-area-inset-top,0px))}
  /* Phones keep the edit tools, Filters, search and More: seven 44px targets
     and the plumbob fit 360px. The rest folds into More, in the bar's order. */
@@ -1850,23 +1857,8 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
  .appbar__wide-only,.appbar__rule{display:none}
  .appbar__spacer{min-width:0}
  .brand{margin-right:4px}
- .viewctl{left:50%;right:auto;bottom:max(12px, env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
- /* Beside the minimap, one short line each, with no dots to end a line on. */
- #autosave-cue{left:calc(max(12px, env(safe-area-inset-left,0px)) + var(--minimap-w) + 8px);right:auto;bottom:calc(var(--dock-b) + var(--zoom-h) + 8px);transform:none;max-width:calc(100% - var(--minimap-w) - 32px);flex-direction:column;align-items:flex-start;gap:2px;text-align:left}
- #autosave-cue .autosave-cue__group{flex-direction:column;align-items:flex-start;gap:2px}
- #autosave-cue .autosave-cue__sep{display:none}
- .selbar{bottom:calc(var(--dock-b) + var(--zoom-h) + 8px + var(--minimap-h) + 8px + 44px + 8px)}
- /* Too narrow for names and buttons side by side: the names get the bar's
-    width, the buttons a row of their own under them. */
- .selbar__row{flex-wrap:wrap}
- .selbar__what{flex:1 1 calc(100% - 40px);overflow-wrap:normal}
  .selbar__go,.selbar__alt,.selbar__del{height:36px}
- .selbar__row .selbar__go{order:2}
- .selbar__row .selbar__alt{order:2}
- .selbar__row .selbar__del{order:3}
- #hint.hint:not(.hint--sheet){left:max(12px, env(safe-area-inset-left,0px));bottom:calc(var(--dock-b) + var(--zoom-h) + 8px + var(--minimap-h) + 8px);width:min(320px, calc(100% - 24px))}
- #hintIcon{left:max(12px, env(safe-area-inset-left,0px));bottom:calc(var(--dock-b) + var(--zoom-h) + 8px + var(--minimap-h) + 8px)}
- .minimap{left:max(12px, env(safe-area-inset-left,0px));bottom:calc(var(--dock-b) + var(--zoom-h) + 8px)}
+ #hint.hint:not(.hint--sheet){left:max(12px, env(safe-area-inset-left,0px));bottom:calc(max(12px, env(safe-area-inset-bottom,0px)) + var(--panel-h, 200px) + 8px);width:min(320px, calc(100% - 24px))}
  .legend-chip{right:max(12px, env(safe-area-inset-right,0px));top:12px}
  #legend.legend--sheet{
   left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;height:auto;max-width:none;max-height:70dvh;flex-direction:column;align-items:stretch;pointer-events:auto;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
@@ -2025,25 +2017,8 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .highlight-banner .highlight-banner__change + button{margin-left:0}
 
 /* ── save status: lifespan and season length beside Autosave ────────────── */
-/* Room for the save on the same line as Autosave and Reset on a desktop.
-   Phones keep the narrow cue (it sits beside the minimap) and reach the save
-   from More instead. */
-@media (min-width:641px){ #autosave-cue{width:max-content;max-width:min(560px, calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px))} }
-/* Too narrow a gap between the minimap and the corner (the Key open in a
-   small window): the zoom bar, status line and selection bar rise above the
-   minimap, in a column beside the tips button, at their own width, and stay
-   put as the Key opens and closes (data-dock, set by Legend). */
-#stage[data-dock=above]{--dock-x:calc(12px + 34px + 8px);--dock-w:calc(100% - var(--legend-inset,0px) - 66px);--dock-up:calc(var(--minimap-h) + 8px)}
-#stage[data-dock=above] .viewctl{left:var(--dock-x);transform:none;bottom:calc(12px + var(--dock-up))}
-#stage[data-dock=above] #autosave-cue{left:var(--dock-x);transform:none;bottom:calc(12px + 40px + 8px + var(--dock-up));max-width:var(--dock-w);flex-direction:column;align-items:flex-start;text-align:left}
-/* Stacked, its halves are a line each, with no dot left at a line's end. */
-#stage[data-dock=above] #autosave-cue .autosave-cue__sep--group{display:none}
-#stage[data-dock=above] .autosave-cue__group{justify-content:flex-start}
-#stage[data-dock=above] .selbar{left:var(--dock-x);transform:none;bottom:calc(12px + 40px + 8px + 28px + 8px + var(--dock-up));width:min(440px, var(--dock-w))}
-#stage[data-dock=above] .lookback{left:var(--dock-x);transform:none;bottom:calc(64px + var(--dock-up));width:min(520px, var(--dock-w))}
-@media (max-width:640px){ #autosave-cue .savestatus,#autosave-cue .savestatus-sep{display:none} }
 .savestatus{position:relative;display:inline-flex}
-.savestatus__btn{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;margin:-2px -2px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--ink);font:inherit;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.savestatus__btn{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;margin:-2px -6px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--ink);font:inherit;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
 .savestatus__btn:hover,.savestatus__btn[aria-expanded=true]{background:var(--hover);border-color:var(--line)}
 .savestatus__btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 .savestatus__btn svg{width:13px;height:13px;color:var(--ink-3)}
@@ -2052,7 +2027,8 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .savestatus__btn .savestatus__season--fall{color:var(--season-fall)}
 .savestatus__btn .savestatus__season--winter{color:var(--season-winter)}
 .savestatus__btn .savestatus__caret{width:9px;height:9px}
-.savestatus__pop{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);text-align:left;letter-spacing:normal;user-select:text;max-width:calc(100vw - 24px)}
+/* Opens up from the panel's head, from its left edge, so it never leaves the window. */
+.savestatus__pop{position:absolute;left:-4px;bottom:calc(100% + 10px);text-align:left;letter-spacing:normal;user-select:text;max-width:calc(100vw - 24px)}
 
 /* A planned birth or couple the save confirmed: a glow and five twinkles. */
 .node__glow{fill:none;stroke:var(--celebrate);stroke-width:4;opacity:0;animation:celebrate-glow 2.8s ease-out 3}
@@ -2103,7 +2079,7 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .recap__off{font-size:11.5px;color:var(--warn)}
 /* Looking back (LookBackBar.tsx): the board as it was at an upload, read only. */
 .stage--past svg g{pointer-events:none}
-.lookback{position:absolute;left:calc((100% + var(--minimap-w) + 24px - var(--legend-inset,0px)) / 2);bottom:64px;transform:translateX(-50%);z-index:8;width:min(520px,calc(100% - var(--legend-inset,0px) - var(--minimap-w) - 48px));box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);box-shadow:var(--lift);color:var(--ink);font-size:12px}
+.lookback{position:relative;width:min(520px, 100%);box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:var(--chrome);box-shadow:var(--lift);color:var(--ink);font-size:12px}
 .lookback__when{margin:0 0 6px;font-size:12.5px}
 .lookback__ctl{display:flex;align-items:center;gap:6px}
 .lookback__range{flex:1 1 auto;min-width:0;accent-color:var(--accent)}

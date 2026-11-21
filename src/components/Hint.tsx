@@ -1,6 +1,7 @@
 import { Info } from '../icons.ts';
 import { CloseButton } from './CloseButton.tsx';
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import { useSheet } from '../hooks/useSheet.ts';
 import { SheetGrabber } from './SheetGrabber.tsx';
@@ -87,6 +88,8 @@ type Props = {
    * open): a first visit may show the Getting around card now.
    */
   introReady?: boolean;
+  /** Where the tips button goes (the board panel's head); in place when absent. */
+  iconSlot?: HTMLElement | null;
 };
 
 /**
@@ -94,7 +97,7 @@ type Props = {
  * short Getting around card, without taking focus. Like every popup, a press
  * outside it closes it; the tips stay under ⓘ.
  */
-export function Hint({ introReady = false }: Props) {
+export function Hint({ introReady = false, iconSlot }: Props) {
   const [open, setOpen] = useState<false | 'tips' | 'intro'>(false);
   const sheet = usePanelSheet();
   const hintRef = useRef<HTMLDivElement>(null);
@@ -136,6 +139,8 @@ export function Hint({ introReady = false }: Props) {
     // A press outside closes it, as it does every popup; the tips stay under ⓘ.
     const onPointer = (ev: PointerEvent) => {
       if (hintRef.current?.contains(ev.target as Node)) return;
+      // The tips button toggles them itself.
+      if (iconRef.current?.contains(ev.target as Node)) return;
       // A drawer on a narrow screen folds to its bar instead (useSheet).
       if (hintRef.current?.hasAttribute('data-detent')) return;
       markNavIntroSeen();
@@ -149,190 +154,198 @@ export function Hint({ introReady = false }: Props) {
     };
   }, [open]);
 
+  // The tips button stays where it is while the tips are open, and closes them.
+  const iconButton = (
+    <button
+      ref={iconRef}
+      id="hintIcon"
+      type="button"
+      title="Quick tips"
+      aria-label="Quick tips"
+      aria-expanded={!!open}
+      aria-haspopup="dialog"
+      style={{ display: 'flex' }}
+      onClick={(e) => {
+        e.stopPropagation();
+        markNavIntroSeen();
+        setOpen(open ? false : 'tips');
+      }}
+    >
+      <Info aria-hidden="true" />
+    </button>
+  );
+  const icon = iconSlot ? createPortal(iconButton, iconSlot) : iconButton;
+
   if (open === 'intro') {
     return (
+      <>
+        {icon}
+        <div
+          id="hint"
+          ref={hintRef}
+          className={sheet ? 'hint hint--sheet hint--intro' : 'hint hint--intro'}
+          role="dialog"
+          aria-labelledby={titleId}
+        >
+          <SheetGrabber sheet={drawer} what="Getting around" />
+          <div className="hint__head">
+            <b id={titleId}>Getting around</b>
+            <CloseButton ref={closeRef} id="hintClose" label="Close Getting around" onClick={close} />
+          </div>
+          <NavTips />
+          <p className="hint__again">
+            These stay in <b>Quick tips</b>, under the <Info aria-hidden="true" /> button.
+          </p>
+          <div className="hint__actions">
+            <button
+              type="button"
+              onClick={() => {
+                markNavIntroSeen();
+                setOpen('tips');
+              }}
+            >
+              All tips
+            </button>
+            <button type="button" className="hint__ok" onClick={close}>
+              Got it
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!open) return icon;
+
+  return (
+    <>
+      {icon}
       <div
         id="hint"
         ref={hintRef}
-        className={sheet ? 'hint hint--sheet hint--intro' : 'hint hint--intro'}
+        className={sheet ? 'hint hint--sheet' : 'hint'}
         role="dialog"
+        // A drawer leaves the board in use beside it: modal only as a card.
+        aria-modal={drawer.on ? undefined : 'true'}
         aria-labelledby={titleId}
       >
-        <SheetGrabber sheet={drawer} what="Getting around" />
+        <SheetGrabber sheet={drawer} what="Quick tips" />
         <div className="hint__head">
-          <b id={titleId}>Getting around</b>
-          <CloseButton ref={closeRef} id="hintClose" label="Close Getting around" onClick={close} />
+          <b id={titleId}>Quick tips</b>
+          <CloseButton ref={closeRef} id="hintClose" label="Close tips" onClick={() => setOpen(false)} />
         </div>
-        <NavTips />
-        <p className="hint__again">
-          These stay in <b>Quick tips</b>, under the <Info aria-hidden="true" /> button.
-        </p>
-        <div className="hint__actions">
-          <button
-            type="button"
-            onClick={() => {
-              markNavIntroSeen();
-              setOpen('tips');
-            }}
-          >
-            All tips
-          </button>
-          <button type="button" className="hint__ok" onClick={close}>
-            Got it
-          </button>
-        </div>
-      </div>
-    );
-  }
 
-  if (!open) {
-    return (
-      <button
-        ref={iconRef}
-        id="hintIcon"
-        type="button"
-        title="Quick tips"
-        aria-label="Quick tips"
-        aria-expanded={false}
-        aria-haspopup="dialog"
-        style={{ display: 'flex' }}
-        onClick={(e) => {
-          e.stopPropagation();
-          markNavIntroSeen();
-          setOpen('tips');
-        }}
-      >
-        <Info aria-hidden="true" />
-      </button>
-    );
-  }
-
-  return (
-    <div
-      id="hint"
-      ref={hintRef}
-      className={sheet ? 'hint hint--sheet' : 'hint'}
-      role="dialog"
-      // A drawer leaves the board in use beside it: modal only as a card.
-      aria-modal={drawer.on ? undefined : 'true'}
-      aria-labelledby={titleId}
-    >
-      <SheetGrabber sheet={drawer} what="Quick tips" />
-      <div className="hint__head">
-        <b id={titleId}>Quick tips</b>
-        <CloseButton ref={closeRef} id="hintClose" label="Close tips" onClick={() => setOpen(false)} />
-      </div>
-
-      <div className="hint__legend" aria-label="Link colors">
-        <span className="hint__chip hint__chip--planned">
-          <i aria-hidden="true" />
-          Purple = planned link
-        </span>
-        <span className="hint__chip hint__chip--save">
-          <i aria-hidden="true" />
-          Gray = in your game save
-        </span>
-      </div>
-
-      <section className="hint__section">
-        <h3 className="hint__heading">Getting around</h3>
-        <NavTips />
-      </section>
-
-      <section className="hint__section">
-        <h3 className="hint__heading">Link Sims</h3>
-        <p className="hint__body">
-          Tap <b>Connect</b>, then two Sims, and pick Marriage, Romance,
-          Divorced, Parent → Child, or Sibling, or a secret: secret lovers or
-          a secret parent. Drag the board between the two taps to reach a Sim
-          far away. Links you draw stay purple until they also show up in a
-          game save.
-          <span className="hint__platform">
-            {' '}
-            On a phone, two-finger drag pans while Connect is on.
+        <div className="hint__legend" aria-label="Link colors">
+          <span className="hint__chip hint__chip--planned">
+            <i aria-hidden="true" />
+            Purple = planned link
           </span>
-        </p>
-      </section>
+          <span className="hint__chip hint__chip--save">
+            <i aria-hidden="true" />
+            Gray = in your game save
+          </span>
+        </div>
 
-      <section className="hint__section">
-        <h3 className="hint__heading">Add children</h3>
-        <p className="hint__body">
-          Tap a couple’s ring or heart on the board, then <b>+</b>, to add a
-          baby. For a baby with one parent, tap the Sim, then the <b>+</b>
-          under their card. Or tap a ring/heart link, then a Sim, to make that Sim the
-          child of both partners. For two Sims who had a child without being
-          a couple, pick <b>Co-parents</b> in Connect, then tap the child.
-        </p>
-      </section>
+        <section className="hint__section">
+          <h3 className="hint__heading">Getting around</h3>
+          <NavTips />
+        </section>
 
-      <section className="hint__section">
-        <h3 className="hint__heading">Add and age Sims</h3>
-        <p className="hint__body">
-          On a household label, <b>+</b> adds a new Sim to that household.{' '}
-          <b>Age up</b> advances everyone one life stage
-          (Infant → … → Elder → Deceased). Pets and Sims who are already
-          deceased stay put. To age one Sim only, open <b>Edit</b> and change
-          their age.
-        </p>
-      </section>
+        <section className="hint__section">
+          <h3 className="hint__heading">Link Sims</h3>
+          <p className="hint__body">
+            Tap <b>Connect</b>, then two Sims, and pick Marriage, Romance,
+            Divorced, Parent → Child, or Sibling, or a secret: secret lovers or
+            a secret parent. Drag the board between the two taps to reach a Sim
+            far away. Links you draw stay purple until they also show up in a
+            game save.
+            <span className="hint__platform">
+              {' '}
+              On a phone, two-finger drag pans while Connect is on.
+            </span>
+          </p>
+        </section>
 
-      <section className="hint__section">
-        <h3 className="hint__heading">Edit a sim</h3>
-        <p className="hint__body">
-          Click a Sim's ⠇, or double-click the Sim, to edit it or move it
-          to another household. On a phone, tap ⠇ or long-press the Sim.
-        </p>
-      </section>
+        <section className="hint__section">
+          <h3 className="hint__heading">Add children</h3>
+          <p className="hint__body">
+            Tap a couple’s ring or heart on the board, then <b>+</b>, to add a
+            baby. For a baby with one parent, tap the Sim, then the <b>+</b>
+            under their card. Or tap a ring/heart link, then a Sim, to make that Sim the
+            child of both partners. For two Sims who had a child without being
+            a couple, pick <b>Co-parents</b> in Connect, then tap the child.
+          </p>
+        </section>
 
-      <section className="hint__section">
-        <h3 className="hint__heading">Download and upload</h3>
-        <p className="hint__body">
-          Open the <b>⋮</b> menu: <b>Download the board</b> keeps a copy of it,{' '}
-          <b>Upload a board</b> brings back one you downloaded, and <b>Upload your save</b>{' '}
-          brings Sims in from your Sims 4 game file without wiping links you
-          already drew. Your save is read in your browser and never sent anywhere.
-        </p>
-      </section>
+        <section className="hint__section">
+          <h3 className="hint__heading">Add and age Sims</h3>
+          <p className="hint__body">
+            On a household label, <b>+</b> adds a new Sim to that household.{' '}
+            <b>Age up</b> advances everyone one life stage
+            (Infant → … → Elder → Deceased). Pets and Sims who are already
+            deceased stay put. To age one Sim only, open <b>Edit</b> and change
+            their age.
+          </p>
+        </section>
 
-      <details className="hint__more">
-        <summary>More tips</summary>
-        <ul className="hint__more-list">
-          <li>
-            <b>Undo</b> (Ctrl/⌘ Z) reverses the last add, link, move, age-up,
-            edit, or delete. Its tip names the change it will take back;
-            <b>Redo</b> (Ctrl/⌘ Shift Z) puts it back.
-          </li>
-          <li>
-            <b>Organise</b> lays the whole board out like the starter one:
-            worlds in columns by how many households and sims they have, each
-            household packed tight, with its pets and horses in a lane of their
-            own at its right. Undo puts everything back.
-          </li>
-          <li>
-            The corner <b>map</b> shows the whole board. Click or drag it to
-            pan; scroll on it to zoom.
-          </li>
-          <li>
-            The <b>family links</b> button (the tree) shows all links, only
-            those inside households, or none. Its <b>Highlight a sim's
-            family</b> lights up whoever you select, with how many and in how
-            many households. <b>Close</b> family is partners, parents, children
-            and siblings; <b>Extended</b> adds grandparents, grandchildren,
-            aunts, uncles, first cousins and step-family.
-          </li>
-          <li>
-            Select a Sim, then <b>Filters → Bloodline</b>, to dim everyone
-            outside their line: their <b>Children</b>, all their
-            <b> Descendants</b>, or <b>Ancestors too</b>, picked on the banner.
-            Its <b>List</b> goes generation by generation. Use <b>Clear</b>
-            on the banner (or Esc) to end it.
-          </li>
-          <li>
-            <b>Log</b> lists planned (purple) links and links confirmed by a
-            game save (gray).
-          </li>
-        </ul>
-      </details>
-    </div>
+        <section className="hint__section">
+          <h3 className="hint__heading">Edit a sim</h3>
+          <p className="hint__body">
+            Click a Sim's ⠇, or double-click the Sim, to edit it or move it
+            to another household. On a phone, tap ⠇ or long-press the Sim.
+          </p>
+        </section>
+
+        <section className="hint__section">
+          <h3 className="hint__heading">Download and upload</h3>
+          <p className="hint__body">
+            Open the <b>⋮</b> menu: <b>Download the board</b> keeps a copy of it,{' '}
+            <b>Upload a board</b> brings back one you downloaded, and <b>Upload your save</b>{' '}
+            brings Sims in from your Sims 4 game file without wiping links you
+            already drew. Your save is read in your browser and never sent anywhere.
+          </p>
+        </section>
+
+        <details className="hint__more">
+          <summary>More tips</summary>
+          <ul className="hint__more-list">
+            <li>
+              <b>Undo</b> (Ctrl/⌘ Z) reverses the last add, link, move, age-up,
+              edit, or delete. Its tip names the change it will take back;
+              <b>Redo</b> (Ctrl/⌘ Shift Z) puts it back.
+            </li>
+            <li>
+              <b>Organise</b> lays the whole board out like the starter one:
+              worlds in columns by how many households and sims they have, each
+              household packed tight, with its pets and horses in a lane of their
+              own at its right. Undo puts everything back.
+            </li>
+            <li>
+              The corner <b>map</b> shows the whole board. Click or drag it to
+              pan; scroll on it to zoom.
+            </li>
+            <li>
+              The <b>family links</b> button (the tree) shows all links, only
+              those inside households, or none. Its <b>Highlight a sim's
+              family</b> lights up whoever you select, with how many and in how
+              many households. <b>Close</b> family is partners, parents, children
+              and siblings; <b>Extended</b> adds grandparents, grandchildren,
+              aunts, uncles, first cousins and step-family.
+            </li>
+            <li>
+              Select a Sim, then <b>Filters → Bloodline</b>, to dim everyone
+              outside their line: their <b>Children</b>, all their
+              <b> Descendants</b>, or <b>Ancestors too</b>, picked on the banner.
+              Its <b>List</b> goes generation by generation. Use <b>Clear</b>
+              on the banner (or Esc) to end it.
+            </li>
+            <li>
+              <b>Log</b> lists planned (purple) links and links confirmed by a
+              game save (gray).
+            </li>
+          </ul>
+        </details>
+      </div>
+    </>
   );
 }

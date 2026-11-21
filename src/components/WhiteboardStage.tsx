@@ -158,6 +158,20 @@ const onBoardSvg = (svg: SVGSVGElement | null, t: EventTarget | null): boolean =
 
 export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, onPoster, listOf, onList }: Props) {
   const compact = useCompactChrome();
+  /** The board panel (bottom left), and the spot in its head the tips button renders into. */
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [tipsSlot, setTipsSlot] = useState<HTMLElement | null>(null);
+  // The panel's height, as --panel-h: the tips open just above it.
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    const stage = el?.parentElement;
+    if (!el || !stage) return;
+    const set = () => stage.style.setProperty('--panel-h', `${Math.round(el.offsetHeight)}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [tempLine, setTempLine] = useState<{
     x1: number;
     y1: number;
@@ -2258,79 +2272,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           onDelete={wb.sel?.type === 'link' && !gameCoupleIntact(wb.sel.ids) ? wb.deleteSelected : undefined}
         />
       )}
-      <div id="autosave-cue">
-        {/* Two halves, the board's and the save's: stacked above the minimap (data-dock), each is a line. */}
-        <span className="autosave-cue__group">
-          <span className="autosave-cue__label">
-            {wb.staleTab ? 'Autosave paused' : 'Autosave on'}
-          </span>
-          <span className="autosave-cue__sep" aria-hidden="true">
-            ·
-          </span>
-          <span
-            className={
-              wb.sourceFileName
-                ? 'autosave-cue__file'
-                : 'autosave-cue__file autosave-cue__file--muted'
-            }
-            title={wb.boardSourceLabel}
-          >
-            {wb.boardSourceLabel}
-          </span>
-        </span>
-        {(wb.saveGame || onOpenSave) && (
-          <span
-            className={wb.saveGame ? 'autosave-cue__sep autosave-cue__sep--group savestatus-sep' : 'autosave-cue__sep autosave-cue__sep--group'}
-            aria-hidden="true"
-          >
-            ·
-          </span>
-        )}
-        <span className="autosave-cue__group">
-          {!wb.saveGame && onOpenSave && (
-            // The step that makes the board theirs, in reach until a save is on it.
-            <button type="button" className="autosave-cue__open" onClick={onOpenSave}>
-              Upload your save
-            </button>
-          )}
-          {wb.saveGame && (
-            <SaveStatus
-              game={wb.saveGame}
-              limit={wb.householdLimit}
-              onLimit={wb.setHouseholdLimit}
-              onRecap={wb.recap ? () => wb.setRecapOpen(true) : undefined}
-              onStory={() => {
-                wb.setRecapOpen(false);
-                wb.setChronicleView({ label: 'your board', ids: null });
-              }}
-            />
-          )}
-        <button
-          type="button"
-          className="autosave-cue__reset"
-          disabled={!wb.canResetBoard}
-          title={
-            wb.canResetBoard
-              ? 'Restore the starter fodder board and clear the browser draft'
-              : 'Already the starter fodder board'
-          }
-          onClick={() => {
-            if (!wb.canResetBoard) return;
-            if (
-              !confirm(
-                'Reset to the initial starter board (fodder roster)? This clears the browser draft and discards the current board. Download JSON first if you need a copy.',
-              )
-            ) {
-              return;
-            }
-            const r = svgRef.current?.getBoundingClientRect();
-            wb.resetToBuiltInBoard(r?.width ?? 800, r?.height ?? 600);
-          }}
-        >
-          Reset the board
-        </button>
-        </span>
-      </div>
+      {/* What is happening now, at the top of the free board: one banner, looking back, a box selection. */}
+      <div className="topstack">
       {/* One banner at a time; a stale tab matters more than the bloodline view. */}
       {wb.staleTab ? (
         <StaleTabBanner onReload={wb.reloadBoard} onSaveJson={wb.saveJson} />
@@ -2430,6 +2373,15 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           onDelete={wb.multiSel.kind !== 'worlds' ? wb.deleteSelected : undefined}
         />
       )}
+      {wb.lookBackAt !== null && wb.chronicle.length >= 2 && (
+        <LookBackBar
+          entries={wb.chronicle}
+          at={Math.min(wb.lookBackAt, wb.chronicle.length - 1)}
+          onAt={wb.setLookBackAt}
+          onNow={() => wb.setLookBackAt(null)}
+        />
+      )}
+      </div>
       {menu && wb.byid[menu.a] && wb.byid[menu.b] && (
         <ConnectMenu
           key={`${menu.a}|${menu.b}`}
@@ -2705,18 +2657,52 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           wb.zoomToWorld(world, r?.width ?? 800, r?.height ?? 600, inset);
         }}
       />
-      <Hint introReady={tipsReady} />
+      {/* Your board in one panel, bottom left: its save, its map and its view. It keeps its corner and size whatever opens. */}
+      <div ref={panelRef} className="boardpanel" role="group" aria-label="Your board">
+        <div className="boardpanel__head">
+          <span className="boardpanel__line">
+            <span className="autosave-cue__label">{wb.staleTab ? 'Autosave paused' : 'Autosave on'}</span>
+            <span className="autosave-cue__sep" aria-hidden="true">
+              {' · '}
+            </span>
+            <span
+              className={wb.sourceFileName ? 'autosave-cue__file' : 'autosave-cue__file autosave-cue__file--muted'}
+              title={wb.boardSourceLabel}
+            >
+              {wb.boardSourceLabel}
+            </span>
+          </span>
+          {/* The tips button sits here; its tips open above the panel. */}
+          <span ref={setTipsSlot} className="boardpanel__tips" />
+          {wb.saveGame ? (
+            <span className="boardpanel__save">
+              <SaveStatus
+                game={wb.saveGame}
+                limit={wb.householdLimit}
+                onLimit={wb.setHouseholdLimit}
+                onRecap={wb.recap ? () => wb.setRecapOpen(true) : undefined}
+                onStory={() => {
+                  wb.setRecapOpen(false);
+                  wb.setChronicleView({ label: 'your board', ids: null });
+                }}
+              />
+            </span>
+          ) : (
+            onOpenSave && (
+              <span className="boardpanel__save">
+                {/* The step that makes the board theirs, in reach until a save is on it. */}
+                <button type="button" className="autosave-cue__open" onClick={onOpenSave}>
+                  Upload your save
+                </button>
+              </span>
+            )
+          )}
+        </div>
+        <Minimap wb={wb} svgRef={svgRef} camera={liveCamera} />
+        <ViewControls wb={wb} svgRef={svgRef} />
+      </div>
+      <Hint introReady={tipsReady} iconSlot={tipsSlot} />
       <BoardTip />
-      <Minimap wb={wb} svgRef={svgRef} camera={liveCamera} />
-      <ViewControls wb={wb} svgRef={svgRef} />
-      {wb.lookBackAt !== null && wb.chronicle.length >= 2 && (
-        <LookBackBar
-          entries={wb.chronicle}
-          at={Math.min(wb.lookBackAt, wb.chronicle.length - 1)}
-          onAt={wb.setLookBackAt}
-          onNow={() => wb.setLookBackAt(null)}
-        />
-      )}
       {briefGroup && (
         <HouseholdBrief
           key={briefGroup.gid}

@@ -27,43 +27,6 @@ import { DivorcePill, HeartPill, OffPlanMark, RingPill, SecretLoversPill } from 
 import { LockGlyph } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 
-/**
- * A row of chrome at its own width, never squeezed: its items side by side
- * with their gaps, each as wide as its content (a clipped one counted in
- * full, up to its own max-width).
- */
-function naturalWidth(box: HTMLElement): number {
-  const px = (v: string) => parseFloat(v) || 0;
-  const cs = getComputedStyle(box);
-  const kids = [...box.children].filter((k): k is HTMLElement => k instanceof HTMLElement);
-  let w = px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
-  w += px(cs.columnGap) * Math.max(0, kids.length - 1);
-  for (const k of kids) {
-    // A separator hidden while stacked above the minimap is the dot it is on one line.
-    if (getComputedStyle(k).display === 'none') {
-      w += 4;
-      continue;
-    }
-    w += Math.max(k.getBoundingClientRect().width, Math.min(k.scrollWidth, px(getComputedStyle(k).maxWidth) || Infinity));
-  }
-  return Math.ceil(w);
-}
-
-/**
- * The zoom bar and the status line (autosave, the save's day, Reset) sit
- * between the minimap and the corner. Too narrow a gap for either at its
- * own width, and they go above the minimap, where the width left of the
- * corner is theirs, rather than wrap word by word or slide under the key.
- */
-function dockAbove(stage: HTMLElement, inset: number): boolean {
-  const cue = stage.querySelector<HTMLElement>('#autosave-cue');
-  const zoom = stage.querySelector<HTMLElement>('.viewctl');
-  const minimap = stage.querySelector<HTMLElement>('.minimap')?.offsetWidth ?? 0;
-  const need = Math.max(zoom?.offsetWidth ?? 0, cue ? naturalWidth(cue) : 0);
-  const room = stage.clientWidth - inset - minimap - 48;
-  return need > room;
-}
-
 /** Width and height of every sample, so the meanings line up in one column. */
 const SW = 26;
 const SH = 15;
@@ -605,29 +568,22 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
   const drawer = useSheet(sheetRef, { enabled: compact && expanded && !hidden, head: '.legend-sheethead', keep: '.legend-chip' });
 
   // How much of the stage's right side the corner takes (world list, and the
-  // key when open), as --legend-inset: the board's centred controls (zoom,
-  // status, selection) centre on the rest, so the key never covers them.
-  // When that gap is too narrow for them at their own width (the key open in
-  // a small window), they rise above the minimap instead (data-dock=above).
+  // key when open), as --legend-inset: what's centred at the top of the free
+  // board (messages, banners, a box selection) centres on the rest, so the
+  // key never covers it.
   useLayoutEffect(() => {
     const el = document.getElementById('legend');
     const stage = el?.parentElement;
     if (!el || !stage || compact) return;
-    const set = () => {
-      const inset = Math.max(0, Math.round(stage.getBoundingClientRect().right - el.getBoundingClientRect().left));
-      stage.style.setProperty('--legend-inset', `${inset}px`);
-      if (dockAbove(stage, inset)) stage.dataset.dock = 'above';
-      else delete stage.dataset.dock;
-    };
+    const set = () =>
+      stage.style.setProperty('--legend-inset', `${Math.max(0, Math.round(stage.getBoundingClientRect().right - el.getBoundingClientRect().left))}px`);
     set();
     const ro = new ResizeObserver(set);
     ro.observe(el);
     ro.observe(stage);
-    for (const c of stage.querySelectorAll<HTMLElement>('#autosave-cue, .viewctl')) ro.observe(c);
     return () => {
       ro.disconnect();
       stage.style.removeProperty('--legend-inset');
-      delete stage.dataset.dock;
     };
   }, [compact, hidden, keyOpen]);
 
