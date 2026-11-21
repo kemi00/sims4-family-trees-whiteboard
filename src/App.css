@@ -1834,6 +1834,10 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .sheet-grab span{display:block;width:38px;height:5px;border-radius:3px;background:var(--rule)}
 .barpanel[data-detent] .barpanel__head{padding-top:20px}
 .menu--sheet[data-detent],.gpanel--sheet[data-detent],.brief--sheet[data-detent],#hint.hint--sheet[data-detent]{padding-top:20px}
+/* Folded to its bar, a drawer shows its head and nothing else: it never
+   scrolls there (useSheet keeps it at the top). Over each drawer's own
+   overflow rule, whatever its specificity. */
+[data-detent=bar]{overflow:hidden!important}
 .editor--sheet[data-detent] .ed__head{padding-top:20px}
 #legend.legend--sheet[data-detent] .legend-sheethead{padding-top:20px}
 /* A highlight's drawer ends it in words, where a tool's has ✕. */

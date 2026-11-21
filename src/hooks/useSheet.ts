@@ -167,6 +167,18 @@ export function useSheet(ref: RefObject<HTMLElement | null>, opts: Options): She
     };
   }, [enabled, ref, headEl, measure, bind]);
 
+  // Folded, it stays at its head: nothing scrolls it there, not a wheel, a
+  // finger, or focus moving into it (the CSS turns its scrolling off too).
+  useEffect(() => {
+    const el = ref.current;
+    if (!enabled || !el) return;
+    const onScroll = () => {
+      if (detentRef.current === 'bar' && el.scrollTop !== 0) el.scrollTop = 0;
+    };
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [enabled, ref, bind]);
+
   // foldSheets(): something was picked, the board shows it.
   useEffect(() => {
     if (!enabled) return;
