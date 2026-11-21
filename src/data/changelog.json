@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "9c7c9e0",
+   "date": "2026-11-22",
+   "text": "The Life tab in the sim editor shows the game's own icons: for the job, the aspiration, each trait and each skill. The aspiration now sits in an outlined card like the job above it. The icons load only when you open a Life tab, so the board is as fast as before."
+  },
+  {
    "sha": "4cc46f2",
    "date": "2026-11-22",
    "text": "The sim editor opens with a title bar: the sim's name, then Story, ⋮ and ✕ on one line. The first and last name boxes get the full width, so long names are no longer cut off, and a folded drawer on a phone shows just that bar."
