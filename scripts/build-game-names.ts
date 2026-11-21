@@ -12,7 +12,8 @@
  * Usage:
  *   node --experimental-strip-types scripts/build-game-names.ts [game folder]
  * The game folder defaults to /Applications/EA Games, where the EA app
- * installs the game on macOS. Run it again after installing a pack.
+ * installs the game on macOS. Run it again after installing a pack, then
+ * scripts/build-game-icons.ts for the Life tab's icons.
  */
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

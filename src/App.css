@@ -1545,8 +1545,16 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edjob__name{min-width:0;font-size:12.5px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
 .editor .edjob__level{font-size:11px;font-weight:600;color:var(--ink-2);white-space:nowrap}
 .editor .edjob__title{grid-column:1/-1;font-size:11px;color:var(--ink-2);overflow-wrap:anywhere}
+/* The game's icons in the Life tab: 20px for the job and the aspiration
+   (each in its card), 16px for traits (inside the chip) and skills. */
+.editor .edjob--icon{grid-template-columns:20px 1fr auto}
+.editor .edjob--icon .edjob__title{grid-column:2/-1}
+.editor .edjob__icon{align-self:center;width:20px;height:20px}
+.editor .edjob__icon--two{grid-row:1/span 2}
 .editor .edjob--none{display:block;font-size:11.5px;color:var(--ink-2);background:var(--recess);border-color:transparent}
-.editor .edasp{margin:1px 2px 0;font-size:12.5px;font-weight:700;color:var(--ink)}
+.editor .edasp{display:flex;align-items:center;gap:8px;margin:0;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;font-weight:700;color:var(--ink)}
+.editor .edasp__icon{flex:none;width:20px;height:20px}
+.editor .edasp__name{min-width:0;overflow-wrap:anywhere}
 .editor .edtraits{margin:2px 0 0;display:flex;flex-direction:column;gap:5px}
 .editor .edtraits__row{display:grid;grid-template-columns:70px 1fr;gap:6px;align-items:start}
 .editor .edtraits dt{padding-top:3px;font-size:11px;color:var(--ink-2)}
@@ -1556,9 +1564,14 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 /* Earned in play: an outline and a ✦, so they never read as personality. */
 .editor .edchip--earned{border-style:dashed;border-color:var(--press-line);background:#fff}
 .editor .edchip--earned::before{content:'✦';margin-right:4px;color:var(--ink-3);font-size:10px}
+/* The icon leads the chip; on an earned one it takes the ✦'s place (the dashed edge still says earned). */
+.editor .edchip--icon{display:inline-flex;align-items:center;gap:4px;padding-left:4px}
+.editor .edchip--icon.edchip--earned::before{content:none}
+.editor .edchip__icon{flex:none;width:16px;height:16px}
 .editor .edskills{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
 .editor .edskill{display:flex;align-items:center;gap:8px;padding:3px 2px;font-size:12px;color:var(--ink)}
 .editor .edskill__name{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.editor .edskill__icon{flex:none;width:16px;height:16px}
 .editor .edskill__pips{flex:none;display:flex;gap:2px}
 .editor .edskill__pips i{width:8px;height:8px;border-radius:2px;background:var(--line)}
 .editor .edskill__pips i.on{background:var(--accent)}

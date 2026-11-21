@@ -115,6 +115,9 @@ export function readDataRecord(b: Uint8Array): DataRecord | null {
         }
         return out;
       }
+      case 19:
+        // A resource key (an icon, a picture): instance, type, group; the instance in hex.
+        return { instance: v.getBigUint64(o, true).toString(16), type: u32(o + 8), group: u32(o + 12) };
       case 20:
         // A key into the game's string tables.
         return u32(o);

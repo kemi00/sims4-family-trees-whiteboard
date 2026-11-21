@@ -49,7 +49,29 @@ describe('what the Life tab shows', () => {
 
   it('splits personality from earned traits, and leaves out what the names don’t cover', () => {
     const v = aboutView({ traits: ['27086', '27916', '16850', '361823'], aspiration: '25440' }, names);
-    assert.deepEqual([v.personality, v.earned, v.aspiration], [['Bookworm', 'Creative'], ['Quick Learner'], 'Renaissance Sim']);
+    assert.deepEqual(
+      [v.personality, v.earned, v.aspiration],
+      [[{ name: 'Bookworm' }, { name: 'Creative' }], [{ name: 'Quick Learner' }], 'Renaissance Sim'],
+    );
+  });
+
+  it('gives each item the game’s icon where it has one, a branch its career’s when it has none', () => {
+    const v = aboutView(
+      {
+        jobs: [{ track: '12898', at: 1, level: 5 }, { track: '29960', at: 0, level: 1 }],
+        traits: ['27086', '16850'],
+        skills: [{ id: '16714', points: 7300 }, { id: '1', points: 1540 }],
+        aspiration: '25440',
+      },
+      { ...names, icons: new Set(['12897', '27086', '16714', '25440']) },
+    );
+    assert.deepEqual(
+      v.jobs.map((j) => [j.name, j.icon]),
+      [['Astronaut', '12897'], ['Writer', undefined]],
+    );
+    assert.deepEqual([v.personality, v.earned], [[{ name: 'Creative' }], [{ name: 'Quick Learner', icon: '27086' }]]);
+    assert.deepEqual(v.skills.map((s) => [s.name, s.icon]), [['Writing', '16714'], ['Dancing', undefined]]);
+    assert.equal(v.aspirationIcon, '25440');
   });
 
   it('orders skills highest first, with no level where the steps aren’t known, and none under level 1', () => {
@@ -93,6 +115,6 @@ describe('names with both forms', () => {
       },
       'Female',
     );
-    assert.deepEqual([v.earned, v.aspiration, v.jobs[0]?.name], [['Matriarch'], 'Lady of the Knits', 'Fisherwoman']);
+    assert.deepEqual([v.earned, v.aspiration, v.jobs[0]?.name], [[{ name: 'Matriarch' }], 'Lady of the Knits', 'Fisherwoman']);
   });
 });

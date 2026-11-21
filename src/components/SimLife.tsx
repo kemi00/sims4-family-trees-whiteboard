@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { whenAt } from '../lib/firstChapter.ts';
-import { aboutView, type AboutJob, type GameNames } from '../lib/simAbout.ts';
+import { aboutView, gameIconUrl, type AboutJob, type GameNames } from '../lib/simAbout.ts';
 import type { SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 /** Stages with work or school: a toddler's day is neither. */
@@ -10,6 +11,30 @@ const WORKING_AGE = new Set(['Young Adult', 'Adult', 'Elder']);
 function jobLevel(j: AboutJob): string {
   if (j.grade) return `Grade ${j.grade}`;
   return j.top ? `Level ${j.level} of ${j.top}` : '';
+}
+
+/**
+ * The game's icon for a trait, skill, career or aspiration: a picture
+ * beside its name, so screen readers skip it. Fetched when the Life tab
+ * first shows (lazy, so a hidden tab fetches nothing); if it can't load,
+ * the name stands alone.
+ */
+function GameIcon({ id, size, className }: { id: string; size: number; className: string }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return null;
+  return (
+    <img
+      className={className}
+      src={gameIconUrl(id)}
+      alt=""
+      width={size}
+      height={size}
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      onError={() => setBroken(true)}
+    />
+  );
 }
 
 /** Why there is nothing to show, for a sim the save hasn't described. */
@@ -51,6 +76,8 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
   const showWork = v.jobs.length > 0 || SCHOOL_AGE.has(n.age) || WORKING_AGE.has(n.age);
   const empty = !v.jobs.length && !v.aspiration && !v.personality.length && !v.earned.length && !v.skills.length;
   const when = saveGame ? whenAt(saveGame, saveGame.clock) : '';
+  // One column of icons for the skills: a skill without one keeps its place, so the names line up.
+  const skillIcons = v.skills.some((s) => s.icon);
 
   return (
     <div className="edabout">
@@ -69,7 +96,8 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
                 // School's title only repeats its grade.
                 const title = !j.grade && j.title && j.title !== j.name ? j.title : '';
                 return (
-                  <li key={`${j.name}|${j.branch ?? ''}`} className="edjob">
+                  <li key={`${j.name}|${j.branch ?? ''}`} className={j.icon ? 'edjob edjob--icon' : 'edjob'}>
+                    {j.icon && <GameIcon id={j.icon} size={20} className={title ? 'edjob__icon edjob__icon--two' : 'edjob__icon'} />}
                     <span className="edjob__name">{j.branch ? `${j.name} › ${j.branch}` : j.name}</span>
                     {level && <span className="edjob__level">{level}</span>}
                     {title && <span className="edjob__title">{title}</span>}
@@ -89,7 +117,10 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
               Aspiration
             </span>
           </div>
-          <p className="edasp">{v.aspiration}</p>
+          <p className="edasp">
+            {v.aspirationIcon && <GameIcon id={v.aspirationIcon} size={20} className="edasp__icon" />}
+            <span className="edasp__name">{v.aspiration}</span>
+          </p>
         </section>
       )}
       {(v.personality.length > 0 || v.earned.length > 0) && (
@@ -106,8 +137,9 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
                 <dd>
                   <ul className="edchips">
                     {v.personality.map((t) => (
-                      <li key={t} className="edchip">
-                        {t}
+                      <li key={t.name} className={t.icon ? 'edchip edchip--icon' : 'edchip'}>
+                        {t.icon && <GameIcon id={t.icon} size={16} className="edchip__icon" />}
+                        <span>{t.name}</span>
                       </li>
                     ))}
                   </ul>
@@ -120,8 +152,9 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
                 <dd>
                   <ul className="edchips">
                     {v.earned.map((t) => (
-                      <li key={t} className="edchip edchip--earned">
-                        {t}
+                      <li key={t.name} className={t.icon ? 'edchip edchip--earned edchip--icon' : 'edchip edchip--earned'}>
+                        {t.icon && <GameIcon id={t.icon} size={16} className="edchip__icon" />}
+                        <span>{t.name}</span>
                       </li>
                     ))}
                   </ul>
@@ -141,6 +174,11 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
           <ul className="edskills">
             {v.skills.map((s, i) => (
               <li key={`${s.name}|${i}`} className="edskill">
+                {s.icon ? (
+                  <GameIcon id={s.icon} size={16} className="edskill__icon" />
+                ) : (
+                  skillIcons && <span className="edskill__icon" aria-hidden="true" />
+                )}
                 <span className="edskill__name">{s.name}</span>
                 {s.level !== null && s.max !== null && (
                   <>

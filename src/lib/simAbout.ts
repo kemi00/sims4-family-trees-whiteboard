@@ -16,15 +16,34 @@ export type GameNames = {
   tracks: Record<string, [string, string[], number, string?]>;
   /** Aspiration track id → name. */
   aspirations: Record<string, string>;
+  /**
+   * The ids above with the game's icon in public/game-icons/<id>.webp:
+   * src/data/gameIcons.json, built by scripts/build-game-icons.ts.
+   */
+  icons?: ReadonlySet<string>;
 };
 
 let loading: Promise<GameNames> | null = null;
 let loaded: GameNames | null = null;
 
-/** The names, fetched once: the board's main load doesn't carry them. */
+/** The names, fetched once with the list of icons: the board's main load doesn't carry them. */
 export function loadGameNames(): Promise<GameNames> {
-  loading ??= import('../data/gameNames.json').then((m) => (loaded = (m.default ?? m) as unknown as GameNames));
+  loading ??= Promise.all([
+    import('../data/gameNames.json'),
+    // The icons are a nicety: without their list, the names still show.
+    import('../data/gameIcons.json').catch(() => null),
+  ]).then(([m, i]) => {
+    const names = (m.default ?? m) as unknown as GameNames;
+    const ids = i ? ((i.default ?? i) as { ids?: string[] }).ids : undefined;
+    return (loaded = { ...names, icons: new Set(ids ?? []) });
+  });
   return loading;
+}
+
+/** Where an item's icon is served, by the id gameIcons.json lists it under: the app's base in the browser, `/` in tests. */
+export function gameIconUrl(id: string): string {
+  const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+  return `${base}game-icons/${id}.webp`;
 }
 
 /** The names, once fetched; null before. */
@@ -45,15 +64,21 @@ export type AboutJob = {
   top: number;
   /** School's grade, from its title: "C" for "High School C Student". */
   grade?: string;
+  /** The track whose icon it shows (the branch's, else its career's), when the game has one. */
+  icon?: string;
 };
 
-export type AboutSkill = { name: string; level: number | null; max: number | null };
+/** `icon`: the id of the game's icon for it, when there is one (see gameIconUrl). */
+export type AboutSkill = { name: string; level: number | null; max: number | null; icon?: string };
+
+export type AboutTrait = { name: string; icon?: string };
 
 export type AboutView = {
   jobs: AboutJob[];
   aspiration?: string;
-  personality: string[];
-  earned: string[];
+  aspirationIcon?: string;
+  personality: AboutTrait[];
+  earned: AboutTrait[];
   skills: AboutSkill[];
 };
 
@@ -109,6 +134,7 @@ export function aboutView(about: SimAbout | undefined, names: GameNames, gender?
   const view: AboutView = { jobs: [], personality: [], earned: [], skills: [] };
   if (!about) return view;
   const say = (t: string) => sayFor(t, gender);
+  const iconOf = (id: string | undefined) => (id && names.icons?.has(id) ? id : undefined);
 
   const seen = new Set<string>();
   for (const job of about.jobs ?? []) {
@@ -125,12 +151,23 @@ export function aboutView(about: SimAbout | undefined, names: GameNames, gender?
     seen.add(key);
     const title = titles[job.at] ? say(titles[job.at]!) : undefined;
     const grade = title ? /\b([A-F]) Student$/.exec(title)?.[1] : undefined;
-    view.jobs.push({ name, ...(branch ? { branch } : {}), ...(title ? { title } : {}), level: job.level, top, ...(grade ? { grade } : {}) });
+    const icon = iconOf(job.track) ?? iconOf(parent);
+    view.jobs.push({
+      name,
+      ...(branch ? { branch } : {}),
+      ...(title ? { title } : {}),
+      level: job.level,
+      top,
+      ...(grade ? { grade } : {}),
+      ...(icon ? { icon } : {}),
+    });
   }
 
   if (about.aspiration) {
     const a = names.aspirations[about.aspiration];
     if (a) view.aspiration = say(a);
+    const icon = a ? iconOf(about.aspiration) : undefined;
+    if (icon) view.aspirationIcon = icon;
   }
 
   for (const id of about.traits ?? []) {
@@ -138,19 +175,22 @@ export function aboutView(about: SimAbout | undefined, names: GameNames, gender?
     if (!t) continue;
     const list = t[1] === 'p' ? view.personality : view.earned;
     const name = say(t[0]);
-    if (!list.includes(name)) list.push(name);
+    const icon = iconOf(id);
+    if (!list.some((x) => x.name === name)) list.push(icon ? { name, icon } : { name });
   }
 
   for (const s of about.skills ?? []) {
     const k = names.skills[s.id];
     if (!k) continue;
     const steps = names.skillLevels[String(k[1])];
+    const icon = iconOf(s.id);
+    const withIcon = icon ? { icon } : {};
     if (!steps) {
-      view.skills.push({ name: say(k[0]), level: null, max: null });
+      view.skills.push({ name: say(k[0]), level: null, max: null, ...withIcon });
       continue;
     }
     const level = skillLevel(s.points, steps);
-    if (level >= 1) view.skills.push({ name: say(k[0]), level, max: steps.length });
+    if (level >= 1) view.skills.push({ name: say(k[0]), level, max: steps.length, ...withIcon });
   }
   view.skills.sort((a, b) => (b.level ?? 0) - (a.level ?? 0) || a.name.localeCompare(b.name));
   return view;
