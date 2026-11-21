@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "d8014b3",
+   "date": "2026-11-21",
+   "text": "A drawer folded down to the bottom of the screen shows only its title and ✕ now, and scrolling over it does nothing. Before, scrolling over the folded Quick tips moved its content, so the title slid out of view."
+  },
+  {
    "sha": "57b627c",
    "date": "2026-11-21",
    "text": "The bottom-left corner is one tidy panel now: the board's autosave and name, the save's day with its menu, the map of the board and the zoom controls, with the tips button in its top corner. It keeps its place and size whether the Key is open or the window is small, on phones too. Reset the board is in the ⋮ menu, where it already was. Highlight banners and the bar for sims you box-select now sit at the top of the board instead, so opening the Key can't squeeze them."
