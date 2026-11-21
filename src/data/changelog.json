@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "dc8b698",
+   "date": "2026-11-21",
+   "text": "A household's ＋ now offers \"A child\" in place of a couple's baby: choose Born or Adopted, then up to two parents, any sims (linked or not, from the household or anywhere on the board), or none. A couple living there is a quick pick, never picked for you. Teens can be picked, with a note about what the game allows. Cards say who: \"Adopted by Thomas\", or \"Parents not on the board\"."
+  },
+  {
    "sha": "3f7c612",
    "date": "2026-11-21",
    "text": "Adding a sim or pet from the top bar now asks where they'll live: a household, a free lot, just a world, or \"Not decided yet\". Nothing waits on it: a ⚠ Needs a home tag with \"Choose a home\" reminds you. Households with more sims and pets than the game's limit of 8 get a ⚠ on their tag; using a mod that raises it? Change the limit there or under Your save."
