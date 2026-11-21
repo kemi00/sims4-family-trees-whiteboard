@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "0fb5866",
+   "date": "2026-11-21",
+   "text": "Every highlight now ends the same way: Clear. Bloodline's \"Show everyone\" and the \"Done\" on a family's or a dynasty's highlight are Clear now, as the Highlight chips' already was, and every Clear is a quiet grey button instead of a bright blue one. Blue is for going on, red for deleting, and clearing a highlight is neither."
+  },
+  {
    "sha": "7f800cc",
    "date": "2026-11-21",
    "text": "On phones and tablets, every drawer now opens at half the screen, so the board stays in view. Drag its grabber up for full, or down to fold it into a bar at the bottom; touching the board folds it too. A tap on the bar brings it back, and only ✕ closes it. On a phone a highlight, such as a Bloodline, lives in that bar instead of a banner at the top, and ends there with Show everyone, Done or Clear."
