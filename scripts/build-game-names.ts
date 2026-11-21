@@ -163,7 +163,8 @@ const tracks: Record<string, [string, string[], number, string?]> = {};
 for (const [id, t] of rawTracks) {
   if (!t.name) continue;
   const titles = t.levels.map((l) => levelTitle.get(l) ?? '');
-  const top = depthBefore(id) + deepest(id);
+  // Careers end at level 10 in the game: the Villain branch's tuning lists a fourth title past it.
+  const top = Math.min(10, depthBefore(id) + deepest(id));
   const parent = parentOf.get(id);
   tracks[id] = parent ? [t.name, titles, top, parent] : [t.name, titles, top];
 }

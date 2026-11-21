@@ -1346,16 +1346,14 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edsave:disabled,.editor .edsave:disabled:hover{background:#aeb9c7;cursor:not-allowed}
 /* A tall, narrow panel scrolls one way only: down. Long text wraps instead. */
 .editor .ed__body{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:2px 10px 12px}
-.editor .ed__foot{flex:none;padding:8px 10px 10px;border-top:1px solid #e4e7eb}
+.editor .ed__foot{flex:none;display:flex;gap:8px;padding:8px 10px 10px;border-top:1px solid #e4e7eb}
 /* Holds its first label's margin, so measuring a tab counts it. */
 .editor [role=tabpanel]:not([hidden]){display:flow-root}
-.editor .edsave{width:100%;padding:8px 11px;border:none;background:#1b6cd6;color:#fff;border-radius:8px;font-size:12px;font-weight:600}
+.editor .edsave{flex:1 1 0;padding:8px 11px;border:none;background:#1b6cd6;color:#fff;border-radius:8px;font-size:12px;font-weight:600}
+/* Leaving without the change: grey, as anything that only leaves. */
+.editor .edcancel{flex:1 1 0;padding:8px 11px;border:1px solid var(--rule);background:#fff;color:var(--ink-2);border-radius:8px;font-size:12px;font-weight:600}
+.editor .edcancel:hover{background:var(--hover);color:var(--ink)}
 .editor .edsave:hover{background:#155bb8}
-/* Off the board: quiet under Save, red when pointed at, as it can't be missed by a slip. */
-.editor .eddelete{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;margin-top:6px;padding:6px 11px;border:1px solid transparent;border-radius:8px;background:none;color:var(--danger);font-size:11.5px;font-weight:600;cursor:pointer;overflow-wrap:anywhere;white-space:normal;line-height:1.35;text-align:center}
-.editor .eddelete svg{flex:none;width:13px;height:13px}
-.editor .eddelete:hover{background:var(--danger-soft);border-color:var(--danger)}
-.editor .eddelete:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 /* A sim's links, each with its own way off. */
 .editor .edlinks{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
 .editor .edlinks li{display:flex;align-items:center;gap:8px;padding:4px 4px 4px 8px;border:1px solid var(--line);border-radius:7px;background:#fff}
@@ -1363,11 +1361,14 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edlinks li.edlinks__row--ended{background:var(--recess)}
 .editor .edlinks__row--ended .edlinks__text{color:var(--ink-3)}
 .editor .edlinks__tag{display:inline-block;margin-left:6px;padding:0 5px;border-radius:999px;background:#ede9fe;color:#7c3aed;font-size:10px;font-weight:600;vertical-align:1px}
-.editor .edlinks__go{flex:none;padding:3px 8px;border:1px solid var(--rule);border-radius:6px;background:#fff;color:var(--danger);font-size:11px;font-weight:600;cursor:pointer}
-.editor .edlinks__go:hover{background:var(--danger-soft);border-color:var(--danger)}
-.editor .edlinks__go--end{color:var(--warn-strong)}
-.editor .edlinks__go--end:hover{background:var(--warn-soft);border-color:var(--warn-strong)}
-.editor .edlinks__go:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+/* Taking a link off: a quiet grey bin, red only when pointed at. */
+.editor .edlinks__bin{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:none;border-radius:6px;background:transparent;color:var(--ink-3);cursor:pointer}
+.editor .edlinks__bin svg{width:14px;height:14px}
+.editor .edlinks__bin:hover{background:var(--danger-soft);color:var(--danger)}
+.editor .edlinks__bin:focus-visible,.editor .edlinks__end:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+/* A couple the game has: planning its end, said in words, quietly. */
+.editor .edlinks__end{flex:none;padding:3px 6px;border:none;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11px;font-weight:600;cursor:pointer}
+.editor .edlinks__end:hover{background:var(--hover);color:var(--ink)}
 .editor .edtabs{display:flex;margin:8px -4px -1px}
 .editor .edtab{flex:1 1 0;padding:7px 4px 8px;border:none;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#5a6673;font-size:12px;font-weight:600}
 .editor .edtab:hover{background:transparent;color:#22304a}
@@ -1382,9 +1383,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edtip{width:24px;height:24px;margin:-5px 0;padding:0;border:none;border-radius:50%;background:transparent;color:#7a8491}
 .editor .edtip svg{width:14px;height:14px}
 .editor .edtip:hover,.editor .edtip[aria-expanded=true]{background:#eef1f4;color:#1b6cd6}
-.editor .edsum{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-top:5px;padding:5px 8px;border-radius:6px;background:#f2f4f7;font-size:11px;line-height:1.35;color:#33415a}
-.editor .edsum__text{min-width:0}
-.editor .edsum__frozen{display:block;font-size:10.5px;color:#8a5a00}
+/* Their age, said once as a when, under the life stage. */
+.editor .edwhen{margin:6px 2px 0;font-size:11px;line-height:1.4;color:var(--ink-2)}
 .editor .edlink,.slist .edlink{flex:none;padding:0;border:none;background:none;color:#1b6cd6;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px}
 .editor .edlink:hover,.slist .edlink:hover{background:none;color:#155bb8}
 .editor .edlink--more,.slist .edlink--more{margin:6px 2px 0}
@@ -1480,9 +1480,85 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 /* The close button keeps a gutter of its own beside the name fields, so it
    never sits on the last name; 24px, a comfortable size to hit. */
 .editor .edpair--name{padding-right:34px}
-/* The story's book beside the close button: room for both. */
+/* The ⋮ (and the story's book) beside the close button: room for each. */
 .editor .ed__tools--two ~ .edpair--name{padding-right:66px}
-@media (pointer:coarse){ .editor .ed__tools--two ~ .edpair--name{padding-right:90px} }
+.editor .ed__tools--three ~ .edpair--name{padding-right:98px}
+@media (pointer:coarse){
+ .editor .ed__tools--two ~ .edpair--name{padding-right:90px}
+ .editor .ed__tools--three ~ .edpair--name{padding-right:134px}
+}
+/* The ⋮ menu: Copy Sim ID, and Delete, red only in here. */
+.editor .edmenu{position:absolute;top:calc(100% + 2px);right:0;z-index:4;display:flex;flex-direction:column;min-width:200px;max-width:min(260px,calc(100vw - 32px));padding:4px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:var(--lift)}
+.editor .edmenu__item{display:flex;align-items:center;justify-content:flex-start;gap:7px;width:100%;padding:8px 10px;border:none;border-radius:7px;background:transparent;color:var(--ink);font-size:12px;font-weight:600;line-height:1.35;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+.editor .edmenu__item:hover,.editor .edmenu__item:focus-visible{background:var(--hover);outline:none}
+.editor .edmenu__item svg{flex:none;width:14px;height:14px}
+.editor .edmenu__item--danger{color:var(--danger)}
+.editor .edmenu__item--danger:hover,.editor .edmenu__item--danger:focus-visible{background:var(--danger-soft)}
+@media (pointer:coarse){ .editor .edmenu__item{min-height:44px} }
+/* Lives in: the household and place, with one Move for both moves. */
+.editor .edhome{display:flex;align-items:center;gap:8px;padding:7px 8px 7px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.editor .edhome__text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px;overflow-wrap:anywhere}
+.editor .edhome__text b{font-size:12.5px;color:var(--ink)}
+.editor .edhome__text span{font-size:11px;color:var(--ink-2)}
+.editor .edhome__move{flex:none;display:inline-flex;align-items:center;gap:4px;padding:5px 9px;border:1px solid var(--rule);border-radius:7px;background:#fff;color:var(--ink);font-size:11.5px;font-weight:600;cursor:pointer}
+.editor .edhome__move svg{width:11px;height:11px;transition:transform .13s ease}
+.editor .edhome__move[aria-expanded=true] svg{transform:rotate(180deg)}
+.editor .edhome__move:hover{background:var(--hover)}
+@media (pointer:coarse){ .editor .edhome__move{min-height:44px} }
+@media (prefers-reduced-motion:reduce){ .editor .edhome__move svg{transition:none} }
+.editor .edmoves{display:flex;flex-direction:column;gap:2px;margin-top:4px;padding:3px;border:1px solid var(--line);border-radius:8px;background:var(--chrome)}
+.editor .edmoves__go{display:flex;justify-content:flex-start;width:100%;padding:7px 8px;border:none;border-radius:6px;background:transparent;color:var(--accent);font-size:11.5px;font-weight:600;line-height:1.35;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+.editor .edmoves__go:hover{background:var(--accent-soft)}
+@media (pointer:coarse){ .editor .edmoves__go{min-height:44px} }
+/* Details: born, days alive, game pack, Sim ID, folded under the rest. */
+.editor .eddetails{margin-top:12px;padding-top:8px;border-top:1px solid var(--line)}
+.editor .eddetails summary{display:flex;align-items:baseline;gap:5px;padding:3px 2px;color:var(--ink-2);font-size:11px;font-weight:600;cursor:pointer;list-style:none}
+.editor .eddetails summary::-webkit-details-marker{display:none}
+.editor .eddetails summary::before{content:'▸';flex:none;font-size:10px;transition:transform .13s ease}
+.editor .eddetails[open] summary::before{transform:rotate(90deg)}
+.editor .eddetails summary:hover{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){ .editor .eddetails summary::before{transition:none} }
+/* The dynasty as one card until it's changed. */
+.editor .eddyn{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:8px;background:var(--recess)}
+.editor .eddyn__sum{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.editor .eddyn__what{font-size:12px;font-weight:700;line-height:1.35;color:var(--ink);overflow-wrap:anywhere}
+.editor .eddyn__more{font-size:11px;line-height:1.35;color:var(--ink-2);overflow-wrap:anywhere}
+.editor .eddyn .edlink{margin-top:1px}
+.editor .eddyn__edit{margin-top:4px;padding:2px 0 4px}
+/* Who to count Gen 1 from: every choice said in full. */
+.editor .edroots{margin:6px 0 0;padding:0;border:none;min-width:0}
+.editor .edroots legend{padding:0;margin:0 0 2px;font-size:10px;color:#667;text-transform:uppercase;letter-spacing:.3px}
+.editor label.edroot{display:flex;align-items:flex-start;gap:7px;margin:0;padding:4px 2px;font-size:11.5px;color:var(--ink);text-transform:none;letter-spacing:0;line-height:1.35;cursor:pointer}
+.editor .edroot input{flex:none;margin:2px 0 0;width:14px;height:14px}
+.editor .edroot__name{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.editor .edroot__gen{flex:none;color:var(--ink-3);font-size:11px}
+@media (pointer:coarse){ .editor label.edroot{min-height:36px;align-items:center} .editor .edroot input{margin-top:0} }
+/* The Life tab: work, aspiration, traits and skills from the save. */
+.editor .edempty{margin:12px 2px 4px;font-size:11.5px;line-height:1.45;color:var(--ink-2)}
+.editor .edjobs{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.editor .edjob{display:grid;grid-template-columns:1fr auto;column-gap:8px;row-gap:1px;margin:0;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.editor .edjob__name{min-width:0;font-size:12.5px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.editor .edjob__level{font-size:11px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.editor .edjob__title{grid-column:1/-1;font-size:11px;color:var(--ink-2);overflow-wrap:anywhere}
+.editor .edjob--none{display:block;font-size:11.5px;color:var(--ink-2);background:var(--recess);border-color:transparent}
+.editor .edasp{margin:1px 2px 0;font-size:12.5px;font-weight:700;color:var(--ink)}
+.editor .edtraits{margin:2px 0 0;display:flex;flex-direction:column;gap:5px}
+.editor .edtraits__row{display:grid;grid-template-columns:70px 1fr;gap:6px;align-items:start}
+.editor .edtraits dt{padding-top:3px;font-size:11px;color:var(--ink-2)}
+.editor .edtraits dd{margin:0;min-width:0}
+.editor .edchips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px}
+.editor .edchip{padding:2px 9px;border:1px solid var(--accent-soft-hi);border-radius:999px;background:var(--accent-soft);color:var(--ink);font-size:11.5px;font-weight:600;line-height:1.45}
+/* Earned in play: an outline and a ✦, so they never read as personality. */
+.editor .edchip--earned{border-style:dashed;border-color:var(--press-line);background:#fff}
+.editor .edchip--earned::before{content:'✦';margin-right:4px;color:var(--ink-3);font-size:10px}
+.editor .edskills{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
+.editor .edskill{display:flex;align-items:center;gap:8px;padding:3px 2px;font-size:12px;color:var(--ink)}
+.editor .edskill__name{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.editor .edskill__pips{flex:none;display:flex;gap:2px}
+.editor .edskill__pips i{width:8px;height:8px;border-radius:2px;background:var(--line)}
+.editor .edskill__pips i.on{background:var(--accent)}
+.editor .edskill__level{flex:none;width:14px;text-align:right;font-weight:700;color:var(--ink-2)}
+.editor .edaboutfoot{margin:12px 2px 0;padding-top:8px;border-top:1px solid var(--line);font-size:10.5px;line-height:1.4;color:var(--ink-3)}
 
 .legend-chip{position:absolute;right:12px;top:12px;z-index:6;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--chrome);color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;box-shadow:var(--lift);cursor:pointer}
 .legend-chip:hover{background:var(--hover);color:var(--ink)}
@@ -1526,8 +1602,6 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .petfam__row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 2px;border-bottom:1px solid var(--line)}
 .petfam__who{font-size:12.5px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
 .petfam__meta{font-weight:400;color:var(--ink-3)}
-.editor .petfam__x{flex:none;width:24px;height:24px;padding:0;border:none;border-radius:6px;background:transparent;color:var(--ink-3);font-size:11px;cursor:pointer}
-.editor .petfam__x:hover{background:var(--danger-soft);color:var(--danger)}
 .petfam__plan{margin-top:6px}
 .petfam__planrow{display:flex;gap:6px;align-items:center}
 .petfam__planrow select{flex:1 1 auto;min-width:0}

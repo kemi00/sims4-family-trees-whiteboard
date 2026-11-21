@@ -2840,6 +2840,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           }}
           petKinds={wb.petKinds}
           hasGame={wb.hasGame}
+          whenOf={(stage) => wb.whenLineOf(editNode, stage)}
           {...(wb.chronicle.length
             ? {
                 onStory: () => {

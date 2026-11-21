@@ -1873,7 +1873,11 @@ export function useWhiteboard() {
    */
   const waitCtx = useMemo(() => waitContext(nodesCore, edges, saveGame, householdMoves), [nodesCore, edges, saveGame, householdMoves]);
   const hhNameOf = useCallback((gid: string) => householdName(gid, groups, nodes), [groups, nodes]);
-  const whenLineOf = useCallback((n: SimNode) => whenLine(stageWait(n, GROWN_UP, waitCtx), hhNameOf), [waitCtx, hhNameOf]);
+  /** When a sim reaches a life stage (grown up unless said), in words: "Adult in 13 days of playing the Goth household". */
+  const whenLineOf = useCallback(
+    (n: SimNode, stage: string = GROWN_UP) => whenLine(stageWait(n, stage, waitCtx), hhNameOf),
+    [waitCtx, hhNameOf],
+  );
   const readyWhenOf = useCallback(
     (ids: readonly string[], nameOf: (n: SimNode) => string = (n) => n.first || cardName(n)) =>
       readyWhen(

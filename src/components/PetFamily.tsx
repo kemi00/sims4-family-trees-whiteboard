@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from 'react';
+import { Trash } from '../icons.ts';
 import { DECEASED_STATE } from '../lib/constants.ts';
 import { cardName, isPlannedSim } from '../lib/plan.ts';
 import { petAgeLabel, youngWord } from '../lib/pets.ts';
@@ -77,12 +78,12 @@ export function PetFamily({ pet, nodes, edges, onLinkParent, onDeleteLink, onPla
       {e && (
         <button
           type="button"
-          className="petfam__x"
+          className="edlinks__bin"
           aria-label={`Remove the link to ${cardName(n)}`}
-          title="Remove this link"
+          title="Take this link off the board. Undo takes it back."
           onClick={() => onDeleteLink(e.id)}
         >
-          ✕
+          <Trash aria-hidden="true" />
         </button>
       )}
     </li>

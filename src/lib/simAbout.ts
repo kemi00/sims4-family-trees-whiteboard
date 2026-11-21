@@ -19,11 +19,17 @@ export type GameNames = {
 };
 
 let loading: Promise<GameNames> | null = null;
+let loaded: GameNames | null = null;
 
 /** The names, fetched once: the board's main load doesn't carry them. */
 export function loadGameNames(): Promise<GameNames> {
-  loading ??= import('../data/gameNames.json').then((m) => (m.default ?? m) as unknown as GameNames);
+  loading ??= import('../data/gameNames.json').then((m) => (loaded = (m.default ?? m) as unknown as GameNames));
   return loading;
+}
+
+/** The names, once fetched; null before. */
+export function gameNamesNow(): GameNames | null {
+  return loaded;
 }
 
 /** One job, school or club, as the Life tab shows it. */
@@ -69,6 +75,29 @@ export function skillLevel(points: number, steps: readonly number[]): number {
 }
 
 /**
+ * A name as the game says it for this sim: some carry both forms,
+ * "{M0.Patriarch}{F0.Matriarch}", "Fisher{M0.man}{F0.woman}". A male sim
+ * gets the first kind, a female sim the second. Anyone else (non-binary,
+ * not known) is never given one: an ending is left off ("Fisher") and a
+ * whole word says both ("Patriarch/Matriarch").
+ */
+export function sayFor(text: string, gender?: string): string {
+  if (!text.includes('{')) return text;
+  const pick = gender === 'Male' ? 'M' : gender === 'Female' ? 'F' : '';
+  const out = text.replace(
+    /(\p{L}?)\{([MF])0\.([^}]*)\}\{([MF])0\.([^}]*)\}/gu,
+    (_, before: string, k1: string, w1: string, k2: string, w2: string) => {
+      const forms: Record<string, string> = { [k1]: w1, [k2]: w2 };
+      if (pick) return before + (forms[pick] ?? '');
+      if (before) return before;
+      return `${forms.M ?? w1}/${forms.F ?? w2}`;
+    },
+  );
+  // Any other token (a name the game fills in) says nothing here.
+  return out.replace(/\{[^}]*\}/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
  * What the Life tab shows of a sim: jobs and school (a branch under its
  * career), the aspiration, personality and earned traits, and skills by
  * level, highest first. What the names don't cover (a pack built after
@@ -76,36 +105,40 @@ export function skillLevel(points: number, steps: readonly number[]): number {
  * as a number. A skill under level 1, or with no steps the board knows
  * (a toddler's), shows without a level only when it has a name.
  */
-export function aboutView(about: SimAbout | undefined, names: GameNames): AboutView {
+export function aboutView(about: SimAbout | undefined, names: GameNames, gender?: string): AboutView {
   const view: AboutView = { jobs: [], personality: [], earned: [], skills: [] };
   if (!about) return view;
+  const say = (t: string) => sayFor(t, gender);
 
   const seen = new Set<string>();
   for (const job of about.jobs ?? []) {
     const track = names.tracks[job.track];
     if (!track) continue;
-    const [own, titles, top, parent] = track;
-    const parentName = parent ? names.tracks[parent]?.[0] : undefined;
+    const [ownRaw, titles, top, parent] = track;
+    const own = say(ownRaw);
+    const parentRaw = parent ? names.tracks[parent]?.[0] : undefined;
+    const parentName = parentRaw ? say(parentRaw) : undefined;
     const name = parentName ?? own;
     const branch = parentName ? own : undefined;
     const key = `${name}|${branch ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const title = titles[job.at] || undefined;
+    const title = titles[job.at] ? say(titles[job.at]!) : undefined;
     const grade = title ? /\b([A-F]) Student$/.exec(title)?.[1] : undefined;
     view.jobs.push({ name, ...(branch ? { branch } : {}), ...(title ? { title } : {}), level: job.level, top, ...(grade ? { grade } : {}) });
   }
 
   if (about.aspiration) {
     const a = names.aspirations[about.aspiration];
-    if (a) view.aspiration = a;
+    if (a) view.aspiration = say(a);
   }
 
   for (const id of about.traits ?? []) {
     const t = names.traits[id];
     if (!t) continue;
     const list = t[1] === 'p' ? view.personality : view.earned;
-    if (!list.includes(t[0])) list.push(t[0]);
+    const name = say(t[0]);
+    if (!list.includes(name)) list.push(name);
   }
 
   for (const s of about.skills ?? []) {
@@ -113,11 +146,11 @@ export function aboutView(about: SimAbout | undefined, names: GameNames): AboutV
     if (!k) continue;
     const steps = names.skillLevels[String(k[1])];
     if (!steps) {
-      view.skills.push({ name: k[0], level: null, max: null });
+      view.skills.push({ name: say(k[0]), level: null, max: null });
       continue;
     }
     const level = skillLevel(s.points, steps);
-    if (level >= 1) view.skills.push({ name: k[0], level, max: steps.length });
+    if (level >= 1) view.skills.push({ name: say(k[0]), level, max: steps.length });
   }
   view.skills.sort((a, b) => (b.level ?? 0) - (a.level ?? 0) || a.name.localeCompare(b.name));
   return view;

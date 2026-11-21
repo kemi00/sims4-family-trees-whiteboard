@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { aboutView, skillLevel, type GameNames } from './simAbout.ts';
+import { aboutView, sayFor, skillLevel, type GameNames } from './simAbout.ts';
 
 const MAJOR = [100, 1440, 2160, 3600, 5280, 7200, 10140, 13440, 17100, 21120];
 const names: GameNames = {
@@ -67,5 +67,32 @@ describe('what the Life tab shows', () => {
 
   it('is empty with nothing from a save', () => {
     assert.deepEqual(aboutView(undefined, names), { jobs: [], personality: [], earned: [], skills: [] });
+  });
+});
+
+describe('names with both forms', () => {
+  it('gives a male or female sim theirs, and never picks one for anyone else', () => {
+    assert.equal(sayFor('{M0.Patriarch}{F0.Matriarch}', 'Male'), 'Patriarch');
+    assert.equal(sayFor('{M0.Patriarch}{F0.Matriarch}', 'Female'), 'Matriarch');
+    assert.equal(sayFor('World-Renowned {F0.Actress}{M0.Actor}', 'Male'), 'World-Renowned Actor');
+    assert.equal(sayFor('{M0.Patriarch}{F0.Matriarch}', 'Non-Binary'), 'Patriarch/Matriarch');
+    assert.equal(sayFor('Fisher{M0.man}{F0.woman}', 'Non-Binary'), 'Fisher');
+    assert.equal(sayFor('Fisher{M0.man}{F0.woman}', 'Female'), 'Fisherwoman');
+    assert.equal(sayFor('Pizza Delivery {M0.Guy}{F0.Girl}'), 'Pizza Delivery Guy/Girl');
+    assert.equal(sayFor('Writer'), 'Writer');
+  });
+
+  it('names a job, trait and aspiration for the sim', () => {
+    const v = aboutView(
+      { traits: ['1'], aspiration: '2', jobs: [{ track: '3', at: 0, level: 1 }] },
+      {
+        ...names,
+        traits: { '1': ['{M0.Patriarch}{F0.Matriarch}', 'e'] },
+        aspirations: { '2': '{F0.Lady}{M0.Lord} of the Knits' },
+        tracks: { '3': ['Fisher{M0.man}{F0.woman}', ['Goldfish Hunter'], 3] },
+      },
+      'Female',
+    );
+    assert.deepEqual([v.earned, v.aspiration, v.jobs[0]?.name], [['Matriarch'], 'Lady of the Knits', 'Fisherwoman']);
   });
 });
