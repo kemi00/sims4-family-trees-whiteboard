@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { arrivalText, dynastyText, homeText, recapHasNews, recapTimeText, relationshipText, prestigeLevelNewsText, perkText, saveRecap } from './saveRecap.ts';
+import { arrivalText, dynastyText, homeText, moneyText, recapHasNews, recapTimeText, relationshipText, prestigeLevelNewsText, perkText, saveRecap } from './saveRecap.ts';
 import type { Edge, PairStatus, SimNode } from '../types/whiteboard.ts';
 
 const sim = (id: string, first: string, extra: Partial<SimNode> = {}): SimNode =>
@@ -239,5 +239,26 @@ describe('what the first round missed', () => {
     });
     assert.deepEqual(r.homes!.map(homeText), ['The Green Gables household is now called the Cuthbert household']);
     assert.equal(r.moved.length, 0);
+  });
+});
+
+describe('money between saves', () => {
+  it('tells a household’s funds going up or down, the biggest change first, as the story of everyone in it', () => {
+    const goth = (id: string) => sim(id, id, { gid: 'WC||Goth', hh: 'Goth', hhId: 'g' });
+    const nodes = [goth('Mortimer'), goth('Bella'), sim('Geoffrey', 'Geoffrey', { hhId: 'l' })];
+    const game = (g: number, l: number) => ({
+      importedAt: 'x',
+      clock: 0,
+      households: { g: { name: 'Goth', funds: g }, l: { name: 'Landgraab', funds: l } },
+    });
+    const r = saveRecap({ nodes, edges: [], saveGame: game(45500, 85000) }, { nodes, edges: [], saveGame: game(61200, 84000) });
+    assert.deepEqual(r.money, [
+      { hh: 'Goth', ids: ['Mortimer', 'Bella'], from: 45500, to: 61200 },
+      { hh: 'Landgraab', ids: ['Geoffrey'], from: 85000, to: 84000 },
+    ]);
+    assert.equal(moneyText(r.money![0]!), 'The Goth household’s funds went from §45,500 to §61,200');
+    assert.equal(recapHasNews(r), true);
+    // Unchanged: nothing to tell.
+    assert.equal(saveRecap({ nodes, edges: [], saveGame: game(1, 2) }, { nodes, edges: [], saveGame: game(1, 2) }).money, undefined);
   });
 });

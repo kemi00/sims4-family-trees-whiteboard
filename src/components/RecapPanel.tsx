@@ -11,6 +11,7 @@ import {
   HandHeart,
   Heart,
   HeartBreak,
+  Coins,
   House,
   Medal,
   Sparkle,
@@ -22,9 +23,10 @@ import {
   UsersThree,
   type Icon,
 } from '../icons.ts';
+import { money } from '../lib/funds.ts';
 import { CloseButton } from './CloseButton.tsx';
 import { NOT_IN_WORLD } from '../lib/constants.ts';
-import { lifeText, perkText, prestigeLevelNewsText, recapTimeText, relationshipText, theDynasty, type ArrivalNews, type DynastyNews, type FamilyNews, type ForebearNews, type GoneNews, type HomeNews, type LifeNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
+import { lifeText, perkText, prestigeLevelNewsText, recapTimeText, relationshipText, theDynasty, type ArrivalNews, type DynastyNews, type FamilyNews, type ForebearNews, type GoneNews, type HomeNews, type LifeNews, type MoneyNews, type RecapSim, type RelationshipNews, type SaveRecap } from '../lib/saveRecap.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 
 type Props = {
@@ -338,6 +340,23 @@ export function RecapStory({
       ),
     };
   });
+  // A household's money: quiet, after its moves.
+  each('money', (r) => r.money, (m, k) => {
+    const name = (
+      <button type="button" className="recap__sim recap__sim--lead" onClick={() => onGoToSim(m.ids[0]!)}>
+        {m.hh}
+      </button>
+    );
+    return {
+      key: `money${k}`,
+      Icon: Coins,
+      node: (
+        <>
+          The {name} household’s funds went from {money(m.from)} to {money(m.to)}
+        </>
+      ),
+    };
+  });
   each('moved', (r) => r.moved, (m, k) => ({
     key: `moved${k}`,
     Icon: House,
@@ -433,6 +452,8 @@ export function RecapStory({
         return <>{n} joined households, among them {nm((xs[0] as ArrivalNews).sim.name)}</>;
       case 'homes':
         return <>{n} households moved home, among them the {nm((xs[0] as HomeNews).hh)} household</>;
+      case 'money':
+        return <>{n} households’ funds changed, among them the {nm((xs[0] as MoneyNews).hh)} household’s</>;
       case 'moved':
         return <>{n} sims moved, among them {nm((xs[0] as RecapSim).name)}</>;
       case 'grew':

@@ -2,7 +2,7 @@ import { GROWN_UP, daysFromBirth, daysUntilStage, everyoneAges, lifeView, wholeD
 import { cardName, conflictText, isPlannedSim, type PlanConflict } from './plan.ts';
 import { changesWorld, movesHousehold } from './householdMove.ts';
 import { isUnhousedGid } from './unhoused.ts';
-import { edgeSourceOf, joinNotes, theHousehold, uKey } from './utils.ts';
+import { edgeSourceOf, fold, joinNotes, theHousehold, uKey } from './utils.ts';
 import { ADDED_HOUSEHOLD, DECEASED_STATE } from './constants.ts';
 import { dynastyKey, dynastyNames, dynastyPhrase } from './generations.ts';
 import { catchUpText, planWindow, type PlanWindow } from './matchClock.ts';
@@ -72,6 +72,8 @@ export type PlanItem = {
   window?: PlanWindow;
   /** Your note on the link or move behind it: why you planned it. */
   yourNote?: string;
+  /** A whole household moving in with another: the households (its money goes along). */
+  joins?: { from: string; to: string };
 };
 
 /** `{ yourNote }` to spread into an item, or nothing. */
@@ -487,8 +489,20 @@ export function householdPlans(opts: {
   // the rest follow once a save shows it done. A planned sim only lives
   // there in the plan: born or found, it will. A household that changes
   // worlds, its sims together, is one move in the game, and one line.
-  const households = new Map<string, { step: HouseholdMove; sims: string[]; notes: (string | undefined)[]; then: string | undefined }>();
-  for (const [id, list] of pendingMoves(opts.moves)) {
+  const households = new Map<string, { step: HouseholdMove; sims: string[]; notes: (string | undefined)[]; then: string | undefined; joins: boolean }>();
+  const pending = pendingMoves(opts.moves);
+  /**
+   * Every living sim the game has in `fromGid` moves on to `toGid` next:
+   * the whole household moves, to a new home or in with another, one step
+   * in the game (and its money goes along). Two or more of them, so one sim
+   * isn't a household.
+   */
+  const joinsWhole = (step: HouseholdMove): boolean => {
+    if (step.fromHh === ADDED_HOUSEHOLD) return false;
+    const members = nodes.filter((n) => living(n) && !isPlannedSim(n) && gameGid(n) === step.fromGid);
+    return members.length >= 2 && members.every((n) => pending.get(n.id)?.[0]?.toGid === step.toGid);
+  };
+  for (const [id, list] of pending) {
     const n = byId.get(id);
     const step = list[0]!;
     const last = list[list.length - 1]!;
@@ -497,14 +511,15 @@ export function householdPlans(opts: {
     const then = next
       ? `Then to the ${next.toHh} household${list.length > 2 ? `, and ${list.length - 2} more ${list.length === 3 ? 'move' : 'moves'}` : ''}.`
       : undefined;
-    if (movesHousehold(step)) {
+    const joins = !movesHousehold(step) && joinsWhole(step);
+    if (movesHousehold(step) || joins) {
       // The same move in the game, whenever it was planned for each of them.
       const key = `${step.fromGid}|${step.toGid}`;
       const h = households.get(key);
       if (h) {
         h.sims.push(n.id);
         h.notes.push(step.note);
-      } else households.set(key, { step, sims: [n.id], notes: [step.note], then });
+      } else households.set(key, { step, sims: [n.id], notes: [step.note], then, joins });
       continue;
     }
     const worlds = changesWorld(step);
@@ -524,12 +539,18 @@ export function householdPlans(opts: {
       ...noted(step.note),
     });
   }
-  for (const { step, sims, notes, then } of households.values()) {
+  for (const { step, sims, notes, then, joins } of households.values()) {
+    const worlds = changesWorld(step);
     items.push({
       id: `move:${step.id}`,
       kind: 'move',
       state: 'ready',
-      text: `Move the ${step.toHh} household from ${step.fromWorld} to ${step.toWorld}`,
+      text: !joins
+        ? `Move the ${step.toHh} household from ${step.fromWorld} to ${step.toWorld}`
+        : fold(step.fromHh) === fold(step.toHh)
+          ? `Move the ${step.fromHh} household to its new home${step.toNb && step.toNb !== '-' ? ` in ${step.toNb}` : ''}${worlds ? ` (${step.toWorld})` : ''}`
+          : `Move the ${step.fromHh} household in with the ${step.toHh} household${worlds ? ` (${step.toWorld})` : ''}`,
+      ...(joins && fold(step.fromHh) !== fold(step.toHh) ? { joins: { from: step.fromGid, to: step.toGid } } : {}),
       sims,
       gids: uniq([step.toGid, step.fromGid]),
       waits: [],

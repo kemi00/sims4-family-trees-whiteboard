@@ -158,6 +158,8 @@ export function entryAbout(
       : {}),
     ...(r.life ? { life: r.life.filter((l) => has(ids, l.sim) && says(q, l.sim.name, l.from, l.to)) } : {}),
     ...(r.homes ? { homes: r.homes.filter((h) => has(ids, ...h.ids) && says(q, h.hh, h.to, h.renamedFrom)) } : {}),
+    // A household's money is the story of everyone in it.
+    ...(r.money ? { money: r.money.filter((m) => has(ids, ...m.ids) && says(q, m.hh)) } : {}),
     // An arrival is the story of everyone in the home it joined.
     ...(r.arrivals ? { arrivals: r.arrivals.filter((a) => has(ids, a.sim, ...a.ids) && says(q, a.sim.name, a.hh)) } : {}),
     ...(r.relationships ? { relationships: r.relationships.filter((x) => has(ids, x.a, x.b) && says(q, x.a.name, x.b.name)) } : {}),
@@ -183,6 +185,7 @@ export function entryAbout(
     (recap.family?.length ?? 0) +
     (recap.life?.length ?? 0) +
     (recap.homes?.length ?? 0) +
+    (recap.money?.length ?? 0) +
     (recap.arrivals?.length ?? 0) +
     (recap.relationships?.length ?? 0) +
     (recap.gone?.length ?? 0) +

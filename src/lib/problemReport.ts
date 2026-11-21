@@ -83,6 +83,7 @@ function gameLine(g: SaveGameInfo): string {
     g.activeHousehold ? 'active household known' : 'no active household',
     g.dynastyStanding ? count(Object.keys(g.dynastyStanding).length, 'dynasty standing', 'dynasty standings') : '',
     g.lotZones ? count(g.lotZones.length, 'saved lot') : '',
+    g.households ? count(Object.keys(g.households).length, 'household with funds', 'households with funds') : '',
   ];
   return parts.filter(Boolean).join(' · ');
 }

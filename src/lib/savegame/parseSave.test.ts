@@ -981,6 +981,16 @@ describe('game clock, options and sim ages', () => {
     assert.deepEqual([of('Old').aliveTicks, of('Old').stageDays], [undefined, undefined]);
   });
 
+  it('reads each household’s funds, by its id', () => {
+    const rich = (id: number, name: string, funds: number) =>
+      encodeBytes(5, concat(encodeVarintField(2, id), encodeString(3, name), encodeVarintField(5, funds), encodeVarintField(31, 0)));
+    const parsed = parseSaveGame(saveOf(...sims, slot(5), rich(10, 'Landgraab', 85000), rich(20, 'Bheeda', 20000)));
+    assert.deepEqual(parsed.game?.households, {
+      '10': { name: 'Landgraab', funds: 85000 },
+      '20': { name: 'Bheeda', funds: 20000 },
+    });
+  });
+
   it('leaves the game out when the save has no clock, and options it lacks unset', () => {
     assert.equal(parseSaveGame(saveOf(...sims, slot())).game, undefined);
     const bare = parseSaveGame(saveOf(...sims, slot(5)));

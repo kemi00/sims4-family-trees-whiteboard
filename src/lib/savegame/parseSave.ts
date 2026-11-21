@@ -89,6 +89,8 @@ export type ParsedGameInfo = {
   activeHouseholdId?: string;
   /** Households the player has played. */
   playedHouseholds: string[];
+  /** Each household's name and funds (§), by its id. */
+  households?: Record<string, { name: string; funds: number }>;
 };
 
 export type ParsedSaveRel = {
@@ -231,11 +233,12 @@ export function genderFromPronouns(pronouns: SimPronouns | undefined, gameGender
   return NON_BINARY;
 }
 
-/** Household records (Save Game Data field 5). Field 31 is 1 once played. */
+/** Household records (Save Game Data field 5). Field 31 is 1 once played; 5 is its funds (§). */
 const HOUSEHOLD = {
   id: 2,
   name: 3,
   homeZone: 4,
+  funds: 5,
   played: 31,
 } as const;
 
@@ -580,6 +583,12 @@ function parseGameInfo(saveGame: Uint8Array): ParsedGameInfo | undefined {
       const played = fields.some((f) => f.field === HOUSEHOLD.played && f.wire === 0 && f.int === 1n);
       const id = idField(fields, HOUSEHOLD.id);
       if (played && id) info.playedHouseholds.push(id);
+      // The household's money, as Manage Households shows it.
+      const funds = fields.find((f) => f.field === HOUSEHOLD.funds && f.wire === 0);
+      if (id && funds) {
+        const name = readableHouseholdName(utf8(fields.find((f) => f.field === HOUSEHOLD.name)?.bytes ?? null) ?? '');
+        (info.households ??= {})[id] = { name, funds: Number(funds.int) };
+      }
     }
   }
   const account = firstBytes(saveGame, 3);

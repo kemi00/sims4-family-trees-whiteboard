@@ -24,6 +24,7 @@ export { EnvelopeSimple } from '@phosphor-icons/react/EnvelopeSimple';
 export { EyeSlash } from '@phosphor-icons/react/EyeSlash';
 export { Funnel } from '@phosphor-icons/react/Funnel';
 export { GameController } from '@phosphor-icons/react/GameController';
+export { Coins } from '@phosphor-icons/react/Coins';
 export { Globe } from '@phosphor-icons/react/Globe';
 export { GridFour } from '@phosphor-icons/react/GridFour';
 export { HandHeart } from '@phosphor-icons/react/HandHeart';

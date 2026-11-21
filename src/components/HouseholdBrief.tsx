@@ -1,7 +1,9 @@
 import type { HomeRoom } from '../lib/homeRoom.ts';
 import { CloseButton, IconButton } from './CloseButton.tsx';
 import { HOUSEHOLD_MAX } from '../lib/homeRoom.ts';
-import { lotKindLabel, lotRoomsLabel, lotSizeLabel, type GameLot, type LotCatalog } from '../lib/places.ts';
+import { lotKey, lotKindLabel, lotRoomsLabel, lotSizeLabel, type GameLot, type LotCatalog } from '../lib/places.ts';
+import { homesSold, money, moveMoney, togetherText, type BoxFunds } from '../lib/funds.ts';
+import { fold, theHousehold } from '../lib/utils.ts';
 import { useRef, useState } from 'react';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
@@ -49,6 +51,18 @@ type Props = {
   onPoster?: () => void;
   /** Open the Chronicle on the household's story; absent while the story is empty. */
   onStory?: () => void;
+  /**
+   * The household's money from the last save, when it has some: the funds,
+   * when the save had them, lot prices typed from the game and setting one.
+   */
+  money?: {
+    funds: BoxFunds;
+    when: string;
+    prices: Readonly<Record<string, number>>;
+    onPrice: (lot: GameLot, price: number | undefined) => void;
+  };
+  /** Any household's money: a whole household moving in brings its funds along. */
+  fundsOf?: (gid: string) => BoxFunds | undefined;
   /** Set when the household can move to another world: the board's worlds and households. */
   move?: {
     worlds: World[];
@@ -96,6 +110,8 @@ export function HouseholdBrief({
   onClose,
   onPoster,
   onStory,
+  money: cash,
+  fundsOf,
   move,
 }: Props) {
   const sheet = usePanelSheet();
@@ -125,6 +141,9 @@ export function HouseholdBrief({
         ))}
         {i.window && <WindowLine w={i.window} babies={i.kind === 'baby'} nameOf={nameOf} hhOf={hhOf} game={game} />}
         {i.note && <span className="brief__note">{i.note}</span>}
+        {i.joins && togetherText(fundsOf?.(i.joins.to)) && (
+          <span className="brief__money">{togetherText(fundsOf?.(i.joins.to))}</span>
+        )}
         {i.yourNote && <span className="brief__yours">{i.yourNote}</span>}
       </button>
     </li>
@@ -165,7 +184,8 @@ export function HouseholdBrief({
         )}
         <CloseButton label="Close the household plan" onClick={onClose} />
       </header>
-      {room && <HomeSection room={room} world={group.world} onMoveToLot={onMoveToLot} />}
+      {room && <HomeSection room={room} world={group.world} onMoveToLot={onMoveToLot} cash={cash} hh={group.hh} />}
+      {!room && cash && <FundsLine funds={cash.funds} when={cash.when} />}
       {move && (
         <>
           <button
@@ -274,10 +294,14 @@ function HomeSection({
   room,
   world,
   onMoveToLot,
+  cash,
+  hh,
 }: {
   room: HomeRoom;
   world: string;
   onMoveToLot?: (lot: GameLot) => void;
+  cash?: Props['money'];
+  hh: string;
 }) {
   const { lot } = room;
   const people = room.sims + room.planned;
@@ -298,6 +322,8 @@ function HomeSection({
         {who.join(', ')}
         {lot.kind === 'house' && people > 0 && <>: about {room.rooms === 1 ? '1 bedroom' : `${room.rooms} bedrooms`} needed</>}
       </p>
+      {cash && <FundsLine funds={cash.funds} when={cash.when} />}
+      {cash && movingTo(cash.funds, lot) && <MovePrice lot={lot} hh={hh} cash={cash} />}
       {room.overCap && (
         <p className="brief__homewarn">
           {people + room.pets} in one household: the game allows {HOUSEHOLD_MAX}. Someone has to move out before
@@ -361,5 +387,93 @@ function WindowLine({
       <span aria-hidden="true">⏳ </span>
       {t.text}
     </span>
+  );
+}
+
+/**
+ * The lot they're planned onto is none their households live on in the
+ * game: a move to make, with a price the save doesn't keep.
+ */
+function movingTo(funds: BoxFunds, lot: GameLot): boolean {
+  return !funds.shares.some((f) => f.lot && fold(f.lot) === fold(lot.name));
+}
+
+/** "§45,500 in funds", from the save; several households' money together, said in full. */
+function FundsLine({ funds, when }: { funds: BoxFunds; when: string }) {
+  const together = togetherText(funds);
+  return (
+    <p className="brief__funds" title={when ? `From your save, ${when}` : 'From your save'}>
+      <b>{together || `${money(funds.amount)} in funds`}</b>
+      {!together && <span>from your save</span>}
+    </p>
+  );
+}
+
+/**
+ * A planned move's price, typed as the game shows it, and what it leaves:
+ * short by how much (a when: ready once they have it), or what's left. It
+ * warns and never blocks. The home a move sells adds its value in the game,
+ * which the save doesn't keep either: said, not counted.
+ */
+function MovePrice({ lot, hh, cash }: { lot: GameLot; hh: string; cash: NonNullable<Props['money']> }) {
+  const key = lotKey(lot);
+  const saved = cash.prices[key];
+  const [draft, setDraft] = useState(saved === undefined ? '' : String(saved));
+  const [was, setWas] = useState(saved);
+  if (was !== saved) {
+    // Undo or another household changed it: show what's kept.
+    setWas(saved);
+    setDraft(saved === undefined ? '' : String(saved));
+  }
+  const commit = () => {
+    const digits = draft.replace(/[^0-9]/g, '');
+    const price = digits ? Number(digits) : undefined;
+    setDraft(price === undefined ? '' : String(price));
+    if (price !== saved) cash.onPrice(lot, price);
+  };
+  const sold = homesSold(cash.funds, lot.name);
+  const sale = sold.length === 1 ? sold[0]! : sold.length ? 'their homes' : '';
+  const who = theHousehold(hh);
+  const id = `briefPrice-${key}`;
+  const verdict = (() => {
+    if (saved === undefined) {
+      return {
+        tone: 'say',
+        text: `They have ${money(cash.funds.amount)}. Your save doesn’t keep lot prices: the game shows this one when they move in.`,
+      };
+    }
+    const m = moveMoney(cash.funds, saved);
+    if (m.short !== undefined) {
+      return {
+        tone: 'short',
+        text: `⚠ ${money(m.short)} short. Ready when ${who} has ${money(saved)}.${sale ? ` Selling ${sale} adds ${sold.length === 1 ? 'its' : 'their'} value too: the game pays it when they move.` : ''}`,
+      };
+    }
+    return { tone: 'left', text: `${money(m.left!)} left after the move${sale ? `, before selling ${sale}` : ''}.` };
+  })();
+  return (
+    <div className="brief__price">
+      <label htmlFor={id}>
+        <span>Price in the game</span>
+        <input
+          id={id}
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="§ as the game shows it"
+          value={draft ? money(Number(draft.replace(/[^0-9]/g, '') || 0)) : ''}
+          onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              commit();
+            }
+          }}
+        />
+      </label>
+      <p className={`brief__verdict brief__verdict--${verdict.tone}`} role="status">
+        {verdict.text}
+      </p>
+    </div>
   );
 }

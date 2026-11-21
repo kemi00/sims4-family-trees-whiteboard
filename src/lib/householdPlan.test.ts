@@ -372,6 +372,33 @@ describe('household moves', () => {
     assert.deepEqual(plans(nodes, [], { moves: [{ ...moves[0]!, done: true }] }).filter((i) => i.kind === 'move'), []);
   });
 
+  it('make a whole household moving in with another one move, its households named', () => {
+    // Mortimer and Bella, all the Goths the game has, move in with the Landgraabs; Geoffrey stays.
+    const nodes = [sim('Mortimer', 'Landgraab'), sim('Bella', 'Landgraab'), sim('Geoffrey', 'Landgraab')];
+    const moves = [move('m1', 'Mortimer', 'Goth', 'Landgraab'), move('m2', 'Bella', 'Goth', 'Landgraab')];
+    const items = plans(nodes, [], { moves }).filter((i) => i.kind === 'move');
+    assert.deepEqual(
+      items.map((i) => [i.text, i.sims, i.joins]),
+      [['Move the Goth household in with the Landgraab household', ['Mortimer', 'Bella'], { from: 'W||Goth', to: 'W||Landgraab' }]],
+    );
+    // To a new home of their own: one step too.
+    const home = [sim('Mortimer', 'Goth', { gid: 'W||Goth::2' }), sim('Bella', 'Goth', { gid: 'W||Goth::2' })];
+    const homeMoves = [
+      move('h1', 'Mortimer', 'Goth', 'Goth', { toGid: 'W||Goth::2', toNb: 'Courtyard Lane' }),
+      move('h2', 'Bella', 'Goth', 'Goth', { toGid: 'W||Goth::2', toNb: 'Courtyard Lane' }),
+    ];
+    assert.deepEqual(
+      plans(home, [], { moves: homeMoves }).filter((i) => i.kind === 'move').map((i) => [i.text, i.joins]),
+      [['Move the Goth household to its new home in Courtyard Lane', undefined]],
+    );
+    // One of them alone is a sim moving, not the household.
+    const one = plans([...nodes, sim('Alexander', 'Goth')], [], { moves }).filter((i) => i.kind === 'move');
+    assert.deepEqual(one.map((i) => i.text), [
+      'Move Mortimer Landgraab from Goth to the Landgraab household',
+      'Move Bella Landgraab from Goth to the Landgraab household',
+    ]);
+  });
+
   it('make a household that changes worlds one move, and name the worlds of a sim who changes them', () => {
     const inOndarion = (id: string) => sim(id, 'Dreamer', { gid: 'Ondarion||Dreamer', world: 'Ondarion' });
     const nodes = [inOndarion('Dirk'), inOndarion('Amarachi'), sim('Lucas', 'Summerdream', { gid: 'Innisgreen||Summerdream', world: 'Innisgreen' })];

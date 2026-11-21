@@ -162,6 +162,7 @@ import { worldTotals } from '../lib/worldTag.ts';
 import { indexPairStatus, mergePairStatus } from '../lib/pairStatus.ts';
 import { withoutSecretLinks, withoutSecretStatus } from '../lib/secrets.ts';
 import { familyOf, linksInView, type FamilyScope, type LinksView } from '../lib/family.ts';
+import { fundsByBox, money } from '../lib/funds.ts';
 
 const INITIAL_VIEW: Viewport = { tx: 40, ty: 40, k: 0.72 };
 
@@ -335,6 +336,10 @@ const LAYER_STATUS: Record<keyof ShowToggles, { on: string; off: string }> = {
     on: 'World boxes on — coloured frames around each world',
     off: 'World boxes off — world frames hide',
   },
+  funds: {
+    on: 'Household funds on: each household’s money beside its tag, from your save',
+    off: 'Household funds off: the money still shows in each household’s plan',
+  },
 };
 
 type BoardSnap = {
@@ -349,6 +354,7 @@ type BoardSnap = {
   simAgeUps: SimAgeUp[];
   pairStatus: PairStatus[];
   lotBoxAt: LotBoxPins;
+  lotPrices: Record<string, number>;
   saveGame: SaveGameInfo | null;
   /** The board's story: a save merge adds to it, and its undo takes that back. */
   chronicle: ChronicleEntry[];
@@ -457,6 +463,7 @@ export function useWhiteboard() {
   const [show, setShow] = useState<ShowToggles>({
     groups: true,
     worlds: true,
+    funds: true,
   });
   const [linksView, setLinksViewState] = useState<LinksView>('all');
   /** Highlight the selected sim's family (familyOf), whoever is selected. */
@@ -579,6 +586,8 @@ export function useWhiteboard() {
   );
   /** Where each world's Free lots box stands once placed (LotBoxPin): only a drag or Organise moves it. */
   const [lotBoxAt, setLotBoxAt] = useState<LotBoxPins>(() => boot.lotBoxAt ?? {});
+  /** Lot prices typed from the game, by lotKey: a planned move there is checked against the funds. */
+  const [lotPrices, setLotPrices] = useState<Record<string, number>>(() => boot.lotPrices ?? {});
   const [deceasedMarks, setDeceasedMarks] = useState<DeceasedMark[]>(
     () => boot.deceasedMarks ?? [],
   );
@@ -891,6 +900,9 @@ export function useWhiteboard() {
   const lotZones = saveGame?.lotZones;
   const lotCatalog = useMemo(() => saveLotCatalog(lotZones), [lotZones]);
   const homes = useMemo(() => householdLots(nodesCore, lotCatalog), [nodesCore, lotCatalog]);
+  /** Each household box's money, from the last save (fundsByBox). */
+  const saveHouseholds = saveGame?.households;
+  const funds = useMemo(() => fundsByBox(nodesCore, saveHouseholds), [nodesCore, saveHouseholds]);
   /**
    * Each world's vacancies, including saved vacancies reserved by a plan. A
    * world whose sims are all filtered out shows none, as it shows no frame.
@@ -1024,6 +1036,7 @@ export function useWhiteboard() {
         simAgeUps,
         pairStatus,
         lotBoxAt,
+        lotPrices,
         saveGame,
         chronicle,
         connectionLog,
@@ -1046,6 +1059,7 @@ export function useWhiteboard() {
       simAgeUps,
       pairStatus,
       lotBoxAt,
+      lotPrices,
       saveGame,
       chronicle,
       connectionLog,
@@ -1119,6 +1133,7 @@ export function useWhiteboard() {
       simAgeUps: simAgeUps.map((a) => ({ ...a })),
       pairStatus,
       lotBoxAt,
+      lotPrices,
       saveGame,
       chronicle,
       filters: filters
@@ -1132,7 +1147,7 @@ export function useWhiteboard() {
           }
         : undefined,
     }),
-    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, lotBoxAt, saveGame, chronicle, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
+    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, lotBoxAt, lotPrices, saveGame, chronicle, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
   );
 
   /** The board as `snap` kept it; nothing stays picked or open over it. */
@@ -1148,6 +1163,7 @@ export function useWhiteboard() {
     setSimAgeUps(snap.simAgeUps);
     setPairStatus(snap.pairStatus);
     setLotBoxAt(snap.lotBoxAt);
+    setLotPrices(snap.lotPrices);
     setSaveGame(snap.saveGame);
     setChronicle(snap.chronicle);
     if (snap.filters) {
@@ -1210,6 +1226,24 @@ export function useWhiteboard() {
       flashStatus(on ? LAYER_STATUS[key].on : LAYER_STATUS[key].off);
     },
     [show, flashStatus],
+  );
+
+  /**
+   * A lot's price, typed from the game: a planned move there is checked
+   * against the household's funds. None clears it. One undo step each.
+   */
+  const setLotPrice = useCallback(
+    (key: string, lotName: string, price: number | undefined) => {
+      if ((lotPrices[key] ?? undefined) === price) return;
+      pushUndo(price === undefined ? `Clear the price of ${named(lotName)}` : `Price of ${named(lotName)}: ${money(price)}`);
+      setLotPrices((ps) => {
+        const next = { ...ps };
+        if (price === undefined) delete next[key];
+        else next[key] = price;
+        return next;
+      });
+    },
+    [lotPrices, pushUndo],
   );
 
   const setLinksView = useCallback(
@@ -3353,6 +3387,7 @@ export function useWhiteboard() {
       setSimAgeUps([]);
       setPairStatus([]);
       setLotBoxAt({});
+      setLotPrices({});
       setSaveGame(null);
       setChronicle([]);
       setSourceFileName(null);
@@ -3448,6 +3483,7 @@ export function useWhiteboard() {
         setPairStatus(d.pairStatus ?? []);
         // The file's Free lots boxes where it had them, unless its cards were laid out afresh.
         setLotBoxAt(!keepBoardPositions && !prepared.repacked ? ((d as { lotBoxAt?: LotBoxPins }).lotBoxAt ?? {}) : {});
+        setLotPrices((d as { lotPrices?: Record<string, number> }).lotPrices ?? {});
         setSaveGame(d.saveGame ?? null);
         setChronicle(d.chronicle ?? []);
         eidcRef.current = nextEidc(
@@ -4629,6 +4665,9 @@ export function useWhiteboard() {
     nodeVis,
     nodeBuckets,
     homes,
+    funds,
+    lotPrices,
+    setLotPrice,
     freeLots,
     lotCatalog,
     lotBoxes,

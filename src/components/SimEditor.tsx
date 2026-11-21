@@ -351,6 +351,8 @@ type Props = {
   onStory?: () => void;
   /** When this sim reaches a life stage, in words: "Adult in 13 days of playing the Goth household". */
   whenOf?: (stage: string) => string | null;
+  /** Their household's money, for the Lives in card: "§45,500 in funds". */
+  funds?: string;
 };
 
 export function SimEditor({
@@ -389,6 +391,7 @@ export function SimEditor({
   hasGame = () => true,
   onStory,
   whenOf,
+  funds,
 }: Props) {
   const compact = useCompactChrome();
   // A drawer on a phone: half, full, or folded to its bar, typed edits kept.
@@ -1512,6 +1515,7 @@ export function SimEditor({
             <span className="edhome__text">
               <b>{homeTitle}</b>
               {homePlace && <span>{homePlace}</span>}
+              {funds && <span className="edhome__funds">{funds}</span>}
             </span>
             {/* One Move for both: this sim to a household, or the household to a world. */}
             <button

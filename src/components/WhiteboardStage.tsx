@@ -90,6 +90,8 @@ import type { CoupleLots } from './MoveToLotForm.tsx';
 import { homeRoom } from '../lib/homeRoom.ts';
 import { GroupLayer } from './GroupLayer.tsx';
 import { Hint } from './Hint.tsx';
+import { whenAt } from '../lib/firstChapter.ts';
+import { money } from '../lib/funds.ts';
 import { BoardTip } from './BoardTip.tsx';
 import { InfantHouseMenu } from './InfantHouseMenu.tsx';
 import { PartnerMenu } from './PartnerMenu.tsx';
@@ -158,6 +160,8 @@ const onBoardSvg = (svg: SVGSVGElement | null, t: EventTarget | null): boolean =
 
 export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, onPoster, listOf, onList }: Props) {
   const compact = useCompactChrome();
+  /** When the save had the households' money: "Spring, day 2 of 7 · Year 1". */
+  const fundsWhen = wb.saveGame ? whenAt(wb.saveGame, wb.saveGame.clock) : '';
   /** The board panel (bottom left), and the spot in its head the tips button renders into. */
   const panelRef = useRef<HTMLDivElement>(null);
   const [tipsSlot, setTipsSlot] = useState<HTMLElement | null>(null);
@@ -2173,6 +2177,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             householdLimit={wb.householdLimit}
             onOpenLimit={onOpenLimit}
             onChooseHome={onChooseHome}
+            funds={wb.show.funds ? wb.funds : undefined}
+            fundsWhen={fundsWhen}
           />
           <LotLayer
             boxes={wb.lotBoxes}
@@ -2752,6 +2758,20 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           }}
           onPickSim={pickSim}
           onClose={() => wb.setBriefGid(null)}
+          {...(() => {
+            const funds = wb.funds.get(briefGroup.gid);
+            return funds
+              ? {
+                  money: {
+                    funds,
+                    when: fundsWhen,
+                    prices: wb.lotPrices,
+                    onPrice: (lot: GameLot, price: number | undefined) => wb.setLotPrice(lotKey(lot), lot.name, price),
+                  },
+                }
+              : {};
+          })()}
+          fundsOf={(gid) => wb.funds.get(gid)}
           move={
             isUnhousedGid(briefGroup.gid) || !wb.nodes.some((n) => n.gid === briefGroup.gid)
               ? undefined
@@ -2830,6 +2850,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           petKinds={wb.petKinds}
           hasGame={wb.hasGame}
           whenOf={(stage) => wb.whenLineOf(editNode, stage)}
+          {...(() => {
+            const f = wb.funds.get(editNode.gid);
+            return f ? { funds: `${money(f.amount)} in funds${f.shares.length > 1 ? ', together' : ''}` } : {};
+          })()}
           {...(wb.chronicle.length
             ? {
                 onStory: () => {

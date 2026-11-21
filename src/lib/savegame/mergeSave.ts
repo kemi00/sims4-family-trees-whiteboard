@@ -1694,6 +1694,12 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         const { about: _gone, ...rest } = nodes[i]!;
         nodes[i] = rest;
       }
+      // The household the game has them in: its money is found by it.
+      if (sim.householdId && sim.householdId !== '0') nodes[i] = { ...nodes[i]!, hhId: sim.householdId };
+      else if (nodes[i]!.hhId) {
+        const { hhId: _none, ...rest } = nodes[i]!;
+        nodes[i] = rest;
+      }
     }
   }
   if (parsed.dynasties) {
@@ -1849,6 +1855,17 @@ function saveGameFrom(
     ...(game.unplayedAging !== undefined ? { unplayedAging: game.unplayedAging } : {}),
     ...(active ? { activeHousehold: active } : {}),
   };
+  // Each household's money, and the home a move would sell.
+  if (game.households) {
+    const lotOf = new Map<string, string>();
+    for (const s of sims) if (s.householdId && s.lot?.name && !lotOf.has(s.householdId)) lotOf.set(s.householdId, s.lot.name);
+    next.households = Object.fromEntries(
+      Object.entries(game.households).map(([id, h]) => {
+        const lot = lotOf.get(id);
+        return [id, { name: h.name, funds: h.funds, ...(lot ? { lot } : {}) }];
+      }),
+    );
+  }
   // Who was played at earlier imports, newest first, for Up next.
   const before = [prev?.activeHousehold, ...(prev?.playedBefore ?? [])].filter(
     (h): h is string => !!h && h !== active,

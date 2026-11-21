@@ -10,6 +10,7 @@ import { isUnhousedGid } from '../lib/unhoused.ts';
 import { neighbourhoodIconUrl, type GameLot } from '../lib/places.ts';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
 import { BlankDisc } from './BlankDisc.tsx';
+import { money, togetherText, type BoxFunds } from '../lib/funds.ts';
 
 type Props = {
   groups: Group[];
@@ -53,6 +54,10 @@ type Props = {
   onOpenLimit?: (gid: string, ev: { clientX: number; clientY: number }) => void;
   /** A Needs a home box's "Choose a home". */
   onChooseHome?: (gid: string, ev: { clientX: number; clientY: number }) => void;
+  /** Each household's money (fundsByBox): a quiet chip at the end of its tag's row; none hides them. */
+  funds?: ReadonlyMap<string, BoxFunds>;
+  /** When the save had that money: "Spring, day 2 of 7 · Year 1". */
+  fundsWhen?: string;
 };
 
 /** The neighbourhood icon in a household tag, where the grip would be. */
@@ -92,6 +97,8 @@ export const GroupLayer = memo(function GroupLayer({
   householdLimit = null,
   onOpenLimit,
   onChooseHome,
+  funds,
+  fundsWhen,
 }: Props) {
   if (!show) return null;
 
@@ -216,6 +223,13 @@ export const GroupLayer = memo(function GroupLayer({
         const over = labels && onOpenLimit ? overLimit?.get(g0.gid) : undefined;
         const overText = over !== undefined ? `⚠ ${sizeOfLimit(over, householdLimit)}` : '';
         const overX = firstX + (badge ? badgeW + HH_TAG_STACK_GAP : 0);
+        // The household's money, last in the row: quiet, as it only tells.
+        const money_ = labels && !unhoused && !homeless ? funds?.get(g0.gid) : undefined;
+        const moneyText = money_ ? money(money_.amount) : '';
+        const moneyX = overX + (over !== undefined ? tagPillWidth(overText, 18) + HH_TAG_STACK_GAP : 0);
+        const moneyTip = money_
+          ? `${money_.shares.length > 1 ? togetherText(money_) : `${moneyText} in funds.`}\nFrom your save${fundsWhen ? `, ${fundsWhen}` : ''}.${onOpenPlan ? ' Click for the household’s plan.' : ''}`
+          : '';
         return (
           <g key={g0.gid} data-gid={g0.gid}>
             <g
@@ -457,6 +471,39 @@ export const GroupLayer = memo(function GroupLayer({
                   fill={BADGE.offPlan.text}
                 >
                   {overText}
+                </text>
+              </g>
+            )}
+            {money_ && (
+              <g
+                className="hh-funds"
+                role={onOpenPlan ? 'button' : undefined}
+                aria-label={`${g0.hh}: ${moneyText} in funds`}
+                style={onOpenPlan ? { cursor: 'pointer' } : undefined}
+                onPointerDown={(ev) => ev.stopPropagation()}
+                onClick={onOpenPlan ? () => onOpenPlan(g0.gid) : undefined}
+                data-tip={moneyTip}
+              >
+                <rect
+                  x={moneyX}
+                  y={ageY}
+                  width={tagPillWidth(moneyText, 18)}
+                  height={pillH}
+                  rx={8}
+                  fill="#ffffff"
+                  stroke={g0.color + '66'}
+                  strokeWidth={1}
+                />
+                <text
+                  x={moneyX + tagPillWidth(moneyText, 18) / 2}
+                  y={textY(ageY)}
+                  dominantBaseline="middle"
+                  fontSize={12}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill={g0.color}
+                >
+                  {moneyText}
                 </text>
               </g>
             )}

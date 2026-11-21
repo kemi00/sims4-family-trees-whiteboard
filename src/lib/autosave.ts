@@ -47,6 +47,8 @@ export type PersistPayload = {
   pairStatus?: PairStatus[];
   /** Where each world's Free lots box stands (absent on older files). */
   lotBoxAt?: LotBoxPins;
+  /** Lot prices typed from the game, by lotKey (absent on older files). */
+  lotPrices?: Record<string, number>;
   /** Game clock and aging options from the last save import (absent on older files). */
   saveGame?: SaveGameInfo | null;
   /** The board's story, one entry per save upload (absent on older files). */
@@ -85,6 +87,7 @@ export function buildPersistPayload(input: {
   simAgeUps: SimAgeUp[];
   pairStatus?: PairStatus[];
   lotBoxAt?: LotBoxPins;
+  lotPrices?: Record<string, number>;
   saveGame?: SaveGameInfo | null;
   chronicle?: ChronicleEntry[];
   connectionLog: { text: string }[];
@@ -109,6 +112,7 @@ export function buildPersistPayload(input: {
     simAgeUps: input.simAgeUps,
     pairStatus: input.pairStatus ?? [],
     lotBoxAt: input.lotBoxAt ?? {},
+    lotPrices: input.lotPrices ?? {},
     saveGame: input.saveGame ?? null,
     chronicle: input.chronicle ?? [],
     connectionLog: input.connectionLog.map((entry) => entry.text),
@@ -156,6 +160,7 @@ function nodeIdentity(n: SimNode) {
     genRootOf: n.genRootOf ?? null,
     life: n.life ?? null,
     about: n.about ?? null,
+    hhId: n.hhId ?? null,
     planLabel: n.planLabel ?? null,
     planNo: n.planNo ?? null,
     arrives: n.arrives ?? null,
@@ -462,6 +467,7 @@ export function bootWhiteboardData(
       pairStatus: draft.pairStatus,
       // Placed for this layout: a board laid out afresh places them afresh.
       ...(prepared.repacked ? {} : { lotBoxAt: draft.lotBoxAt ?? {} }),
+      lotPrices: draft.lotPrices ?? {},
       saveGame: draft.saveGame ?? null,
       chronicle: draft.chronicle ?? [],
       connectionLog: draft.connectionLog,

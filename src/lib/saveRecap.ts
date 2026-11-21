@@ -5,7 +5,8 @@ import { dynastyKey, dynastyLabelText, dynastyNames } from './generations.ts';
 import { cardName, isPlannedSim } from './plan.ts';
 import { isUnhousedGid } from './unhoused.ts';
 import { petKind } from './pets.ts';
-import { edgeSourceOf, isPet, pronounsLabel, uKey } from './utils.ts';
+import { edgeSourceOf, isPet, pronounsLabel, theHousehold, uKey } from './utils.ts';
+import { money } from './funds.ts';
 import type { DynastyRole, Edge, PairStatus, PairTag, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 export type RecapSim = { id: string; name: string };
@@ -121,6 +122,8 @@ export type LifeNews = { kind: 'state' | 'name' | 'renamed' | 'pronouns'; sim: R
 
 /** A household moving home together: to another lot, or another world. */
 export type HomeNews = { hh: string; ids: string[]; to: string; from?: string; renamedFrom?: string };
+/** A household whose funds changed between the saves (§). */
+export type MoneyNews = { hh: string; ids: string[]; from: number; to: number };
 
 /**
  * What a save upload says happened in the game since the last one, as a
@@ -161,6 +164,8 @@ export type SaveRecap = {
   life?: LifeNews[];
   /** Households that moved home together, or were renamed. */
   homes?: HomeNews[];
+  /** Households whose funds went up or down, the biggest change first. */
+  money?: MoneyNews[];
   /** Sims and pets new to the board who joined a household on it. */
   arrivals?: ArrivalNews[];
   /** Relationships that took a step. */
@@ -416,6 +421,12 @@ export function familyText(f: FamilyNews): string {
   return `The family tree shows ${f.parent.name} as ${f.secret ? 'a secret parent' : 'a parent'} of ${f.child.name}`;
 }
 
+/** A household's money as a sentence: "The Goth household’s funds went from §45,500 to §61,200". */
+export function moneyText(m: MoneyNews): string {
+  const the = theHousehold(m.hh);
+  return `${the.charAt(0).toUpperCase()}${the.slice(1)}’s funds went from ${money(m.from)} to ${money(m.to)}`;
+}
+
 /** A household's move as a sentence: "The Capp household moved to 17 Bright Cliff in Ondarion". */
 export function homeText(h: HomeNews): string {
   if (h.renamedFrom) return `The ${h.renamedFrom} household is now called the ${h.hh} household`;
@@ -638,6 +649,20 @@ function tellTheRest(
     recap.moved = recap.moved.filter((m) => !together.has(m.id));
   }
 
+  // Money: each household's funds then and now, by the save's id for it.
+  const fundsWas = before.saveGame?.households;
+  const fundsNow = after.saveGame?.households;
+  if (fundsWas && fundsNow) {
+    const money: MoneyNews[] = [];
+    for (const [id, h] of Object.entries(fundsNow)) {
+      const o = fundsWas[id];
+      if (!o || o.funds === h.funds) continue;
+      const ids = [...now.values()].filter((n) => n.hhId === id && !isPlannedSim(n)).map((n) => n.id);
+      if (ids.length) money.push({ hh: h.name, ids, from: o.funds, to: h.funds });
+    }
+    if (money.length) recap.money = money.sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from));
+  }
+
   // Pronouns the game changed: worded plainly, with the board's own label for them.
   for (const n of now.values()) {
     const o = was.get(n.id);
@@ -731,6 +756,7 @@ export function recapHasNews(r: SaveRecap): boolean {
       (r.family?.length ?? 0) +
       (r.life?.length ?? 0) +
       (r.homes?.length ?? 0) +
+      (r.money?.length ?? 0) +
       (r.arrivals?.length ?? 0) +
       (r.relationships?.length ?? 0) >
       0 ||

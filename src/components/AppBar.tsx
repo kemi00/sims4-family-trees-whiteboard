@@ -2,6 +2,7 @@ import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import {
   CalendarBlank,
   Check,
+  Coins,
   BookOpenText,
   Crown,
   Eye,
@@ -372,6 +373,8 @@ export function AppBar({
         [
           ['groups', House, 'Household boxes'],
           ['worlds', Globe, 'World boxes'],
+          // Beside each household's tag; its plan has it either way.
+          ['funds', Coins, 'Household funds'],
         ] as const
       ).map(([layer, Glyph, label]) => (
         <button

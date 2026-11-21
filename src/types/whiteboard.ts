@@ -141,6 +141,12 @@ export interface SimNode {
   /** Work, school, traits, skills and aspiration from the last save import (see SimAbout). */
   about?: SimAbout;
   /**
+   * The household the game has them in, by the save's id for it, from the
+   * last save that had them: a move planned on the board doesn't change it.
+   * Their household's money (SaveGameInfo.households) is found by it.
+   */
+  hhId?: string;
+  /**
    * Sims 4 family-tree id of a relative the save keeps only in its family
    * tree, with no sim and no name (an "Unknown" card), as a decimal string.
    */
@@ -225,6 +231,15 @@ export type SaveLotZone = {
 };
 
 /** The game clock, aging options and lot inventory from the last save import. */
+/** A household as the save has it (SaveGameInfo.households). */
+export interface SaveHousehold {
+  name: string;
+  /** Its money, in §. */
+  funds: number;
+  /** The lot it lives on; none for a household with no home. */
+  lot?: string;
+}
+
 export interface SaveGameInfo {
   /** The save file's name. */
   fileName?: string;
@@ -273,6 +288,11 @@ export interface SaveGameInfo {
    * boards from before, where the Games filter stands in.
    */
   gamesMissing?: string[];
+  /**
+   * Each household in the save, by the save's id for it: its name, its funds
+   * (§), and the lot it lives on, which a move sells.
+   */
+  households?: Record<string, SaveHousehold>;
   /** What the board read from the save, with no names: for the problem report. */
   read?: SaveReadInfo;
   /** What the last upload did, in counts: for the problem report. */
@@ -539,6 +559,8 @@ export interface WhiteboardData {
   pairStatus?: PairStatus[];
   /** Where each world's Free lots box stands (LotBoxPins): it moves only when dragged or on Organise. */
   lotBoxAt?: LotBoxPins;
+  /** Lot prices typed from the game, by lotKey: a planned move into the lot is checked against its household's funds. */
+  lotPrices?: Record<string, number>;
   /** Game clock and aging options from the last save import. */
   saveGame?: SaveGameInfo | null;
   /** The board's story, one entry per save upload (absent on older files). */
@@ -578,6 +600,8 @@ export type BoardMultiSel =
 export interface ShowToggles {
   groups: boolean;
   worlds: boolean;
+  /** Each household's funds beside its tag's buttons. */
+  funds: boolean;
 }
 
 /** Axis-aligned obstacle rectangle for routing. */
