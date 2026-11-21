@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "57b627c",
+   "date": "2026-11-21",
+   "text": "The bottom-left corner is one tidy panel now: the board's autosave and name, the save's day with its menu, the map of the board and the zoom controls, with the tips button in its top corner. It keeps its place and size whether the Key is open or the window is small, on phones too. Reset the board is in the ⋮ menu, where it already was. Highlight banners and the bar for sims you box-select now sit at the top of the board instead, so opening the Key can't squeeze them."
+  },
+  {
    "sha": "9f76838",
    "date": "2026-11-21",
    "text": "On a phone, the zoom bar, the minimap and the line saying the board autosaves no longer cover each other. The zoom bar keeps the bottom edge, the minimap sits just above it, and the autosave line is a short list beside the minimap, with Reset the board under it."
