@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "7f800cc",
+   "date": "2026-11-21",
+   "text": "On phones and tablets, every drawer now opens at half the screen, so the board stays in view. Drag its grabber up for full, or down to fold it into a bar at the bottom; touching the board folds it too. A tap on the bar brings it back, and only ✕ closes it. On a phone a highlight, such as a Bloodline, lives in that bar instead of a banner at the top, and ends there with Show everyone, Done or Clear."
+  },
+  {
    "sha": "b231b5c",
    "date": "2026-11-21",
    "text": "Bloodline now reaches as far as you choose: a sim's Children, all their Descendants, or Ancestors too, picked on its banner. Its List goes generation by generation (Children, Grandchildren, Great-grandchildren), with \"Child of Tybalt\" on each card. Adopted children count, marked \"Adopted\", unless you untick \"Count adopted children\". A sim's Family tab shows their descendants, such as \"1 child, 2 grandchildren\", with Light up."
