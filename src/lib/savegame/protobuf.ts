@@ -79,6 +79,19 @@ export function firstBytes(buf: Uint8Array, n: number): Uint8Array | null {
   return f?.bytes ?? null;
 }
 
+/** A packed repeated field (wire type 2): its varints, one after another. */
+export function packedVarints(buf: Uint8Array): bigint[] {
+  const out: bigint[] = [];
+  let i = 0;
+  while (i < buf.byteLength) {
+    const v = readVarint(buf, i);
+    if (!v || v.next === i) break;
+    out.push(v.value);
+    i = v.next;
+  }
+  return out;
+}
+
 export function utf8(bytes: Uint8Array | null): string | null {
   if (!bytes || bytes.byteLength === 0) return null;
   try {

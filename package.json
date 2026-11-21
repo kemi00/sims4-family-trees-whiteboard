@@ -16,6 +16,7 @@
     "build:data": "node scripts/build-data.mjs",
     "build:changelog": "node scripts/build-changelog.mjs",
     "build:tree-names": "node --experimental-strip-types scripts/build-tree-names.ts",
+    "build:game-names": "node --experimental-strip-types scripts/build-game-names.ts",
     "preview": "vite preview"
   },
   "dependencies": {

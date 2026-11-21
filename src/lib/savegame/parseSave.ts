@@ -2,9 +2,9 @@ import { TREE_NAMES } from '../../data/treeNames.ts';
 import { homeWorld } from '../realm.ts';
 import { AGES_H, NON_BINARY } from '../constants.ts';
 import { RESIDENTIAL_RENTAL_VENUE, worldOfLotHashes } from '../places.ts';
-import type { DynastyRole, DynastyStanding, PairTag, SaveLotZone, SaveReadInfo, SaveWorldRecord, SimPronouns } from '../../types/whiteboard.ts';
+import type { DynastyRole, DynastyStanding, PairTag, SaveLotZone, SaveReadInfo, SaveWorldRecord, SimAbout, SimPronouns } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
-import { decodeFields, firstBytes, utf8 } from './protobuf.ts';
+import { decodeFields, firstBytes, packedVarints, utf8 } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
 
 export type SaveRelType = 'parent' | 'marriage' | 'romance' | 'divorced';
@@ -62,6 +62,8 @@ export type ParsedSaveSim = {
   newborn?: true;
   /** Born during play: the game's creation source says pregnancy. */
   bornInPlay?: true;
+  /** Work, school, traits, skills and aspiration, as the game's ids (SimAbout). */
+  about?: SimAbout;
 };
 
 /** Played-household aging in Game Options: No, Yes, or Only Active Household. */
@@ -172,6 +174,16 @@ const SIM = {
    */
   creation: 47,
   species: 60,
+  /**
+   * The sim's trackers. 10 → 1: every trait id, packed. 12 → 1: each job,
+   * school or club now (1 career, 2 track, 3 level in the track from 0,
+   * 4 the level shown); 12 → 2 is the history. 13 → 1: each skill (1 id,
+   * 2 points). Checked on 2026-11-21 in Slot 10 against the game (Mortimer
+   * Goth: Writer level 3, Writing level 5, Outgoing, Bookworm, Creative).
+   */
+  trackers: 30,
+  /** The aspiration track being followed. */
+  aspiration: 34,
   /**
    * Pronouns set in Create a Sim: one entry (field 1) per case, each with
    * the case (1) and the word (2). Cases 1 to 5 are subject, object,
@@ -433,6 +445,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
   let bornInPlay = false;
   let aliveTicks: number | undefined;
   let stageDays: number | undefined;
+  let about: SimAbout = {};
   for (const f of fields) {
     if (f.field === SIM.id && (f.wire === 0 || f.wire === 1) && f.int > 0n) {
       saveSimId = idStr(f.int);
@@ -458,6 +471,10 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
       pronouns = parsePronouns(f.bytes) ?? pronouns;
     } else if (f.field === SIM.species && f.wire === 0) {
       species = SPECIES[Number(f.int)];
+    } else if (f.field === SIM.trackers && f.bytes) {
+      about = { ...about, ...parseTrackers(f.bytes) };
+    } else if (f.field === SIM.aspiration && f.wire === 0 && f.int > 0n) {
+      about = { ...about, aspiration: idStr(f.int) };
     } else if (f.field === SIM.creation && f.bytes) {
       const play = decodeFields(f.bytes);
       const text = utf8(play.find((g) => g.field === 17 && g.bytes)?.bytes ?? null) ?? '';
@@ -483,7 +500,50 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     ...(stageDays !== undefined ? { stageDays } : {}),
     ...(newborn ? { newborn: true as const } : {}),
     ...(bornInPlay ? { bornInPlay: true as const } : {}),
+    ...(Object.keys(about).length ? { about } : {}),
   };
+}
+
+/** Traits, jobs and skills from a sim's trackers (SIM.trackers). */
+function parseTrackers(bytes: Uint8Array): SimAbout {
+  const out: SimAbout = {};
+  const fields = decodeFields(bytes);
+  const traitBox = fields.find((f) => f.field === 10 && f.bytes)?.bytes;
+  // A packed list: one length-delimited field whose bytes are the ids, one varint after another.
+  const traitBytes = traitBox ? decodeFields(traitBox).find((f) => f.field === 1 && f.bytes)?.bytes : undefined;
+  if (traitBytes) {
+    const ids = packedVarints(traitBytes).filter((v) => v > 0n).map(idStr);
+    if (ids.length) out.traits = ids;
+  }
+  const careers = fields.find((f) => f.field === 12 && f.bytes)?.bytes;
+  if (careers) {
+    const jobs: NonNullable<SimAbout['jobs']> = [];
+    for (const c of decodeFields(careers)) {
+      if (c.field !== 1 || !c.bytes) continue;
+      const f = decodeFields(c.bytes);
+      const track = f.find((x) => x.field === 2 && x.wire === 0)?.int;
+      if (!track) continue;
+      const at = Number(f.find((x) => x.field === 3 && x.wire === 0)?.int ?? 0n);
+      const level = Number(f.find((x) => x.field === 4 && x.wire === 0)?.int ?? BigInt(at + 1));
+      jobs.push({ track: idStr(track), at, level });
+    }
+    if (jobs.length) out.jobs = jobs;
+  }
+  const skillBox = fields.find((f) => f.field === 13 && f.bytes)?.bytes;
+  if (skillBox) {
+    const skills: NonNullable<SimAbout['skills']> = [];
+    for (const s of decodeFields(skillBox)) {
+      if (s.field !== 1 || !s.bytes) continue;
+      const f = decodeFields(s.bytes);
+      const id = f.find((x) => x.field === 1 && x.wire === 0)?.int;
+      const pts = f.find((x) => x.field === 2 && x.wire === 5)?.int;
+      if (!id || pts === undefined) continue;
+      const points = float32(pts);
+      if (Number.isFinite(points)) skills.push({ id: idStr(id), points: Math.round(points * 100) / 100 });
+    }
+    if (skills.length) out.skills = skills;
+  }
+  return out;
 }
 
 /** A protobuf fixed32 read as the float it holds. */

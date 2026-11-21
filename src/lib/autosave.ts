@@ -155,6 +155,7 @@ function nodeIdentity(n: SimNode) {
     firstHeadOf: n.firstHeadOf ?? null,
     genRootOf: n.genRootOf ?? null,
     life: n.life ?? null,
+    about: n.about ?? null,
     planLabel: n.planLabel ?? null,
     planNo: n.planNo ?? null,
     arrives: n.arrives ?? null,

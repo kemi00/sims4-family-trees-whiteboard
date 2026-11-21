@@ -133,6 +133,8 @@ function simBlob(opts: {
   stageDays?: number;
   /** Pronouns set in Create a Sim, subject to reflexive (field 69). */
   pronouns?: string[];
+  /** More fields as the game writes them (trackers, aspiration). */
+  extra?: Uint8Array[];
 }): Uint8Array {
   const play = concat(
     ...(opts.alive !== undefined ? [encodeVarintField(16, opts.alive)] : []),
@@ -158,6 +160,7 @@ function simBlob(opts: {
           ),
         ]
       : []),
+    ...(opts.extra ?? []),
   );
 }
 
@@ -1032,5 +1035,37 @@ describe('a sim\u2019s pronouns', () => {
     assert.equal(sims.get('Bob')!.gender, 'Male');
     assert.equal(sims.get('Bob')!.pronouns, undefined);
     assert.equal(genderFromPronouns({ subject: 'He', object: 'him', possessive: 'his', independent: 'his', reflexive: 'himself' }, 'Female'), 'Male');
+  });
+});
+
+describe('what a sim does and is', () => {
+  // Mortimer Goth as Slot 10 has him: Writer level 3, Writing at 7,300 points (level 5), Renaissance Sim.
+  const packed = (field: number, ids: number[]) => encodeBytes(field, concat(...ids.map((n) => encodeVarint(n))));
+  const trackers = concat(
+    encodeBytes(10, packed(1, [27086, 27916, 16850, 361823])),
+    encodeBytes(12, concat(
+      encodeBytes(1, concat(encodeVarintField(1, 27933), encodeVarintField(2, 29960), encodeVarintField(3, 2), encodeVarintField(4, 3))),
+      encodeBytes(2, concat(encodeVarintField(1, 27933), encodeVarintField(2, 29960), encodeVarintField(3, 2), encodeVarintField(4, 2))),
+    )),
+    encodeBytes(13, encodeBytes(1, concat(encodeVarintField(1, 16714), encodeFloat(2, 7300)))),
+  );
+  const mortimer = simBlob({
+    id: 77, householdId: 5, first: 'Mortimer', last: 'Goth', household: 'Goth', gender: 4096, age: 32,
+    extra: [encodeBytes(30, trackers), encodeVarintField(34, 25440)],
+  });
+
+  it('reads traits, the job now (not its history), skills and the aspiration', () => {
+    const sim = parseSaveGame(saveOf(encodeBytes(6, mortimer))).sims[0]!;
+    assert.deepEqual(sim.about, {
+      traits: ['27086', '27916', '16850', '361823'],
+      jobs: [{ track: '29960', at: 2, level: 3 }],
+      skills: [{ id: '16714', points: 7300 }],
+      aspiration: '25440',
+    });
+  });
+
+  it('leaves it out for a sim the save has nothing on', () => {
+    const plain = simBlob({ id: 78, householdId: 5, first: 'Bella', last: 'Goth', household: 'Goth', gender: 8192, age: 16 });
+    assert.equal(parseSaveGame(saveOf(encodeBytes(6, plain))).sims[0]!.about, undefined);
   });
 });

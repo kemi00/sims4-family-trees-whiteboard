@@ -138,6 +138,8 @@ export interface SimNode {
   genRootOf?: string;
   /** Age facts from the last save import (see SimLife). Pets have none. */
   life?: SimLife;
+  /** Work, school, traits, skills and aspiration from the last save import (see SimAbout). */
+  about?: SimAbout;
   /**
    * Sims 4 family-tree id of a relative the save keeps only in its family
    * tree, with no sim and no name (an "Unknown" card), as a decimal string.
@@ -356,6 +358,23 @@ export type ConnectChoice =
   | 'custom';
 
 export type EdgeSource = 'seed' | 'save' | 'planned';
+
+/**
+ * What a save says a sim does and is, as the game's ids: the board names
+ * them from src/data/gameNames.json (built from the installed game) when
+ * it shows them, so a pack the names don't cover yet shows nothing rather
+ * than a number. Replaced by every save upload: the game's word, not the plan's.
+ */
+export type SimAbout = {
+  /** Every trait id the save lists; the names say which are personality or earned, the rest stay off. */
+  traits?: string[];
+  /** Jobs, school, part-time work and after-school clubs: the career track (the branch), its level in that track (from 0), the level the game shows. */
+  jobs?: { track: string; at: number; level: number }[];
+  /** Skills and their points; the game's steps turn points into levels. */
+  skills?: { id: string; points: number }[];
+  /** The aspiration being followed (an aspiration track id). */
+  aspiration?: string;
+};
 
 export interface Edge {
   id: string;

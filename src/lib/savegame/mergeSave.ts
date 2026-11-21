@@ -1688,6 +1688,12 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         const { life: _old, ...rest } = nodes[i]!;
         nodes[i] = rest;
       }
+      // What they do and are, as the game has it now: the save's word, every upload.
+      if (sim.about) nodes[i] = { ...nodes[i]!, about: sim.about };
+      else if (nodes[i]!.about) {
+        const { about: _gone, ...rest } = nodes[i]!;
+        nodes[i] = rest;
+      }
     }
   }
   if (parsed.dynasties) {
