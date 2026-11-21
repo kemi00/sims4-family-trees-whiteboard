@@ -75,11 +75,11 @@ describe('the matchmaking clock', () => {
     assert.equal(windowText(w, nameOf, hhOf, onlyActive, true)!.text, 'Beatrice turns Elder after 34 days of playing the Capp household.');
   });
 
-  it('names the carriers who are Elders already', () => {
+  it('says nothing of what the game allows when the carriers are Elders already', () => {
     const elder = sim('Agnes', 'Crumplebottom', 'Female', 'Elder', 3);
     const w = planWindow([elder, sim('Adam', 'Capp', 'Male', 'Adult', 1)], onlyActive)!;
     assert.equal(w.state, 'closed');
-    assert.equal(windowText(w, nameOf, hhOf, onlyActive)!.text, 'Agnes is an Elder: in the game, an Elder can’t carry a baby.');
+    assert.equal(windowText(w, nameOf, hhOf, onlyActive), null);
   });
 
   it('times a partner not born yet against the carrier, where the baby is born', () => {

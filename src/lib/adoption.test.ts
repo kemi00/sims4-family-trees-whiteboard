@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { adoptWarning, adopteeSearch, whyCantAdopt, whyNotAdopt } from './adoption.ts';
+import { adopteeSearch, whyCantAdopt, whyNotAdopt } from './adoption.ts';
 import type { Edge, SimNode } from '../types/whiteboard.ts';
 
 function sim(id: string, age: string, extra: Partial<SimNode> = {}): SimNode {
@@ -55,15 +55,10 @@ describe('adoption', () => {
   ];
   const unborn = new Set(['Bump']);
 
-  it('lets young adults and older adopt, and a teen with a warning; not children or pets', () => {
-    assert.equal(whyCantAdopt(dani), null);
-    assert.equal(adoptWarning(dani), null);
-    assert.equal(whyCantAdopt(sim('Old', 'Elder')), null);
-    assert.equal(whyCantAdopt(sim('T', 'Teen')), null);
-    assert.match(adoptWarning(sim('T', 'Teen')) ?? '', /young adults and older/);
-    assert.match(whyCantAdopt(sim('C', 'Child')) ?? '', /children/);
-    assert.match(whyCantAdopt(sim('U', 'Unknown')) ?? '', /life stage first/);
+  it('lets any living sim adopt, at any life stage, as a plan; not pets or the passed away', () => {
+    for (const age of ['Young Adult', 'Elder', 'Teen', 'Child', 'Toddler', 'Unknown']) assert.equal(whyCantAdopt(sim('S', age)), null, age);
     assert.match(whyCantAdopt(sim('P', 'Adult', { species: 'Cat' })) ?? '', /Pets/);
+    assert.match(whyCantAdopt(sim('G', 'Adult', { state: 'Deceased' })) ?? '', /passed away/);
   });
 
   it('lists younger sims who are not family, youngest first', () => {
@@ -93,8 +88,9 @@ describe('adoption', () => {
     assert.ok(!adopteeSearch({ ids: ['Elda', 'Mum'], nodes, edges, unborn }).some((h) => h.id === 'Elda' || h.id === 'Mum'));
     // A teen adopting with her sister: younger than both, family to neither.
     assert.deepEqual(adopteeSearch({ ids: ['Dani', 'Teen'], nodes, edges, unborn }).map((h) => h.id), ['Tot', 'Kid']);
-    // Both must be old enough.
-    assert.deepEqual(adopteeSearch({ ids: ['Dani', 'Kid'], nodes, edges, unborn }), []);
+    // A child can adopt too, as a plan: only sims younger than both.
+    const withKid = adopteeSearch({ ids: ['Dani', 'Kid'], nodes, edges, unborn }).map((h) => h.id);
+    assert.ok(!withKid.includes('Kid') && !withKid.includes('Dani') && !withKid.includes('Sis'));
   });
 
   it('narrows by name', () => {

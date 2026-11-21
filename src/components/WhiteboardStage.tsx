@@ -2514,12 +2514,12 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           {...(wb.addMenu.gid
             ? {
                 child: {
-                  household: householdParents(wb.nodes, wb.addMenu.gid, wb.plannedChildIds),
+                  household: householdParents(wb.nodes, wb.addMenu.gid),
                   members: wb.nodes.filter((n) => n.gid === wb.addMenu!.gid),
                   home: hhOf(wb.addMenu.gid),
                   hh: wb.groups.find((g) => g.gid === wb.addMenu!.gid)?.hh ?? '',
                   nodes: wb.nodes,
-                  unborn: wb.plannedChildIds,
+                  whenOf: wb.whenLineOf,
                   pairs: joiningCouples(wb.addMenu.gid),
                   cards: { dynasties: wb.dynastyNames, risks: wb.dynastyRisks },
                   onAdd: (choice) => {
@@ -2617,6 +2617,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           edges={wb.edges}
           saveGame={wb.saveGame}
           unborn={wb.plannedChildIds}
+          readyWhen={wb.readyWhenOf}
           onNewSim={() => {
             const { parents, couple, x, y } = wb.childMenu!;
             wb.closeChildMenu();

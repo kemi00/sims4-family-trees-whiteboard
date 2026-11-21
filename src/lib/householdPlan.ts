@@ -134,6 +134,129 @@ function babiesText(kids: SimNode[]): string {
   return kids.map(cardName).join(' and ');
 }
 
+/** What a sim's wait is counted from: where they age, and the plan's babies. */
+export type WaitContext = {
+  saveGame: SaveGameInfo | null | undefined;
+  /** A planned sim with parents on the board: a child not born or adopted yet. */
+  plannedChild: (n: SimNode) => boolean;
+  /** The household the game has them in, which a move planned on the board hasn't changed yet. */
+  gameGid: (n: SimNode) => string;
+  /** Where a planned baby is born: where its parents live in the plan. */
+  birthGid: (n: SimNode) => string;
+};
+
+/** The context householdPlans counts waits in, for anywhere else that says when. */
+export function waitContext(
+  nodes: readonly SimNode[],
+  edges: readonly Edge[],
+  saveGame: SaveGameInfo | null | undefined,
+  moves?: HouseholdMove[],
+): WaitContext {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const parentsOf = new Map<string, string[]>();
+  for (const e of edges) if (e.type === 'parent') parentsOf.set(e.b, [...(parentsOf.get(e.b) ?? []), e.a]);
+  const home = gameHomes([...nodes], moves);
+  /**
+   * Where a planned baby is born: where its parents live in the plan, not
+   * the household it is planned to live in later (Planned (2) Romeo, born
+   * to the Romeos in Bro to marry into Le Chien). Parents apart on the
+   * board: where most of them are, else where the baby is planned.
+   */
+  const birthGid = (kid: SimNode): string => {
+    const gids = (parentsOf.get(kid.id) ?? []).map((id) => byId.get(id)?.gid).filter((g): g is string => !!g);
+    if (!gids.length) return kid.gid;
+    const count = (g: string) => gids.filter((x) => x === g).length;
+    const most = Math.max(...gids.map(count));
+    const top = gids.filter((g) => count(g) === most);
+    return top.includes(kid.gid) ? kid.gid : top[0]!;
+  };
+  return {
+    saveGame,
+    plannedChild: (n) => isPlannedSim(n) && (parentsOf.get(n.id)?.length ?? 0) > 0,
+    gameGid: (n) => home.get(n.id) ?? n.gid,
+    birthGid,
+  };
+}
+
+/**
+ * What moves a wait along: time when their household ages anyway, an
+ * age-up by hand when it never does, playing it otherwise.
+ */
+function moveOf(gid: string, life: SimNode['life'], saveGame: SaveGameInfo | null | undefined): WaitMove {
+  if (life && !life.frozen) return 'time';
+  if (!life && saveGame && everyoneAges(saveGame)) return 'time';
+  if (life?.frozen === 'played' || isUnhousedGid(gid)) return 'ageUp';
+  return 'play';
+}
+
+/**
+ * What `n` still needs before reaching `stage`, or null when nothing:
+ * growing up (how long, and what moves it along), a birth first for a
+ * baby not born yet, or being found for a planned sim the game lacks.
+ */
+export function stageWait(n: SimNode, stage: string, ctx: WaitContext): PlanWait | null {
+  const lifespan = ctx.saveGame?.lifespan;
+  if (isPlannedSim(n)) {
+    return ctx.plannedChild(n)
+      ? { sim: n.id, why: 'notBorn', stage, gid: ctx.birthGid(n), move: 'play', days: daysFromBirth(stage, lifespan) }
+      : { sim: n.id, why: 'notInGame', stage, gid: n.gid, move: 'find', days: null };
+  }
+  const at = stageAt(n.age);
+  if (at < 0 || at >= stageAt(stage)) return null;
+  const life = n.life && n.life.stage === n.age ? n.life : undefined;
+  const days = life ? daysUntilStage(life.stage, life.stageDays, stage, lifespan, life.newborn) : null;
+  const gid = ctx.gameGid(n);
+  return { sim: n.id, why: 'tooYoung', now: n.age, stage, gid, move: moveOf(gid, life, ctx.saveGame), days };
+}
+
+/**
+ * How long until a wait is over, as it ends a sentence: "in 10 days of
+ * playing the Goth household", "in 10 days", or what has to happen first.
+ * Null for a wait that isn't about time (a sim to find, a head to wait for).
+ */
+function inTime(w: PlanWait, hhOf: (gid: string) => string): string | null {
+  const hh = hhOf(w.gid);
+  // The plan panel says which household to play for the birth (waitText).
+  if (w.why === 'notBorn') return w.days === null ? 'after the birth' : `about ${wholeDaysText(w.days)} after the birth`;
+  if (w.why !== 'tooYoung') return null;
+  if (w.move === 'ageUp') return `once you age them up in the game: ${hh} isn’t aging`;
+  if (w.move === 'time') return w.days === null ? 'in time' : `in ${wholeDaysText(w.days)}`;
+  return w.days === null ? `once you play ${hh}` : `in ${wholeDaysText(w.days)} of playing ${hh}`;
+}
+
+/**
+ * A wait on a sim's card, when picking them for a plan: "Young Adult in 10
+ * days of playing the Goth household", "Not born yet: Young Adult about 24
+ * days after the birth". Null when it isn't about time.
+ */
+export function whenLine(w: PlanWait | null, hhOf: (gid: string) => string): string | null {
+  if (!w) return null;
+  const t = inTime(w, hhOf);
+  if (!t) return null;
+  return w.why === 'notBorn' ? `Not born yet: ${w.stage} ${t}` : `${w.stage} ${t}`;
+}
+
+/**
+ * When a plan for these sims can happen, as a sentence after "Planned":
+ * "Ready when Cassandra is a Young Adult: in 10 days of playing the Goth
+ * household." Empty when nothing waits on time.
+ */
+export function readyWhen(waits: { name: string; w: PlanWait | null }[], hhOf: (gid: string) => string): string {
+  const timed = waits
+    .map((x) => ({ name: x.name, w: x.w, t: x.w ? inTime(x.w, hhOf) : null }))
+    .filter((x): x is { name: string; w: PlanWait; t: string } => !!x.w && !!x.t);
+  if (!timed.length) return '';
+  const stage = timed[0]!.w.stage;
+  if (timed.length === 1) {
+    const x = timed[0]!;
+    return x.w.why === 'notBorn'
+      ? `Ready when ${x.name} is born and a ${stage}: ${x.t}.`
+      : `Ready when ${x.name} is a ${stage}: ${x.t}.`;
+  }
+  const names = `${timed.slice(0, -1).map((x) => x.name).join(', ')} and ${timed[timed.length - 1]!.name}`;
+  return `Ready when ${names} are ${stage}s: ${timed.map((x) => `${x.name} ${x.t}`).join(', ')}.`;
+}
+
 /**
  * Every plan item on the board. `conflicts` are planConflicts(nodes,
  * edges), which the board works out anyway; their links and planned
@@ -149,7 +272,6 @@ export function householdPlans(opts: {
   moves?: HouseholdMove[];
 }): PlanItem[] {
   const { nodes, edges, conflicts, saveGame } = opts;
-  const lifespan = saveGame?.lifespan;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const name = (id: string) => {
     const n = byId.get(id);
@@ -162,51 +284,13 @@ export function householdPlans(opts: {
   const edgeById = new Map(edges.map((e) => [e.id, e]));
   const offKids = new Set(conflicts.flatMap((c) => c.children));
   const living = (n: SimNode) => n.state !== DECEASED_STATE;
-  const plannedChild = (n: SimNode) => isPlannedSim(n) && (parentsOf.get(n.id)?.length ?? 0) > 0;
-
-  // A sim ages in the household the game has them in, which a move
-  // planned on the board hasn't changed yet.
-  const home = gameHomes(nodes, opts.moves);
-  const gameGid = (n: SimNode) => home.get(n.id) ?? n.gid;
-  /**
-   * Where a planned baby is born: where its parents live in the plan, not
-   * the household it is planned to live in later (Planned (2) Romeo, born
-   * to the Romeos in Bro to marry into Le Chien). Parents apart on the
-   * board: where most of them are, else where the baby is planned.
-   */
-  const birthGid = (kid: SimNode): string => {
-    const gids = (parentsOf.get(kid.id) ?? []).map((id) => byId.get(id)?.gid).filter((g): g is string => !!g);
-    if (!gids.length) return kid.gid;
-    const count = (g: string) => gids.filter((x) => x === g).length;
-    const most = Math.max(...gids.map(count));
-    const top = gids.filter((g) => count(g) === most);
-    return top.includes(kid.gid) ? kid.gid : top[0]!;
-  };
-
+  const ctx = waitContext(nodes, edges, saveGame, opts.moves);
+  const { plannedChild, gameGid, birthGid } = ctx;
   /** Where a sim ages for the matchmaking clock: a planned baby where it is born. */
   const homeOf = (n: SimNode) => (isPlannedSim(n) ? birthGid(n) : gameGid(n));
 
-  const moveOf = (gid: string, life: SimNode['life']): WaitMove => {
-    if (life && !life.frozen) return 'time';
-    if (!life && saveGame && everyoneAges(saveGame)) return 'time';
-    if (life?.frozen === 'played' || isUnhousedGid(gid)) return 'ageUp';
-    return 'play';
-  };
-
   /** What `n` still needs before reaching `stage`; null when nothing. */
-  const waitOn = (n: SimNode, stage: string): PlanWait | null => {
-    if (isPlannedSim(n)) {
-      return plannedChild(n)
-        ? { sim: n.id, why: 'notBorn', stage, gid: birthGid(n), move: 'play', days: daysFromBirth(stage, lifespan) }
-        : { sim: n.id, why: 'notInGame', stage, gid: n.gid, move: 'find', days: null };
-    }
-    const at = stageAt(n.age);
-    if (at < 0 || at >= stageAt(stage)) return null;
-    const life = n.life && n.life.stage === n.age ? n.life : undefined;
-    const days = life ? daysUntilStage(life.stage, life.stageDays, stage, lifespan, life.newborn) : null;
-    const gid = gameGid(n);
-    return { sim: n.id, why: 'tooYoung', now: n.age, stage, gid, move: moveOf(gid, life), days };
-  };
+  const waitOn = (n: SimNode, stage: string): PlanWait | null => stageWait(n, stage, ctx);
 
   const items: PlanItem[] = [];
   const inCouple = new Set<string>();
@@ -245,14 +329,22 @@ export function householdPlans(opts: {
     });
   }
 
-  const litters = new Map<string, { parents: string[]; kids: SimNode[] }>();
+  /** A planned child coming by adoption: planned as one, or every parent link to them adopted. */
+  const adoptedKid = (n: SimNode) => {
+    if (n.arrives) return n.arrives === 'adopted';
+    const links = edges.filter((e) => e.type === 'parent' && e.b === n.id);
+    return links.length > 0 && links.every((e) => e.adopted);
+  };
+  const litters = new Map<string, { parents: string[]; kids: SimNode[]; adopted: boolean }>();
   for (const n of nodes) {
     if (!plannedChild(n) || offKids.has(n.id)) continue;
     const parents = uniq(parentsOf.get(n.id) ?? []).sort();
-    const key = parents.join('|');
-    litters.set(key, { parents, kids: [...(litters.get(key)?.kids ?? []), n] });
+    const adopted = adoptedKid(n);
+    // Born and adopted children of the same parents are two plans.
+    const key = adopted ? `${parents.join('|')}|adopted` : parents.join('|');
+    litters.set(key, { parents, kids: [...(litters.get(key)?.kids ?? []), n], adopted });
   }
-  for (const [key, { parents: ids, kids }] of litters) {
+  for (const [key, { parents: ids, kids, adopted }] of litters) {
     const parents = ids.map((id) => byId.get(id)).filter((p): p is SimNode => !!p);
     if (!parents.length) continue;
     const who = parents.map(cardName).join(' ＋ ');
@@ -272,10 +364,18 @@ export function householdPlans(opts: {
       continue;
     }
     const waits = parents.map((p) => waitOn(p, GROWN_UP)).filter((w): w is PlanWait => !!w);
-    // Only when no parent who could carry is younger: the women among them, or all when none is one.
-    const women = parents.filter((p) => p.gender === 'Female');
-    const carriers = women.length ? women : parents;
-    const elder = carriers.every((p) => !isPlannedSim(p) && p.age === 'Elder') ? carriers[0] : undefined;
+    if (adopted) {
+      // Adopting waits only for the adopters to grow up: no clock to Elder, elders adopt too.
+      const names = parents.map(cardName);
+      const by = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]!;
+      items.push({
+        ...base,
+        state: waits.length ? 'waiting' : 'ready',
+        text: `${by} ${parents.length > 1 ? 'adopt' : 'adopts'} ${babiesText(kids)}`,
+        waits,
+      });
+      continue;
+    }
     const findParent = parents.some((p) => isPlannedSim(p) && !plannedChild(p));
     const window = findParent ? null : planWindow(parents, saveGame, homeOf);
     items.push({
@@ -284,8 +384,6 @@ export function householdPlans(opts: {
       text: `${who}: ${babiesText(kids)}`,
       waits,
       ...(window ? { window } : {}),
-      // The window says it when every parent who could carry is an Elder.
-      ...(elder && !window?.elders ? { note: `${cardName(elder)} is an elder: in the game, elders can’t carry a baby.` } : {}),
     });
   }
 

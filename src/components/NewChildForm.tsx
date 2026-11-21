@@ -9,7 +9,6 @@ import {
   canParent,
   childSurnames,
   parentSearch,
-  parentWarning,
   type ChildArrival,
   type ChildChoice,
 } from '../lib/childParents.ts';
@@ -30,8 +29,8 @@ export type NewChildProps = {
   hh: string;
   /** Every sim, for Someone else. */
   nodes: readonly SimNode[];
-  /** Planned children not born yet: no one's parent. */
-  unborn: ReadonlySet<string>;
+  /** When a sim is grown for the plan, on their card: a date, never whether the game allows it (whenLine). */
+  whenOf: (n: SimNode) => string | null;
   /** Couples together now with one of them living there. */
   pairs: readonly ParentPair[];
   cards: Pick<SimCardOptions, 'dynasties' | 'risks'>;
@@ -47,11 +46,12 @@ const genderLabel = (g: string) => (g === GENDER_NOT_KNOWN ? 'Not decided' : g);
  * "A child", from a household's ＋: born or adopted, then its parents,
  * chosen and never guessed: up to two sims, linked or not, from the
  * household or anyone on the board, or none. A couple living there is a
- * quick pick, never picked for you. A teen can be picked, with what the
- * game says about it in amber: nothing here blocks a plan. The last name
- * is asked only when the parents' (or, with none, the household's) differ.
+ * quick pick, never picked for you. Any living sim can be picked, a child
+ * or a baby not born yet too: a plan is for later, and their card says
+ * when they're grown, in grey. The last name is asked only when the
+ * parents' (or, with none, the household's) differ.
  */
-export function NewChildForm({ household, members, home, hh, nodes, unborn, pairs, cards, onAdd, onAdoptExisting }: NewChildProps) {
+export function NewChildForm({ household, members, home, hh, nodes, whenOf, pairs, cards, onAdd, onAdoptExisting }: NewChildProps) {
   const id = useId();
   const [arrives, setArrives] = useState<ChildArrival>('born');
   const [picked, setPicked] = useState<string[]>([]);
@@ -73,11 +73,11 @@ export function NewChildForm({ household, members, home, hh, nodes, unborn, pair
   const pickedSims = picked.map((p) => byid.get(p)).filter((n): n is SimNode => !!n);
   // The household's own, then anyone picked from elsewhere.
   const listed = [...household, ...pickedSims.filter((n) => !own.has(n.id))];
-  const found = parentSearch(nodes, query, new Set([...own, ...picked]), unborn);
+  const found = parentSearch(nodes, query, new Set([...own, ...picked]));
   const quick = pairs.filter((p) => {
     const a = byid.get(p.a);
     const b = byid.get(p.b);
-    return !!a && !!b && canParent(a, unborn) && canParent(b, unborn);
+    return !!a && !!b && canParent(a) && canParent(b);
   });
   const full = picked.length >= MAX_PARENTS;
   const surnames = childSurnames(pickedSims, members, hh);
@@ -115,7 +115,6 @@ export function NewChildForm({ household, members, home, hh, nodes, unborn, pair
 
   const card = (n: SimNode, outside: boolean) => {
     const on = picked.includes(n.id);
-    const warn = parentWarning(n, arrives);
     return (
       <li key={n.id}>
         <button
@@ -126,7 +125,7 @@ export function NewChildForm({ household, members, home, hh, nodes, unborn, pair
           title={!on && full ? 'Two at most: untick one first' : undefined}
           onClick={() => toggle(n.id)}
         >
-          <SimCard sim={n} {...cards} world={outside} extra={warn ? [warn] : []} />
+          <SimCard sim={n} {...cards} world={outside} when={whenOf(n)} />
         </button>
       </li>
     );
@@ -222,7 +221,7 @@ export function NewChildForm({ household, members, home, hh, nodes, unborn, pair
             {found.map((n) => (
               <li key={n.id}>
                 <button type="button" className={`${simCardClass(n)} simcard--pick`} aria-pressed={false} onClick={() => pickFound(n.id)}>
-                  <SimCard sim={n} {...cards} world extra={[parentWarning(n, arrives) ?? ''].filter(Boolean)} />
+                  <SimCard sim={n} {...cards} world when={whenOf(n)} />
                 </button>
               </li>
             ))}

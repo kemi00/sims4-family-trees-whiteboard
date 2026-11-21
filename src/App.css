@@ -1289,6 +1289,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .addmenu__who{margin:-2px 2px 8px;font-size:11.5px;color:var(--ink-2)}
 .brief__warn{color:var(--warn)}
 .cmenu__warn{font-size:11px;font-weight:400;color:var(--warn)}
+/* When a plan can happen: a date, not a problem, so grey (a warning would be amber). */
+.cmenu__when{font-size:11px;font-weight:400;line-height:1.4;color:var(--ink-2)}
+.simcards .simcard .simcard__when{font-size:11px;line-height:1.3;color:var(--ink-2)}
 /* A child from a household's ＋ (NewChildForm): parents ticked on the shared sim card, up to two. */
 .childform__pairs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 2px 6px;font-size:11px;color:var(--ink-3)}
 .menu .childform__pair{display:inline-flex;width:auto;margin:0;padding:3px 9px;border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);color:var(--ink-2);font-size:11px;font-weight:600}

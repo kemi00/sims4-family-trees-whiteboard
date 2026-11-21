@@ -9,7 +9,7 @@ import { CaretLeft } from '../icons.ts';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { cardName } from '../lib/plan.ts';
 import { hasNoHome } from '../lib/partners.ts';
-import { adoptWarning, adopteeSearch, whyCantAdopt } from '../lib/adoption.ts';
+import { adopteeSearch, whyCantAdopt } from '../lib/adoption.ts';
 import { simCardClass } from '../lib/simCard.ts';
 import type { ChildMenuState } from '../hooks/useWhiteboard.ts';
 import type { Edge, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
@@ -23,6 +23,8 @@ type Props = {
   saveGame?: SaveGameInfo | null;
   /** Planned babies, not born yet: never adopted. */
   unborn: ReadonlySet<string>;
+  /** When the adopters are grown for it, a sentence: "Ready when Rashidah is a Young Adult: in 7 days of playing the Watson Family." Empty when nothing waits. */
+  readyWhen: (ids: readonly string[]) => string;
   onNewSim: () => void;
   onAdoptStep: (step: ChildMenuState['step']) => void;
   onAdopt: (child: string) => void;
@@ -51,6 +53,7 @@ export function ChildMenu({
   edges,
   saveGame,
   unborn,
+  readyWhen,
   onNewSim,
   onAdoptStep,
   onAdopt,
@@ -155,9 +158,8 @@ export function ChildMenu({
       !cant && all.length === 0
         ? `No one younger${couple ? ' than both' : ''} who isn’t family already.`
         : null;
-    // A teen can adopt as a plan: the game wants a young adult or older, so it says so.
-    const warnOne = !cant ? adopters.map((a) => [a, adoptWarning(a)] as const).find(([, w]) => w) : undefined;
-    const warn = warnOne ? `${cardName(warnOne[0])} is a teen: ${warnOne[1]}` : null;
+    // Any living sim can adopt, as a plan: when they're grown, never whether the game allows it.
+    const ready = !cant ? readyWhen(menu.parents) : '';
     return shell(
       `Add a child of ${name}`,
       <>
@@ -178,7 +180,7 @@ export function ChildMenu({
               none ??
               `Someone younger${couple ? ' than both' : ''} who isn’t family yet: ${all.length} to pick from`}
           </span>
-          {warn && <span className="cmenu__warn">{`⚠ ${warn}`}</span>}
+          {ready && <span className="cmenu__when">{ready}</span>}
         </button>
       </>,
     );

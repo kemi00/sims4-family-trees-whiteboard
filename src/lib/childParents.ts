@@ -6,8 +6,8 @@ import type { SimNode } from '../types/whiteboard.ts';
 /**
  * A child from a household's ＋: born or adopted, and its parents chosen,
  * never guessed from who is in a romance. Up to two sims, linked or not
- * (woohoo, a science baby, one parent alone, friends adopting together), or
- * none: the child joins with no parents on the board.
+ * (woohoo, a science baby, one parent alone, friends adopting together), at
+ * any life stage, or none: the child joins with no parents on the board.
  */
 
 /** How a planned child joins: born, or adopted. */
@@ -28,27 +28,14 @@ export type ChildChoice = {
   gender?: string;
 };
 
-const TOO_YOUNG: ReadonlySet<string> = new Set(['Infant', 'Toddler', 'Child']);
-
 /**
- * Who can be a planned child's parent: a living sim (not a pet), a teen or
- * older, or planned with no life stage yet, unless that is a child not born
- * yet (`unborn`).
+ * Who can be a planned child's parent: any living sim, at any life stage,
+ * a baby not born yet too (an heir's heir). A plan is for later: the card
+ * says when they're grown (whenLine), never whether the game allows it.
+ * Pets and sims who passed away aren't offered: waiting won't change that.
  */
-export function canParent(n: SimNode, unborn: ReadonlySet<string> = new Set()): boolean {
-  if (n.species || n.state === DECEASED_STATE) return false;
-  if (TOO_YOUNG.has(n.age)) return false;
-  return !unborn.has(n.id);
-}
-
-/**
- * What to weigh about a parent, in amber on their card: nothing blocks it.
- * A teen needs a mod to have a baby, and the game lets only young adults
- * and older adopt.
- */
-export function parentWarning(n: SimNode, arrives: ChildArrival): string | null {
-  if (n.age !== 'Teen') return null;
-  return arrives === 'born' ? 'a teen: the game needs a mod for this' : 'a teen: the game lets young adults and older adopt';
+export function canParent(n: SimNode): boolean {
+  return !n.species && n.state !== DECEASED_STATE;
 }
 
 /** The oldest life stage first: parents read before their teens. */
@@ -61,8 +48,8 @@ function byStage(a: SimNode, b: SimNode): number {
 }
 
 /** The household's sims who could be parents, the oldest stage first, then A to Z. */
-export function householdParents(nodes: readonly SimNode[], gid: string, unborn?: ReadonlySet<string>): SimNode[] {
-  return nodes.filter((n) => n.gid === gid && canParent(n, unborn)).sort(byStage);
+export function householdParents(nodes: readonly SimNode[], gid: string): SimNode[] {
+  return nodes.filter((n) => n.gid === gid && canParent(n)).sort(byStage);
 }
 
 /**
@@ -74,12 +61,11 @@ export function parentSearch(
   nodes: readonly SimNode[],
   query: string,
   exclude: ReadonlySet<string>,
-  unborn?: ReadonlySet<string>,
   max = 6,
 ): SimNode[] {
   const q = fold(query);
   if (!q) return [];
-  const hits = nodes.filter((n) => !exclude.has(n.id) && canParent(n, unborn) && fold(`${n.first} ${n.sur} ${cardName(n)}`).includes(q));
+  const hits = nodes.filter((n) => !exclude.has(n.id) && canParent(n) && fold(`${n.first} ${n.sur} ${cardName(n)}`).includes(q));
   const starts = (n: SimNode) => fold(n.first).startsWith(q) || fold(n.sur).startsWith(q);
   return [...hits.filter(starts).sort(byStage), ...hits.filter((n) => !starts(n)).sort(byStage)].slice(0, max);
 }

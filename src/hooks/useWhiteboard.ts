@@ -1,3 +1,4 @@
+import { GROWN_UP } from '../lib/lifeClock.ts';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { growHousehold, landMovedCards, type Box as LandBox } from '../lib/landing.ts';
 import { linkStep, named } from '../lib/undoNames.ts';
@@ -28,7 +29,17 @@ import { jsonLoadTargets, pinCoreToTargets, prepareLoadedBoard, realmMovedText, 
 import { fileFilters, filterChangeNote, loadJsonRisk, type BoardFilters, type LoadJsonRisk } from '../lib/loadJsonRisk.ts';
 import { mergeJsonIntoBoard } from '../lib/mergeJson.ts';
 import { isUnhousedGid } from '../lib/unhoused.ts';
-import { gameHomes, householdPlans, householdsNotInGame, planTallies } from '../lib/householdPlan.ts';
+import {
+  gameHomes,
+  householdName,
+  householdPlans,
+  householdsNotInGame,
+  planTallies,
+  readyWhen,
+  stageWait,
+  waitContext,
+  whenLine,
+} from '../lib/householdPlan.ts';
 import { movesDoneBySave,
   NEW_HOUSEHOLD,
   householdMovePlan,
@@ -1854,6 +1865,26 @@ export function useWhiteboard() {
     [nodesCore, edges, planIssues, pairStatus, saveGame, householdMoves],
   );
   const planTally = useMemo(() => planTallies(planItems), [planItems]);
+  /**
+   * When a sim is grown for a plan (a Young Adult), counted as the plan
+   * panel counts it: on a parent's card ("Young Adult in 10 days of playing
+   * the Goth household") and after "Planned" ("Ready when Cassandra is a
+   * Young Adult: in 10 days of playing the Goth household.").
+   */
+  const waitCtx = useMemo(() => waitContext(nodesCore, edges, saveGame, householdMoves), [nodesCore, edges, saveGame, householdMoves]);
+  const hhNameOf = useCallback((gid: string) => householdName(gid, groups, nodes), [groups, nodes]);
+  const whenLineOf = useCallback((n: SimNode) => whenLine(stageWait(n, GROWN_UP, waitCtx), hhNameOf), [waitCtx, hhNameOf]);
+  const readyWhenOf = useCallback(
+    (ids: readonly string[], nameOf: (n: SimNode) => string = (n) => n.first || cardName(n)) =>
+      readyWhen(
+        ids
+          .map((id) => byid[id])
+          .filter((n): n is SimNode => !!n)
+          .map((n) => ({ name: nameOf(n), w: stageWait(n, GROWN_UP, waitCtx) })),
+        hhNameOf,
+      ),
+    [byid, waitCtx, hhNameOf],
+  );
   // Households the game doesn't have yet: Up next and their brief say who moves in first.
   const notInGame = useMemo(() => householdsNotInGame(nodesCore, householdMoves), [nodesCore, householdMoves]);
   // Planned sims sharing a last name are numbered afresh on every change:
@@ -2324,10 +2355,13 @@ export function useWhiteboard() {
         return id;
       }
       const stage = (how?.age ?? '').toLowerCase();
+      // When the parents are grown for it: said the moment it's planned.
+      const ready = parentIds.length ? readyWhenOf(parentIds, (n) => named(n.first || cardName(n))) : '';
+      const when = ready ? ` ${ready}` : '';
       if (adopted) {
         flashStatus(
           parents.length
-            ? `Planned: ${who} ${parents.length > 1 ? 'adopt' : 'adopts'} ${stage ? `a ${stage}, ` : ''}${one}.${room}`
+            ? `Planned: ${who} ${parents.length > 1 ? 'adopt' : 'adopts'} ${stage ? `${/^[aeiou]/.test(stage) ? 'an' : 'a'} ${stage}, ` : ''}${one}.${when}${room}`
             : `Planned: an adopted ${stage || 'child'}, ${one}, joins ${named(dest.hh)}, with no parents on the board.${room} Link their parents with Connect whenever you like.`,
         );
         return id;
@@ -2336,12 +2370,12 @@ export function useWhiteboard() {
         !parents.length
           ? `Planned a child in ${named(dest.hh)}: ${one}, not born yet, with no parents on the board.${room} Link their parents with Connect whenever you like.`
           : parentIds.length > 1
-            ? `Planned a child of ${who}: ${one}, not born yet.${room} Give them a plan label in the editor.`
-            : `Planned a child of ${who}: ${one}, not born yet.${room} Link another parent with Connect if there is one.`,
+            ? `Planned a child of ${who}: ${one}, not born yet.${when}${room} Give them a plan label in the editor.`
+            : `Planned a child of ${who}: ${one}, not born yet.${when}${room} Link another parent with Connect if there is one.`,
       );
       return id;
     },
-    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, viewRect, revealBox, lotRoom],
+    [byid, flashStatus, groups, nodes, nodesCore, worlds, edges, pushUndo, snap, viewRect, revealBox, lotRoom, readyWhenOf],
   );
 
   /** "A child" from a household's ＋: born or adopted, of the parents chosen (two, one or none). */
@@ -3056,14 +3090,15 @@ export function useWhiteboard() {
       freezeAfterEdgeChange([...parents, child], nextEdges);
       trackAction(ps.length > 1 ? '/action/adopt-couple' : '/action/adopt');
       const who = ps.map((P) => named(cardName(P))).join(' and ');
-      flashStatus(`Planned ✓ ${who} ${ps.length > 1 ? 'adopt' : 'adopts'} ${named(cardName(C))}, until a save shows it. Undo takes it back.`);
+      const ready = readyWhenOf(parents, (n) => named(n.first || cardName(n)));
+      flashStatus(`Planned ✓ ${who} ${ps.length > 1 ? 'adopt' : 'adopts'} ${named(cardName(C))}, until a save shows it.${ready ? ` ${ready}` : ''} Undo takes it back.`);
       const homes = ps.filter((P) => P.gid !== C.gid && !hasNoHome(P));
       if (homes.length && !ps.some((P) => P.gid === C.gid)) {
         setChildMenu((m) => (m ? { ...m, step: 'move', picked: child } : m));
       } else setChildMenu(null);
       return true;
     },
-    [byid, edges, plannedChildIds, parentCycleReason, pushUndo, freezeAfterEdgeChange, flashStatus],
+    [byid, edges, plannedChildIds, parentCycleReason, pushUndo, freezeAfterEdgeChange, flashStatus, readyWhenOf],
   );
 
   /**
@@ -4503,6 +4538,8 @@ export function useWhiteboard() {
     bloodlineId,
     bloodlineIds,
     bloodline,
+    whenLineOf,
+    readyWhenOf,
     bloodlineReach: bloodlinePrefs.reach,
     bloodlineAdopted: bloodlinePrefs.adopted,
     setBloodlineReach,

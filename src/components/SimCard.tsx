@@ -2,7 +2,11 @@ import { Fragment } from 'react';
 import { simCardLines, type SimCardOptions } from '../lib/simCard.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
-type Props = SimCardOptions & { sim: SimNode };
+type Props = SimCardOptions & {
+  sim: SimNode;
+  /** When they're grown for the plan being made, in grey: a date, not a problem ("Young Adult in 10 days of playing the Goth household"). */
+  when?: string | null;
+};
 
 /**
  * One sim in any list, the same everywhere (Possible partners, the ♥ and
@@ -12,7 +16,7 @@ type Props = SimCardOptions & { sim: SimNode };
  * explained on hover as on the board. Only the inside of the card: each
  * list wraps it in its own `button.simcard` in a `ul.simcards`.
  */
-export function SimCard({ sim, ...opts }: Props) {
+export function SimCard({ sim, when, ...opts }: Props) {
   const { mark, name, meta, flags, riskTitle } = simCardLines(sim, opts);
   return (
     <>
@@ -31,6 +35,7 @@ export function SimCard({ sim, ...opts }: Props) {
           ))}
         </span>
       )}
+      {when && <span className="simcard__when">{when}</span>}
     </>
   );
 }

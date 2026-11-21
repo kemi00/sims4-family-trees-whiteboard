@@ -135,11 +135,8 @@ export function windowText(
   game: SaveGameInfo | null | undefined,
   babies = false,
 ): { text: string; tone: 'info' | 'warn' } | null {
-  if (w.elders) {
-    const who = w.elders.map(nameOf);
-    const are = who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who[who.length - 1]} are Elders` : `${who[0]} is an Elder`;
-    return { text: `${are}: in the game, an Elder can’t carry a baby.`, tone: 'warn' };
-  }
+  // Every parent who could carry is an Elder: what their game allows is the player's business.
+  if (w.elders) return null;
   const c = w.closes!;
   const C = nameOf(c.id);
   if (!w.opens) {

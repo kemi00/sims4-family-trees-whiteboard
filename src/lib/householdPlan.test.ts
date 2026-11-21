@@ -13,8 +13,11 @@ import {
   unblockedBy,
   upNext,
   upNextReason,
+  readyWhen,
   waitText,
+  whenLine,
   type PlanItem,
+  type PlanWait,
 } from './householdPlan.ts';
 import { cardName, planConflicts } from './plan.ts';
 
@@ -204,14 +207,23 @@ describe('planned babies', () => {
     assert.equal(items.length, 1);
   });
 
-  it('warn, without blocking, when every parent who could carry is an elder', () => {
+  it('say nothing of what the game allows when the parents are elders: a plan, ready', () => {
     const old = [sim('Sergio', 'Romeo', { age: 'Elder' }), sim('Siobhan', 'Romeo', { gender: 'Male' })];
     const i = one(plans([...old, kid('k1', 'Heir')], parentLinks('k1')), 'baby:Sergio|Siobhan');
     assert.equal(i.state, 'ready');
-    assert.equal(i.note, 'Sergio Romeo is an elder: in the game, elders can’t carry a baby.');
-    // A younger one who could carry: no warning.
-    const young = [sim('Sergio', 'Romeo', { age: 'Elder', gender: 'Male' }), sim('Siobhan', 'Romeo')];
-    assert.equal(one(plans([...young, kid('k1', 'Heir')], parentLinks('k1')), 'baby:Sergio|Siobhan').note, undefined);
+    assert.equal(i.note, undefined);
+  });
+
+  it('word an adoption as one, waiting only for the adopters to grow up', () => {
+    const adopters = [sim('Sergio', 'Romeo', { age: 'Teen' }), sim('Siobhan', 'Romeo', { age: 'Elder' })];
+    const k = planned('k1', 'Romeo', { first: '', planLabel: 'Heir', arrives: 'adopted' });
+    const links = parentLinks('k1').map((e) => ({ ...e, adopted: true as const }));
+    const i = one(plans([...adopters, k], links), 'baby:Sergio|Siobhan|adopted');
+    assert.deepEqual([i.state, i.text, i.waits.map((w) => w.sim)], ['waiting', 'Sergio Romeo and Siobhan Romeo adopt Heir Romeo', ['Sergio']]);
+    assert.equal(i.window, undefined);
+    // Adopted links alone mark it, as a save brings them.
+    const bySave = one(plans([sim('Siobhan', 'Romeo'), planned('k2', 'Romeo', { first: '', planLabel: 'Spare' })], [{ ...link('k2b', 'Siobhan', 'k2', 'parent'), adopted: true }]), 'baby:Siobhan|adopted');
+    assert.equal(bySave.text, 'Siobhan Romeo adopts Spare Romeo');
   });
 
   it('wait on a parent too young', () => {
@@ -616,5 +628,30 @@ describe('Up next', () => {
       upNextReason(rows[2]!, nameOf, (gid) => gid),
       'Not in your game yet: move Dirk Dreamer and Dina Dreamer in first',
     );
+  });
+});
+
+describe('when a plan can happen', () => {
+  const hhOf = (gid: string) => (gid === 'W||Goth' ? 'the Goth household' : 'the Volkov household');
+  const teen: PlanWait = { sim: 'Cassandra', why: 'tooYoung', now: 'Teen', stage: 'Young Adult', gid: 'W||Goth', move: 'play', days: 10.49 };
+
+  it('puts a sim’s wait on their card, as a date', () => {
+    assert.equal(whenLine(teen, hhOf), 'Young Adult in 10 days of playing the Goth household');
+    assert.equal(whenLine({ ...teen, move: 'time' }, hhOf), 'Young Adult in 10 days');
+    assert.equal(whenLine({ ...teen, move: 'ageUp' }, hhOf), 'Young Adult once you age them up in the game: the Goth household isn’t aging');
+    assert.equal(whenLine({ ...teen, days: null }, hhOf), 'Young Adult once you play the Goth household');
+    assert.equal(whenLine({ ...teen, why: 'notBorn', days: 24 }, hhOf), 'Not born yet: Young Adult about 24 days after the birth');
+    assert.equal(whenLine({ ...teen, why: 'notInGame', move: 'find', days: null }, hhOf), null);
+    assert.equal(whenLine(null, hhOf), null);
+  });
+
+  it('says when, the moment a plan is made', () => {
+    assert.equal(readyWhen([{ name: 'Cassandra', w: teen }], hhOf), 'Ready when Cassandra is a Young Adult: in 10 days of playing the Goth household.');
+    assert.equal(
+      readyWhen([{ name: 'Cassandra', w: teen }, { name: 'Jacob', w: { ...teen, sim: 'Jacob', gid: 'W||Volkov', days: 9.2 } }], hhOf),
+      'Ready when Cassandra and Jacob are Young Adults: Cassandra in 10 days of playing the Goth household, Jacob in 9 days of playing the Volkov household.',
+    );
+    assert.equal(readyWhen([{ name: 'Bella', w: null }], hhOf), '');
+    assert.equal(readyWhen([{ name: 'Heir', w: { ...teen, why: 'notBorn', days: 24 } }], hhOf), 'Ready when Heir is born and a Young Adult: about 24 days after the birth.');
   });
 });
