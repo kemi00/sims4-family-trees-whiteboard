@@ -1837,7 +1837,12 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 
 /* Keep in sync with CHROME_COMPACT_MAX_PX in src/lib/constants.ts */
 @media (max-width:640px){
- #stage{--minimap-w:160px;--minimap-h:100px}
+ /* The zoom bar is too wide to sit beside the minimap: it keeps the bottom
+    edge, the minimap stands on it, the status line beside the minimap and
+    the tips button above it. --zoom-h is the zoom bar's height. */
+ #stage{--minimap-w:160px;--minimap-h:100px;--zoom-h:42px;--dock-b:max(12px, env(safe-area-inset-bottom,0px))}
+ /* Touch-sized zoom buttons (44px, plus the bar's padding and border). */
+ @media (pointer:coarse){ #stage{--zoom-h:54px} }
  .appbar{height:auto;min-height:calc(var(--bar-h) + env(safe-area-inset-top,0px))}
  /* Phones keep the edit tools, Filters, search and More: seven 44px targets
     and the plumbob fit 360px. The rest folds into More, in the bar's order. */
@@ -1846,8 +1851,11 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
  .appbar__spacer{min-width:0}
  .brand{margin-right:4px}
  .viewctl{left:50%;right:auto;bottom:max(12px, env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
- #autosave-cue{left:50%;right:auto;bottom:calc(max(12px, env(safe-area-inset-bottom,0px)) + 40px + 8px);transform:translateX(-50%);max-width:min(420px, calc(100% - 24px))}
- .selbar{bottom:calc(max(12px, env(safe-area-inset-bottom,0px)) + var(--minimap-h) + 8px + 44px + 8px)}
+ /* Beside the minimap, one short line each, with no dots to end a line on. */
+ #autosave-cue{left:calc(max(12px, env(safe-area-inset-left,0px)) + var(--minimap-w) + 8px);right:auto;bottom:calc(var(--dock-b) + var(--zoom-h) + 8px);transform:none;max-width:calc(100% - var(--minimap-w) - 32px);flex-direction:column;align-items:flex-start;gap:2px;text-align:left}
+ #autosave-cue .autosave-cue__group{flex-direction:column;align-items:flex-start;gap:2px}
+ #autosave-cue .autosave-cue__sep{display:none}
+ .selbar{bottom:calc(var(--dock-b) + var(--zoom-h) + 8px + var(--minimap-h) + 8px + 44px + 8px)}
  /* Too narrow for names and buttons side by side: the names get the bar's
     width, the buttons a row of their own under them. */
  .selbar__row{flex-wrap:wrap}
@@ -1856,9 +1864,9 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
  .selbar__row .selbar__go{order:2}
  .selbar__row .selbar__alt{order:2}
  .selbar__row .selbar__del{order:3}
- #hint.hint:not(.hint--sheet){left:max(12px, env(safe-area-inset-left,0px));bottom:calc(max(12px, env(safe-area-inset-bottom,0px)) + var(--minimap-h) + 8px);width:min(320px, calc(100% - 24px))}
- #hintIcon{left:max(12px, env(safe-area-inset-left,0px));bottom:calc(max(12px, env(safe-area-inset-bottom,0px)) + var(--minimap-h) + 8px)}
- .minimap{left:max(12px, env(safe-area-inset-left,0px));bottom:max(12px, env(safe-area-inset-bottom,0px))}
+ #hint.hint:not(.hint--sheet){left:max(12px, env(safe-area-inset-left,0px));bottom:calc(var(--dock-b) + var(--zoom-h) + 8px + var(--minimap-h) + 8px);width:min(320px, calc(100% - 24px))}
+ #hintIcon{left:max(12px, env(safe-area-inset-left,0px));bottom:calc(var(--dock-b) + var(--zoom-h) + 8px + var(--minimap-h) + 8px)}
+ .minimap{left:max(12px, env(safe-area-inset-left,0px));bottom:calc(var(--dock-b) + var(--zoom-h) + 8px)}
  .legend-chip{right:max(12px, env(safe-area-inset-right,0px));top:12px}
  #legend.legend--sheet{
   left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;height:auto;max-width:none;max-height:70dvh;flex-direction:column;align-items:stretch;pointer-events:auto;border-radius:16px 16px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));overflow:auto;overscroll-behavior:contain;background:var(--chrome);border:1px solid var(--line);box-shadow:0 -8px 28px #0002;gap:10px;
