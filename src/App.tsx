@@ -27,6 +27,8 @@ import { dynastyPoster, householdPoster, type PosterModel } from './lib/poster.t
 import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
 import { dynastyKey, dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
 import { isPanelSheet } from './lib/chrome.ts';
+import { foldSheets } from './lib/sheet.ts';
+import { usePanelSheet } from './hooks/usePanelSheet.ts';
 import { householdPlace } from './lib/connectionLog.ts';
 import { householdName, upNext } from './lib/householdPlan.ts';
 import { cardName } from './lib/plan.ts';
@@ -166,6 +168,8 @@ export default function App() {
    */
   /** A highlight's list beside the board, and whether Change came from it. */
   const [listOf, setListOf] = useState<ListOf | null>(null);
+  /** Panels are drawers at the bottom (a narrow screen). */
+  const sheetMode = usePanelSheet();
   const [hiFromList, setHiFromList] = useState(false);
   const barOpen = {
     list: listOf !== null,
@@ -205,8 +209,9 @@ export default function App() {
     // toggle and swap it) and anything over it (a dialog, a menu, the sim
     // editor, search) keep it.
     // A highlight's list stays: you read it against the board, moving
-    // around and picking cards, as you do with the Key.
-    if (listOf) return;
+    // around and picking cards, as you do with the Key. On a narrow screen
+    // every panel is a drawer: a press on the board folds it (useSheet).
+    if (listOf || sheetMode) return;
     const onPointer = (ev: PointerEvent) => {
       const t = ev.target as Element | null;
       if (!t?.closest || t.closest('.barpanel, .appbar, [aria-modal="true"], .menu, .editor, .find, .poster, .pop')) return;
@@ -214,7 +219,7 @@ export default function App() {
     };
     document.addEventListener('pointerdown', onPointer, true);
     return () => document.removeEventListener('pointerdown', onPointer, true);
-  }, [anyBarOpen, closeBar, listOf]);
+  }, [anyBarOpen, closeBar, listOf, sheetMode]);
 
   // A list goes with its highlight: cleared, ended, or taken over by another.
   const listLit =
@@ -230,6 +235,27 @@ export default function App() {
   useEffect(() => {
     if (listOf && !listLit) setListOf(null);
   }, [listOf, listLit]);
+  /**
+   * On a narrow screen a highlight lives in its drawer, folded to a bar at
+   * the bottom, where the banner was at the top: tap it for the list, end
+   * it there in words. Another panel takes the place while it is open.
+   */
+  // One drawer at a time: the sim editor and a household's plan are drawers too.
+  const otherPanelOpen =
+    barOpen.upnext || barOpen.dynasties || barOpen.story || barOpen.log || barOpen.filters || !!wb.editNodeId || !!wb.briefGid;
+  const autoList: ListOf | null =
+    sheetMode && !listOf && !otherPanelOpen && !wb.staleTab
+      ? wb.bloodlineId
+        ? 'bloodline'
+        : wb.familyFocus
+          ? 'family'
+          : wb.dynastyFocusIds
+            ? 'dynasty'
+            : highlightActive(wb.hiAges, wb.hiSingle)
+              ? 'highlight'
+              : null
+      : null;
+  const shownList = listOf ?? autoList;
   useEffect(() => {
     if (!wb.agesOpen) setHiFromList(false);
   }, [wb.agesOpen]);
@@ -450,7 +476,7 @@ export default function App() {
           stageRef={stageRef}
           tipsReady={!welcomeOpen && !devUpdatesOpen && !wb.saveImport && !wb.pendingLoadJson}
           onOpenSave={() => saveFileRef.current?.click()}
-          listOf={listOf}
+          listOf={shownList}
           onList={(of) => {
             trackAction(`/action/list/${of}`);
             setListOf(of);
@@ -477,14 +503,15 @@ export default function App() {
               : {})}
           />
         )}
-        {listOf && (
+        {shownList && (
           <HighlightList
-            key={listOf}
+            key={shownList}
             wb={wb}
-            of={listOf}
+            of={shownList}
+            {...(!listOf ? { startFolded: true } : {})}
             onPick={(id, select) => {
-              // A phone's sheet covers the board: it gets out of the way.
-              if (isPanelSheet()) setListOf(null);
+              // A drawer covers the board: it folds to its bar while the view goes there.
+              if (isPanelSheet()) foldSheets();
               const { w, h } = besideList();
               wb.focusSim(id, w, h, select);
             }}
@@ -552,8 +579,8 @@ export default function App() {
               }}
               onClose={() => wb.setDynastiesOpen(false)}
               onFind={(id) => {
-                // A phone's sheet covers the board: it gets out of the way.
-                if (isPanelSheet()) wb.setDynastiesOpen(false);
+                // A drawer covers the board: it folds to its bar while the view goes there.
+                if (isPanelSheet()) foldSheets();
                 const rect = svgRef.current?.getBoundingClientRect();
                 wb.focusSim(id, rect?.width ?? 800, rect?.height ?? 600);
               }}

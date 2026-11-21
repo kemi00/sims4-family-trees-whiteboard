@@ -1,3 +1,4 @@
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
@@ -56,7 +57,7 @@ export function ChildMenu({
   onMoveIn,
   onClose,
 }: Props) {
-  const { compact, ref, style } = useFitMenuInStage(menu.x, menu.y);
+  const { compact, ref, style, sheet } = useFitMenuInStage(menu.x, menu.y);
   useLightDismiss(ref, onClose);
   const listId = useId();
   const [query, setQuery] = useState('');
@@ -124,6 +125,7 @@ export function ChildMenu({
       style={style}
       onKeyDown={close}
     >
+      <SheetGrabber sheet={sheet} what="the menu" />
       {body}
     </div>
   );

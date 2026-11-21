@@ -1,3 +1,4 @@
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { X } from '../icons.ts';
@@ -35,7 +36,7 @@ const SHOWN = 8;
  * name and simply moves to the lot.
  */
 export function LotMoveInMenu({ lot, left, top, nodes, picked, onMove, onClose }: Props) {
-  const { compact, ref, style } = useFitMenuInStage(left, top);
+  const { compact, ref, style, sheet } = useFitMenuInStage(left, top);
   useLightDismiss(ref, onClose);
   const searchRef = useRef<HTMLInputElement>(null);
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -118,6 +119,7 @@ export function LotMoveInMenu({ lot, left, top, nodes, picked, onMove, onClose }
       aria-label={`Move into ${lot.name}`}
       style={style}
     >
+      <SheetGrabber sheet={sheet} what="the menu" />
       <div className="pmenu__head">
         <span className="lotmenu__title">
           {icon ? <img src={icon} alt="" width={20} height={20} /> : <span className="lotmenu__blank" aria-hidden="true" />}

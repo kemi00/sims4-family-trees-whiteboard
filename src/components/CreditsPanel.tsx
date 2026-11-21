@@ -1,3 +1,6 @@
+import { useRef } from 'react';
+import { useSheet } from '../hooks/useSheet.ts';
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { CloseButton } from './CloseButton.tsx';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import {
@@ -15,6 +18,8 @@ type Props = {
 
 export function CreditsPanel({ anchorRect, onClose }: Props) {
   const compact = useCompactChrome();
+  const ref = useRef<HTMLDivElement>(null);
+  const drawer = useSheet(ref, { enabled: compact, head: '.gph' });
   if (!compact && !anchorRect) return null;
 
   const desktopPos = (() => {
@@ -28,6 +33,7 @@ export function CreditsPanel({ anchorRect, onClose }: Props) {
 
   return (
     <div
+      ref={ref}
       id="credits"
       className={compact ? 'gpanel credits-panel gpanel--sheet' : 'gpanel credits-panel'}
       style={{
@@ -35,6 +41,7 @@ export function CreditsPanel({ anchorRect, onClose }: Props) {
         ...desktopPos,
       }}
     >
+      <SheetGrabber sheet={drawer} what="Credits" />
       <div className="gph">
         <b>Credits</b>
         <CloseButton label="Close credits" onClick={onClose} />

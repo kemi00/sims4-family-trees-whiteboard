@@ -1,3 +1,4 @@
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
@@ -43,7 +44,7 @@ const genderLabel = (g: string) => (g === GENDER_NOT_KNOWN ? 'Not decided' : g);
  * is planned, named "Planned" and their last name until you name them.
  */
 export function AddKindMenu({ x, y, title, kinds, child, onSim, onPet, where, onClose }: Props) {
-  const { compact, ref, style } = useFitMenuInStage(x, y);
+  const { compact, ref, style, sheet } = useFitMenuInStage(x, y);
   // The bar's Add button toggles the menu itself.
   useLightDismiss(ref, onClose, { keep: '#btnAdd' });
   const [step, setStep] = useState<'pick' | 'sim' | 'child' | 'where'>('pick');
@@ -80,6 +81,7 @@ export function AddKindMenu({ x, y, title, kinds, child, onSim, onPet, where, on
       onKeyDown={close}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <SheetGrabber sheet={sheet} what="the menu" />
       <div className="pmenu__head">
         {step === 'where' ? (
           <button type="button" className="pmenu__back" onClick={() => setStep(who && 'sim' in who ? 'sim' : 'pick')}>

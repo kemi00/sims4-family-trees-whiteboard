@@ -1,3 +1,4 @@
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { CloseButton } from './CloseButton.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
@@ -22,7 +23,7 @@ type Props = {
 
 /** A Needs a home box's "Choose a home": the same picker as the bar's Add asks with. */
 export function HomeMenu({ x, y, who, count, places, inView, limit, onPick, onClose }: Props) {
-  const { compact, ref, style } = useFitMenuInStage(x, y);
+  const { compact, ref, style, sheet } = useFitMenuInStage(x, y);
   useLightDismiss(ref, onClose);
   return (
     <div
@@ -39,6 +40,7 @@ export function HomeMenu({ x, y, who, count, places, inView, limit, onPick, onCl
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <SheetGrabber sheet={sheet} what="the menu" />
       <div className="pmenu__head">
         <b>Where will they live?</b>
         <CloseButton label="Close" onClick={onClose} />

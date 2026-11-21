@@ -2,6 +2,8 @@ import { Info } from '../icons.ts';
 import { CloseButton } from './CloseButton.tsx';
 import { useEffect, useId, useRef, useState } from 'react';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
+import { useSheet } from '../hooks/useSheet.ts';
+import { SheetGrabber } from './SheetGrabber.tsx';
 
 /** localStorage key, set once the first-visit Getting around card is dismissed. */
 export const NAV_INTRO_SEEN_KEY = 'sims4-family-trees:nav-intro-seen:v2';
@@ -96,6 +98,7 @@ export function Hint({ introReady = false }: Props) {
   const [open, setOpen] = useState<false | 'tips' | 'intro'>(false);
   const sheet = usePanelSheet();
   const hintRef = useRef<HTMLDivElement>(null);
+  const drawer = useSheet(hintRef, { enabled: sheet && !!open, head: '.hint__head', bind: open });
   const iconRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
@@ -133,6 +136,8 @@ export function Hint({ introReady = false }: Props) {
     // A press outside closes it, as it does every popup; the tips stay under ⓘ.
     const onPointer = (ev: PointerEvent) => {
       if (hintRef.current?.contains(ev.target as Node)) return;
+      // A drawer on a narrow screen folds to its bar instead (useSheet).
+      if (hintRef.current?.hasAttribute('data-detent')) return;
       markNavIntroSeen();
       setOpen(false);
     };
@@ -153,6 +158,7 @@ export function Hint({ introReady = false }: Props) {
         role="dialog"
         aria-labelledby={titleId}
       >
+        <SheetGrabber sheet={drawer} what="Getting around" />
         <div className="hint__head">
           <b id={titleId}>Getting around</b>
           <CloseButton ref={closeRef} id="hintClose" label="Close Getting around" onClick={close} />
@@ -207,9 +213,11 @@ export function Hint({ introReady = false }: Props) {
       ref={hintRef}
       className={sheet ? 'hint hint--sheet' : 'hint'}
       role="dialog"
-      aria-modal="true"
+      // A drawer leaves the board in use beside it: modal only as a card.
+      aria-modal={drawer.on ? undefined : 'true'}
       aria-labelledby={titleId}
     >
+      <SheetGrabber sheet={drawer} what="Quick tips" />
       <div className="hint__head">
         <b id={titleId}>Quick tips</b>
         <CloseButton ref={closeRef} id="hintClose" label="Close tips" onClick={() => setOpen(false)} />

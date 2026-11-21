@@ -1,3 +1,4 @@
+import { usePanelSheet } from '../hooks/usePanelSheet.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { Warning } from '../icons.ts';
 import { DECEASED_STATE } from '../lib/constants.ts';
@@ -24,6 +25,8 @@ type Props = {
   /** Frame the dynasty's members on screen together. */
   onShowAll: () => void;
   onClose: () => void;
+  /** Opens folded to its bar: on a phone the highlight lives here, not in a banner. */
+  startFolded?: boolean;
 };
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -35,10 +38,18 @@ const spread = (list: SimList) => `${plural(list.count, 'sim')} in ${plural(home
  * from the Dynasties panel, or the selected sim's family. One list for the
  * three, each with its own controls from its banner.
  */
-export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: Props) {
+export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose, startFolded }: Props) {
+  // On a narrow screen the drawer's head ends the highlight; its tools don't repeat it.
+  const sheet = usePanelSheet();
   const unborn = (id: string) => wb.plannedChildIds.has(id);
   const base = { nodes: wb.nodes, shown: wb.nodeVis, worlds: wb.worlds };
-  const common = { onHover: wb.setBriefHover, onClose, dynasties: wb.dynastyNames, risks: wb.dynastyRisks };
+  const common = {
+    onHover: wb.setBriefHover,
+    onClose,
+    dynasties: wb.dynastyNames,
+    risks: wb.dynastyRisks,
+    ...(startFolded ? { startFolded } : {}),
+  };
 
   if (of === 'dynasty') {
     const ids = wb.dynastyFocusIds ?? new Set<string>();
@@ -65,14 +76,17 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
         noDynasty
         empty="No one in this dynasty is shown on the board. Check Filters."
         onPick={(id) => onPick(id, true)}
+        end={{ label: 'Done', onEnd: () => wb.setDynastyFocus(null) }}
         tools={
           <>
             <button type="button" className="slist__act" onClick={onShowAll}>
               Show all
             </button>
-            <button type="button" className="slist__act" onClick={() => wb.setDynastyFocus(null)}>
-              Done
-            </button>
+            {!sheet && (
+              <button type="button" className="slist__act" onClick={() => wb.setDynastyFocus(null)}>
+                Done
+              </button>
+            )}
           </>
         }
       />
@@ -112,6 +126,7 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
         groups={{ label: 'Generation', list: gens }}
         empty={`${name} has no ${noun === 'bloodline' ? 'parents or descendants' : noun} on the board.`}
         onPick={(id) => onPick(id, true)}
+        end={{ label: 'Show everyone', onEnd: () => wb.setBloodlineId(null) }}
         tools={
           <div className="seg seg--wide" role="group" aria-label="How far the bloodline reaches">
             {BLOODLINE_REACHES.map((r) => (
@@ -150,6 +165,7 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
         list={list}
         empty={node ? `${cardName(node)} has no ${which} on the board.` : `Select a sim to list their ${which}.`}
         onPick={(id) => onPick(id, false)}
+        end={{ label: 'Done', onEnd: () => wb.setFamilyFocus(false) }}
         tools={
           <>
             <span className="slist__scope" role="group" aria-label="How far the family reaches">
@@ -165,9 +181,11 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
                 Extended
               </button>
             </span>
-            <button type="button" className="slist__act" onClick={() => wb.setFamilyFocus(false)}>
-              Done
-            </button>
+            {!sheet && (
+              <button type="button" className="slist__act" onClick={() => wb.setFamilyFocus(false)}>
+                Done
+              </button>
+            )}
           </>
         }
       />
@@ -175,6 +193,10 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
   }
 
   const sets = wb.highlightSets;
+  const clear = () => {
+    wb.setHiAges(new Set());
+    wb.setHiSingle(false);
+  };
   const summary = highlightSummary({ nodes: wb.nodes, shown: wb.nodeVis, hi: wb.hiAges, hiSingle: wb.hiSingle, ...sets });
   const list = simList({
     ...base,
@@ -189,21 +211,17 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose }: 
       list={list}
       empty="No living sim matches this highlight. Change it to light up others."
       onPick={(id) => onPick(id, true)}
+      end={{ label: 'Clear', onEnd: clear }}
       tools={
         <>
           <button type="button" className="slist__act" onClick={onChange}>
             Change
           </button>
-          <button
-            type="button"
-            className="slist__act"
-            onClick={() => {
-              wb.setHiAges(new Set());
-              wb.setHiSingle(false);
-            }}
-          >
-            Clear
-          </button>
+          {!sheet && (
+            <button type="button" className="slist__act" onClick={clear}>
+              Clear
+            </button>
+          )}
         </>
       }
     />

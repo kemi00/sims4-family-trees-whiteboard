@@ -1,3 +1,5 @@
+import { useSheet } from '../hooks/useSheet.ts';
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import { CloseButton } from './CloseButton.tsx';
@@ -562,6 +564,8 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
   // On a phone the legend is a sheet over the board: a press outside closes it.
   const sheetRef = useRef<HTMLDivElement>(null);
   useLightDismiss(sheetRef, () => setExpanded(false), { enabled: compact && expanded && !hidden, keep: '.legend-chip' });
+  // A drawer: half, full, or folded to its bar; a press on the board folds it.
+  const drawer = useSheet(sheetRef, { enabled: compact && expanded && !hidden, head: '.legend-sheethead', keep: '.legend-chip' });
 
   // How much of the stage's right side the corner takes (world list, and the
   // key when open), as --legend-inset: the board's centred controls (zoom,
@@ -613,6 +617,7 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
       }}
       className={compact ? 'legend--sheet' : undefined}
     >
+      <SheetGrabber sheet={drawer} what="the legend" />
       {compact && (
         // Pinned while the sheet scrolls, so closing is always in reach.
         <div className="legend-sheethead">

@@ -30,6 +30,10 @@ type Props = {
   groups?: { label: string; list: SimListGroup[] };
   /** A choice that changes who is listed, beside the order (Count adopted children). */
   footer?: ReactNode;
+  /** Ends the highlight, in words, in its drawer on a narrow screen (BarPanel). */
+  end?: { label: string; onEnd: () => void };
+  /** Opens folded to its bar: a highlight on a phone, where its banner was. */
+  startFolded?: boolean;
   /** Said when no one is listed. */
   empty: ReactNode;
   /** A card clicked: the view goes to that sim. */
@@ -55,7 +59,24 @@ const FIND_FROM = 12;
  * clicking it goes there. It stays open while you move around the board,
  * like the Key: you read one against the other.
  */
-export function SimListPanel({ title, description, tools, list, dynasties, risks, noDynasty, brief, groups, footer, empty, onPick, onHover, onClose }: Props) {
+export function SimListPanel({
+  title,
+  description,
+  tools,
+  list,
+  dynasties,
+  risks,
+  noDynasty,
+  brief,
+  groups,
+  footer,
+  end,
+  startFolded,
+  empty,
+  onPick,
+  onHover,
+  onClose,
+}: Props) {
   const [sort, setSort] = useState<Sort>(groups ? 'group' : 'world');
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -137,6 +158,8 @@ export function SimListPanel({ title, description, tools, list, dynasties, risks
       className="slist"
       title={title}
       description={description}
+      {...(end ? { end } : {})}
+      {...(startFolded ? { startFolded } : {})}
       onClose={() => {
         onHover(null);
         onClose();

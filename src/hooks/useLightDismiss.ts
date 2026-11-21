@@ -7,7 +7,8 @@ import { useEffect, useRef, type RefObject } from 'react';
  * and acts. A dialog over everything (aria-modal: a poster opened from the
  * popup, say) is part of the popup's flow and keeps it, as does `keep`: the
  * button that opens it, which toggles it itself, or the cards a menu picks
- * from the board.
+ * from the board. A drawer on a narrow screen (useSheet sets its
+ * data-detent) folds to its bar instead: it isn't closed by a stray press.
  */
 export function useLightDismiss(
   ref: RefObject<Element | null>,
@@ -25,6 +26,7 @@ export function useLightDismiss(
       const t = ev.target;
       if (!(t instanceof Element)) return;
       if (ref.current?.contains(t)) return;
+      if (ref.current?.hasAttribute('data-detent')) return;
       if (t.closest('[aria-modal="true"]')) return;
       if (keep && t.closest(keep)) return;
       close.current();

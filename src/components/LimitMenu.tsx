@@ -1,3 +1,4 @@
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useEffect, useRef } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
@@ -23,7 +24,7 @@ type Props = {
  * The plan stays as it is: the board warns, it never blocks.
  */
 export function LimitMenu({ x, y, household, size, limit, onMoveOut, onLimit, onClose }: Props) {
-  const { compact, ref, style } = useFitMenuInStage(x, y);
+  const { compact, ref, style, sheet } = useFitMenuInStage(x, y);
   useLightDismiss(ref, onClose);
   const goRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -45,6 +46,7 @@ export function LimitMenu({ x, y, household, size, limit, onMoveOut, onLimit, on
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <SheetGrabber sheet={sheet} what="the menu" />
       <div className="pmenu__head">
         <b>{size} sims and pets live here</b>
         <CloseButton label="Close" onClick={onClose} />

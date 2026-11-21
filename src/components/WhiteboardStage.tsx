@@ -636,6 +636,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     const onPointer = (ev: PointerEvent) => {
       const t = ev.target as Node;
       if (editorRef.current?.contains(t)) return;
+      // A drawer on a narrow screen folds to its bar instead (useSheet): typed edits stay.
+      if (editorRef.current?.hasAttribute('data-detent')) return;
       const active = document.activeElement;
       if (
         active &&

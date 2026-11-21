@@ -1,3 +1,6 @@
+import { useSheet } from '../hooks/useSheet.ts';
+import { HALF_CSS } from '../lib/sheet.ts';
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { removalLabel, simLinkRows } from '../lib/simLinks.ts';
 import { needsHome } from '../lib/whereTheyLive.ts';
 import { CloseButton, IconButton } from './CloseButton.tsx';
@@ -378,6 +381,8 @@ export function SimEditor({
   onStory,
 }: Props) {
   const compact = useCompactChrome();
+  // A drawer on a phone: half, full, or folded to its bar, typed edits kept.
+  const drawer = useSheet(editorRef, { enabled: compact, head: '.edpair--name' });
   const isPet = !!n.species;
   // Pets have no dynasty and no partners: their Family tab is parents, young and siblings.
   // A sim's partner search, a planning tool with its own filters, is a tab of its own.
@@ -975,7 +980,7 @@ export function SimEditor({
     el.dataset.reserve = String(reserve);
     // The phone sheet rises from the bottom, so a shorter tab would drop the
     // tab bar: it keeps the tallest tab's height instead (within its cap).
-    el.style.minHeight = compact ? `min(${reserve}px, 70dvh)` : '';
+    el.style.minHeight = compact ? `min(${reserve}px, ${HALF_CSS})` : '';
   }, [editorRef, compact]);
 
   useEffect(() => {
@@ -1025,6 +1030,7 @@ export function SimEditor({
             { display: 'flex', left, top, maxHeight: `calc(100vh - ${Math.round(top) + 8}px)` }
       }
     >
+      <SheetGrabber sheet={drawer} what={`the editor for ${cardName(n)}`} />
       <div className="ed__head">
         {/* The sim's story, behind the same book as the household plan's. */}
         <div className={onStory ? 'ed__tools ed__tools--two' : 'ed__tools'}>

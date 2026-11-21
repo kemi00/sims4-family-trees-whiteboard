@@ -1,6 +1,9 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { usePanelSheet } from '../hooks/usePanelSheet.ts';
+import { useSheet } from '../hooks/useSheet.ts';
 import { CaretLeft } from '../icons.ts';
 import { CloseButton, IconButton } from './CloseButton.tsx';
+import { SheetGrabber } from './SheetGrabber.tsx';
 
 type Props = {
   title: string;
@@ -16,6 +19,14 @@ type Props = {
   className?: string;
   id?: string;
   onClose: () => void;
+  /**
+   * A highlight's drawer on a narrow screen ends the highlight, in words
+   * (Show everyone, Done, Clear), where a tool's has ✕: the drawer is the
+   * highlight there, its banner folded into it.
+   */
+  end?: { label: string; onEnd: () => void };
+  /** Opens folded to its bar, where a highlight's banner would be. */
+  startFolded?: boolean;
   children: ReactNode;
 };
 
@@ -25,12 +36,15 @@ type Props = {
  * with one header (title, a line on what it is, the close button), an
  * optional row for search and sorting, and a body that scrolls. Opening
  * another swaps the content in place; Esc, the close button, the bar
- * button again or a click on the board closes it. A bottom sheet on a
- * narrow screen.
+ * button again or a click on the board closes it. A drawer on a narrow
+ * screen: half, full, or folded to a bar showing its head (useSheet); a
+ * press on the board folds it there instead of closing it.
  */
-export function BarPanel({ title, description, actions, back, tools, className, id, onClose, children }: Props) {
+export function BarPanel({ title, description, actions, back, tools, className, id, onClose, end, startFolded, children }: Props) {
   const titleId = useId();
   const ref = useRef<HTMLElement>(null);
+  const sheetMode = usePanelSheet();
+  const sheet = useSheet(ref, { enabled: sheetMode, head: '.barpanel__head', start: startFolded ? 'bar' : 'half' });
   const backRef = useRef(back);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -65,6 +79,7 @@ export function BarPanel({ title, description, actions, back, tools, className, 
       // The board under it never takes a press meant for the panel.
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <SheetGrabber sheet={sheet} what={title} />
       <header className="barpanel__head">
         {back && (
           <IconButton label={back.label} onClick={back.onBack}>
@@ -76,7 +91,13 @@ export function BarPanel({ title, description, actions, back, tools, className, 
           {description && <p>{description}</p>}
         </div>
         {actions}
-        <CloseButton label={`Close ${title}`} onClick={onClose} />
+        {sheetMode && end ? (
+          <button type="button" className="barpanel__end" onClick={end.onEnd}>
+            {end.label}
+          </button>
+        ) : (
+          <CloseButton label={`Close ${title}`} onClick={onClose} />
+        )}
       </header>
       {tools && <div className="barpanel__tools">{tools}</div>}
       <div className="barpanel__body">{children}</div>

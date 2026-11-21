@@ -1744,6 +1744,25 @@ svg{width:100%;height:100%;display:block;touch-action:none}
  #hint.hint--sheet .hint__more summary{min-height:44px;display:flex;align-items:center}
 }
 
+/* Drawers on a narrow screen (useSheet): half, full, or folded to a bar
+   that shows their head. The grabber says they move; heads leave it room. */
+button.sheet-grab.sheet-grab.sheet-grab{position:absolute;top:0;left:calc(50% - 36px);z-index:3;display:flex;align-items:center;justify-content:center;width:72px;height:20px;min-height:0;margin:0;padding:0;border:none;border-radius:0 0 10px 10px;background:transparent;box-shadow:none;cursor:grab;touch-action:none;transform:none}
+button.sheet-grab.sheet-grab.sheet-grab:hover{background:transparent}
+button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.sheet-grab span{display:block;width:38px;height:5px;border-radius:3px;background:var(--rule)}
+.barpanel[data-detent] .barpanel__head{padding-top:20px}
+.menu--sheet[data-detent],.gpanel--sheet[data-detent],.brief--sheet[data-detent],#hint.hint--sheet[data-detent]{padding-top:20px}
+.editor--sheet[data-detent] .ed__head{padding-top:20px}
+#legend.legend--sheet[data-detent] .legend-sheethead{padding-top:20px}
+/* A highlight's drawer ends it in words, where a tool's has ✕. */
+.barpanel__end{flex:none;align-self:flex-start;height:30px;margin:-4px 0 0;padding:0 11px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:#fff;color:var(--accent-strong);font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
+.barpanel__end:hover{background:var(--hover)}
+.barpanel__end:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+@media (pointer:coarse){.barpanel__end{height:40px;margin-top:-8px}}
+/* The board's corner controls rise above a folded drawer, never under it. */
+.viewctl,.minimap,#autosave-cue,#hintIcon,.selbar,#hint:not(.hint--sheet){translate:0 calc(-1 * var(--sheet-lift, 0px));transition:translate .26s cubic-bezier(.2,.8,.2,1)}
+@media (prefers-reduced-motion:reduce){.viewctl,.minimap,#autosave-cue,#hintIcon,.selbar,#hint:not(.hint--sheet){transition:none}}
+
 /* Keep in sync with CHROME_COMPACT_MAX_PX in src/lib/constants.ts */
 @media (max-width:640px){
  #stage{--minimap-w:160px;--minimap-h:100px}

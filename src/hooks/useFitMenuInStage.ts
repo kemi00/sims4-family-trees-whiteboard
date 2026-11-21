@@ -7,17 +7,22 @@ import {
 import { fitMenuInStage } from '../lib/chrome.ts';
 import { CHROME_EDGE_PAD_PX } from '../lib/constants.ts';
 import { useCompactChrome } from './useCompactChrome.ts';
+import { useSheet } from './useSheet.ts';
 
 const SHEET_STYLE: CSSProperties = { display: 'block' };
 
 /**
  * Keep a stage-anchored `.menu` fully visible. Compact chrome uses the CSS
  * bottom sheet; otherwise the menu is measured and flipped/clamped inside
- * `#stage` (which clips overflow).
+ * `#stage` (which clips overflow). The sheet is a drawer (useSheet): half,
+ * full, or folded to a bar showing its head, so a half-made choice isn't
+ * lost to a stray press. `keep`: presses there don't fold it (the board's
+ * cards a menu picks from).
  */
-export function useFitMenuInStage(preferredLeft: number, preferredTop: number) {
+export function useFitMenuInStage(preferredLeft: number, preferredTop: number, opts: { keep?: string } = {}) {
   const compact = useCompactChrome();
   const ref = useRef<HTMLDivElement>(null);
+  const sheet = useSheet(ref, { enabled: compact, head: '.pmenu__head, .menu__pair', ...(opts.keep ? { keep: opts.keep } : {}) });
   const [style, setStyle] = useState<CSSProperties>(
     compact
       ? SHEET_STYLE
@@ -88,5 +93,5 @@ export function useFitMenuInStage(preferredLeft: number, preferredTop: number) {
     };
   }, [compact, preferredLeft, preferredTop]);
 
-  return { compact, ref, style };
+  return { compact, ref, style, sheet };
 }

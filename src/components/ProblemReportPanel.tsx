@@ -1,3 +1,6 @@
+import { useRef } from 'react';
+import { useSheet } from '../hooks/useSheet.ts';
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { CloseButton } from './CloseButton.tsx';
 import { SendReport } from './SendReport.tsx';
@@ -17,6 +20,8 @@ type Props = {
  */
 export function ProblemReportPanel({ anchorRect, text, onClose }: Props) {
   const compact = useCompactChrome();
+  const ref = useRef<HTMLDivElement>(null);
+  const drawer = useSheet(ref, { enabled: compact, head: '.gph' });
   if (!compact && !anchorRect) return null;
 
   const desktopPos = (() => {
@@ -30,12 +35,14 @@ export function ProblemReportPanel({ anchorRect, text, onClose }: Props) {
 
   return (
     <div
+      ref={ref}
       id="problem-report"
       className={compact ? 'gpanel report-panel gpanel--sheet' : 'gpanel report-panel'}
       role="dialog"
       aria-labelledby="problem-report-title"
       style={{ display: 'block', ...desktopPos }}
     >
+      <SheetGrabber sheet={drawer} what="the problem report" />
       <div className="gph">
         <b id="problem-report-title">Send a problem report</b>
         <CloseButton label="Close the problem report" onClick={onClose} />

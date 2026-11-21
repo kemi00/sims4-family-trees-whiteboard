@@ -5,6 +5,8 @@ import { lotKindLabel, lotRoomsLabel, lotSizeLabel, type GameLot, type LotCatalo
 import { useRef, useState } from 'react';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import { usePanelSheet } from '../hooks/usePanelSheet.ts';
+import { useSheet } from '../hooks/useSheet.ts';
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { livingPlace } from '../lib/connectionLog.ts';
 import { waitText, type ElderTime, type PlanItem, type PlanState } from '../lib/householdPlan.ts';
 import { daysText, oldAgeSoonText } from '../lib/lifeClock.ts';
@@ -98,6 +100,7 @@ export function HouseholdBrief({
 }: Props) {
   const sheet = usePanelSheet();
   const ref = useRef<HTMLElement>(null);
+  const drawer = useSheet(ref, { enabled: sheet, head: '.brief__head', keep: '.menu' });
   // Its own lot menu ("Move to a lot") is part of it.
   useLightDismiss(ref, onClose, { keep: '.menu' });
   const [moveOpen, setMoveOpen] = useState(false);
@@ -135,6 +138,7 @@ export function HouseholdBrief({
       aria-label={homeless ? 'The plan for the sims who need a home' : `The ${group.hh} household’s plan`}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <SheetGrabber sheet={drawer} what="the plan" />
       <header className="brief__head">
         <span className="brief__dot" style={{ background: homeless ? 'var(--warn-strong)' : group.color }} aria-hidden />
         <div className="brief__title">

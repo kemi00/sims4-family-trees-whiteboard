@@ -1,3 +1,4 @@
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { dynastyNames } from '../lib/generations.ts';
@@ -35,7 +36,7 @@ type Props = {
  * are then asked about one household (MoveInAsk), as Connect asks.
  */
 export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPick, onMove, lots, onClose }: Props) {
-  const { compact, ref, style } = useFitMenuInStage(menu.x, menu.y);
+  const { compact, ref, style, sheet } = useFitMenuInStage(menu.x, menu.y, menu.picked ? {} : { keep: '.node' });
   // A sim's card is a pick: clicking one on the board makes them the partner.
   // Once picked, a press anywhere else keeps them apart and closes the menu.
   useLightDismiss(ref, onClose, menu.picked ? {} : { keep: '.node' });
@@ -82,6 +83,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
         style={style}
         onKeyDown={close}
       >
+        <SheetGrabber sheet={sheet} what="the menu" />
         <MoveInAsk
           done={`✓ ${PARTNER_LABEL[menu.choice]}: ${name} and ${pickedName}`}
           ask="They live apart. Will one move in with the other?"
@@ -108,6 +110,7 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
       style={style}
       onKeyDown={close}
     >
+      <SheetGrabber sheet={sheet} what="the menu" />
       <div className="pmenu__head">
         <b>Partner for {name}</b>
         <CloseButton label="Close" onClick={onClose} />

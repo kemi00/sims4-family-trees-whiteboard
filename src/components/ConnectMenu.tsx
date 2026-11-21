@@ -1,3 +1,4 @@
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
 import { COL } from '../lib/constants.ts';
@@ -82,7 +83,7 @@ function label(opt: ConnectOption, a: string, b: string): ReactNode {
  * apart then asks about one household (MoveInAsk).
  */
 export function ConnectMenu({ aName, bName, left, top, options, onConfirm, ask, onMove, onCancel }: Props) {
-  const { compact, ref, style } = useFitMenuInStage(left, top);
+  const { compact, ref, style, sheet } = useFitMenuInStage(left, top);
   useLightDismiss(ref, onCancel);
   const firstMoveRef = useRef<HTMLButtonElement>(null);
   const asking = !!ask;
@@ -102,6 +103,7 @@ export function ConnectMenu({ aName, bName, left, top, options, onConfirm, ask, 
         aria-label={`Move ${bName} and ${aName} into one household?`}
         style={style}
       >
+        <SheetGrabber sheet={sheet} what="the menu" />
         <MoveInAsk
           done={ask.done}
           ask="They live apart. Will one move in with the other?"
@@ -123,6 +125,7 @@ export function ConnectMenu({ aName, bName, left, top, options, onConfirm, ask, 
       aria-label={`Link ${aName} and ${bName}`}
       style={style}
     >
+      <SheetGrabber sheet={sheet} what="the menu" />
       <div className="menu__pair">
         {aName} ↔ {bName}
         {options.now && <span className="menu__now"> · {options.now}</span>}

@@ -1,3 +1,4 @@
+import { SheetGrabber } from './SheetGrabber.tsx';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { CloseButton } from './CloseButton.tsx';
 import { useFitMenuInStage } from '../hooks/useFitMenuInStage.ts';
@@ -18,7 +19,7 @@ type Props = InfantChoices & {
  * pick one of each, then "Plan the baby".
  */
 export function InfantHouseMenu({ left, top, title, homes, surnames, surFor, onPick, onCancel }: Props) {
-  const { compact, ref, style } = useFitMenuInStage(left, top);
+  const { compact, ref, style, sheet } = useFitMenuInStage(left, top);
   useLightDismiss(ref, onCancel);
   const firstRef = useRef<HTMLButtonElement>(null);
   const askHome = homes.length > 1;
@@ -49,6 +50,7 @@ export function InfantHouseMenu({ left, top, title, homes, surnames, surFor, onP
       style={style}
       onKeyDown={close}
     >
+      <SheetGrabber sheet={sheet} what="the menu" />
       <div className="pmenu__head">
         <b>{title}</b>
         <CloseButton label="Close" onClick={onCancel} />
