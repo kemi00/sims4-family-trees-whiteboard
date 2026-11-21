@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "d5e41a2",
+   "date": "2026-11-21",
+   "text": "Money is on the board. Each household's funds come from your save and show at the end of its tag, in its plan and in the sim editor (View can hide the tag's). Your save doesn't keep lot prices, so when you plan a move onto a lot you can type the price the game shows: the plan then says how much more they need, such as \"§6,500 short. Ready when the Goth household has §52,000\", or what's left after the move. It warns and never stops the plan. A whole household moving to a new home, or in with another, is one step now, and moving in together shows both households' funds and the total. The Story tells when a household's funds went up or down between your uploads."
+  },
+  {
    "sha": "d8014b3",
    "date": "2026-11-21",
    "text": "A drawer folded down to the bottom of the screen shows only its title and ✕ now, and scrolling over it does nothing. Before, scrolling over the folded Quick tips moved its content, so the title slid out of view."
