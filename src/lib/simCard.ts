@@ -21,6 +21,8 @@ export type SimCardOptions = {
   world?: boolean;
   /** Leave the dynasty off: a dynasty's own list names it in its title. */
   noDynasty?: boolean;
+  /** Two lines, as a bloodline's list reads: the name, then what they are (whose child, life stage). No household, nothing in amber. */
+  brief?: boolean;
   /** A blood relative: found by name, never suggested. */
   related?: boolean;
   married?: boolean;
@@ -60,19 +62,21 @@ export function simCardLines(p: SimNode, o: SimCardOptions): SimCardLines {
   const meta = [
     o.what ?? (c ? gapText(c) : p.age),
     passed ? 'passed away' : '',
-    p.hh || 'no household',
-    o.world ? p.world : '',
+    o.brief ? '' : p.hh || 'no household',
+    o.world && !o.brief ? p.world : '',
   ];
   const phrase = p.dynasty && !o.noDynasty ? dynastyPhrase(o.dynasties.get(dynastyKey(p) ?? '') ?? { name: p.dynasty }) : '';
   // A dynasty's own list says it once, under its title, not on each card.
   const risk = phrase ? simDynastyRisk(p, o.risks) : undefined;
-  const flags: SimCardFlag[] = [
-    ...[o.related ? 'related' : '', o.married ? 'married' : c?.taken ? 'in a romance' : '', frozen ? 'not aging now' : '', phrase]
-      .filter(Boolean)
-      .map((text) => ({ text })),
-    ...(risk ? [{ text: 'at risk', risk: true as const }] : []),
-    ...(o.extra ?? []).filter(Boolean).map((text) => ({ text })),
-  ];
+  const flags: SimCardFlag[] = o.brief
+    ? []
+    : [
+        ...[o.related ? 'related' : '', o.married ? 'married' : c?.taken ? 'in a romance' : '', frozen ? 'not aging now' : '', phrase]
+          .filter(Boolean)
+          .map((text) => ({ text })),
+        ...(risk ? [{ text: 'at risk', risk: true as const }] : []),
+        ...(o.extra ?? []).filter(Boolean).map((text) => ({ text })),
+      ];
   return {
     mark: p.dynastyRole ? DYNASTY_ROLES[p.dynastyRole].mark : '',
     name: cardName(p),

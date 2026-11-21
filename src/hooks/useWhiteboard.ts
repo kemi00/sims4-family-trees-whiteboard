@@ -93,7 +93,7 @@ import {
 import { householdChrome, snapNodesToTiles, tileSnapOrigin } from '../lib/tiles.ts';
 import type { ChildChoice } from '../lib/childParents.ts';
 import { holdUntouchedCards } from '../lib/holdLayout.ts';
-import { lineageIds } from '../lib/bloodline.ts';
+import { BLOODLINE_REACHES, bloodlineOf, type BloodlineReach } from '../lib/bloodline.ts';
 import { hasNoHome, livesApart } from '../lib/partners.ts';
 import { whyNotAdopt } from '../lib/adoption.ts';
 import {
@@ -156,6 +156,18 @@ const INITIAL_VIEW: Viewport = { tx: 40, ty: 40, k: 0.72 };
 
 /** localStorage key: the family highlight's last scope, close or extended. */
 const FAMILY_SCOPE_KEY = 'sims4-family-trees:family-scope:v1';
+/** Bloodline's reach and whether adopted children count: this viewer's last picks. */
+const BLOODLINE_KEY = 'sims4-family-trees:bloodline:v1';
+
+function bootBloodline(): { reach: BloodlineReach; adopted: boolean } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BLOODLINE_KEY) ?? '{}') as { reach?: unknown; adopted?: unknown };
+    const reach = BLOODLINE_REACHES.find((r) => r === saved.reach) ?? 'descendants';
+    return { reach, adopted: saved.adopted !== false };
+  } catch {
+    return { reach: 'descendants', adopted: true };
+  }
+}
 
 /** The couple links the partner menu makes. */
 export type PartnerChoice = 'marriage' | 'romance' | 'secretromance' | 'divorced';
@@ -483,6 +495,30 @@ export function useWhiteboard() {
     }
     return null;
   });
+  /** How far Bloodline reaches, and whether adopted children count (on unless turned off). */
+  const [bloodlinePrefs, setBloodlinePrefs] = useState(bootBloodline);
+  const saveBloodlinePrefs = useCallback((next: { reach: BloodlineReach; adopted: boolean }) => {
+    setBloodlinePrefs(next);
+    try {
+      localStorage.setItem(BLOODLINE_KEY, JSON.stringify(next));
+    } catch {
+      // No storage: the pick lasts until the page reloads.
+    }
+  }, []);
+  const setBloodlineReach = useCallback(
+    (reach: BloodlineReach) => {
+      trackAction(`/action/bloodline/${reach}`);
+      saveBloodlinePrefs({ ...bloodlinePrefs, reach });
+    },
+    [bloodlinePrefs, saveBloodlinePrefs],
+  );
+  const setBloodlineAdopted = useCallback(
+    (adopted: boolean) => {
+      trackAction(adopted ? '/action/bloodline/adopted' : '/action/bloodline/blood-only');
+      saveBloodlinePrefs({ ...bloodlinePrefs, adopted });
+    },
+    [bloodlinePrefs, saveBloodlinePrefs],
+  );
   const [status, setStatus] = useState('');
   const [fastRoute, setFastRoute] = useState(false);
   const [skipRoute, setSkipRoute] = useState(false);
@@ -929,10 +965,12 @@ export function useWhiteboard() {
     [shownEdges, byid, householdMoves, householdAgeUps, deceasedMarks, simAgeUps],
   );
 
-  const bloodlineIds = useMemo(
-    () => (bloodlineId ? lineageIds(bloodlineId, shownEdges) : null),
-    [bloodlineId, shownEdges],
+  /** The lit sim's line: who is in it, by generation, and how each links to it. */
+  const bloodline = useMemo(
+    () => (bloodlineId ? bloodlineOf(bloodlineId, shownEdges, bloodlinePrefs.reach, { adopted: bloodlinePrefs.adopted }) : null),
+    [bloodlineId, shownEdges, bloodlinePrefs],
   );
+  const bloodlineIds = bloodline?.ids ?? null;
 
   const flashStatus = useCallback((msg: string) => {
     if (statusFlashRef.current != null) clearTimeout(statusFlashRef.current);
@@ -4352,6 +4390,15 @@ export function useWhiteboard() {
     flashStatus('Select a sim first, then Bloodline.');
   }, [sel, bloodlineId, flashStatus]);
 
+  /** Light up a sim's line from their Family tab: their descendants, or the reach picked last. */
+  const showBloodline = useCallback((id: string) => {
+    setBloodlineId(id);
+    // One sim's relatives at a time: Bloodline replaces a family highlight.
+    setFamilyFocusState(false);
+    setDynastyFocusState(null);
+    trackAction('/action/bloodline/from-editor');
+  }, []);
+
   const toggleHideSecrets = useCallback(() => {
     const on = !hideSecrets;
     setHideSecrets(on);
@@ -4455,6 +4502,12 @@ export function useWhiteboard() {
     hiSingle,
     bloodlineId,
     bloodlineIds,
+    bloodline,
+    bloodlineReach: bloodlinePrefs.reach,
+    bloodlineAdopted: bloodlinePrefs.adopted,
+    setBloodlineReach,
+    setBloodlineAdopted,
+    showBloodline,
     linksView,
     setLinksView,
     familyFocus,

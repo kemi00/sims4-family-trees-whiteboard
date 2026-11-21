@@ -65,11 +65,12 @@ import {
 } from '../lib/linkLabel.ts';
 import { slug, trackAction } from '../lib/analytics.ts';
 import { whyCantAdopt } from '../lib/adoption.ts';
-import { edgeSourceOf, endedByPassing, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
+import { edgeSourceOf, endedByPassing, isPet, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
 import { PARTNER_LABEL, type WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import type { BoardMultiSel, SimNode, UnionRender } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
+import { bloodlineOf, generationCounts } from '../lib/bloodline.ts';
 import { DynastyBanner } from './DynastyBanner.tsx';
 import { FamilyBanner } from './FamilyBanner.tsx';
 import { HighlightBanner } from './HighlightBanner.tsx';
@@ -2328,9 +2329,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       {/* One banner at a time; a stale tab matters more than the bloodline view. */}
       {wb.staleTab ? (
         <StaleTabBanner onReload={wb.reloadBoard} onSaveJson={wb.saveJson} />
-      ) : wb.bloodlineId && (
+      ) : wb.bloodlineId && listOf !== 'bloodline' && (
         <BloodlineBanner
           node={wb.byid[wb.bloodlineId]}
+          reach={wb.bloodlineReach}
+          count={[...(wb.bloodlineIds ?? [])].filter((id) => id !== wb.bloodlineId && wb.byid[id] && wb.nodeVis(wb.byid[id]!)).length}
+          onReach={wb.setBloodlineReach}
+          onList={() => onList?.('bloodline')}
           onShowEveryone={() => wb.setBloodlineId(null)}
         />
       )}
@@ -2781,6 +2786,13 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           saveGame={wb.saveGame}
           generations={wb.dynastyGens}
           familyGenerations={wb.familyGens}
+          bloodline={(() => {
+            if (isPet(editNode)) return undefined;
+            const text = generationCounts(bloodlineOf(editNode.id, wb.shownEdges, 'descendants', { adopted: wb.bloodlineAdopted }));
+            if (!text) return undefined;
+            const lit = wb.bloodlineId === editNode.id;
+            return { text, lit, onToggle: () => (lit ? wb.setBloodlineId(null) : wb.showBloodline(editNode.id)) };
+          })()}
           onPickPartner={(id) => {
             const r = svgRef.current?.getBoundingClientRect();
             wb.focusSim(id, r?.width ?? 800, r?.height ?? 600);

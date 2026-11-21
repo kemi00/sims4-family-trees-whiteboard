@@ -224,7 +224,9 @@ export default function App() {
         ? !!wb.dynastyFocusIds
         : listOf === 'family'
           ? wb.familyFocus
-          : true;
+          : listOf === 'bloodline'
+            ? !!wb.bloodlineId
+            : true;
   useEffect(() => {
     if (listOf && !listLit) setListOf(null);
   }, [listOf, listLit]);

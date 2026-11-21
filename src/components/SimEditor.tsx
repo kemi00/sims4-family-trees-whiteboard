@@ -323,6 +323,8 @@ type Props = {
   onLinkPlanned: (realId: string) => void;
   /** This sim stops filling the planned sim it filled (unlinkPlannedSim). */
   onUnlinkPlanned: () => void;
+  /** Their descendants on the board ("1 child, 2 grandchildren"), and lighting them up; none for a pet or no descendants. */
+  bloodline?: { text: string; lit: boolean; onToggle: () => void };
   /** Open this sim's household's plan (HouseholdBrief). */
   onOpenPlan: () => void;
   /** Renames a dynasty only the plan has (by key), on all its members: its key now, null when refused. */
@@ -366,6 +368,7 @@ export function SimEditor({
   onResolvePlan,
   onLinkPlanned,
   onUnlinkPlanned,
+  bloodline,
   onOpenPlan,
   onRenameDynasty,
   onLinkParent,
@@ -1396,6 +1399,21 @@ export function SimEditor({
                     </button>
                   </div>
                 )}
+              </section>
+            )}
+            {bloodline && (
+              <section aria-labelledby="edBloodHead">
+                <div className="edlabel">
+                  <span className="edlabel__text" id="edBloodHead">
+                    Bloodline
+                  </span>
+                </div>
+                <p className="edblood">
+                  <span>{bloodline.text}</span>
+                  <button type="button" className="edlink" aria-pressed={bloodline.lit} onClick={bloodline.onToggle}>
+                    {bloodline.lit ? 'Show everyone' : 'Light up'}
+                  </button>
+                </p>
               </section>
             )}
             {links.length > 0 && (

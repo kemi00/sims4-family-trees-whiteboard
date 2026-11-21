@@ -2,6 +2,7 @@ import { CaretRight, Check, GameController, Highlighter, IdentificationBadge, Lo
 import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
+import { REACH_NOUN } from '../lib/bloodline.ts';
 import { simName } from '../lib/connectionLog.ts';
 import { filterCounts } from '../lib/filterCount.ts';
 import { AgesPanel } from './AgesPanel.tsx';
@@ -12,10 +13,11 @@ import { PlayabilityPanel } from './PlayabilityPanel.tsx';
 function bloodlineNote(wb: WhiteboardApi): string {
   if (wb.bloodlineId) {
     const node = wb.byid[wb.bloodlineId];
-    return `Showing ${node ? simName(node) : 'this sim'}’s ancestors and descendants. Turn it off to show everyone.`;
+    const whose = wb.bloodlineReach === 'both' ? 'ancestors and descendants' : REACH_NOUN[wb.bloodlineReach];
+    return `Showing ${node ? simName(node) : 'this sim'}’s ${whose}. Turn it off to show everyone.`;
   }
-  if (wb.sel?.type === 'node') return 'Dims everyone who isn’t an ancestor or descendant of the sim you picked.';
-  return 'Pick a sim on the board first, then this dims everyone outside their ancestors and descendants.';
+  if (wb.sel?.type === 'node') return 'Dims everyone outside the line of the sim you picked. Choose children, all descendants or ancestors too on the banner.';
+  return 'Pick a sim on the board first, then this dims everyone outside their line: children, descendants or ancestors too.';
 }
 
 /** An on/off filter: its name, what it does, a check while on. */
