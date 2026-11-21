@@ -47,8 +47,8 @@ export function DynastyBanner({ ids, byid, phrase, onShowAll, onDone, onList }: 
       <button type="button" className="banner__alt" onClick={onShowAll}>
         Show all
       </button>
-      <button type="button" onClick={onDone}>
-        Done
+      <button type="button" className="banner__end" onClick={onDone}>
+        Clear
       </button>
     </div>
   );

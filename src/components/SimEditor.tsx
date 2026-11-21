@@ -1416,8 +1416,13 @@ export function SimEditor({
                 </div>
                 <p className="edblood">
                   <span>{bloodline.text}</span>
-                  <button type="button" className="edlink" aria-pressed={bloodline.lit} onClick={bloodline.onToggle}>
-                    {bloodline.lit ? 'Show everyone' : 'Light up'}
+                  <button
+                    type="button"
+                    className={bloodline.lit ? 'edlink edlink--quiet' : 'edlink'}
+                    aria-pressed={bloodline.lit}
+                    onClick={bloodline.onToggle}
+                  >
+                    {bloodline.lit ? 'Clear the highlight' : 'Light up'}
                   </button>
                 </p>
               </section>

@@ -32,7 +32,7 @@ export function HighlightBanner({ summary, onChange, onClear, onList }: Props) {
       <button type="button" className="highlight-banner__change" onClick={onChange}>
         Change
       </button>
-      <button type="button" onClick={onClear}>
+      <button type="button" className="banner__end" onClick={onClear}>
         Clear
       </button>
     </div>

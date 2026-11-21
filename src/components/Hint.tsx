@@ -324,8 +324,8 @@ export function Hint({ introReady = false }: Props) {
             Select a Sim, then <b>Filters → Bloodline</b>, to dim everyone
             outside their line: their <b>Children</b>, all their
             <b> Descendants</b>, or <b>Ancestors too</b>, picked on the banner.
-            Its <b>List</b> goes generation by generation. Use <b>Show
-            everyone</b> on the banner (or Esc) to leave.
+            Its <b>List</b> goes generation by generation. Use <b>Clear</b>
+            on the banner (or Esc) to end it.
           </li>
           <li>
             <b>Log</b> lists planned (purple) links and links confirmed by a

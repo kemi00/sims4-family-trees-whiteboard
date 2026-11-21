@@ -20,9 +20,9 @@ type Props = {
   id?: string;
   onClose: () => void;
   /**
-   * A highlight's drawer on a narrow screen ends the highlight, in words
-   * (Show everyone, Done, Clear), where a tool's has ✕: the drawer is the
-   * highlight there, its banner folded into it.
+   * A highlight's drawer on a narrow screen ends the highlight with Clear,
+   * in words, where a tool's has ✕: the drawer is the highlight there, its
+   * banner folded into it.
    */
   end?: { label: string; onEnd: () => void };
   /** Opens folded to its bar, where a highlight's banner would be. */

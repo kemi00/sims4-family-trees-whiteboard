@@ -820,6 +820,11 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .bloodline-banner .banner__alt{background:transparent;color:var(--accent-strong);border-color:var(--line)}
 .bloodline-banner .banner__alt:hover{background:var(--hover)}
 .bloodline-banner .banner__alt + button{margin-left:0}
+/* Ending a highlight is a quiet way out, never the button to press: grey,
+   not blue (go on), not red (delete). The same Clear everywhere. */
+.bloodline-banner .banner__end{background:#fff;color:var(--ink-2);border-color:var(--line)}
+.bloodline-banner .banner__end:hover{background:var(--hover);color:var(--ink)}
+.bloodline-banner .highlight-banner__change + .banner__end,.bloodline-banner .banner__alt + .banner__end{margin-left:0}
 .family-banner .family-banner__scope + .banner__alt{margin-left:0}
 /*
  * Legend column on the right: two cards sharing its height. The world list
@@ -1380,6 +1385,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .editor .edlink,.slist .edlink{flex:none;padding:0;border:none;background:none;color:#1b6cd6;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px}
 .editor .edlink:hover,.slist .edlink:hover{background:none;color:#155bb8}
 .editor .edlink--more,.slist .edlink--more{margin:6px 2px 0}
+.editor .edlink.edlink--quiet{color:var(--ink-2)}
+.editor .edlink.edlink--quiet:hover{color:var(--ink)}
 .editor .edlink--plan{display:block;margin:10px 2px 0;max-width:100%;white-space:normal;line-height:1.35;text-align:left;overflow-wrap:anywhere}
 .editor .edhint--warn{color:#8a5a00}
 .editor .edfacts{margin:0;padding:5px 8px}
@@ -1659,6 +1666,8 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .slist .slist__act{padding:4px 10px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);color:var(--ink);font-size:12px;font-weight:600;white-space:nowrap}
 .slist .slist__act:hover{background:var(--hover)}
 .slist .slist__act[aria-pressed=true]{border-color:var(--ink-3);background:#fff}
+.slist .slist__act.slist__act--end{border-color:var(--line);background:#fff;color:var(--ink-2)}
+.slist .slist__act.slist__act--end:hover{background:var(--hover);color:var(--ink)}
 .slist .slist__sortopt{padding:3px 8px;border:none;border-radius:6px;background:transparent;color:var(--ink-2);font-size:11px;font-weight:600;white-space:nowrap}
 .slist .slist__sortopt:hover{background:var(--hover);color:var(--ink)}
 .slist .slist__sortopt[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px #1b2b3a1f}
@@ -1755,8 +1764,8 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .editor--sheet[data-detent] .ed__head{padding-top:20px}
 #legend.legend--sheet[data-detent] .legend-sheethead{padding-top:20px}
 /* A highlight's drawer ends it in words, where a tool's has ✕. */
-.barpanel__end{flex:none;align-self:flex-start;height:30px;margin:-4px 0 0;padding:0 11px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:#fff;color:var(--accent-strong);font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
-.barpanel__end:hover{background:var(--hover)}
+.barpanel__end{flex:none;align-self:flex-start;height:30px;margin:-4px 0 0;padding:0 11px;border:1px solid var(--line);border-radius:var(--r-control);background:#fff;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
+.barpanel__end:hover{background:var(--hover);color:var(--ink)}
 .barpanel__end:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
 @media (pointer:coarse){.barpanel__end{height:40px;margin-top:-8px}}
 /* The board's corner controls rise above a folded drawer, never under it. */
@@ -1935,8 +1944,8 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 
 /* ── highlight count: in the Highlight panel and on the board ──────────── */
 .hlsum{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 4px 4px;padding:7px 9px;border-radius:8px;background:var(--recess);font-size:12px;line-height:1.4;color:var(--ink)}
-.gpanel .hlsum .hlsum__clear{flex:none;padding:0;border:0;background:none;color:var(--accent);font-size:12px;font-weight:600;line-height:1.4}
-.gpanel .hlsum .hlsum__clear:hover{background:none;text-decoration:underline}
+.gpanel .hlsum .hlsum__clear{flex:none;padding:0;border:0;background:none;color:var(--ink-2);font-size:12px;font-weight:600;line-height:1.4}
+.gpanel .hlsum .hlsum__clear:hover{background:none;color:var(--ink);text-decoration:underline}
 .hlsum b{color:#3d2f00}
 .hlsum__of{color:var(--ink-3)}
 .highlight-banner{border-color:#f0d58a}

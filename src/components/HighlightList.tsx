@@ -76,15 +76,15 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose, st
         noDynasty
         empty="No one in this dynasty is shown on the board. Check Filters."
         onPick={(id) => onPick(id, true)}
-        end={{ label: 'Done', onEnd: () => wb.setDynastyFocus(null) }}
+        end={{ label: 'Clear', onEnd: () => wb.setDynastyFocus(null) }}
         tools={
           <>
             <button type="button" className="slist__act" onClick={onShowAll}>
               Show all
             </button>
             {!sheet && (
-              <button type="button" className="slist__act" onClick={() => wb.setDynastyFocus(null)}>
-                Done
+              <button type="button" className="slist__act slist__act--end" onClick={() => wb.setDynastyFocus(null)}>
+                Clear
               </button>
             )}
           </>
@@ -126,7 +126,7 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose, st
         groups={{ label: 'Generation', list: gens }}
         empty={`${name} has no ${noun === 'bloodline' ? 'parents or descendants' : noun} on the board.`}
         onPick={(id) => onPick(id, true)}
-        end={{ label: 'Show everyone', onEnd: () => wb.setBloodlineId(null) }}
+        end={{ label: 'Clear', onEnd: () => wb.setBloodlineId(null) }}
         tools={
           <div className="seg seg--wide" role="group" aria-label="How far the bloodline reaches">
             {BLOODLINE_REACHES.map((r) => (
@@ -165,7 +165,7 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose, st
         list={list}
         empty={node ? `${cardName(node)} has no ${which} on the board.` : `Select a sim to list their ${which}.`}
         onPick={(id) => onPick(id, false)}
-        end={{ label: 'Done', onEnd: () => wb.setFamilyFocus(false) }}
+        end={{ label: 'Clear', onEnd: () => wb.setFamilyFocus(false) }}
         tools={
           <>
             <span className="slist__scope" role="group" aria-label="How far the family reaches">
@@ -182,8 +182,8 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose, st
               </button>
             </span>
             {!sheet && (
-              <button type="button" className="slist__act" onClick={() => wb.setFamilyFocus(false)}>
-                Done
+              <button type="button" className="slist__act slist__act--end" onClick={() => wb.setFamilyFocus(false)}>
+                Clear
               </button>
             )}
           </>
@@ -218,7 +218,7 @@ export function HighlightList({ wb, of, onPick, onChange, onShowAll, onClose, st
             Change
           </button>
           {!sheet && (
-            <button type="button" className="slist__act" onClick={clear}>
+            <button type="button" className="slist__act slist__act--end" onClick={clear}>
               Clear
             </button>
           )}

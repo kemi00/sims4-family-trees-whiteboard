@@ -77,8 +77,8 @@ export function FamilyBanner({ family, byid, shown, scope, onScope, onDone, onLi
           List
         </button>
       )}
-      <button type="button" onClick={onDone}>
-        Done
+      <button type="button" className="banner__end" onClick={onDone}>
+        Clear
       </button>
     </div>
   );

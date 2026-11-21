@@ -10,14 +10,14 @@ type Props = {
   onReach: (reach: BloodlineReach) => void;
   /** Show who they are, generation by generation, beside the board. */
   onList: () => void;
-  onShowEveryone: () => void;
+  onClear: () => void;
 };
 
 /**
  * Whose line is lit, how many, and how far it reaches: one line, then
- * the switch, List and Show everyone. The generations are in the List.
+ * the switch, List and Clear. The generations are in the List.
  */
-export function BloodlineBanner({ node, reach, count, onReach, onList, onShowEveryone }: Props) {
+export function BloodlineBanner({ node, reach, count, onReach, onList, onClear }: Props) {
   const name = node ? simName(node) : 'This sim';
   const many = count === 0 ? 'no one on the board' : count === 1 ? '1 sim' : `${count} sims`;
   return (
@@ -36,8 +36,8 @@ export function BloodlineBanner({ node, reach, count, onReach, onList, onShowEve
       <button type="button" className="banner__alt" onClick={onList}>
         List
       </button>
-      <button type="button" className="banner__alt" onClick={onShowEveryone}>
-        Show everyone
+      <button type="button" className="banner__end" onClick={onClear}>
+        Clear
       </button>
     </div>
   );

@@ -14,7 +14,7 @@ function bloodlineNote(wb: WhiteboardApi): string {
   if (wb.bloodlineId) {
     const node = wb.byid[wb.bloodlineId];
     const whose = wb.bloodlineReach === 'both' ? 'ancestors and descendants' : REACH_NOUN[wb.bloodlineReach];
-    return `Showing ${node ? simName(node) : 'this sim'}’s ${whose}. Turn it off to show everyone.`;
+    return `Showing ${node ? simName(node) : 'this sim'}’s ${whose}. Turn it off, or Clear on its banner, to end it.`;
   }
   if (wb.sel?.type === 'node') return 'Dims everyone outside the line of the sim you picked. Choose children, all descendants or ancestors too on the banner.';
   return 'Pick a sim on the board first, then this dims everyone outside their line: children, descendants or ancestors too.';

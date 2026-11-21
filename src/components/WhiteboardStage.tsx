@@ -2338,7 +2338,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           count={[...(wb.bloodlineIds ?? [])].filter((id) => id !== wb.bloodlineId && wb.byid[id] && wb.nodeVis(wb.byid[id]!)).length}
           onReach={wb.setBloodlineReach}
           onList={() => onList?.('bloodline')}
-          onShowEveryone={() => wb.setBloodlineId(null)}
+          onClear={() => wb.setBloodlineId(null)}
         />
       )}
       {!wb.staleTab &&

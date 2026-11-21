@@ -3,8 +3,7 @@
  * at the bottom (only their head shows), half the screen (where they
  * open), and full (under the top bar). They fold to the bar instead of
  * going away: touching the board, dragging down, or picking something in
- * them. Only ✕ (or a highlight's own end: Show everyone, Done, Clear)
- * closes one.
+ * them. Only ✕ (or a highlight's Clear) closes one.
  */
 export type Detent = 'bar' | 'half' | 'full';
 
