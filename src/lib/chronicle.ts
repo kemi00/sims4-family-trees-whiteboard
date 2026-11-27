@@ -1,6 +1,7 @@
 import { dayOf, dayText, seasonNow, yearOf } from './lifeClock.ts';
 import { arrivalText, dynastyText, familyText, homeText, lifeText, prestigeLevelNewsText, relationshipText, type RecapSim, type SaveRecap } from './saveRecap.ts';
-import type { SaveGameInfo } from '../types/whiteboard.ts';
+import type { PlannerCalendar, SaveGameInfo } from '../types/whiteboard.ts';
+import { calendarYear, yearLabel } from './calendar.ts';
 
 /**
  * The chronicle: the board's story, one entry per save upload, kept with
@@ -62,9 +63,11 @@ export function mergeChronicles(a: readonly ChronicleEntry[], b: readonly Chroni
  * When an entry happened in the game: "Spring, day 6 of 7 · Year 1" with
  * Seasons; "Day 34" without, where the calendar is days alone.
  */
-export function chronicleWhen(e: ChronicleEntry): string {
+export function chronicleWhen(e: ChronicleEntry, cal?: PlannerCalendar | null): string {
   const s = seasonNow({ clock: e.game.clock, season: e.game.season, seasonSince: e.game.seasonSince, seasonDays: e.game.seasonDays });
   const day = dayOf(e.game.clock);
+  // The board's calendar years stand in for the game's Year 1, 2…
+  if (cal) return `${s && e.game.seasonDays ? `${s.season}, day ${s.day} of ${s.of}` : dayText(day)} · ${yearLabel(calendarYear(day, cal))}`;
   if (s && e.game.seasonDays) return `${s.season}, day ${s.day} of ${s.of} · Year ${yearOf(day, e.game.seasonDays)}`;
   return dayText(day);
 }
@@ -83,7 +86,7 @@ export type StoryDay = { when: string; entries: ChronicleEntry[]; remembered?: t
  * (a save, then another a few minutes of play later) are one day, not two
  * headings with the same date. `entries` newest first, as the Story lists them.
  */
-export function storyDays(entries: readonly ChronicleEntry[]): StoryDay[] {
+export function storyDays(entries: readonly ChronicleEntry[], cal?: PlannerCalendar | null): StoryDay[] {
   const days: StoryDay[] = [];
   for (const e of entries) {
     // The first chapter is its own, even when the next upload is the same day of the game.
@@ -91,7 +94,7 @@ export function storyDays(entries: readonly ChronicleEntry[]): StoryDay[] {
       days.push({ when: FIRST_CHAPTER, entries: [e], remembered: true });
       continue;
     }
-    const when = chronicleWhen(e);
+    const when = chronicleWhen(e, cal);
     const last = days[days.length - 1];
     if (last && !last.remembered && last.when === when) last.entries.push(e);
     else days.push({ when, entries: [e] });
@@ -202,12 +205,12 @@ export type StoryLine = { when: string; text: string };
  * couples, partings and deaths (moves and birthdays are left to the
  * board).
  */
-export function storyLines(entries: readonly ChronicleEntry[], ids: ReadonlySet<string>): StoryLine[] {
+export function storyLines(entries: readonly ChronicleEntry[], ids: ReadonlySet<string>, cal?: PlannerCalendar | null): StoryLine[] {
   const out: StoryLine[] = [];
   for (const e of entries) {
     const r = entryAbout(e, ids)?.recap;
     if (!r) continue;
-    const when = r.remembered ? FIRST_CHAPTER : chronicleWhen(e);
+    const when = r.remembered ? FIRST_CHAPTER : chronicleWhen(e, cal);
     for (const b of r.born) out.push({ when: b.when ?? when, text: `${b.name} was born${b.parents.length ? ` to ${b.parents.join(' and ')}` : ''}` });
     for (const t of r.together)
       out.push({

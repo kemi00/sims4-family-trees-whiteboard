@@ -1,8 +1,11 @@
+import type { PlannerCalendar } from '../types/whiteboard.ts';
 import { useEffect, useState } from 'react';
 import { CaretLeft, CaretRight, Pause, Play } from '../icons.ts';
 import { chronicleWhen, type ChronicleEntry } from '../lib/chronicle.ts';
 
 type Props = {
+  /** The board's calendar years, for when each save was. */
+  calendar?: PlannerCalendar | null;
   entries: readonly ChronicleEntry[];
   /** The upload shown: its index; the last is now. */
   at: number;
@@ -19,7 +22,7 @@ const STEP_MS = 1600;
  * forward. What it hides and keeps is said once, under the date: the
  * board is read only until you're back to now.
  */
-export function LookBackBar({ entries, at, onAt, onNow }: Props) {
+export function LookBackBar({ entries, at, onAt, onNow, calendar = null }: Props) {
   const last = entries.length - 1;
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
@@ -45,7 +48,7 @@ export function LookBackBar({ entries, at, onAt, onNow }: Props) {
       }}
     >
       <p className="lookback__when" aria-live="polite">
-        <b>{at >= last ? 'Now' : 'Looking back'}:</b> {chronicleWhen(entry)} · save {at + 1} of {entries.length}
+        <b>{at >= last ? 'Now' : 'Looking back'}:</b> {chronicleWhen(entry, calendar)} · save {at + 1} of {entries.length}
       </p>
       <div className="lookback__ctl">
         <button type="button" className="lookback__btn" aria-label="An earlier save" disabled={at <= 0} onClick={() => onAt(at - 1)}>
@@ -59,7 +62,7 @@ export function LookBackBar({ entries, at, onAt, onNow }: Props) {
           step={1}
           value={at}
           aria-label="Which save"
-          aria-valuetext={`${chronicleWhen(entry)}, save ${at + 1} of ${entries.length}`}
+          aria-valuetext={`${chronicleWhen(entry, calendar)}, save ${at + 1} of ${entries.length}`}
           onChange={(e) => onAt(Number(e.target.value))}
         />
         <button type="button" className="lookback__btn" aria-label="A later save" disabled={at >= last} onClick={() => onAt(at + 1)}>

@@ -38,6 +38,13 @@ export function cardName(n: Pick<SimNode, 'first' | 'sur' | 'planLabel' | 'planN
   return `${label} ${n.sur}`.trim();
 }
 
+/** Their name as the card shows it, with what family calls them in quotes: Leofstan “Leo” Baines. */
+export function nameWithNick(n: Pick<SimNode, 'first' | 'sur' | 'nick' | 'planLabel' | 'planNo' | 'added' | 'saveSimId'>): string {
+  const nick = n.nick?.trim();
+  if (!nick || !n.first.trim()) return cardName(n);
+  return `${n.first.trim()} “${nick}” ${n.sur}`.trim();
+}
+
 /**
  * Roles set by hand before roles were plans: a role with no dynasty can only
  * have come from the board, so it becomes a plan to join one ('member').

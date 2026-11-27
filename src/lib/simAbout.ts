@@ -17,6 +17,12 @@ export type GameNames = {
   /** Aspiration track id → name. */
   aspirations: Record<string, string>;
   /**
+   * The ghost traits the game gives a sim for how they died: trait id →
+   * the death ("Old Age", "Drowning"). Absent from files built before
+   * scripts/build-game-names.ts read them.
+   */
+  deaths?: Record<string, string>;
+  /**
    * The ids above with the game's icon in public/game-icons/<id>.webp:
    * src/data/gameIcons.json, built by scripts/build-game-icons.ts.
    */
@@ -194,4 +200,17 @@ export function aboutView(about: SimAbout | undefined, names: GameNames, gender?
   }
   view.skills.sort((a, b) => (b.level ?? 0) - (a.level ?? 0) || a.name.localeCompare(b.name));
   return view;
+}
+
+/**
+ * How the game says a sim died, in its words: the death the family tree
+ * records for a relative (SimNode.deathTrait), else a ghost trait among
+ * their traits. Null when the game says nothing, or the names don't know it.
+ */
+export function gameDeathOf(n: { deathTrait?: string; about?: SimAbout }, names: GameNames | null): string | null {
+  const deaths = names?.deaths;
+  if (!deaths) return null;
+  if (n.deathTrait && deaths[n.deathTrait]) return deaths[n.deathTrait]!;
+  for (const id of n.about?.traits ?? []) if (deaths[id]) return deaths[id]!;
+  return null;
 }

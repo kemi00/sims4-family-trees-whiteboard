@@ -72,7 +72,9 @@ import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelec
 import { pronounsLabel, theHousehold } from '../lib/utils.ts';
 import { heirAfterChoices, heirAfterHolder, successionLine, withSuccessionChoice, type LinePlace } from '../lib/succession.ts';
 import { simCardClass } from '../lib/simCard.ts';
-import type { DynastyRole, Edge, Group, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
+import type { DynastyRole, Edge, Group, PlannerCalendar, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
+import { bornDayOf, calendarYear, dayWithYear, pairKey, parseYear, simYears, yearLabel, type DeathWindow } from '../lib/calendar.ts';
+import { gameDeathOf } from '../lib/simAbout.ts';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
   const rest = items
@@ -285,6 +287,12 @@ type Props = {
     species?: string;
     breed?: string;
     pack?: string;
+    /** What family calls them, their story, how they died, and years typed on the board; undefined clears. */
+    nick?: string;
+    bio?: string;
+    deathCause?: string;
+    yearBorn?: number;
+    yearDied?: number;
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   /** Move this sim's whole household to another world (moveHouseholdToWorld). */
@@ -326,7 +334,31 @@ type Props = {
   whenOf?: (stage: string) => string | null;
   /** Their household's money, for the Lives in card: "§45,500 in funds". */
   funds?: string;
+  /** The board's calendar years: birth and death years show, and can be typed. */
+  calendar?: PlannerCalendar | null;
+  /** When their death came to light, by the story's uploads (deathWindows). */
+  death?: DeathWindow;
+  /** When couples the story saw begin got together (unionDays), by pairKey: "m. 1299" on their links. */
+  unions?: ReadonlyMap<string, { by: number; type: 'marriage' | 'romance' }>;
 };
+
+/** Causes the editor suggests for "How they died": the game's deaths, and those of a historical save. */
+const DEATH_CAUSES = [
+  'Old age',
+  'Childbirth',
+  'Illness',
+  'The plague',
+  'Starvation',
+  'Accident',
+  'Drowning',
+  'Fire',
+  'Electrocution',
+  'Battle',
+  'A duel',
+  'Murder',
+  'Execution',
+  'Unknown',
+] as const;
 
 export function SimEditor({
   node: n,
@@ -365,6 +397,9 @@ export function SimEditor({
   onStory,
   whenOf,
   funds,
+  calendar = null,
+  death,
+  unions,
 }: Props) {
   const compact = useCompactChrome();
   // A drawer on a phone: half, full, or folded to its bar, typed edits kept.
@@ -414,6 +449,11 @@ export function SimEditor({
   const [species, setSpecies] = useState(n.species ?? '');
   const [breed, setBreed] = useState(n.breed ?? '');
   const [oplay, setOplay] = useState(n.oplay || 'Resident');
+  const [nick, setNick] = useState(n.nick ?? '');
+  const [bio, setBio] = useState(n.bio ?? '');
+  const [deathCause, setDeathCause] = useState(n.deathCause ?? '');
+  const [yearBornText, setYearBornText] = useState(n.yearBorn === undefined ? '' : yearLabel(n.yearBorn));
+  const [yearDiedText, setYearDiedText] = useState(n.yearDied === undefined ? '' : yearLabel(n.yearDied));
   const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
   /** Heir after whom, for an heir planned generations ahead; '' for none. */
   const [heirAfter, setHeirAfter] = useState(n.heirAfter ?? '');
@@ -754,9 +794,18 @@ export function SimEditor({
    * Something here differs from the card: only then do Save and Cancel
    * show. A dynasty suggested for a planned sim counts, as Save plans it.
    */
+  const yearBornTyped = parseYear(yearBornText);
+  const yearDiedTyped = parseYear(yearDiedText);
+  /** A year typed that isn't one ("soon"): Save waits for a year or nothing. */
+  const yearBad = yearBornTyped === null || yearDiedTyped === null;
   const dirty =
     first !== n.first ||
     sur !== n.sur ||
+    nick.trim() !== (n.nick ?? '') ||
+    bio.trim() !== (n.bio ?? '') ||
+    deathCause.trim() !== (n.deathCause ?? '') ||
+    (yearBornTyped ?? undefined) !== n.yearBorn ||
+    (yearDiedTyped ?? undefined) !== n.yearDied ||
     (planned && planLabel !== (n.planLabel ?? '')) ||
     age !== n.age ||
     gender !== n.gender ||
@@ -774,9 +823,14 @@ export function SimEditor({
       onClose();
       return;
     }
-    if (surMissing) return;
+    if (surMissing || yearBad) return;
     const plan = dynastyPatch();
     onSave({
+      nick: nick.trim() || undefined,
+      bio: bio.trim() || undefined,
+      deathCause: deathCause.trim() || undefined,
+      yearBorn: yearBornTyped ?? undefined,
+      yearDied: yearDiedTyped ?? undefined,
       // A sim always has a first name; a last name can be blank (Mayor Whiskers).
       // A planned sim may have no name yet; its plan label stands in.
       first: first.trim() || (planned ? '' : n.first),
@@ -1417,6 +1471,130 @@ export function SimEditor({
           {!life && n.life && !isPet && n.life.stage !== n.age && (
             <div className="edhint">Changed since your save: load it again to see its days.</div>
           )}
+          {!isPet && (
+            <>
+              <label htmlFor="edNick">Nickname</label>
+              <input
+                id="edNick"
+                value={nick}
+                placeholder={`What family calls ${first.trim() || 'them'}`}
+                autoComplete="off"
+                aria-describedby="edNickHint"
+                onChange={(e) => setNick(e.target.value)}
+              />
+              <div id="edNickHint" className="edhint">
+                On the card in quotes: {first.trim() || 'Leofstan'} “{nick.trim() || 'Leo'}” {sur.trim() || 'Baines'}.
+              </div>
+            </>
+          )}
+          {calendar && !isPet && (() => {
+            const fromSave = simYears({ ...n, yearBorn: undefined, yearDied: undefined }, calendar, death);
+            const shown = simYears(
+              { ...n, state, yearBorn: yearBornTyped ?? undefined, yearDied: yearDiedTyped ?? undefined },
+              calendar,
+              death,
+            );
+            const bornDay = bornDayOf(n);
+            const dead = state === DECEASED_STATE;
+            const sums: string[] = [];
+            if (shown.born !== undefined) {
+              sums.push(
+                `Born ${yearLabel(shown.born)}${!shown.bornTyped && bornDay !== undefined ? ` (${dayWithYear(bornDay, null)} of your save)` : ''}`,
+              );
+            }
+            if (dead && shown.died !== undefined) {
+              const when =
+                !shown.diedTyped && death
+                  ? death.after !== undefined
+                    ? ` (between ${dayWithYear(death.after, null)} and ${dayWithYear(death.by, null)}, ${yearLabel(calendarYear(death.after, calendar))}–${yearLabel(calendarYear(death.by, calendar))})`
+                    : ` (by ${dayWithYear(death.by, null)}, at your first upload)`
+                  : '';
+              sums.push(`died ${shown.diedBy ? 'by ' : ''}${yearLabel(shown.died)}${when}`);
+            }
+            if (dead && shown.ageAtDeath !== undefined) sums.push(`aged ${shown.ageAtDeath}`);
+            return (
+              <>
+                <div className={dead ? 'edpair' : undefined}>
+                  <div>
+                    <label htmlFor="edYearBorn">Year born</label>
+                    <input
+                      id="edYearBorn"
+                      value={yearBornText}
+                      inputMode="text"
+                      placeholder={fromSave.born !== undefined ? `${yearLabel(fromSave.born)} (your save)` : 'e.g. 1282'}
+                      autoComplete="off"
+                      aria-invalid={yearBornTyped === null || undefined}
+                      aria-describedby="edYearsHint"
+                      onChange={(e) => setYearBornText(e.target.value)}
+                    />
+                  </div>
+                  {dead && (
+                    <div>
+                      <label htmlFor="edYearDied">Year died</label>
+                      <input
+                        id="edYearDied"
+                        value={yearDiedText}
+                        placeholder={fromSave.died !== undefined ? `${yearLabel(fromSave.died)} (your save)` : 'e.g. 1299'}
+                        autoComplete="off"
+                        aria-invalid={yearDiedTyped === null || undefined}
+                        aria-describedby="edYearsHint"
+                        onChange={(e) => setYearDiedText(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div id="edYearsHint" className={yearBad ? 'edhint edhint--error' : 'edhint'} role={yearBad ? 'alert' : undefined}>
+                  {yearBad
+                    ? 'Type a year like 1282, or 45 BCE.'
+                    : sums.length
+                      ? `${sums.join(', ')}. ${shown.bornTyped || shown.diedTyped ? 'Typed years come before your save’s.' : 'Type a year to set it yourself.'}`
+                      : 'Your save doesn’t date them: type the years you know.'}
+                </div>
+              </>
+            );
+          })()}
+          {state === DECEASED_STATE && !isPet && (() => {
+            const fromGame = gameDeathOf(n, gameNames.names);
+            return (
+              <>
+                <label htmlFor="edDeathCause">How they died</label>
+                <input
+                  id="edDeathCause"
+                  value={deathCause}
+                  list="edDeathCauses"
+                  placeholder={fromGame ?? 'e.g. Childbirth, the plague, a duel'}
+                  autoComplete="off"
+                  aria-describedby="edDeathHint"
+                  onChange={(e) => setDeathCause(e.target.value)}
+                />
+                <datalist id="edDeathCauses">
+                  {DEATH_CAUSES.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+                <div id="edDeathHint" className="edhint">
+                  {fromGame
+                    ? deathCause.trim() && deathCause.trim() !== fromGame
+                      ? `Your words, over the game’s: ${fromGame}.`
+                      : `The game says: ${fromGame}.`
+                    : 'Your words: your save doesn’t say how, or a mod decided it.'}
+                </div>
+              </>
+            );
+          })()}
+          {!isPet && (
+            <>
+              <label htmlFor="edBio">Bio</label>
+              <textarea
+                id="edBio"
+                className="edbio"
+                rows={3}
+                value={bio}
+                placeholder="Their story, quirks, fun facts. Kept on your board only."
+                onChange={(e) => setBio(e.target.value)}
+              />
+            </>
+          )}
           <div className="edlabel">
             <span className="edlabel__text" id="edHomeHead">
               Lives in
@@ -1690,6 +1868,15 @@ export function SimEditor({
                     <li key={l.id} className={l.ended ? 'edlinks__row--ended' : undefined}>
                       <span className="edlinks__text">
                         {l.text}
+                        {(() => {
+                          // When the story saw the couple begin, on the board's calendar.
+                          if (!calendar || !unions || l.planned) return null;
+                          const e = edges.find((x) => x.id === l.id);
+                          if (!e || (e.type !== 'marriage' && e.type !== 'romance')) return null;
+                          const u = unions.get(pairKey(e.a, e.b));
+                          if (!u) return null;
+                          return ` · ${u.type === 'marriage' ? 'm.' : 'since'} ${yearLabel(calendarYear(u.by, calendar))}`;
+                        })()}
                         {l.planned && <span className="edlinks__tag">planned</span>}
                       </span>
                       {/* A link to take off: a quiet bin. A couple the game has: plan its end, said in words. */}

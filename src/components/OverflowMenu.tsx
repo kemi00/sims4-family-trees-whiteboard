@@ -1,5 +1,6 @@
 import {
   ArrowCounterClockwise,
+  CalendarBlank,
   ClipboardText,
   DotsThreeVertical,
   DownloadSimple,
@@ -11,6 +12,8 @@ import {
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { DEVELOPER_NAME } from '../lib/credits.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
+import type { PlannerCalendar, SaveGameInfo } from '../types/whiteboard.ts';
+import { CalendarPanel } from './CalendarPanel.tsx';
 import { CreditsPanel } from './CreditsPanel.tsx';
 import { DeveloperContact } from './DeveloperContact.tsx';
 import { ProblemReportPanel } from './ProblemReportPanel.tsx';
@@ -44,6 +47,11 @@ type Props = {
   wrapRef?: RefObject<HTMLDivElement | null>;
   /** The problem report's text, made when it is asked for (problemReport). */
   onProblemReport?: () => string;
+  /** The board's calendar years, set in its panel (CalendarPanel). */
+  calendar?: PlannerCalendar | null;
+  onCalendar?: (cal: PlannerCalendar | null) => void;
+  /** The last save read, for the calendar's "your save now". */
+  game?: SaveGameInfo | null;
 };
 
 /** File actions, kept out of the bar because they are used rarely. */
@@ -59,9 +67,13 @@ export function OverflowMenu({
   folded = [],
   wrapRef: outerWrapRef,
   onProblemReport,
+  calendar = null,
+  onCalendar,
+  game = null,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   /** The problem report, made when the panel opened, to send or copy. */
   const [report, setReport] = useState<{ text: string } | null>(null);
   const ownWrapRef = useRef<HTMLDivElement>(null);
@@ -72,11 +84,12 @@ export function OverflowMenu({
   const { popRef, style: popStyle } = useDropdownPosition(open, wrapRef);
 
   useEffect(() => {
-    if (!open && !creditsOpen && !report) return;
+    if (!open && !creditsOpen && !calendarOpen && !report) return;
     const onPointer = (ev: PointerEvent) => {
       if (!wrapRef.current?.contains(ev.target as Node)) {
         setOpen(false);
         setCreditsOpen(false);
+        setCalendarOpen(false);
         setReport(null);
       }
     };
@@ -84,6 +97,7 @@ export function OverflowMenu({
       if (ev.key === 'Escape') {
         ev.stopPropagation();
         if (creditsOpen) setCreditsOpen(false);
+        else if (calendarOpen) setCalendarOpen(false);
         else if (report) setReport(null);
         else setOpen(false);
       }
@@ -94,7 +108,7 @@ export function OverflowMenu({
       document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [open, creditsOpen, report, wrapRef]);
+  }, [open, creditsOpen, calendarOpen, report, wrapRef]);
 
   useEffect(() => {
     if (open) firstItemRef.current?.focus();
@@ -163,6 +177,24 @@ export function OverflowMenu({
             <UploadSimple aria-hidden="true" />
             Upload your save (.save)
           </button>
+          {onCalendar && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setCreditsOpen(false);
+                setReport(null);
+                setCalendarOpen(true);
+              }}
+            >
+              <CalendarBlank aria-hidden="true" />
+              <span className="pop__stack">
+                Calendar years
+                <span className="pop__sub">{calendar ? `On: Day 1 is ${calendar.startYear}` : 'For decades and historical saves'}</span>
+              </span>
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
@@ -196,6 +228,7 @@ export function OverflowMenu({
               onClick={() => {
                 setOpen(false);
                 setCreditsOpen(false);
+                setCalendarOpen(false);
                 setReport({ text: onProblemReport() });
               }}
             >
@@ -232,6 +265,7 @@ export function OverflowMenu({
             onClick={() => {
               setOpen(false);
               setReport(null);
+              setCalendarOpen(false);
               setCreditsOpen(true);
             }}
           >
@@ -239,6 +273,15 @@ export function OverflowMenu({
             Credits
           </button>
         </div>
+      )}
+      {calendarOpen && onCalendar && (
+        <CalendarPanel
+          anchorRect={wrapRef.current?.getBoundingClientRect() ?? null}
+          calendar={calendar}
+          onCalendar={onCalendar}
+          game={game}
+          onClose={() => setCalendarOpen(false)}
+        />
       )}
       {creditsOpen && (
         <CreditsPanel

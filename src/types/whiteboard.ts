@@ -157,6 +157,43 @@ export interface SimNode {
    * is, so one brought back to life by hand stays alive.
    */
   diedOnImport?: true;
+  /** What family and friends call them ("Leo" for Leofstan), shown in quotes on the card. Set on the board. */
+  nick?: string;
+  /** The player's own words about them: their story, quirks, fun facts. Set on the board. */
+  bio?: string;
+  /**
+   * How they died, in the player's words ("Childbirth", "The plague"). Set
+   * on the board; it comes before the game's own cause (deathTrait).
+   */
+  deathCause?: string;
+  /**
+   * The game's record of how they died: the id of the ghost trait it gives
+   * them (old age, fire, drowning…), from the last save that had one.
+   */
+  deathTrait?: string;
+  /**
+   * Year of birth or death typed on the board, in the board's calendar
+   * years (PlannerCalendar). They come before what the save tells, for a sim
+   * born or dead before play, or one the save can't date.
+   */
+  yearBorn?: number;
+  yearDied?: number;
+}
+
+/**
+ * The board's own calendar for a historical or decades playthrough: game
+ * Day 1 is `startYear`, and a year passes every `daysPerYear` sim days
+ * ("1300", "2 days a year"). Years before 1 are told BCE.
+ */
+export interface PlannerCalendar {
+  startYear: number;
+  daysPerYear: number;
+}
+
+/** What the player keeps on the board beyond the family tree itself. */
+export interface PlannerData {
+  /** Years for days on the board's cards, couples, story and posters. None: the game's own days. */
+  calendar?: PlannerCalendar;
 }
 
 /** A planned sim as it was before a sim from the save filled it. */
@@ -565,6 +602,8 @@ export interface WhiteboardData {
   saveGame?: SaveGameInfo | null;
   /** The board's story, one entry per save upload (absent on older files). */
   chronicle?: ChronicleEntry[];
+  /** The player's calendar and records beyond the tree (absent on older files). */
+  planner?: PlannerData;
   /** Pack names hidden by the Games filter. */
   hiddenPacks?: string[];
   /** Origin-playability values hidden by the Play filter. */

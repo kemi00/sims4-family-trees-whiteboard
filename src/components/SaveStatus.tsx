@@ -13,7 +13,8 @@ import {
   yearOf,
   yearText,
 } from '../lib/lifeClock.ts';
-import type { SaveGameInfo } from '../types/whiteboard.ts';
+import type { PlannerCalendar, SaveGameInfo } from '../types/whiteboard.ts';
+import { CalendarControl } from './CalendarControl.tsx';
 
 /** "Nov 7, 12:10 AM" for when the board read the save. */
 function readAt(iso: string): string {
@@ -49,6 +50,8 @@ export function SaveDetails({
   onStory,
   limit,
   onLimit,
+  calendar,
+  onCalendar,
 }: {
   game: SaveGameInfo;
   onRecap?: () => void;
@@ -56,6 +59,9 @@ export function SaveDetails({
   /** The household limit the board warns past: a game rule a mod may change, so the player sets it here. */
   limit?: number | null;
   onLimit?: (n: number | null) => void;
+  /** The board's calendar years (CalendarControl). */
+  calendar?: PlannerCalendar | null;
+  onCalendar?: (cal: PlannerCalendar | null) => void;
 }) {
   const day = dayOf(game.clock);
   const rows: [string, string][] = [
@@ -110,6 +116,11 @@ export function SaveDetails({
           </p>
         </div>
       )}
+      {onCalendar && (
+        <div className="savechip__board">
+          <CalendarControl calendar={calendar ?? null} onCalendar={onCalendar} game={game} />
+        </div>
+      )}
     </>
   );
 }
@@ -125,12 +136,16 @@ export function SaveStatus({
   onStory,
   limit,
   onLimit,
+  calendar,
+  onCalendar,
 }: {
   game: SaveGameInfo;
   onRecap?: () => void;
   onStory?: () => void;
   limit?: number | null;
   onLimit?: (n: number | null) => void;
+  calendar?: PlannerCalendar | null;
+  onCalendar?: (cal: PlannerCalendar | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -176,6 +191,7 @@ export function SaveStatus({
           <SaveDetails
             game={game}
             {...(onLimit ? { limit: limit ?? null, onLimit } : {})}
+            {...(onCalendar ? { calendar: calendar ?? null, onCalendar } : {})}
             {...(onRecap
               ? {
                   onRecap: () => {

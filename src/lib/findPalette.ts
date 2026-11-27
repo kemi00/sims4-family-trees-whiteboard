@@ -81,7 +81,7 @@ export function findResults(
 
   visibleNodes.forEach((n, at) => {
     // The game's married name finds them too (Cassandra Vatore), and a planned sim's label.
-    const names = [`${n.first} ${n.sur}`, ...(n.marriedSur ? [`${n.first} ${n.marriedSur}`] : []), ...(isPlannedSim(n) ? [cardName(n)] : [])];
+    const names = [`${n.first} ${n.sur}`, ...(n.marriedSur ? [`${n.first} ${n.marriedSur}`] : []), ...(isPlannedSim(n) ? [cardName(n)] : []), ...(n.nick?.trim() ? [`${n.nick.trim()} ${n.sur}`] : [])];
     const best = Math.min(...names.map((s) => rank(s.trim(), q)).map((r) => (r < 0 ? 9 : r)));
     if (best === 9) return;
     const kind = isPet(n) ? (n.species ?? 'Pet') : n.age;

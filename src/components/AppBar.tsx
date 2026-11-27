@@ -551,6 +551,9 @@ export function AppBar({
         }
         folded={folded}
         wrapRef={moreRef}
+        calendar={wb.planner.calendar ?? null}
+        onCalendar={wb.setCalendar}
+        game={wb.saveGame}
         onProblemReport={() => {
           const latest = changelog.entries[0];
           return problemReport({
@@ -601,6 +604,8 @@ export function AppBar({
             game={wb.saveGame}
             limit={wb.householdLimit}
             onLimit={wb.setHouseholdLimit}
+            calendar={wb.planner.calendar ?? null}
+            onCalendar={wb.setCalendar}
             {...(wb.recap
               ? {
                   onRecap: () => {

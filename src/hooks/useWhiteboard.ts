@@ -12,6 +12,7 @@ import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
 import { firstChapter } from '../lib/firstChapter.ts';
 import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
+import { cardYearsText, deathWindows, simYears, unionDays } from '../lib/calendar.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
@@ -138,6 +139,8 @@ import type {
   HouseholdAgeUp,
   HouseholdMove,
   LotBoxPins,
+  PlannerCalendar,
+  PlannerData,
   PairStatus,
   SaveGameInfo,
   Selection,
@@ -355,6 +358,7 @@ type BoardSnap = {
   pairStatus: PairStatus[];
   lotBoxAt: LotBoxPins;
   lotPrices: Record<string, number>;
+  planner: PlannerData;
   saveGame: SaveGameInfo | null;
   /** The board's story: a save merge adds to it, and its undo takes that back. */
   chronicle: ChronicleEntry[];
@@ -588,6 +592,8 @@ export function useWhiteboard() {
   const [lotBoxAt, setLotBoxAt] = useState<LotBoxPins>(() => boot.lotBoxAt ?? {});
   /** Lot prices typed from the game, by lotKey: a planned move there is checked against the funds. */
   const [lotPrices, setLotPrices] = useState<Record<string, number>>(() => boot.lotPrices ?? {});
+  /** The player's calendar and records beyond the tree (PlannerData). */
+  const [planner, setPlanner] = useState<PlannerData>(() => boot.planner ?? {});
   const [deceasedMarks, setDeceasedMarks] = useState<DeceasedMark[]>(
     () => boot.deceasedMarks ?? [],
   );
@@ -614,6 +620,22 @@ export function useWhiteboard() {
   const petKinds = useMemo(() => petKindsAvailable(gamesOff), [gamesOff]);
   /** The board's story, one entry per save upload (the chronicle). */
   const [chronicle, setChronicle] = useState<ChronicleEntry[]>(() => boot.chronicle ?? []);
+  /** The board's calendar years, when the player set some (PlannerCalendar). */
+  const calendar = planner.calendar ?? null;
+  /** When each death came to light, by the story's uploads (deathWindows). */
+  const deaths = useMemo(() => deathWindows(chronicle), [chronicle]);
+  /** When each couple the story saw begin got together (unionDays). */
+  const unions = useMemo(() => unionDays(chronicle), [chronicle]);
+  /** "1266–1299" or "b. 1282" for each card the calendar can date; none without a calendar. */
+  const cardYears = useMemo(() => {
+    if (!calendar) return null;
+    const out = new Map<string, string>();
+    for (const n of nodesCore) {
+      const t = cardYearsText(simYears(n, calendar, deaths.get(n.id)));
+      if (t) out.set(n.id, t);
+    }
+    return out;
+  }, [calendar, nodesCore, deaths]);
   /** The Chronicle panel, open on the whole story or on one sim's, household's or dynasty's. */
   const [chronicleView, setChronicleView] = useState<{ label: string; ids: string[] | null; dynasties?: string[] } | null>(null);
   /** What the last save upload says happened in the game ("Previously on…"). */
@@ -1037,6 +1059,7 @@ export function useWhiteboard() {
         pairStatus,
         lotBoxAt,
         lotPrices,
+        planner,
         saveGame,
         chronicle,
         connectionLog,
@@ -1060,6 +1083,7 @@ export function useWhiteboard() {
       pairStatus,
       lotBoxAt,
       lotPrices,
+      planner,
       saveGame,
       chronicle,
       connectionLog,
@@ -1134,6 +1158,7 @@ export function useWhiteboard() {
       pairStatus,
       lotBoxAt,
       lotPrices,
+      planner,
       saveGame,
       chronicle,
       filters: filters
@@ -1147,7 +1172,7 @@ export function useWhiteboard() {
           }
         : undefined,
     }),
-    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, lotBoxAt, lotPrices, saveGame, chronicle, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
+    [nodesCore, edges, groups, householdMoves, householdAgeUps, deceasedMarks, simAgeUps, pairStatus, lotBoxAt, lotPrices, planner, saveGame, chronicle, hiddenPacks, hiddenPlay, hiAges, hiSingle, hideSecrets, hideDeceased],
   );
 
   /** The board as `snap` kept it; nothing stays picked or open over it. */
@@ -1164,6 +1189,7 @@ export function useWhiteboard() {
     setPairStatus(snap.pairStatus);
     setLotBoxAt(snap.lotBoxAt);
     setLotPrices(snap.lotPrices);
+    setPlanner(snap.planner);
     setSaveGame(snap.saveGame);
     setChronicle(snap.chronicle);
     if (snap.filters) {
@@ -1244,6 +1270,23 @@ export function useWhiteboard() {
       });
     },
     [lotPrices, pushUndo],
+  );
+
+  /**
+   * The board's calendar years (PlannerCalendar), or none to go back to the
+   * game's days. One undo step.
+   */
+  const setCalendar = useCallback(
+    (cal: PlannerCalendar | null) => {
+      const had = planner.calendar;
+      if (had && cal ? had.startYear === cal.startYear && had.daysPerYear === cal.daysPerYear : !had && !cal) return;
+      pushUndo(cal ? `Calendar: Day 1 is ${cal.startYear}, a year every ${cal.daysPerYear} ${cal.daysPerYear === 1 ? 'day' : 'days'}` : 'Turn off calendar years');
+      setPlanner((p) => {
+        const { calendar: _old, ...rest } = p;
+        return cal ? { ...rest, calendar: cal } : rest;
+      });
+    },
+    [planner, pushUndo],
   );
 
   const setLinksView = useCallback(
@@ -3388,6 +3431,7 @@ export function useWhiteboard() {
       setPairStatus([]);
       setLotBoxAt({});
       setLotPrices({});
+      setPlanner({});
       setSaveGame(null);
       setChronicle([]);
       setSourceFileName(null);
@@ -3484,6 +3528,7 @@ export function useWhiteboard() {
         // The file's Free lots boxes where it had them, unless its cards were laid out afresh.
         setLotBoxAt(!keepBoardPositions && !prepared.repacked ? ((d as { lotBoxAt?: LotBoxPins }).lotBoxAt ?? {}) : {});
         setLotPrices((d as { lotPrices?: Record<string, number> }).lotPrices ?? {});
+        setPlanner((d as { planner?: PlannerData }).planner ?? {});
         setSaveGame(d.saveGame ?? null);
         setChronicle(d.chronicle ?? []);
         eidcRef.current = nextEidc(
@@ -4668,6 +4713,12 @@ export function useWhiteboard() {
     funds,
     lotPrices,
     setLotPrice,
+    planner,
+    setCalendar,
+    calendar,
+    deaths,
+    unions,
+    cardYears,
     freeLots,
     lotCatalog,
     lotBoxes,

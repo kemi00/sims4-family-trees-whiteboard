@@ -3,7 +3,7 @@ import { withoutPastUnions } from './coupleStory.ts';
 import { DECEASED_STATE, DYNASTY_ROLES } from './constants.ts';
 import { dynastyGenerations, dynastyKey } from './generations.ts';
 import { dayOf, dayText, seasonNow } from './lifeClock.ts';
-import { NOT_YET_AGE, cardName, isPlannedSim, notYetText } from './plan.ts';
+import { NOT_YET_AGE, cardName, isPlannedSim, nameWithNick, notYetText } from './plan.ts';
 import { successionLine } from './succession.ts';
 import { edgeSourceOf, isPet } from './utils.ts';
 import type { StoryLine } from './chronicle.ts';
@@ -22,6 +22,8 @@ export type PosterCard = {
   planned: boolean;
   /** Their household's colour on the board. */
   color: string;
+  /** Their years on the board's calendar ("1266–1299"), when it has one: set by whoever draws the poster. */
+  years?: string;
   /**
    * What the poster can't draw as a line, in words: a partner not beside
    * them ("Married to Caleb Vatore"), parents not above them ("Child of
@@ -101,7 +103,7 @@ function cardOf(n: SimNode, onDynastyPoster = false, child = false): PosterCard 
   const role = n.dynastyRole && n.dynastyPlan !== 'none' && n.dynasty ? n.dynastyRole : undefined;
   return {
     id: n.id,
-    name: cardName(n),
+    name: nameWithNick(n),
     stage: isPet(n) ? (n.species ?? 'Pet') : planned && (n.age === NOT_YET_AGE || !n.age) ? notYetText(child) : n.age,
     ...(role
       ? {
@@ -408,5 +410,20 @@ export function dynastyPoster(opts: {
     families,
     calendar: posterCalendar(saveGame),
     slug: `${slugOf(label)}-dynasty`,
+  };
+}
+
+/**
+ * The poster with each card's years on the board's calendar (cardYears):
+ * "Elder · 1266–1299". The same poster without a calendar.
+ */
+export function withPosterYears(model: PosterModel, years: ReadonlyMap<string, string> | null | undefined): PosterModel {
+  if (!years?.size) return model;
+  return {
+    ...model,
+    rows: model.rows.map((r) => ({
+      ...r,
+      cards: r.cards.map((c) => (years.get(c.id) ? { ...c, years: years.get(c.id)! } : c)),
+    })),
   };
 }

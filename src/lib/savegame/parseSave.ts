@@ -115,6 +115,8 @@ export type ParsedTreeRelative = {
   gender: string;
   /** The tree records how they died, or inferTreeDeaths works it out. */
   deceased?: true;
+  /** How the tree says they died: the id of the ghost trait for it (old age, fire…). */
+  deathTrait?: string;
   /** No death in the tree: worked out from their children (inferTreeDeaths). */
   deathInferred?: true;
   /** Key of their full name in the game's text, as a decimal uint32. */
@@ -620,7 +622,8 @@ function parseTreeRelatives(graph: Uint8Array, simIds: ReadonlySet<string>): Par
     const id = rec.find((f) => f.field === TREE_NODE.id && f.wire === 0)?.int;
     if (!id || simIds.has(idStr(id))) continue;
     const gender = rec.find((f) => f.field === TREE_NODE.gender && f.wire === 0)?.int;
-    const died = rec.some((f) => f.field === TREE_NODE.deathTrait && f.wire === 0 && f.int > 0n);
+    const deathField = rec.find((f) => f.field === TREE_NODE.deathTrait && f.wire === 0 && f.int > 0n);
+    const died = !!deathField;
     const nameRef = rec.find((f) => f.field === TREE_NODE.name && f.bytes)?.bytes;
     const key = nameRef ? decodeFields(nameRef).find((f) => f.field === 1)?.int : undefined;
     const nameKey = key ? idStr(key) : undefined;
@@ -628,7 +631,7 @@ function parseTreeRelatives(graph: Uint8Array, simIds: ReadonlySet<string>): Par
     out.push({
       treeId: idStr(id),
       gender: gender === undefined ? '' : mapGender(gender),
-      ...(died ? { deceased: true as const } : {}),
+      ...(died ? { deceased: true as const, deathTrait: idStr(deathField!.int!) } : {}),
       ...(nameKey ? { nameKey } : {}),
       ...(name ? { name } : {}),
     });

@@ -5,7 +5,7 @@ import { dynastyPhrase } from '../lib/generations.ts';
 import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch, type HighlightSets } from '../lib/utils.ts';
-import { NOT_YET_AGE, PLANNED_MOVES_IN, cardName, isPlannedSim } from '../lib/plan.ts';
+import { NOT_YET_AGE, PLANNED_MOVES_IN, cardName, isPlannedSim, nameWithNick } from '../lib/plan.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 type Props = {
@@ -62,6 +62,8 @@ type Props = {
   heirAfter?: { first: string; full: string };
   /** A planned birth or couple the save just confirmed: a sparkle, for a moment. */
   celebrate?: boolean;
+  /** Their years on the board's calendar ("1266–1299", "b. 1282"): after the life stage, given up last. */
+  years?: string;
   onPointerDown: (e: React.PointerEvent, n: SimNode) => void;
 };
 
@@ -94,6 +96,26 @@ function fitParts(lines: Part[][], room: number): Part[] {
   return last;
 }
 
+/**
+ * The card's second line, best first: the life stage, gender and species,
+ * then the board's calendar years ("Elder · Female · 1266–1299"). Short of
+ * room, the gender goes before the years do. The years are set a little
+ * bolder (as `dyn` parts are), so they read at a glance on a big tree.
+ */
+function stageLines(stage: string, n: Pick<SimNode, 'gender' | 'species'>, years?: string): Part[][] {
+  const gender = n.gender && n.gender !== '-' ? ` · ${n.gender}` : '';
+  const species = n.species ? ` · ${n.species}` : '';
+  const full: Part[] = [{ text: `${stage}${gender}${species}` }];
+  if (!years) return [full];
+  const y: Part = { text: years, dyn: true };
+  return [
+    [{ text: `${stage}${gender}${species} · ` }, y],
+    [{ text: `${stage}${species} · ` }, y],
+    [{ text: `${stage} · ` }, y],
+    full,
+  ];
+}
+
 export const SimNodeView = memo(function SimNodeView({
   node: n,
   selected,
@@ -116,6 +138,7 @@ export const SimNodeView = memo(function SimNodeView({
   dynastyRisk,
   heirAfter,
   celebrate = false,
+  years,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -139,7 +162,8 @@ export const SimNodeView = memo(function SimNodeView({
   const detail = plannedMoveIn ? PLANNED_MOVES_IN : cardDetailLine(n);
   const h = n.h || CARD_H;
   const role = n.dynastyRole ? DYNASTY_ROLES[n.dynastyRole] : null;
-  const name = `${offPlan ? '⚠ ' : ''}${role ? role.mark + ' ' : ''}${cardName(n)}`;
+  const shownName = nameWithNick(n);
+  const name = `${offPlan ? '⚠ ' : ''}${role ? role.mark + ' ' : ''}${shownName}`;
   const stage = isPlannedSim(n) && n.age === NOT_YET_AGE && notYet ? notYet : n.age;
   // The name stops short of the corner badges; a long one (a crown and
   // "Anne-Shirley Cuthbert") is set a little smaller rather than run under them.
@@ -258,12 +282,18 @@ export const SimNodeView = memo(function SimNodeView({
           >
             {offPlan && <tspan fill="#b45309">⚠ </tspan>}
             {role && <tspan fillOpacity={rolePlanned ? 0.4 : undefined}>{role.mark} </tspan>}
-            {cardName(n)}
+            {shownName}
           </text>
           <text x={16} y={52} fontSize={10.5} fill="#5b6472">
-            {stage}
-            {n.gender && n.gender !== '-' ? ` · ${n.gender}` : ''}
-            {n.species ? ` · ${n.species}` : ''}
+            {fitParts(stageLines(stage, n, years), (n.w || CARD_MIN_W) - 16 - 10).map((p, i) =>
+              p.dyn ? (
+                <tspan key={i} fill="#3b4757" fontWeight={600}>
+                  {p.text}
+                </tspan>
+              ) : (
+                <tspan key={i}>{p.text}</tspan>
+              ),
+            )}
           </text>
           {lastLines.length > 0 && (
             <text x={16} y={72} fontSize={10.5} fill="#697380" data-tip={lastTitle || undefined}>

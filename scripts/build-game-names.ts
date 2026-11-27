@@ -108,6 +108,15 @@ const packages = roots.flatMap((r) => ['SimulationFullBuild0.package', 'Simulati
 const traits: Record<string, [string, 'p' | 'e']> = {};
 const skills: Record<string, [string, number]> = {};
 const aspirations: Record<string, string> = {};
+/** The ghost traits a death leaves a sim with (trait_Ghost_OldAge…): trait id → the death, for the editor's "How they died". */
+const deaths: Record<string, string> = {};
+/** "trait_Ghost_OldAge" → "Old Age": a ghost trait's tuning name in words, when it has no name of its own. */
+const deathWords = (tuning: string): string =>
+  tuning
+    .replace(/^trait_Ghost_?/i, '')
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .trim();
 const levelTitle = new Map<string, string>();
 const rawTracks = new Map<string, { name: string; levels: string[]; branches: string[] }>();
 let baseTuning = '';
@@ -127,9 +136,15 @@ for (const path of packages) {
     if (rec.schema === 'Trait') {
       const name = say(row.display_name);
       const type = Number(row.trait_type);
+      if (!name && /^trait_Ghost_./i.test(rec.name ?? '')) {
+        deaths[id] = deathWords(rec.name!);
+        continue;
+      }
       if (!name) continue;
       if (type === PERSONALITY) traits[id] = [name, 'p'];
       else if (EARNED.has(type)) traits[id] = [name, 'e'];
+      // How a ghost died is a trait of its own; its tuning name says which death.
+      if (/^trait_Ghost_./i.test(rec.name ?? '')) deaths[id] = deathWords(rec.name!) || name;
     } else if (rec.schema === 'Skill' || rec.schema === 'statistics.skill.Skill') {
       const name = say(row.stat_name);
       if (name && !/hidden/i.test(rec.name)) skills[id] = [name, Number(row.skill_level_type)];
@@ -196,8 +211,9 @@ const out = {
   skills: sorted(skills),
   tracks: sorted(tracks),
   aspirations: sorted(aspirations),
+  deaths: sorted(deaths),
 };
 writeFileSync(OUT, `${JSON.stringify(out)}\n`);
 console.log(
-  `${packages.length} packages, ${strings.size} strings: ${Object.keys(traits).length} traits, ${Object.keys(skills).length} skills, ${Object.keys(tracks).length} career tracks, ${Object.keys(aspirations).length} aspirations, skill level types ${Object.keys(skillLevels).join(', ')}. Wrote ${OUT} (${(JSON.stringify(out).length / 1024).toFixed(0)} KB).`,
+  `${packages.length} packages, ${strings.size} strings: ${Object.keys(traits).length} traits, ${Object.keys(skills).length} skills, ${Object.keys(tracks).length} career tracks, ${Object.keys(aspirations).length} aspirations, ${Object.keys(deaths).length} deaths (${Object.values(deaths).slice(0, 6).join(', ')}…), skill level types ${Object.keys(skillLevels).join(', ')}. Wrote ${OUT} (${(JSON.stringify(out).length / 1024).toFixed(0)} KB).`,
 );

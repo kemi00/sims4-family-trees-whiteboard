@@ -180,6 +180,8 @@ function drawCard(ctx: CanvasRenderingContext2D, c: PosterCard, x: number, y: nu
 /** "Adult", "Elder · passed away", "Passed away" (age unknown), "Child · planned". */
 function stageLine(c: PosterCard): string {
   const known = c.stage && c.stage !== 'Unknown';
+  // Calendar years tell the death too: "Elder · 1266–1299".
+  if (c.years) return known ? `${c.stage} · ${c.years}` : c.years;
   if (c.deceased) return known ? `${c.stage} · passed away` : 'Passed away';
   if (c.planned && c.stage !== 'Not born yet') return known ? `${c.stage} · planned` : 'Planned';
   return known ? c.stage : '';

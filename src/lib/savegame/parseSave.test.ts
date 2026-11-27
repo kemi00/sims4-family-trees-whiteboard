@@ -741,7 +741,7 @@ describe('parseSaveGame', () => {
     const father = encodeBytes(1, concat(encodeVarintField(1, 8), treeEdge(8, 1, 1), encodeVarintField(8, 4096)));
     const parsed = parseSaveGame(tinySave(false, [mother, father]));
     assert.deepEqual(parsed.relatives, [
-      { treeId: '9', gender: 'Female', deceased: true },
+      { treeId: '9', gender: 'Female', deceased: true, deathTrait: '101685' },
       { treeId: '8', gender: 'Male' },
     ]);
     assert.ok(parsed.rels.some((r) => r.type === 'parent' && r.a === '9' && r.b === '1'));

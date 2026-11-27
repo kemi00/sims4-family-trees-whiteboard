@@ -1,3 +1,4 @@
+import type { PlannerCalendar } from '../types/whiteboard.ts';
 import { useMemo, useState } from 'react';
 import { entryAbout, storyDays, type ChronicleEntry } from '../lib/chronicle.ts';
 import { recapTimeText } from '../lib/saveRecap.ts';
@@ -13,6 +14,8 @@ type Props = {
   dynasties?: readonly string[];
   onGoToSim: (id: string) => void;
   onClose: () => void;
+  /** The board's calendar years, for each day's heading. */
+  calendar?: PlannerCalendar | null;
 };
 
 /** "12 Nov 2026": when an upload was read, in the reader's words. */
@@ -38,7 +41,7 @@ const inWords = (list: readonly string[]) =>
  * one sim's, household's or dynasty's story, it shows theirs, with a
  * switch to everyone's and back. A search narrows it to names.
  */
-export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onClose }: Props) {
+export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onClose, calendar = null }: Props) {
   const [query, setQuery] = useState('');
   /** Opened on someone's story: theirs, or everyone's, a switch either way. */
   const [everyone, setEveryone] = useState(false);
@@ -51,7 +54,7 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onCl
     () => [...entries].reverse().map((e) => entryAbout(e, set, query, keys)).filter((e): e is ChronicleEntry => !!e),
     [entries, set, query, keys],
   );
-  const days = useMemo(() => storyDays(shown), [shown]);
+  const days = useMemo(() => storyDays(shown, calendar), [shown, calendar]);
   return (
     <BarPanel
       id="story"

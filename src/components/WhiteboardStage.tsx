@@ -2136,6 +2136,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 bloodlineIds={wb.bloodlineIds}
                 familyIds={wb.briefHover ?? wb.dynastyFocusIds ?? wb.familyIds}
                 generation={generationTitle(wb.dynastyGens.get(n.id))}
+                years={wb.cardYears?.get(n.id)}
                 onPointerDown={onNodePointerDown}
               />
             ))}
@@ -2385,6 +2386,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           at={Math.min(wb.lookBackAt, wb.chronicle.length - 1)}
           onAt={wb.setLookBackAt}
           onNow={() => wb.setLookBackAt(null)}
+          calendar={wb.calendar}
         />
       )}
       </div>
@@ -2614,6 +2616,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           // A new story opened starts on whose it is.
           key={`${wb.chronicleView.label}|${wb.chronicleView.ids?.length ?? 'all'}`}
           entries={wb.chronicle}
+          calendar={wb.calendar}
           label={wb.chronicleView.label}
           ids={wb.chronicleView.ids}
           {...(wb.chronicleView.dynasties ? { dynasties: wb.chronicleView.dynasties } : {})}
@@ -2688,6 +2691,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 game={wb.saveGame}
                 limit={wb.householdLimit}
                 onLimit={wb.setHouseholdLimit}
+                calendar={wb.planner.calendar ?? null}
+                onCalendar={wb.setCalendar}
                 onRecap={wb.recap ? () => wb.setRecapOpen(true) : undefined}
                 onStory={() => {
                   wb.setRecapOpen(false);
@@ -2857,6 +2862,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           petKinds={wb.petKinds}
           hasGame={wb.hasGame}
           whenOf={(stage) => wb.whenLineOf(editNode, stage)}
+          calendar={wb.calendar}
+          unions={wb.unions}
+          {...(wb.deaths.get(editNode.id) ? { death: wb.deaths.get(editNode.id)! } : {})}
           {...(() => {
             const f = wb.funds.get(editNode.gid);
             return f ? { funds: `${money(f.amount)} in funds${f.shares.length > 1 ? ', together' : ''}` } : {};

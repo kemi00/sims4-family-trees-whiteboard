@@ -1759,6 +1759,15 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     worldsFromParsed(parsed),
   );
 
+  // How the tree says a relative died, for the editor to name (SimNode.deathTrait).
+  const treeDeaths = new Map((parsed.relatives ?? []).flatMap((r) => (r.deathTrait ? [[r.treeId, r.deathTrait] as const] : [])));
+  if (treeDeaths.size) {
+    for (let i = 0; i < nodes.length; i++) {
+      const t = nodes[i]!.treeId ? treeDeaths.get(nodes[i]!.treeId!) : undefined;
+      if (t && nodes[i]!.deathTrait !== t) nodes[i] = { ...nodes[i]!, deathTrait: t };
+    }
+  }
+
   return {
     nodes,
     edges: sanitizeEdges(edges),
