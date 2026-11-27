@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "acfd032",
+   "date": "2026-11-27",
+   "text": "Calendar years for decades saves: cards, the story and posters show 1282–1299, and each sim has a nickname, a bio and how they died."
+  },
+  {
    "sha": "9c7c9e0",
    "date": "2026-11-22",
    "text": "The Life tab in the sim editor shows the game's own icons: for the job, the aspiration, each trait and each skill. The aspiration now sits in an outlined card like the job above it. The icons load only when you open a Life tab, so the board is as fast as before."
