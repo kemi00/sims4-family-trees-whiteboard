@@ -31,6 +31,7 @@ export { Funnel } from '@phosphor-icons/react/Funnel';
 export { GameController } from '@phosphor-icons/react/GameController';
 export { Coins } from '@phosphor-icons/react/Coins';
 export { Globe } from '@phosphor-icons/react/Globe';
+export { GearSix } from '@phosphor-icons/react/GearSix';
 export { GridFour } from '@phosphor-icons/react/GridFour';
 export { HandHeart } from '@phosphor-icons/react/HandHeart';
 export { Heart } from '@phosphor-icons/react/Heart';

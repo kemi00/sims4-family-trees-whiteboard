@@ -1,4 +1,4 @@
-import { CaretRight, GameController, Highlighter, IdentificationBadge, LockSimple, Skull, UsersThree, type Icon } from '../icons.ts';
+import { CaretRight, GameController, IdentificationBadge, LockSimple, Skull, UsersFour, UsersThree, type Icon } from '../icons.ts';
 import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
@@ -36,8 +36,10 @@ function ViewRow({ icon: Glyph, label, note, onClick }: { icon: Icon; label: str
 }
 
 /**
- * Filters, in the bar's panel: the on/off filters first, then Games and
- * packs, Play and Highlight, each opening inside the panel with a way back.
+ * Filters and Highlight, in the bar's panel. Filters hide: secrets, the
+ * deceased, then Games and packs and Play, each opening inside with a way
+ * back. Highlight (its own bar button) lights up: a sim's family, a
+ * bloodline, life stages and singles.
  */
 export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList?: () => void }) {
   const counts = filterCounts(wb);
@@ -109,10 +111,29 @@ export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList
         className="gpanel fpanel"
         title="Highlight"
         description="Light up the sims you pick; the rest dim"
-        // Opened from the highlight's list: back goes to the list.
-        back={backToList ? { label: 'Back to the list', onBack: backToList } : back(wb.setAgesOpen)}
+        // Opened from the highlight's list: back goes to the list. From the bar, it is a panel of its own.
+        {...(backToList ? { back: { label: 'Back to the list', onBack: backToList } } : {})}
         onClose={close}
       >
+        <h3 className="fpanel__title">A family</h3>
+        <div className="fpanel__list">
+          <ToggleRow
+            icon={UsersFour}
+            label="A sim's family"
+            note={wb.familyFocus ? 'Select any sim; pick close or extended family on the banner.' : 'Select any sim to light up their family; the rest dim.'}
+            on={wb.familyFocus}
+            onClick={() => wb.setFamilyFocus(!wb.familyFocus)}
+          />
+          <ToggleRow
+            icon={UsersThree}
+            label="Bloodline"
+            note={bloodlineNote(wb)}
+            on={!!wb.bloodlineId}
+            disabled={!(wb.bloodlineId || wb.sel?.type === 'node')}
+            onClick={wb.toggleBloodline}
+          />
+        </div>
+        <h3 className="fpanel__title">Life stages and more</h3>
         <AgesPanel
           nodes={wb.nodes}
           sets={wb.highlightSets}
@@ -136,19 +157,11 @@ export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList
       id="filters"
       className="gpanel fpanel"
       title="Filters"
-      description={counts.total ? `${counts.total} on` : 'What the board shows'}
+      description={counts.hiding ? `${counts.hiding} on` : 'What the board hides'}
       onClose={close}
     >
       <h3 className="fpanel__title">Show and hide</h3>
       <div className="fpanel__list">
-        <ToggleRow
-          icon={UsersThree}
-          label="Bloodline"
-          note={bloodlineNote(wb)}
-          on={!!wb.bloodlineId}
-          disabled={!(wb.bloodlineId || wb.sel?.type === 'node')}
-          onClick={wb.toggleBloodline}
-        />
         {/* Secrets come with Royalty & Legacy: without it, no toggle for what can't be there. */}
         {(wb.hasGame(ROYALTY_AND_LEGACY) || wb.hasSecrets || wb.hideSecrets) && (
         <ToggleRow
@@ -190,12 +203,6 @@ export function FiltersPanel({ wb, backToList }: { wb: WhiteboardApi; backToList
           label="Play"
           note={counts.play ? `${counts.play} hidden` : 'Everyone shown'}
           onClick={() => open(wb.setPlayOpen, '/action/filters/play')}
-        />
-        <ViewRow
-          icon={Highlighter}
-          label="Highlight"
-          note={counts.highlight ? `${counts.highlight} picked` : 'Nothing highlighted'}
-          onClick={() => open(wb.setAgesOpen, '/action/filters/highlight')}
         />
       </div>
     </BarPanel>

@@ -12,10 +12,15 @@ export function filterCounts(f: {
   bloodlineId: string | null;
   hideSecrets: boolean;
   hideDeceased: boolean;
+  familyFocus?: boolean;
 }) {
   const games = [...f.hiddenPacks].filter((p) => f.packCounts.get(p)).length;
   const play = f.hiddenPlay.size;
   const highlight = f.hiAges.size + (f.hiSingle ? 1 : 0);
-  const total = games + play + highlight + (f.bloodlineId ? 1 : 0) + (f.hideSecrets ? 1 : 0) + (f.hideDeceased ? 1 : 0);
-  return { games, play, highlight, total };
+  /** Filters' own: what is hidden (Highlight has a button and a count of its own). */
+  const hiding = games + play + (f.hideSecrets ? 1 : 0) + (f.hideDeceased ? 1 : 0);
+  /** Highlight's own: picks, a bloodline, a sim's family. */
+  const lit = highlight + (f.bloodlineId ? 1 : 0) + (f.familyFocus ? 1 : 0);
+  const total = hiding + lit;
+  return { games, play, highlight, hiding, lit, total };
 }

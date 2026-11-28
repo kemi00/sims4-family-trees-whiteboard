@@ -55,6 +55,8 @@ type Props = {
   tiles?: boolean;
   /** The menu opens: every other panel and menu closes first (one popup at a time). */
   onOpenMenu?: () => void;
+  /** The button's icon: the gear of Settings. */
+  icon?: Icon;
   /** The menu's wrapper, so a popover opened from a folded item can hang off it. */
   wrapRef?: RefObject<HTMLDivElement | null>;
   /** The problem report's text, made when it is asked for (problemReport). */
@@ -120,6 +122,7 @@ export function OverflowMenu({
   files: fileItems = [],
   tiles = false,
   onOpenMenu,
+  icon = DotsThreeVertical,
   wrapRef: outerWrapRef,
   onProblemReport,
   calendar = null,
@@ -179,7 +182,7 @@ export function OverflowMenu({
   return (
     <div className="overflow" ref={wrapRef}>
       <ToolButton
-        icon={DotsThreeVertical}
+        icon={icon}
         label={label}
         expanded={open}
         onClick={() => {
@@ -194,7 +197,7 @@ export function OverflowMenu({
         }}
       />
       {open && (
-        <div ref={popRef} className="pop pop--folded pop--more" role="menu" aria-label="More" style={popStyle}>
+        <div ref={popRef} className="pop pop--folded pop--more" role="menu" aria-label="Settings" style={popStyle}>
           {/* Grouped by what you came to do; each group named, the rare and the risky last. */}
           {gameItems.length > 0 && (
             <div role="group" aria-labelledby="more-game">
@@ -224,7 +227,7 @@ export function OverflowMenu({
           <div role="group" aria-labelledby="more-files">
             {(gameItems.length > 0 || boardItems.length > 0) && <span className="pop__rule" aria-hidden="true" />}
             <div className="pop__head" id="more-files">
-              Save and files
+              Your save and the board file
             </div>
             <button
               ref={gameItems.length || boardItems.length ? undefined : firstItemRef}

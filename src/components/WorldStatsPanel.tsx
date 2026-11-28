@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { worldIconUrl } from '../lib/places.ts';
 import { STAT_STAGES, boardStats, worldStats, type WorldStats } from '../lib/worldStats.ts';
@@ -121,6 +122,7 @@ export function WorldStatsPanel({
   order,
   onClose,
   onFindWorld,
+  tabs,
 }: {
   /** The cards the board shows. */
   nodes: readonly SimNode[];
@@ -129,6 +131,8 @@ export function WorldStatsPanel({
   order: readonly string[];
   onClose: () => void;
   onFindWorld: (world: string) => void;
+  /** Tabs over the panel: Up next beside it. */
+  tabs?: ReactNode;
 }) {
   const list = useMemo(() => worldStats(nodes, freeLots, order), [nodes, freeLots, order]);
   const all = useMemo(() => boardStats(list), [list]);
@@ -136,6 +140,7 @@ export function WorldStatsPanel({
   return (
     <BarPanel
       id="world-stats"
+      tabs={tabs}
       className="gpanel wstats"
       title="Worlds in numbers"
       description={`${plural(all.sims, 'sim', 'sims')} in ${plural(worlds, 'world', 'worlds')}, as the board shows them`}

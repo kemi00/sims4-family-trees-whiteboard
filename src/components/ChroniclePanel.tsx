@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { PlannerCalendar } from '../types/whiteboard.ts';
 import { useMemo, useState } from 'react';
 import { entryAbout, storyDays, type ChronicleEntry } from '../lib/chronicle.ts';
@@ -6,6 +7,8 @@ import { BarPanel } from './BarPanel.tsx';
 import { RecapStory } from './RecapPanel.tsx';
 
 type Props = {
+  /** Tabs over the panel (PanelTabs): the other pages of its place. */
+  tabs?: ReactNode;
   entries: readonly ChronicleEntry[];
   /** Whose story: "the Goth dynasty", "Bella Goth"; the whole board's with null ids. */
   label: string;
@@ -41,7 +44,7 @@ const inWords = (list: readonly string[]) =>
  * one sim's, household's or dynasty's story, it shows theirs, with a
  * switch to everyone's and back. A search narrows it to names.
  */
-export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onClose, calendar = null }: Props) {
+export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onClose, calendar = null, tabs }: Props) {
   const [query, setQuery] = useState('');
   /** Opened on someone's story: theirs, or everyone's, a switch either way. */
   const [everyone, setEveryone] = useState(false);
@@ -58,6 +61,7 @@ export function ChroniclePanel({ entries, label, ids, dynasties, onGoToSim, onCl
   return (
     <BarPanel
       id="story"
+      tabs={tabs}
       className="chron"
       title={theirs ? `The story of ${label}` : 'Story'}
       description={theirs ? 'What happened to them, save by save.' : 'What happened in your game, save by save'}

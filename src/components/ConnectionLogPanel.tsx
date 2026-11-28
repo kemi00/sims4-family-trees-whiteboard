@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ArrowsDownUp, Check, NotePencil, Trash, Warning } from '../icons.ts';
 import { useMemo, useState } from 'react';
 import { BarPanel } from './BarPanel.tsx';
@@ -15,6 +16,8 @@ import {
 import { NoteEditor } from './NoteEditor.tsx';
 
 type Props = {
+  /** Tabs over the panel (PanelTabs): the Story beside it. */
+  tabs?: ReactNode;
   entries: ConnectionLogEntry[];
   selectedSimId: string | null;
   isSelLink: (ids: string[]) => boolean;
@@ -91,6 +94,7 @@ function LogParts({
 }
 
 export function ConnectionLogPanel({
+  tabs,
   entries,
   selectedSimId,
   isSelLink,
@@ -269,6 +273,7 @@ export function ConnectionLogPanel({
   return (
     <BarPanel
       id="connection-log"
+      tabs={tabs}
       className="gpanel connection-log"
       title="Log"
       description="Links and household moves you added, and what your saves showed"

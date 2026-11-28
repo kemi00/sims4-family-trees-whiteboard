@@ -2464,3 +2464,45 @@ button.wstats__name:hover{color:#1b6cd6;text-decoration:underline;text-underline
 .editor label.edtitles__field select{width:100%}
 @media (pointer:coarse){.editor .edtitles__kinds button{min-height:40px}}
 .lgk__custom{flex:none;padding:1px 6px;border:1px dashed var(--line);border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+
+/* ── Navigation v2: Share's menu, and a phone's tabs ─────────────────────── */
+.pop .pop__back{display:flex;align-items:center;gap:6px;width:100%;min-height:33px;padding:0 6px;font-weight:700}
+.pop__find{display:block;width:calc(100% - 8px);margin:4px;padding:7px 9px;border:1px solid var(--line);border-radius:var(--r-control);font:inherit;font-size:13px;box-sizing:border-box}
+.pop__scroll{max-height:min(320px, 50dvh);overflow-y:auto;overscroll-behavior:contain}
+.pop__scroll button{font-weight:500}
+.tabbar{display:none}
+@media (max-width:640px){
+ :root{--tabbar-h:calc(58px + env(safe-area-inset-bottom,0px))}
+ .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;align-items:stretch;height:var(--tabbar-h);padding:0 4px env(safe-area-inset-bottom,0px);background:var(--chrome);border-top:1px solid var(--line);box-shadow:0 -4px 16px #1b2b3a14;box-sizing:border-box}
+ .tabbar__tab{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;padding:6px 2px;border:0;background:none;color:var(--ink-2);font:inherit;font-size:11px;font-weight:600;cursor:pointer}
+ .tabbar__tab[aria-pressed=true]{color:var(--accent-strong)}
+ .tabbar__icon{position:relative;display:inline-flex}
+ .tabbar__icon svg{width:22px;height:22px}
+ .tabbar__count{position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-sizing:border-box}
+ .tabbar__label{white-space:nowrap;overflow:hidden;text-overflow:clip;max-width:100%}
+ /* A popover from the tabs rises above them, the window's width. */
+ .pop.pop--fromtabs{position:fixed!important;left:8px!important;right:8px!important;top:auto!important;bottom:calc(var(--tabbar-h) + 8px)!important;width:auto!important;max-height:calc(100dvh - var(--tabbar-h) - 80px);overflow-y:auto;overscroll-behavior:contain;z-index:30}
+ /* The board's corner sits above the tabs. */
+ .boardpanel{bottom:calc(var(--tabbar-h) + 10px)}
+ #hint.hint:not(.hint--sheet){bottom:calc(var(--tabbar-h) + var(--panel-h, 200px) + 18px)}
+}
+/* Tabs over a panel: Play, Story. */
+.ptabs{display:flex;gap:2px;padding:8px 12px 0;border-bottom:1px solid var(--line)}
+.barpanel .ptabs__tab{flex:1 1 0;min-height:34px;padding:6px 8px;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.barpanel .ptabs__tab[aria-selected=true]{color:var(--accent-strong);border-bottom-color:var(--accent-strong);cursor:default}
+.barpanel .ptabs__tab:hover:not([aria-selected=true]){background:var(--hover)}
+.barpanel[data-detent] .ptabs{padding-top:20px}
+/* The bar never overflows (measured 2026-11-28 with Edit, Find and show, Your game, Share and the gear,
+   1,525px in full): the wordmark goes first, then Search's word, then the Find group's words, then the
+   game group's; under 1,060 every secondary tool is an icon, as before. */
+@media (max-width:1560px){ .brand__name{display:none} }
+@media (max-width:1400px){ .findbtn{width:auto;gap:6px;padding:0 5px 0 8px} .findbtn__text{display:none} }
+@media (max-width:1250px){
+ .tool--find .tool__label{display:none}
+ .tool.tool--find{width:32px;padding:0;gap:0}
+ .tool.tool--find .tool__count{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px}
+}
+@media (max-width:1120px){
+ .tool--game .tool__label{display:none}
+ .tool.tool--game{width:32px;padding:0;gap:0}
+}

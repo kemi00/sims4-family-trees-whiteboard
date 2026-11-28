@@ -110,6 +110,7 @@ import { isOngoingCouple, isUnionEdge, nextStepLabel, nextSteps, storiesByPair, 
 import { Legend } from './Legend.tsx';
 import { keyMarks } from '../lib/keyMarks.ts';
 import { markersInUse } from '../lib/markers.ts';
+import { StoryTabs } from './PanelTabs.tsx';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
@@ -2629,6 +2630,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       )}
       {wb.chronicleView && (
         <ChroniclePanel
+          tabs={<StoryTabs wb={wb} />}
           // A new story opened starts on whose it is.
           key={`${wb.chronicleView.label}|${wb.chronicleView.ids?.length ?? 'all'}`}
           entries={wb.chronicle}

@@ -25,6 +25,7 @@ import { storyLines } from './lib/chronicle.ts';
 import { PosterDialog } from './components/PosterDialog.tsx';
 import { weekTodo } from './lib/weekTodo.ts';
 import { WorldStatsPanel } from './components/WorldStatsPanel.tsx';
+import { PlayTabs, StoryTabs } from './components/PanelTabs.tsx';
 import { TreeExportDialog } from './components/TreeExportDialog.tsx';
 import { GazetteDialog } from './components/GazetteDialog.tsx';
 import { worldRects } from './lib/boardExport.ts';
@@ -265,6 +266,39 @@ export default function App() {
               : null
       : null;
   const shownList = listOf ?? autoList;
+
+  /** A household's poster, with its photos and story: from its tag's plan, or Share. */
+  const householdPosterOf = (gid: string) => {
+    const group = wb.groups.find((g) => g.gid === gid);
+    if (!group) return;
+    const poster = withPosterPhotos(
+      withPosterYears(householdPoster({ group, nodes: wb.nodes, links: wb.shownEdges, lot: wb.homes.get(gid)?.name, saveGame: wb.saveGame }), wb.cardYears),
+      (id) => (wb.byid[id] ? wb.photoOf(wb.byid[id]!) : undefined),
+    );
+    const story = storyLines(wb.chronicle, new Set(wb.nodes.filter((n) => n.gid === gid).map((n) => n.id)), wb.calendar);
+    setPoster(story.length ? { ...poster, story } : poster);
+  };
+  /** A dynasty's poster, with its crest, photos and story: from the Dynasties panel, or Share. */
+  const dynastyPosterOf = (key: string) => {
+    const name = wb.dynastyNames.get(key) ?? { name: dynastyIndex(wb.nodes).find((r) => r.key === key)?.name ?? '' };
+    const poster = withPosterPhotos(
+      withPosterYears(
+        dynastyPoster({
+          key,
+          standing: wb.saveGame?.dynastyStanding?.[key],
+          label: dynastyLabelText(name),
+          nodes: wb.nodes,
+          edges: wb.edges,
+          links: wb.shownEdges,
+          saveGame: wb.saveGame,
+        }),
+        wb.cardYears,
+      ),
+      (id) => (wb.byid[id] ? wb.photoOf(wb.byid[id]!) : undefined),
+    );
+    const story = storyLines(wb.chronicle, new Set(wb.nodes.filter((n) => dynastyKey(n) === key).map((n) => n.id)), wb.calendar);
+    setPoster(story.length ? { ...poster, story } : poster);
+  };
   useEffect(() => {
     if (!wb.agesOpen) setHiFromList(false);
   }, [wb.agesOpen]);
@@ -478,6 +512,8 @@ export default function App() {
             setFindOpen(true);
           }}
           findKeys={findKeys}
+          onPoster={householdPosterOf}
+          onDynastyPoster={dynastyPosterOf}
           onCloseOthers={() => {
             // One popup at a time: More opening closes the bar's panels, the editor and every menu.
             closeBar();
@@ -500,16 +536,7 @@ export default function App() {
             trackAction(`/action/list/${of}`);
             setListOf(of);
           }}
-          onPoster={(gid) => {
-            const group = wb.groups.find((g) => g.gid === gid);
-            if (!group) return;
-            const poster = withPosterPhotos(
-              withPosterYears(householdPoster({ group, nodes: wb.nodes, links: wb.shownEdges, lot: wb.homes.get(gid)?.name, saveGame: wb.saveGame }), wb.cardYears),
-              (id) => (wb.byid[id] ? wb.photoOf(wb.byid[id]!) : undefined),
-            );
-            const story = storyLines(wb.chronicle, new Set(wb.nodes.filter((n) => n.gid === gid).map((n) => n.id)), wb.calendar);
-            setPoster(story.length ? { ...poster, story } : poster);
-          }}
+          onPoster={householdPosterOf}
         />
         {poster && <PosterDialog model={poster} onClose={() => setPoster(null)} />}
         {barOpen.filters && (
@@ -551,6 +578,7 @@ export default function App() {
         )}
         {wb.upNextOpen && (
             <UpNextPanel
+              tabs={<PlayTabs wb={wb} />}
               rows={upNext({
                 items: wb.planItems,
                 nodes: wb.nodes,
@@ -651,6 +679,7 @@ export default function App() {
         )}
         {wb.worldStatsOpen && (
           <WorldStatsPanel
+            tabs={<PlayTabs wb={wb} />}
             nodes={wb.visibleNodes}
             freeLots={wb.freeLots}
             order={wb.worlds.map((w) => w.name)}
@@ -703,19 +732,7 @@ export default function App() {
                     },
                   }
                 : {})}
-              onPoster={(key) => {
-                const poster = withPosterPhotos(withPosterYears(dynastyPoster({
-                  key,
-                  standing: wb.saveGame?.dynastyStanding?.[key],
-                  label: dynastyLabelText(wb.dynastyNames.get(key) ?? { name: dynastyRows.find((r) => r.key === key)?.name ?? '' }),
-                  nodes: wb.nodes,
-                  edges: wb.edges,
-                  links: wb.shownEdges,
-                  saveGame: wb.saveGame,
-                }), wb.cardYears), (id) => (wb.byid[id] ? wb.photoOf(wb.byid[id]!) : undefined));
-                const story = storyLines(wb.chronicle, new Set(wb.nodes.filter((n) => dynastyKey(n) === key).map((n) => n.id)), wb.calendar);
-                setPoster(story.length ? { ...poster, story } : poster);
-              }}
+              onPoster={dynastyPosterOf}
               game={wb.saveGame}
               onLight={(key) => {
                 wb.setDynastyFocus(key);
@@ -726,6 +743,7 @@ export default function App() {
         )}
         {wb.logOpen && (
             <ConnectionLogPanel
+              tabs={<StoryTabs wb={wb} />}
               entries={wb.connectionLog}
               offPlanEdgeIds={wb.offPlan.edges}
               onNote={wb.setNote}

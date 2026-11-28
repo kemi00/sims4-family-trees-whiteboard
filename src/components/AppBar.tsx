@@ -1,8 +1,10 @@
 import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import {
-  CalendarBlank,
+  CaretLeft,
   Check,
-  ChartBar,
+  GearSix,
+  Highlighter,
+  ShareNetwork,
   Newspaper,
   FileImage,
   Coins,
@@ -21,10 +23,8 @@ import {
   MagnifyingGlass,
   ArrowClockwise,
   ArrowCounterClockwise,
-  Scroll,
   TreeStructure,
   UserPlus,
-  UsersFour,
   type Icon,
 } from '../icons.ts';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
@@ -38,11 +38,11 @@ import { recentErrors } from '../lib/errorLog.ts';
 import { draftKB, problemReport, reportEnv } from '../lib/problemReport.ts';
 import { filterCounts } from '../lib/filterCount.ts';
 import type { LinksView } from '../lib/family.ts';
-import { saveChipText } from '../lib/lifeClock.ts';
 import { REDO_KEYS, UNDO_KEYS, redoTip, undoTip } from '../lib/undoNames.ts';
 import { StepTip } from './StepText.tsx';
 import { BUILD } from '../lib/build.ts';
-import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
+import { OverflowMenu } from './OverflowMenu.tsx';
+import { dynastyIndex } from '../lib/dynastyMenu.ts';
 import { SavePopupBody, type SaveView } from './SaveStatus.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
@@ -83,7 +83,7 @@ function layersNote(wb: WhiteboardApi): string {
  * Where a popover was opened from: its own button in the bar, or, on a
  * phone, the More menu that the button is folded into.
  */
-type OpenedFrom = 'bar' | 'more';
+type OpenedFrom = 'bar' | 'more' | 'tabs';
 
 /** Close a popover on a press outside `ref` (or `popRef`, if set) or on Escape. */
 function useDismiss(
@@ -123,6 +123,9 @@ type Props = {
   findKeys: string;
   /** Close every other panel and menu: one popup at a time, so More never opens over another. */
   onCloseOthers?: () => void;
+  /** Share: a household's poster, a dynasty's poster. */
+  onPoster?: (gid: string) => void;
+  onDynastyPoster?: (key: string) => void;
 };
 
 export function AppBar({
@@ -133,6 +136,8 @@ export function AppBar({
   onOpenFind,
   findKeys,
   onCloseOthers,
+  onPoster,
+  onDynastyPoster,
 }: Props) {
   const compact = useCompactChrome();
   /** The More menu's wrapper: what popovers opened from it hang off. */
@@ -160,9 +165,14 @@ export function AppBar({
   const closeSave = useCallback(() => setSaveOpen(false), []);
   useDismiss(saveOpen, moreRef, closeSave, savePopRef);
 
-  const filterCount = filterCounts(wb).total;
-  /** Filters' panel, on any of its views (Games, Play and Highlight open inside it). */
-  const filtersOpen = wb.filtersOpen || wb.gamesOpen || wb.playOpen || wb.agesOpen;
+  const counts = filterCounts(wb);
+  const filtersOpenAny = wb.filtersOpen || wb.gamesOpen || wb.playOpen || wb.agesOpen;
+  /** Filters' panel, on any of its views (Games and Play open inside it); Highlight is a panel of its own. */
+  const filtersPanelOpen = wb.filtersOpen || wb.gamesOpen || wb.playOpen;
+  /** Play: Up next and Worlds in numbers, two tabs of one panel. */
+  const playOpen = wb.upNextOpen || wb.worldStatsOpen;
+  /** Story: the story, the Log and the Gazette, tabs of one place. */
+  const storyGroupOpen = !!wb.chronicleView || wb.logOpen;
 
   const svgSize = () => {
     const r = svgRef.current?.getBoundingClientRect();
@@ -192,27 +202,44 @@ export function AppBar({
   const toggleFilters = () => {
     closeLinks();
     closeSave();
-    if (filtersOpen) {
+    if (filtersPanelOpen) {
       wb.setFiltersOpen(false);
       wb.setGamesOpen(false);
       wb.setPlayOpen(false);
-      wb.setAgesOpen(false);
       return;
     }
     trackAction('/action/filters');
+    wb.setAgesOpen(false);
     wb.setFiltersOpen(true);
   };
-  const openUpNext = () => {
-    const next = !wb.upNextOpen;
-    if (next) trackAction('/action/up-next');
-    wb.setUpNextOpen(next);
+  const toggleHighlight = () => {
+    closeLinks();
+    closeSave();
+    if (wb.agesOpen) {
+      wb.setAgesOpen(false);
+      return;
+    }
+    trackAction('/action/highlight');
+    wb.setFiltersOpen(false);
+    wb.setGamesOpen(false);
+    wb.setPlayOpen(false);
+    wb.setAgesOpen(true);
   };
-  /** The Chronicle, the whole board's story: from here as well as the save chip. */
-  const storyOpen = !!wb.chronicleView;
+  const openUpNext = () => {
+    if (playOpen) {
+      wb.setUpNextOpen(false);
+      wb.setWorldStatsOpen(false);
+      return;
+    }
+    trackAction('/action/up-next');
+    wb.setUpNextOpen(true);
+  };
+  /** The Chronicle, the whole board's story (and the Log beside it): from here as well as the save chip. */
   const openStory = () => {
     // Open on one household's or dynasty's story, the button shows the whole one.
-    if (wb.chronicleView?.ids === null) {
+    if (wb.chronicleView?.ids === null || wb.logOpen) {
       wb.setChronicleView(null);
+      wb.setLogOpen(false);
       return;
     }
     trackAction('/action/story');
@@ -223,16 +250,6 @@ export function AppBar({
     const next = !wb.dynastiesOpen;
     if (next) trackAction('/action/dynasties');
     wb.setDynastiesOpen(next);
-  };
-  const openWorldStats = () => {
-    const next = !wb.worldStatsOpen;
-    if (next) trackAction('/action/world-stats');
-    wb.setWorldStatsOpen(next);
-  };
-  const openLog = () => {
-    const next = !wb.logOpen;
-    if (next) trackAction('/action/log');
-    wb.setLogOpen(next);
   };
   const organise = () => {
     const { w, h } = svgSize();
@@ -252,89 +269,153 @@ export function AppBar({
     closeSave();
   }, [panelOpen, closeLinks, closeSave]);
 
-  // More holds everything the bar has no room for, in named groups by what
-  // you came to do. A phone folds the bar's own buttons into those groups,
-  // each with the words its tooltip or pressed state gives on a wider screen.
-  const gazette: FoldedItem = {
-    id: 'gazette',
-    icon: Newspaper,
-    label: 'The Gazette',
-    note: wb.chronicle.length ? 'Your story as a newspaper, an edition a save' : 'Upload a newer save for the first edition',
-    onSelect: () => {
-      trackAction('/action/gazette');
-      wb.setGazetteOpen(true);
-    },
+  // Share: the whole tree, a household's or a dynasty's poster, the Gazette.
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareView, setShareView] = useState<'main' | 'household' | 'dynasty'>('main');
+  const [shareQuery, setShareQuery] = useState('');
+  const shareRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLElement>(null);
+  /** Phones: the Show tab's menu (Highlight, Filters, View), over the tabs. */
+  const [showOpen, setShowOpen] = useState(false);
+  const { popRef: sharePopRef, style: sharePopStyle } = useDropdownPosition(shareOpen && !compact, shareRef);
+  const closeShare = useCallback(() => {
+    setShareOpen(false);
+    setShareView('main');
+    setShareQuery('');
+  }, []);
+  useDismiss(shareOpen, compact ? tabsRef : shareRef, closeShare, sharePopRef);
+  const showPopRef = useRef<HTMLDivElement>(null);
+  const closeShow = useCallback(() => setShowOpen(false), []);
+  useDismiss(showOpen, tabsRef, closeShow, showPopRef);
+  /** Every popup alone: opening one closes the panels and the bar's other menus. */
+  const openAlone = () => {
+    onCloseOthers?.();
+    closeLinks();
+    closeSave();
+    closeShare();
+    closeShow();
   };
-  const worldNumbers: FoldedItem = {
-    id: 'worlds',
-    icon: ChartBar,
-    label: 'Worlds in numbers',
-    note: 'Sims by life stage and gender, households, free lots',
-    onSelect: openWorldStats,
+  const toggleShare = () => {
+    if (shareOpen) return closeShare();
+    openAlone();
+    trackAction('/action/share');
+    setShareOpen(true);
   };
-  const play: FoldedItem[] = compact
-    ? [
-        { id: 'upnext', icon: ListNumbers, label: 'Up next', note: 'A suggested order to play your households in', onSelect: openUpNext },
-        { id: 'story', icon: BookOpenText, label: 'Story', note: 'What happened in your game, save by save', onSelect: openStory },
-        gazette,
-        // Dynasties come with Royalty & Legacy: no entry without it.
-        ...(wb.hasGame(ROYALTY_AND_LEGACY)
-          ? [{ id: 'dynasties', icon: Crown, label: 'Dynasties', note: 'Every dynasty, with its members', onSelect: openDynasties }]
-          : []),
-        worldNumbers,
-      ]
-    : [gazette, worldNumbers];
-  const board: FoldedItem[] = [
-    // Redo has no room on a phone's bar: it waits here while there is something to put back.
-    ...(compact && wb.redoWhat ? [{ id: 'redo', icon: ArrowClockwise, label: 'Redo', note: wb.redoWhat, onSelect: wb.redo }] : []),
-    ...(compact ? [{ id: 'layers', icon: Eye, label: 'View', note: layersNote(wb), onSelect: () => toggleLinks('more') }] : []),
-    { id: 'organise', icon: MagicWand, label: 'Organise', note: 'Arrange the board like the starter one', onSelect: organise },
-    {
-      id: 'log',
-      icon: Scroll,
-      label: wb.connectionLog.length ? `Log (${wb.connectionLog.length})` : 'Log',
-      note: 'Links and household moves you added',
-      onSelect: openLog,
-    },
-  ];
-  const files: FoldedItem[] = [
-    // A phone's board corner has no room for Your save: it is here.
-    ...(compact && wb.saveGame
-      ? [
-          {
-            id: 'save',
-            icon: CalendarBlank,
-            label: 'Your save',
-            note: saveChipText(wb.saveGame),
-            onSelect: () => {
-              closeLinks();
-              setSaveOpen((o) => {
-                if (!o) trackAction('/action/save-details');
-                return !o;
-              });
+  const households = [...new Map(wb.nodes.filter((n) => n.hh && !n.gid.endsWith('||unhoused') && wb.nodeVis(n)).map((n) => [n.gid, n])).values()]
+    .map((n) => ({ gid: n.gid, label: `${n.hh} · ${n.world}` }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const dynasties = shareOpen && shareView === 'dynasty' ? dynastyIndex(wb.nodes) : [];
+  const q = shareQuery.trim().toLowerCase();
+  const shareMenu = (
+    <div
+      ref={sharePopRef}
+      className={compact ? 'pop pop--folded pop--share pop--fromtabs' : 'pop pop--folded pop--share'}
+      role="menu"
+      aria-label="Share"
+      style={compact ? undefined : sharePopStyle}
+    >
+      {shareView === 'main' ? (
+        <>
+          <div className="pop__head" aria-hidden="true">
+            Share
+          </div>
+          {[
+            {
+              id: 'tree',
+              icon: FileImage,
+              label: 'The whole tree',
+              note: 'A picture, a PDF with a page a world, or an SVG',
+              run: () => {
+                closeShare();
+                trackAction('/action/tree-export');
+                wb.setTreeExportOpen(true);
+              },
             },
-          },
-        ]
-      : []),
-    {
-      id: 'tree-export',
-      icon: FileImage,
-      label: 'The whole tree as a file',
-      note: 'A picture or PDF of the board, with a link to the site',
-      onSelect: () => {
-        trackAction('/action/tree-export');
-        wb.setTreeExportOpen(true);
-      },
-    },
-  ];
+            { id: 'household', icon: House, label: 'A household’s poster', note: 'Its sims and their story, as a picture', run: () => setShareView('household') },
+            ...(wb.hasGame(ROYALTY_AND_LEGACY)
+              ? [{ id: 'dynasty', icon: Crown, label: 'A dynasty’s poster', note: 'Its line and generations, with its crest', run: () => setShareView('dynasty') }]
+              : []),
+            {
+              id: 'gazette',
+              icon: Newspaper,
+              label: 'The Gazette',
+              note: wb.chronicle.length ? 'An edition as a picture' : 'Upload a newer save for the first edition',
+              run: () => {
+                closeShare();
+                trackAction('/action/gazette');
+                wb.setGazetteOpen(true);
+              },
+            },
+          ].map(({ id, icon: Glyph, label, note, run }) => (
+            <button key={id} type="button" role="menuitem" className="pop__noted" onClick={run}>
+              <Glyph aria-hidden="true" />
+              <span className="pop__text">
+                {label}
+                <small>{note}</small>
+              </span>
+            </button>
+          ))}
+        </>
+      ) : (
+        <>
+          <button type="button" className="pop__back" onClick={() => setShareView('main')}>
+            <CaretLeft aria-hidden="true" />
+            {shareView === 'household' ? 'A household’s poster' : 'A dynasty’s poster'}
+          </button>
+          <input
+            className="pop__find"
+            type="search"
+            autoFocus
+            value={shareQuery}
+            placeholder={shareView === 'household' ? 'Find a household' : 'Find a dynasty'}
+            aria-label={shareView === 'household' ? 'Find a household' : 'Find a dynasty'}
+            onChange={(e) => setShareQuery(e.target.value)}
+          />
+          <div className="pop__scroll">
+            {shareView === 'household'
+              ? households
+                  .filter((h) => !q || h.label.toLowerCase().includes(q))
+                  .map((h) => (
+                    <button
+                      key={h.gid}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        closeShare();
+                        onPoster?.(h.gid);
+                      }}
+                    >
+                      {h.label}
+                    </button>
+                  ))
+              : dynasties
+                  .filter((d) => !q || d.name.toLowerCase().includes(q))
+                  .map((d) => (
+                    <button
+                      key={d.key}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        closeShare();
+                        onDynastyPoster?.(d.key);
+                      }}
+                    >
+                      {`The ${d.name} dynasty`}
+                    </button>
+                  ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 
   const linksMenu = (
     <div
       ref={linksPopRef}
-      className="pop pop--links"
+      className={linksFrom === 'tabs' ? 'pop pop--links pop--fromtabs' : 'pop pop--links'}
       role="menu"
       aria-label="View: family links and boxes"
-      style={linksPopStyle}
+      style={linksFrom === 'tabs' ? undefined : linksPopStyle}
     >
       <div className="pop__head" aria-hidden="true">
         Show family links
@@ -361,23 +442,6 @@ export function AppBar({
           </button>
         );
       })}
-      <span className="pop__rule" aria-hidden="true" />
-      <button
-        type="button"
-        role="menuitemcheckbox"
-        aria-checked={wb.familyFocus}
-        onClick={() => {
-          wb.setFamilyFocus(!wb.familyFocus);
-          closeLinks();
-        }}
-      >
-        <UsersFour aria-hidden="true" />
-        <span className="pop__text">
-          Highlight a sim's family
-          <small>Select any sim; pick close or extended family on the banner</small>
-        </span>
-        {wb.familyFocus && <Check className="pop__check" aria-hidden="true" />}
-      </button>
       {/* What the board draws, in one place: links, then boxes. */}
       <span className="pop__rule" aria-hidden="true" />
       <div className="pop__head" aria-hidden="true">
@@ -444,10 +508,95 @@ export function AppBar({
         </span>
         {wb.show.silhouettes && wb.show.photos && <Check className="pop__check" aria-hidden="true" />}
       </button>
+      {/* Arranging the board is how it looks too. */}
+      <span className="pop__rule" aria-hidden="true" />
+      <button
+        type="button"
+        role="menuitem"
+        className="pop__noted"
+        onClick={() => {
+          closeLinks();
+          organise();
+        }}
+      >
+        <MagicWand aria-hidden="true" />
+        <span className="pop__text">
+          Organise
+          <small>Arrange the board like the starter one</small>
+        </span>
+      </button>
+    </div>
+  );
+
+  /** The phone's tabs: Show (Highlight, Filters, View), Play, Dynasties, Story, Share. */
+  const tab = (id: string, Glyph: Icon, label: string, on: boolean, onClick: () => void, count = 0) => (
+    <button key={id} type="button" className="tabbar__tab" aria-pressed={on} onClick={onClick}>
+      <span className="tabbar__icon">
+        <Glyph aria-hidden="true" weight={on ? 'fill' : 'regular'} />
+        {count > 0 && <span className="tabbar__count">{count}</span>}
+      </span>
+      <span className="tabbar__label">{label}</span>
+    </button>
+  );
+  const showMenu = (
+    <div ref={showPopRef} className="pop pop--folded pop--fromtabs" role="menu" aria-label="Show">
+      <div className="pop__head" aria-hidden="true">
+        Find and show
+      </div>
+      {[
+        { id: 'hl', icon: Highlighter, label: 'Highlight', note: counts.lit ? `${counts.lit} on` : 'A family, a bloodline, life stages, singles', run: toggleHighlight },
+        { id: 'fl', icon: Funnel, label: 'Filters', note: counts.hiding ? `${counts.hiding} on` : 'Hide secrets or deceased, games, play', run: toggleFilters },
+        { id: 'vw', icon: Eye, label: 'View', note: layersNote(wb), run: () => toggleLinks('tabs') },
+      ].map(({ id, icon: Glyph, label, note, run }) => (
+        <button
+          key={id}
+          type="button"
+          role="menuitem"
+          className="pop__noted"
+          onClick={() => {
+            closeShow();
+            if (id !== 'vw') onCloseOthers?.();
+            run();
+          }}
+        >
+          <Glyph aria-hidden="true" />
+          <span className="pop__text">
+            {label}
+            <small>{note}</small>
+          </span>
+        </button>
+      ))}
     </div>
   );
 
   return (
+    <>
+    {compact && (
+      <nav className="tabbar" ref={tabsRef} aria-label="Your game">
+        {tab('show', Highlighter, 'Show', showOpen || filtersOpenAny || linksFrom === 'tabs', () => {
+          if (showOpen) return closeShow();
+          openAlone();
+          setShowOpen(true);
+        }, counts.total)}
+        {tab('play', ListNumbers, 'Play', playOpen, () => {
+          if (!playOpen) openAlone();
+          openUpNext();
+        })}
+        {wb.hasGame(ROYALTY_AND_LEGACY) &&
+          tab('dyn', Crown, 'Dynasties', wb.dynastiesOpen, () => {
+            if (!wb.dynastiesOpen) openAlone();
+            openDynasties();
+          })}
+        {tab('story', BookOpenText, 'Story', storyGroupOpen, () => {
+          if (!storyGroupOpen) openAlone();
+          openStory();
+        })}
+        {tab('share', ShareNetwork, 'Share', shareOpen, toggleShare)}
+        {showOpen && showMenu}
+        {shareOpen && shareMenu}
+        {linksFrom === 'tabs' && linksMenu}
+      </nav>
+    )}
     <header className="appbar">
       <span className="brand">
         <svg className="plumbob" viewBox="0 0 20 30" aria-hidden="true">
@@ -460,17 +609,7 @@ export function AppBar({
 
       <span className="appbar__rule" aria-hidden="true" />
 
-      <ToolButton
-        icon={LinkSimple}
-        label={
-          wb.connectMode ? 'Connect is on: click to turn it off' : 'Link two sims'
-        }
-        tone="primary"
-        pressed={wb.connectMode}
-        onClick={() => wb.setConnectMode(!wb.connectMode)}
-      >
-        Connect
-      </ToolButton>
+      {/* Edit the tree. */}
       <ToolButton
         id="btnAdd"
         ref={addBtnRef}
@@ -483,6 +622,15 @@ export function AppBar({
         Add sim
       </ToolButton>
       <ToolButton
+        icon={LinkSimple}
+        label={wb.connectMode ? 'Connect is on: click to turn it off' : 'Link two sims'}
+        tone="primary"
+        pressed={wb.connectMode}
+        onClick={() => wb.setConnectMode(!wb.connectMode)}
+      >
+        Connect
+      </ToolButton>
+      <ToolButton
         icon={ArrowCounterClockwise}
         label={undoTip(wb.undoWhat)}
         tip={<StepTip verb="Undo" keys={UNDO_KEYS} what={wb.undoWhat} none="Nothing to undo" />}
@@ -493,83 +641,13 @@ export function AppBar({
         icon={ArrowClockwise}
         label={redoTip(wb.redoWhat)}
         tip={<StepTip verb="Redo" keys={REDO_KEYS} what={wb.redoWhat} none="Nothing to redo" />}
-        className="appbar__wide-only"
+        className={compact && wb.redoWhat ? undefined : 'appbar__wide-only'}
         disabled={!wb.redoWhat}
         onClick={wb.redo}
       />
       <span className="appbar__rule" aria-hidden="true" />
 
-      <div className="overflow appbar__wide-only" ref={linksRef}>
-        <ToolButton
-          icon={Eye}
-          label={`View: ${layersNote(wb)}`}
-          menu
-          pressed={wb.linksView !== 'all' || wb.familyFocus || !wb.show.groups || !wb.show.worlds}
-          expanded={linksFrom === 'bar'}
-          className="tool--secondary"
-          onClick={() => toggleLinks('bar')}
-        >
-          View
-        </ToolButton>
-        {linksFrom === 'bar' && linksMenu}
-      </div>
-
-      <span className="appbar__spacer" />
-
-      {/* On a phone both fold into More, with the board tools. */}
-      {!compact && (
-        <ToolButton
-          id="btnUpNext"
-          icon={ListNumbers}
-          label="Up next: a suggested order to play your households in"
-          pressed={wb.upNextOpen}
-          expanded={wb.upNextOpen}
-          className="tool--secondary"
-          onClick={openUpNext}
-        >
-          Up next
-        </ToolButton>
-      )}
-      {!compact && wb.hasGame(ROYALTY_AND_LEGACY) && (
-        <ToolButton
-          id="btnDynasties"
-          icon={Crown}
-          label="Dynasties: every dynasty, planned or in your game, with its members"
-          pressed={wb.dynastiesOpen}
-          expanded={wb.dynastiesOpen}
-          className="tool--secondary"
-          onClick={openDynasties}
-        >
-          Dynasties
-        </ToolButton>
-      )}
-      {!compact && (
-        <ToolButton
-          id="btnStory"
-          icon={BookOpenText}
-          label="Story: what happened in your game, save by save"
-          pressed={storyOpen}
-          expanded={storyOpen}
-          className="tool--secondary"
-          onClick={openStory}
-        >
-          Story
-        </ToolButton>
-      )}
-
-      <ToolButton
-        id="btnFilters"
-        icon={Funnel}
-        label={filterCount ? `Filters: ${filterCount} on` : 'Filters: bloodline, hide secrets or deceased, games, play, highlight'}
-        pressed={filterCount > 0 || filtersOpen}
-        count={filterCount}
-        expanded={filtersOpen}
-        onClick={toggleFilters}
-      >
-        Filters
-      </ToolButton>
-
-      {/* Search opens over the board, Spotlight-style, and never changes the bar's size. */}
+      {/* Find and show: search, highlight, filters, view. */}
       <button
         type="button"
         className="findbtn"
@@ -581,6 +659,98 @@ export function AppBar({
         <span className="findbtn__text">Search</span>
         <kbd className="findbtn__keys">{findKeys}</kbd>
       </button>
+      {!compact && (
+        <>
+          <ToolButton
+            id="btnHighlight"
+            icon={Highlighter}
+            label={counts.lit ? `Highlight: ${counts.lit} on` : 'Highlight: a family, a bloodline, life stages, singles'}
+            pressed={counts.lit > 0 || wb.agesOpen}
+            count={counts.lit}
+            expanded={wb.agesOpen}
+            className="tool--secondary tool--find"
+            onClick={toggleHighlight}
+          >
+            Highlight
+          </ToolButton>
+          <ToolButton
+            id="btnFilters"
+            icon={Funnel}
+            label={counts.hiding ? `Filters: ${counts.hiding} on` : 'Filters: hide secrets or deceased, games, play'}
+            pressed={counts.hiding > 0 || filtersPanelOpen}
+            count={counts.hiding}
+            expanded={filtersPanelOpen}
+            className="tool--secondary tool--find"
+            onClick={toggleFilters}
+          >
+            Filters
+          </ToolButton>
+          <div className="overflow" ref={linksRef}>
+            <ToolButton
+              icon={Eye}
+              label={`View: ${layersNote(wb)}`}
+              menu
+              pressed={wb.linksView !== 'all' || !wb.show.groups || !wb.show.worlds}
+              expanded={linksFrom === 'bar'}
+              className="tool--secondary tool--find"
+              onClick={() => toggleLinks('bar')}
+            >
+              View
+            </ToolButton>
+            {linksFrom === 'bar' && linksMenu}
+          </div>
+        </>
+      )}
+
+      <span className="appbar__spacer" />
+
+      {/* Your game: play, dynasties, story. On a phone, the tabs at the bottom. */}
+      {!compact && (
+        <>
+          <ToolButton
+            id="btnUpNext"
+            icon={ListNumbers}
+            label="Play: who to play next, this week, and your worlds in numbers"
+            pressed={playOpen}
+            expanded={playOpen}
+            className="tool--secondary tool--game"
+            onClick={openUpNext}
+          >
+            Play
+          </ToolButton>
+          {wb.hasGame(ROYALTY_AND_LEGACY) && (
+            <ToolButton
+              id="btnDynasties"
+              icon={Crown}
+              label="Dynasties: every dynasty, planned or in your game, with its members"
+              pressed={wb.dynastiesOpen}
+              expanded={wb.dynastiesOpen}
+              className="tool--secondary tool--game"
+              onClick={openDynasties}
+            >
+              Dynasties
+            </ToolButton>
+          )}
+          <ToolButton
+            id="btnStory"
+            icon={BookOpenText}
+            label="Story: what happened in your game, save by save; the Gazette and the Log"
+            pressed={storyGroupOpen}
+            expanded={storyGroupOpen}
+            className="tool--secondary tool--game"
+            onClick={openStory}
+          >
+            Story
+          </ToolButton>
+          <span className="appbar__rule" aria-hidden="true" />
+          <div className="overflow" ref={shareRef}>
+            <ToolButton icon={ShareNetwork} label="Share: the whole tree, a poster, the Gazette" menu expanded={shareOpen} className="tool--secondary tool--game" onClick={toggleShare}>
+              Share
+            </ToolButton>
+            {shareOpen && shareMenu}
+          </div>
+        </>
+      )}
 
       <OverflowMenu
         onSave={wb.saveJson}
@@ -596,20 +766,9 @@ export function AppBar({
         }}
         onDevUpdates={onDevUpdates}
         devUpdatesUnseen={devUpdatesUnseen}
-        label={
-          compact
-            ? `More: your game, the board, save and files, help`
-            : 'More: the Gazette, worlds in numbers, organise, log, save and files, help'
-        }
-        play={play}
-        board={board}
-        files={files}
-        tiles={compact}
-        onOpenMenu={() => {
-          closeLinks();
-          closeSave();
-          onCloseOthers?.();
-        }}
+        label="Settings: your save, the board file, help"
+        icon={GearSix}
+        onOpenMenu={openAlone}
         wrapRef={moreRef}
         calendar={wb.planner.calendar ?? null}
         onCalendar={wb.setCalendar}
@@ -689,5 +848,6 @@ export function AppBar({
       )}
 
     </header>
+    </>
   );
 }

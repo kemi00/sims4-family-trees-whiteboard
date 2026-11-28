@@ -27,6 +27,8 @@ type Props = {
   end?: { label: string; onEnd: () => void };
   /** Opens folded to its bar, where a highlight's banner would be. */
   startFolded?: boolean;
+  /** Tabs over the panel, for places with more than one page (Play, Story): PanelTabs. */
+  tabs?: ReactNode;
   children: ReactNode;
 };
 
@@ -40,7 +42,7 @@ type Props = {
  * screen: half, full, or folded to a bar showing its head (useSheet); a
  * press on the board folds it there instead of closing it.
  */
-export function BarPanel({ title, description, actions, back, tools, className, id, onClose, end, startFolded, children }: Props) {
+export function BarPanel({ title, description, actions, back, tools, className, id, onClose, end, startFolded, tabs, children }: Props) {
   const titleId = useId();
   const ref = useRef<HTMLElement>(null);
   const sheetMode = usePanelSheet();
@@ -80,6 +82,7 @@ export function BarPanel({ title, description, actions, back, tools, className, 
       onPointerDown={(e) => e.stopPropagation()}
     >
       <SheetGrabber sheet={sheet} what={title} />
+      {tabs}
       <header className="barpanel__head">
         {back && (
           <IconButton label={back.label} onClick={back.onBack}>

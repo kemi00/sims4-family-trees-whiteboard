@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useId } from 'react';
 import { BarPanel } from './BarPanel.tsx';
 import { calendarYear, yearLabel } from '../lib/calendar.ts';
@@ -99,6 +100,8 @@ function WeekSection({ week, groups }: { week: WeekProps; groups: Group[] }) {
 }
 
 type Props = {
+  /** Tabs over the panel (PanelTabs): the other pages of its place. */
+  tabs?: ReactNode;
   rows: UpNextRow[];
   groups: Group[];
   nameOf: (id: string) => string;
@@ -125,12 +128,13 @@ function metaText(r: UpNextRow): string {
  * handed a plan than pick by mood: only households where playing does
  * something, each with why it is where it is. It never changes the board.
  */
-export function UpNextPanel({ rows, groups, nameOf, hhOf, onClose, onOpen, onSkip, week }: Props) {
+export function UpNextPanel({ rows, groups, nameOf, hhOf, onClose, onOpen, onSkip, week, tabs }: Props) {
   // The suggestion is the first household you can play now.
   const first = rows.findIndex((r) => !r.skipped && !r.notInGame);
   return (
     <BarPanel
       id="upnext"
+      tabs={tabs}
       className="gpanel upnext"
       title="Up next"
       description="A suggested order to play your households in"
