@@ -15,14 +15,14 @@ const none = {
 
 describe('the Filters count', () => {
   it('is zero with nothing on', () => {
-    assert.deepEqual(filterCounts(none), { games: 0, play: 0, highlight: 0, total: 0 });
+    assert.deepEqual(filterCounts(none), { games: 0, play: 0, highlight: 0, hiding: 0, lit: 0, total: 0 });
   });
 
   it('counts a hidden game only when it hides someone', () => {
     assert.equal(filterCounts({ ...none, hiddenPacks: new Set(['Get Famous', 'Horse Ranch']) }).games, 1);
   });
 
-  it('adds every filter that is on', () => {
+  it('adds every filter that is on, Filters hiding and Highlight lighting up apart', () => {
     const c = filterCounts({
       ...none,
       hiddenPlay: new Set(['NPC']),
@@ -30,7 +30,8 @@ describe('the Filters count', () => {
       hiSingle: true,
       bloodlineId: 'bella',
       hideSecrets: true,
+      familyFocus: true,
     });
-    assert.deepEqual(c, { games: 0, play: 1, highlight: 3, total: 6 });
+    assert.deepEqual(c, { games: 0, play: 1, highlight: 3, hiding: 2, lit: 5, total: 7 });
   });
 });
