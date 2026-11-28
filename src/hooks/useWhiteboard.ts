@@ -14,6 +14,7 @@ import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
 import { cardYearsText, deathWindows, pairKey, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
 import type { WeekScope } from '../lib/weekTodo.ts';
+import { triesToBirths } from '../lib/babyTries.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
@@ -3946,6 +3947,13 @@ export function useWhiteboard() {
         if (told && !recapHasNews(told)) {
           // Nothing happened since: the story has no new page.
         } else setChronicle((prev) => withEntry(goesOn ? prev : [], entry));
+      }
+      // A baby the upload found born: the couple's tries for one led to it.
+      if (told?.born.length) {
+        setPlanner((p) => {
+          const tries = triesToBirths(p.tries, told.born);
+          return tries === p.tries ? p : { ...p, tries };
+        });
       }
       if (told && recapHasNews(told)) {
         setRecap(told);

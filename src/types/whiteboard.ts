@@ -213,6 +213,11 @@ export type StageLengths = Partial<Record<string, number>>;
 export interface BabyTry {
   day: number;
   pregnant: boolean;
+  /**
+   * The baby (twins: babies) these tries led to, by card id: set when an
+   * upload shows the couple's baby born. Tries without it are for their next.
+   */
+  for?: string[];
 }
 
 /** What the player keeps on the board beyond the family tree itself. */

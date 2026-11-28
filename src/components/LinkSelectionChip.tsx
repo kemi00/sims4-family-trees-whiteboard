@@ -42,7 +42,10 @@ type Props = {
 };
 
 type TriesProps = {
+  /** The tries for their next baby: those not yet led to one. */
   list: BabyTry[];
+  /** Their last baby the tries led to, and how many it took: "Liam came after 4 tries". */
+  lastBaby?: string;
   /** The baby on the way by the last save: when it is due, as the game's clock says it. */
   expecting?: string;
   /** Today in the game, by the last save: the day a new try starts at. */
@@ -102,8 +105,9 @@ function TriesForABaby({ tries }: { tries: TriesProps }) {
         <div id={id} className="link-sel-chip__trylog" onPointerDown={(e) => e.stopPropagation()}>
           <p className="link-sel-chip__trynote">
             Your save shows a pregnancy only once it has begun. Log each try for a baby as you play them, to count the
-            tries and see when a baby would be due.
+            tries and see when a baby would be due. Once the baby is born, they keep the count.
           </p>
+          {tries.lastBaby && <p className="link-sel-chip__trylast">{tries.lastBaby}</p>}
           {n > 0 && (
             <ol>
               {tries.list.map((t, i) => (
@@ -140,12 +144,15 @@ function TriesForABaby({ tries }: { tries: TriesProps }) {
                 onChange={(e) => setDay(e.target.value)}
               />
             </label>
-            <button type="button" className="link-sel-chip__act link-sel-chip__act--log" disabled={typed === null} onClick={() => add(true)}>
-              It worked
-            </button>
-            <button type="button" className="link-sel-chip__act link-sel-chip__act--log" disabled={typed === null} onClick={() => add(false)}>
-              It didn’t
-            </button>
+            {/* One choice, two answers: they stay side by side, whatever the width. */}
+            <span className="link-sel-chip__tryresult" role="group" aria-label={`How try ${n + 1} went`}>
+              <button type="button" className="link-sel-chip__act link-sel-chip__act--log" disabled={typed === null} onClick={() => add(true)}>
+                It worked
+              </button>
+              <button type="button" className="link-sel-chip__act link-sel-chip__act--log" disabled={typed === null} onClick={() => add(false)}>
+                It didn’t
+              </button>
+            </span>
           </div>
         </div>
       )}

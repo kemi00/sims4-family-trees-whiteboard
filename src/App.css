@@ -2287,3 +2287,10 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .upnext .upweek__hh + .upweek__hh{padding-top:6px;border-top:1px solid var(--rule)}
 .upnext .upweek__hhname{display:flex;align-items:center;gap:6px;margin:0 0 1px;font-size:12px;font-weight:700;color:var(--ink)}
 .upnext .upweek__hh ul{padding-left:2px}
+/* The try's day on one line, its two answers as one joined pair under it. */
+.link-sel-chip__tryform{flex-direction:column;align-items:flex-start;gap:6px}
+.link-sel-chip__tryresult{display:inline-flex;flex-wrap:nowrap}
+.link-sel-chip__tryresult .link-sel-chip__act--log{border-radius:0}
+.link-sel-chip__tryresult .link-sel-chip__act--log:first-child{border-radius:6px 0 0 6px}
+.link-sel-chip__tryresult .link-sel-chip__act--log:last-child{border-left:0;border-radius:0 6px 6px 0}
+.link-sel-chip__trylast{margin:0 0 6px;font-size:11px;font-weight:600;color:var(--ink-2)}

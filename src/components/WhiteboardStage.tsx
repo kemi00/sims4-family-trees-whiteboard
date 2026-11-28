@@ -77,6 +77,7 @@ import { HighlightBanner } from './HighlightBanner.tsx';
 import type { ListOf } from './HighlightList.tsx';
 import { SaveStatus } from './SaveStatus.tsx';
 import { dayWithYear, pairKey } from '../lib/calendar.ts';
+import { lastBabyOf, triesFor } from '../lib/babyTries.ts';
 import { clockText, dayOf } from '../lib/lifeClock.ts';
 import { SelectionBar } from './SelectionBar.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
@@ -2280,14 +2281,20 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             ? (() => {
                 const { a, b } = chipUnion;
                 const carrier = [wb.byid[a], wb.byid[b]].find((x) => x?.pregnancy && (!x.pregnancy.with || x.pregnancy.with === (x.id === a ? b : a)));
+                const all = wb.planner.tries?.[pairKey(a, b)] ?? [];
+                // The tries for their next baby, and where each sits in the whole log.
+                const open = all.flatMap((t, i) => (t.for?.length ? [] : [i]));
+                const last = lastBabyOf(all);
+                const lastNames = last?.ids.map((id) => wb.byid[id]?.first).filter(Boolean).join(' and ');
                 return {
                   tries: {
-                    list: wb.planner.tries?.[pairKey(a, b)] ?? [],
+                    list: open.map((i) => all[i]!),
+                    ...(last && lastNames ? { lastBaby: `${lastNames} came after ${last.count} ${last.count === 1 ? 'try' : 'tries'}.` } : {}),
                     ...(carrier?.pregnancy ? { expecting: clockText(carrier.pregnancy.dueAt) } : {}),
                     today: wb.saveGame ? dayOf(wb.saveGame.clock) : 1,
                     dayText: (day: number) => dayWithYear(day, wb.calendar),
                     onAdd: (t: BabyTry) => wb.addBabyTry(a, b, t),
-                    onRemove: (i: number) => wb.removeBabyTry(a, b, i),
+                    onRemove: (i: number) => wb.removeBabyTry(a, b, open[i]!),
                   },
                 };
               })()
@@ -2884,6 +2891,10 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           calendar={wb.calendar}
           unions={wb.unions}
           {...(wb.deaths.get(editNode.id) ? { death: wb.deaths.get(editNode.id)! } : {})}
+          {...(() => {
+            const t = triesFor(wb.planner.tries, editNode.id);
+            return t ? { triedFor: t } : {};
+          })()}
           {...(() => {
             const f = wb.funds.get(editNode.gid);
             return f ? { funds: `${money(f.amount)} in funds${f.shares.length > 1 ? ', together' : ''}` } : {};

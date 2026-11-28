@@ -1,3 +1,4 @@
+import { openTries } from './babyTries.ts';
 import { calendarYear, yearLabel } from './calendar.ts';
 import type { ChronicleEntry } from './chronicle.ts';
 import { DECEASED_STATE, hasDied } from './constants.ts';
@@ -154,7 +155,7 @@ export function weekTodo(opts: {
   for (const [pair, tries] of Object.entries(opts.tries ?? {})) {
     const [a, b] = pair.split('|').map((id) => byId.get(id));
     if (!a || !b || expecting.has(a.id) || expecting.has(b.id)) continue;
-    const took = [...tries].reverse().find((t) => t.pregnant);
+    const took = [...openTries(tries)].reverse().find((t) => t.pregnant);
     if (!took) continue;
     const day = took.day + DAYS_TO_DUE;
     if (day < today || day > last) continue;

@@ -365,6 +365,8 @@ type Props = {
   calendar?: PlannerCalendar | null;
   /** When their death came to light, by the story's uploads (deathWindows). */
   death?: DeathWindow;
+  /** The tries for a baby that led to them, as their parents' log has it (babyTries.ts). */
+  triedFor?: { count: number; first: number; last: number };
   /** When couples the story saw begin got together (unionDays), by pairKey: "m. 1299" on their links. */
   unions?: ReadonlyMap<string, { by: number; type: 'marriage' | 'romance' }>;
 };
@@ -408,6 +410,7 @@ export function SimEditor({
   funds,
   calendar = null,
   death,
+  triedFor,
   unions,
 }: Props) {
   const compact = useCompactChrome();
@@ -1500,6 +1503,13 @@ export function SimEditor({
           {ageLine && (
             <p id="edLifeSum" className="edwhen">
               {ageLine}
+            </p>
+          )}
+          {triedFor && (
+            <p className="edwhen">
+              {`Born after ${triedFor.count} ${triedFor.count === 1 ? 'try' : 'tries'} for a baby, ${
+                triedFor.first === triedFor.last ? dayWithYear(triedFor.first, calendar ?? null) : `${dayWithYear(triedFor.first, calendar ?? null)} to ${dayWithYear(triedFor.last, calendar ?? null)}`
+              }.`}
             </p>
           )}
           {deathLine && (
