@@ -1111,3 +1111,40 @@ describe('a death in the save', () => {
     assert.equal(sim.deathTrait, '101685');
   });
 });
+
+describe('a pregnancy in the save', () => {
+  // Jesminder Bheeda in Slot 10: by Arun, 53 points along (due Day 4, 5:59 AM).
+  const fixed64s = (...ids: bigint[]) => {
+    const out = new Uint8Array(ids.length * 8);
+    ids.forEach((id, i) => new DataView(out.buffer).setBigUint64(i * 8, id, true));
+    return out;
+  };
+  const fixed64Field = (field: number, id: bigint) => concat(encodeKey(field, 1), fixed64s(id));
+  const jesminder = (record: Uint8Array, progress?: number) =>
+    simBlob({
+      id: 81, householdId: 12, first: 'Jesminder', last: 'Bheeda', household: 'Bheeda', gender: 8192, age: 16,
+      extra: [
+        encodeBytes(30, concat(
+          ...(progress === undefined ? [] : [encodeBytes(2, encodeBytes(1, concat(encodeVarintField(1, 16640), encodeFloat(2, progress))))]),
+          encodeBytes(8, record),
+        )),
+      ],
+    });
+
+  it('reads how far along she is and the other parent', () => {
+    const record = concat(encodeBytes(2, fixed64s(81n, 82n)), encodeVarintField(4, 2460765811), encodeVarintField(5, 0), fixed64Field(6, 82n));
+    const sim = parseSaveGame(saveOf(encodeBytes(6, jesminder(record, 53.0333)))).sims[0]!;
+    assert.equal(sim.pregnancy!.with, '82');
+    assert.ok(Math.abs(sim.pregnancy!.progress - 53.0333) < 1e-3);
+  });
+
+  it('has none for a sim not expecting, whose record keeps no parents', () => {
+    const record = concat(encodeVarintField(4, 12345), encodeVarintField(5, 0));
+    assert.equal(parseSaveGame(saveOf(encodeBytes(6, jesminder(record, 0)))).sims[0]!.pregnancy, undefined);
+  });
+
+  it('takes the other parent from the pair when the record has no field of its own, and 0 with no commodity', () => {
+    const record = concat(encodeBytes(2, fixed64s(81n, 82n)), encodeVarintField(5, 0));
+    assert.deepEqual(parseSaveGame(saveOf(encodeBytes(6, jesminder(record)))).sims[0]!.pregnancy, { progress: 0, with: '82' });
+  });
+});

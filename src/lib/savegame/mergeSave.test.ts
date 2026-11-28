@@ -2283,6 +2283,15 @@ describe('sims who died in the game', () => {
     assert.equal(card(r, 'Bella').gid, 'Willow Creek||Goth');
   });
 
+  it('puts a pregnancy on the card with its due date and the other parent, and takes it off once born', () => {
+    const expecting = inSave('Bella', { pregnancy: { progress: 53, with: 'Mortimer' } });
+    const r = merge([goth('Bella'), goth('Mortimer', { gender: 'Male' })], [expecting, inSave('Mortimer', { gender: 'Male' })]);
+    // 47 points to go, a point a sim hour, from the save's clock.
+    assert.deepEqual(card(r, 'Bella').pregnancy, { dueAt: 2_700_000 + 47 * 90_000, with: 'Mortimer' });
+    const born = merge(r.nodes, [inSave('Bella'), inSave('Mortimer', { gender: 'Male' })]);
+    assert.equal(card(born, 'Bella').pregnancy, undefined);
+  });
+
   it('brings back to life one the game resurrected', () => {
     const first = merge([goth('Bella'), goth('Mortimer', { gender: 'Male' })], [roaming('Bella'), inSave('Mortimer', { gender: 'Male' })]);
     const back = merge(first.nodes, [inSave('Bella'), inSave('Mortimer', { gender: 'Male' })]);
