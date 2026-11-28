@@ -2368,3 +2368,21 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .editor .edlinks__declare:hover{background:var(--hover)}
 .editor .edlinks__declare[aria-pressed=true]{border-color:var(--accent);background:var(--chip);color:var(--accent-strong)}
 @media (pointer:coarse){.editor .edlinks__declare{min-height:32px}}
+
+/* Editor: the sim's photo, kept in this browser. */
+.editor .edphoto{margin-top:10px}
+.editor .edphoto__row{display:flex;align-items:center;gap:10px}
+.editor .edphoto__frame{flex:none;width:56px;height:56px;border-radius:50%;overflow:hidden;background:#e6ebf1;border:1px solid var(--line)}
+.editor .edphoto__frame img{display:block;width:100%;height:100%;object-fit:cover}
+.editor .edphoto__body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.editor .edphoto__actions{display:flex;flex-wrap:wrap;gap:6px}
+.editor .edphoto__ask{display:flex;flex-direction:column;gap:4px}
+.editor .edphoto__q{font-size:12px;font-weight:600;color:var(--ink)}
+.editor button.edphoto__add{padding:6px 12px;border:1px solid var(--chip-line);border-radius:6px;background:var(--chip);color:var(--accent-strong);font-size:12px;font-weight:600}
+.editor button.edphoto__add:hover:not(:disabled){background:var(--hover)}
+.editor button.edphoto__add:disabled{opacity:.6;cursor:progress}
+.editor button.edphoto__keep{padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink-2);font-size:12px;font-weight:600}
+.editor button.edphoto__keep:hover{background:var(--hover)}
+.editor button.edphoto__remove{padding:6px 12px;border:1px solid var(--danger);border-radius:6px;background:var(--danger);color:#fff;font-size:12px;font-weight:600}
+.editor button.edphoto__remove:hover{filter:brightness(.95)}
+@media (pointer:coarse){.editor button.edphoto__add,.editor button.edphoto__keep,.editor button.edphoto__remove{min-height:40px}}

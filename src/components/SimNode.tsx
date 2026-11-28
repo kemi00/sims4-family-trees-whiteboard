@@ -46,6 +46,8 @@ type Props = {
   babyPlus?: boolean;
   /** The board's markers (PlannerData.markers): the card shows those it carries before the name. */
   markerDefs?: readonly SimMarker[];
+  /** Their photo's URL, or a silhouette in its place (an infant to teen, with Silhouettes on). */
+  photo?: string;
   /**
    * A ♥ on each side of the card, where a couple's line meets it: it plans
    * a partner (married, romance, secret lovers, divorced). Shown on hover
@@ -120,6 +122,39 @@ function stageLines(stage: string, n: Pick<SimNode, 'gender' | 'species'>, years
   ];
 }
 
+/** Where a card's text starts when it has a photo: right of the 44px circle. */
+const TEXT_BESIDE_PHOTO = 64;
+/** The photo circle: its centre and radius on the card. */
+const PHOTO_C = { x: 36, y: 50, r: 22 } as const;
+/** Head and shoulders, for a silhouette in the photo circle (0 to 44 across). */
+const SILHOUETTE =
+  'M22 9a8.5 8.5 0 1 1 0 17a8.5 8.5 0 1 1 0-17Zm-15 35c1.5-9 7.5-14 15-14s13.5 5 15 14Z';
+
+/** A card's photo, or the silhouette drawn in its place: a circle at the card's left. */
+function CardPhoto({ id, photo }: { id: string; photo: string }) {
+  const clip = `photo-${id.replace(/[^\w-]/g, '_')}`;
+  const { x, y, r } = PHOTO_C;
+  return (
+    <g aria-hidden="true" style={{ pointerEvents: 'none' }}>
+      <clipPath id={clip}>
+        <circle cx={x} cy={y} r={r} />
+      </clipPath>
+      {photo === 'silhouette' ? (
+        <>
+          <circle cx={x} cy={y} r={r} fill="#e6ebf1" />
+          {/* The clip is in the card's space: on the group, not inside the path's own transform. */}
+          <g clipPath={`url(#${clip})`}>
+            <path d={SILHOUETTE} transform={`translate(${x - r},${y - r})`} fill="#9aa6b4" />
+          </g>
+        </>
+      ) : (
+        <image href={photo} x={x - r} y={y - r} width={r * 2} height={r * 2} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clip})`} />
+      )}
+      <circle cx={x} cy={y} r={r} fill="none" stroke="#d5dbe3" strokeWidth={1.2} />
+    </g>
+  );
+}
+
 export const SimNodeView = memo(function SimNodeView({
   node: n,
   selected,
@@ -144,6 +179,7 @@ export const SimNodeView = memo(function SimNodeView({
   celebrate = false,
   years,
   markerDefs,
+  photo,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -180,7 +216,9 @@ export const SimNodeView = memo(function SimNodeView({
   // The name stops short of the corner badges; a long one (a crown and
   // "Anne-Shirley Cuthbert") is set a little smaller rather than run under them.
   const corner = fromSave && (hasBadge || added) ? 48 : hasBadge || added || fromSave ? 27 : 10;
-  const room = (n.w || CARD_MIN_W) - 16 - corner;
+  // A photo sits at the card's left, the text beside it.
+  const tx = photo ? TEXT_BESIDE_PHOTO : 16;
+  const room = (n.w || CARD_MIN_W) - tx - corner;
   const wide = labels ? textWidth(name, 13, 700) : 0;
   const nameSize = wide > room ? Math.max(10, Math.floor((13 * room) / wide * 2) / 2) : 13;
   /** "Scott dynasty", or "Scott dynasty (Travis’s line)" for one of two Scotts. */
@@ -283,8 +321,9 @@ export const SimNodeView = memo(function SimNodeView({
       />
       {labels && (
         <>
+          {photo && <CardPhoto id={n.id} photo={photo} />}
           <text
-            x={16}
+            x={tx}
             y={32}
             fontSize={nameSize}
             fontWeight={700}
@@ -301,8 +340,8 @@ export const SimNodeView = memo(function SimNodeView({
             {role && <tspan fillOpacity={rolePlanned ? 0.4 : undefined}>{role.mark} </tspan>}
             {shownName}
           </text>
-          <text x={16} y={52} fontSize={10.5} fill="#5b6472">
-            {fitParts(stageLines(stage, n, years || tries || undefined), (n.w || CARD_MIN_W) - 16 - 10).map((p, i) =>
+          <text x={tx} y={52} fontSize={10.5} fill="#5b6472">
+            {fitParts(stageLines(stage, n, years || tries || undefined), (n.w || CARD_MIN_W) - tx - 10).map((p, i) =>
               p.dyn ? (
                 <tspan key={i} fill="#3b4757" fontWeight={600}>
                   {p.text}
@@ -313,8 +352,8 @@ export const SimNodeView = memo(function SimNodeView({
             )}
           </text>
           {lastLines.length > 0 && (
-            <text x={16} y={72} fontSize={10.5} fill="#697380" data-tip={lastTitle || undefined}>
-              {fitParts(lastLines, (n.w || CARD_MIN_W) - 16 - 30).map((p, i) =>
+            <text x={tx} y={72} fontSize={10.5} fill="#697380" data-tip={lastTitle || undefined}>
+              {fitParts(lastLines, (n.w || CARD_MIN_W) - tx - 30).map((p, i) =>
                 p.risk ? (
                   <tspan key={i} fill="#b45309" fontWeight={600}>
                     {p.text}

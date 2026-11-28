@@ -2109,6 +2109,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 key={n.id}
                 node={wb.past ? pastNode(n, wb.past) : n}
                 markerDefs={wb.markers}
+                {...(wb.photoOf(n) ? { photo: wb.photoOf(n)! } : {})}
                 celebrate={wb.celebrateIds.has(n.id)}
                 selected={
                   (wb.sel?.type === 'node' && wb.sel.id === n.id) ||
@@ -2836,6 +2837,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           markerDefs={wb.markers}
           onSetMarkers={wb.setMarkers}
           onDeclareParent={wb.setDeclaredParent}
+          {...(wb.photoUrls.get(editNode.id) ? { photoUrl: wb.photoUrls.get(editNode.id)! } : {})}
+          onPhoto={(file) => wb.setPhoto(editNode.id, file)}
+          onRemovePhoto={() => wb.removePhoto(editNode.id)}
           onSave={({ genRoot, ...patch }) => {
             wb.pushUndo(`Edit ${named(cardName(editNode))}`);
             wb.updateNode(editNode.id, patch);

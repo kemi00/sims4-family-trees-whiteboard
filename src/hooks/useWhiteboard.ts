@@ -14,6 +14,7 @@ import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
 import { cardYearsText, deathWindows, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
 import { boardMarkers } from '../lib/markers.ts';
+import { cardPhoto, deletePhoto, loadPhotos, photoFromFile, savePhoto } from '../lib/photos.ts';
 import type { WeekScope } from '../lib/weekTodo.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
@@ -335,6 +336,26 @@ const LINKS_STATUS: Record<LinksView, string> = {
   none: 'Family links: hidden — cards stay, relationship lines hide',
 };
 
+/** Where this browser remembers the photo settings (ShowToggles.photos, silhouettes). */
+const PHOTO_VIEW_KEY = 'board-photo-view';
+
+function readPhotoView(): Pick<ShowToggles, 'photos' | 'silhouettes'> {
+  try {
+    const v = JSON.parse(localStorage.getItem(PHOTO_VIEW_KEY) ?? '{}') as Partial<ShowToggles>;
+    return { photos: v.photos !== false, silhouettes: v.silhouettes === true };
+  } catch {
+    return { photos: true, silhouettes: false };
+  }
+}
+
+function writePhotoView(v: Pick<ShowToggles, 'photos' | 'silhouettes'>): void {
+  try {
+    localStorage.setItem(PHOTO_VIEW_KEY, JSON.stringify({ photos: v.photos, silhouettes: v.silhouettes }));
+  } catch {
+    // Private mode: forgotten when the page closes.
+  }
+}
+
 const LAYER_STATUS: Record<keyof ShowToggles, { on: string; off: string }> = {
   groups: {
     on: 'Household boxes on — dashed boxes around each house',
@@ -347,6 +368,14 @@ const LAYER_STATUS: Record<keyof ShowToggles, { on: string; off: string }> = {
   funds: {
     on: 'Household funds on: each household’s money beside its tag, from your save',
     off: 'Household funds off: the money still shows in each household’s plan',
+  },
+  photos: {
+    on: 'Photos on: each sim’s photo on their card. Add one in the sim’s editor',
+    off: 'Photos off: cards show names only, and the photos stay in this browser',
+  },
+  silhouettes: {
+    on: 'Infants to teens show a silhouette in place of their photo, until they’re young adults',
+    off: 'Infants to teens show their photo',
   },
 };
 
@@ -469,11 +498,47 @@ export function useWhiteboard() {
   const [hiddenPlay, setHiddenPlay] = useState<Set<string>>(
     () => new Set(boot.hiddenPlay || []),
   );
-  const [show, setShow] = useState<ShowToggles>({
+  const [show, setShow] = useState<ShowToggles>(() => ({
     groups: true,
     worlds: true,
     funds: true,
-  });
+    ...readPhotoView(),
+  }));
+  /** Sim photos, from this browser's IndexedDB: card id → a picture URL. */
+  const [photoUrls, setPhotoUrls] = useState<ReadonlyMap<string, string>>(() => new Map());
+  useEffect(() => {
+    let live = true;
+    void loadPhotos().then((m) => {
+      if (live && m.size) setPhotoUrls(new Map([...m].map(([id, blob]) => [id, URL.createObjectURL(blob)])));
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  /** A photo for a sim, from a picture file: cut square and made small, kept in this browser only. */
+  const setPhoto = useCallback(async (id: string, file: Blob) => {
+    const blob = await photoFromFile(file);
+    await savePhoto(id, blob);
+    setPhotoUrls((prev) => {
+      const next = new Map(prev);
+      const old = next.get(id);
+      if (old) URL.revokeObjectURL(old);
+      next.set(id, URL.createObjectURL(blob));
+      return next;
+    });
+  }, []);
+  /** What a card shows in its photo circle (cardPhoto): the same on the board and on posters. */
+  const photoOf = useCallback((n: Pick<SimNode, 'id' | 'age' | 'species'>) => cardPhoto(n, show, photoUrls), [show, photoUrls]);
+  const removePhoto = useCallback(async (id: string) => {
+    await deletePhoto(id);
+    setPhotoUrls((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      URL.revokeObjectURL(next.get(id)!);
+      next.delete(id);
+      return next;
+    });
+  }, []);
   const [linksView, setLinksViewState] = useState<LinksView>('all');
   /** Highlight the selected sim's family (familyOf), whoever is selected. */
   const [familyFocus, setFamilyFocusState] = useState(false);
@@ -1257,7 +1322,11 @@ export function useWhiteboard() {
   const toggleShow = useCallback(
     (key: keyof ShowToggles) => {
       const on = !show[key];
-      setShow((s) => ({ ...s, [key]: !s[key] }));
+      setShow((s) => {
+        const next = { ...s, [key]: !s[key] };
+        if (key === 'photos' || key === 'silhouettes') writePhotoView(next);
+        return next;
+      });
       flashStatus(on ? LAYER_STATUS[key].on : LAYER_STATUS[key].off);
     },
     [show, flashStatus],
@@ -4849,6 +4918,10 @@ export function useWhiteboard() {
     markers,
     setMarkers,
     setDeclaredParent,
+    photoUrls,
+    photoOf,
+    setPhoto,
+    removePhoto,
     calendarOpen,
     setCalendarOpen,
     addBabyTry,

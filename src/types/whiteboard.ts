@@ -761,6 +761,10 @@ export interface ShowToggles {
   worlds: boolean;
   /** Each household's funds beside its tag's buttons. */
   funds: boolean;
+  /** Sim photos on cards (photos.ts): remembered by this browser. */
+  photos: boolean;
+  /** Infants to teens drawn as a silhouette, not their photo: they change as they grow. */
+  silhouettes: boolean;
 }
 
 /** Axis-aligned obstacle rectangle for routing. */

@@ -3,6 +3,8 @@ import {
   CalendarBlank,
   Check,
   Coins,
+  ImageSquare,
+  User,
   BookOpenText,
   Crown,
   Eye,
@@ -397,6 +399,44 @@ export function AppBar({
           {wb.show[layer] && <Check className="pop__check" aria-hidden="true" />}
         </button>
       ))}
+      {/* Photos you add in a sim's editor; the silhouettes only while photos show. */}
+      <span className="pop__rule" aria-hidden="true" />
+      <div className="pop__head" aria-hidden="true">
+        Show on cards
+      </div>
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={wb.show.photos}
+        onClick={() => {
+          wb.toggleShow('photos');
+          closeLinks();
+        }}
+      >
+        <ImageSquare aria-hidden="true" />
+        <span className="pop__text">
+          Photos
+          <small>{wb.photoUrls.size ? `${wb.photoUrls.size} in this browser` : 'Add one in a sim’s editor'}</small>
+        </span>
+        {wb.show.photos && <Check className="pop__check" aria-hidden="true" />}
+      </button>
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={wb.show.silhouettes}
+        disabled={!wb.show.photos}
+        onClick={() => {
+          wb.toggleShow('silhouettes');
+          closeLinks();
+        }}
+      >
+        <User aria-hidden="true" />
+        <span className="pop__text">
+          Silhouettes until young adult
+          <small>Infants to teens, in place of their photo</small>
+        </span>
+        {wb.show.silhouettes && wb.show.photos && <Check className="pop__check" aria-hidden="true" />}
+      </button>
     </div>
   );
 

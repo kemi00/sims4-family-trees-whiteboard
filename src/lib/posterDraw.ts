@@ -122,16 +122,46 @@ function badge(ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, cx: 
 }
 
 /** Lines for a card `w` wide: its name at the size that fits, its role, then what the lines can't show. */
+/** A card's photo: a circle at its top left, the text beside it. */
+const PHOTO_D = 84;
+const PHOTO_ROOM = PHOTO_D + 16;
+
+/** Head and shoulders in a 44-wide box: the silhouette drawn in a photo's place. */
+const SILHOUETTE = new Path2D('M22 9a8.5 8.5 0 1 1 0 17a8.5 8.5 0 1 1 0-17Zm-15 35c1.5-9 7.5-14 15-14s13.5 5 15 14Z');
+
 function cardText(ctx: CanvasRenderingContext2D, c: PosterCard, w: number) {
-  const name = fit(ctx, c.name, w - 44, 2, 30, 20, 700);
+  const tw = w - 44 - (c.photo ? PHOTO_ROOM : 0);
+  const name = fit(ctx, c.name, tw, 2, 30, 20, 700);
   ctx.font = font(21, 400);
-  const role = c.role ? wrap(ctx, c.role, w - 44) : [];
+  const role = c.role ? wrap(ctx, c.role, tw) : [];
   ctx.font = font(20, 400);
-  const notes = (c.notes ?? []).flatMap((n) => wrap(ctx, n, w - 44));
+  const notes = (c.notes ?? []).flatMap((n) => wrap(ctx, n, tw));
   return { name, role, notes };
 }
 
-function drawCard(ctx: CanvasRenderingContext2D, c: PosterCard, x: number, y: number, w: number, h: number) {
+function drawPhoto(ctx: CanvasRenderingContext2D, img: HTMLImageElement | 'silhouette', x: number, y: number) {
+  const r = PHOTO_D / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x + r, y + r, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#e6ebf1';
+  ctx.fillRect(x, y, PHOTO_D, PHOTO_D);
+  if (img === 'silhouette') {
+    ctx.translate(x, y);
+    ctx.scale(PHOTO_D / 44, PHOTO_D / 44);
+    ctx.fillStyle = '#9aa6b4';
+    ctx.fill(SILHOUETTE);
+  } else ctx.drawImage(img, x, y, PHOTO_D, PHOTO_D);
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(x + r, y + r, r, 0, Math.PI * 2);
+  ctx.strokeStyle = C.line;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawCard(ctx: CanvasRenderingContext2D, c: PosterCard, x: number, y: number, w: number, h: number, photo?: HTMLImageElement | 'silhouette') {
   ctx.save();
   roundRect(ctx, x, y, w, h, 16);
   ctx.fillStyle = c.planned ? C.planSoft : c.deceased ? C.recess : C.card;
@@ -151,28 +181,30 @@ function drawCard(ctx: CanvasRenderingContext2D, c: PosterCard, x: number, y: nu
   ctx.restore();
 
   const { name, role, notes } = cardText(ctx, c, w);
+  if (photo) drawPhoto(ctx, photo, x + 26, y + 22);
+  const tx = x + 28 + (photo ? PHOTO_ROOM : 0);
   let ty = y + 24;
   ctx.textBaseline = 'top';
   ctx.fillStyle = c.deceased ? C.ink3 : C.ink;
   ctx.font = font(name.size, 700);
   for (const l of name.lines) {
-    ctx.fillText(l, x + 28, ty);
+    ctx.fillText(l, tx, ty);
     ty += name.size * 1.2;
   }
   ty += 4;
   ctx.font = font(21, 400);
   ctx.fillStyle = c.planned ? C.plan : C.ink2;
-  ctx.fillText(stageLine(c), x + 28, ty);
+  ctx.fillText(stageLine(c), tx, ty);
   ty += 28;
   ctx.fillStyle = C.ink2;
   for (const l of role) {
-    ctx.fillText(l, x + 28, ty);
+    ctx.fillText(l, tx, ty);
     ty += 26;
   }
   ctx.font = font(20, 400);
   ctx.fillStyle = C.ink3;
   for (const l of notes) {
-    ctx.fillText(l, x + 28, ty);
+    ctx.fillText(l, tx, ty);
     ty += 25;
   }
   ctx.restore();
@@ -191,7 +223,7 @@ function stageLine(c: PosterCard): string {
 /** A card's height: its text, at least CARD_H. */
 function cardHeight(ctx: CanvasRenderingContext2D, c: PosterCard, w: number): number {
   const { name, role, notes } = cardText(ctx, c, w);
-  return Math.max(CARD_H, 24 + name.lines.length * name.size * 1.2 + 4 + 28 + role.length * 26 + notes.length * 25 + 20);
+  return Math.max(CARD_H, c.photo ? PHOTO_D + 44 : 0, 24 + name.lines.length * name.size * 1.2 + 4 + 28 + role.length * 26 + notes.length * 25 + 20);
 }
 
 type Mark = PosterCouple['type'];
@@ -273,6 +305,11 @@ export async function drawPoster(model: PosterModel): Promise<Blob> {
     loadImage(crestPicture(model.crest?.emblem)),
   ]);
   const crest = !!(shieldImg || emblemImg);
+  // Each card's photo, loaded once; a silhouette needs none.
+  const photoUrls = [...new Set(model.rows.flatMap((r) => r.cards.flatMap((c) => (c.photo && c.photo !== 'silhouette' ? [c.photo] : []))))];
+  const photoImgs = new Map(await Promise.all(photoUrls.map(async (u) => [u, await loadImage(u)] as const)));
+  const photoOf = (c: PosterCard): HTMLImageElement | 'silhouette' | undefined =>
+    c.photo === 'silhouette' ? 'silhouette' : c.photo ? (photoImgs.get(c.photo) ?? undefined) : undefined;
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('No canvas');
@@ -536,7 +573,7 @@ export async function drawPoster(model: PosterModel): Promise<Blob> {
   // The sims.
   for (const r of model.rows) for (const c of r.cards) {
     const s = spot.get(c.id)!;
-    drawCard(ctx, c, s.x, s.y, cw, s.h);
+    drawCard(ctx, c, s.x, s.y, cw, s.h, photoOf(c));
   }
   // Couples' marks over the line between them.
   for (const c of model.couples) {

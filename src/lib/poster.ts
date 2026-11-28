@@ -24,6 +24,8 @@ export type PosterCard = {
   color: string;
   /** Their years on the board's calendar ("1266–1299"), when it has one: set by whoever draws the poster. */
   years?: string;
+  /** Their photo's URL, or 'silhouette' (an infant to teen, with Silhouettes on), as the board shows it. */
+  photo?: string;
   /**
    * What the poster can't draw as a line, in words: a partner not beside
    * them ("Married to Caleb Vatore"), parents not above them ("Child of
@@ -422,6 +424,21 @@ export function dynastyPoster(opts: {
  * The poster with each card's years on the board's calendar (cardYears):
  * "Elder · 1266–1299". The same poster without a calendar.
  */
+/** The poster with each card's photo as the board shows it (photoOf); the same poster when none has one. */
+export function withPosterPhotos(model: PosterModel, photoOf: (id: string) => string | undefined): PosterModel {
+  let any = false;
+  const rows = model.rows.map((r) => ({
+    ...r,
+    cards: r.cards.map((c) => {
+      const photo = photoOf(c.id);
+      if (!photo) return c;
+      any = true;
+      return { ...c, photo };
+    }),
+  }));
+  return any ? { ...model, rows } : model;
+}
+
 export function withPosterYears(model: PosterModel, years: ReadonlyMap<string, string> | null | undefined): PosterModel {
   if (!years?.size) return model;
   return {

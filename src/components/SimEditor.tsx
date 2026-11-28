@@ -80,6 +80,7 @@ import { gameDeathIconOf, gameDeathOf } from '../lib/simAbout.ts';
 import { parentsExpecting, parentsOf, triesSummary } from '../lib/babyTries.ts';
 import { BabyTries } from './BabyTries.tsx';
 import { SimMarkers } from './SimMarkers.tsx';
+import { SimPhoto } from './SimPhoto.tsx';
 import { SimTitles } from './SimTitles.tsx';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
@@ -329,6 +330,10 @@ type Props = {
     /** The board's markers they carry; undefined clears. */
     markers?: string[];
   }) => void;
+  /** Their photo, kept in this browser (photos.ts): its URL, and adding or removing one. */
+  photoUrl?: string;
+  onPhoto?: (file: File) => Promise<void>;
+  onRemovePhoto?: () => Promise<void>;
   /** Mark a parent link as the declared parent, not by blood, or not (Edge.declared). */
   onDeclareParent?: (edgeId: string, on: boolean) => void;
   /** The board's markers (SimMarkers), and a change to that list: one undo step, every card at once. */
@@ -426,6 +431,9 @@ export function SimEditor({
   markerDefs,
   onSetMarkers,
   onDeclareParent,
+  photoUrl,
+  onPhoto,
+  onRemovePhoto,
   death,
   onAddTry,
   onRemoveTry,
@@ -1712,6 +1720,9 @@ export function SimEditor({
               </>
             );
           })()}
+          {!isPet && onPhoto && onRemovePhoto && (
+            <SimPhoto url={photoUrl} name={cardName(n)} onPick={onPhoto} onRemove={onRemovePhoto} />
+          )}
           {!isPet && (
             <SimTitles
               titles={titles}
