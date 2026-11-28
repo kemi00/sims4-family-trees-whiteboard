@@ -6,6 +6,7 @@ import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch, type HighlightSets } from '../lib/utils.ts';
 import { NOT_YET_AGE, PLANNED_MOVES_IN, cardName, isPlannedSim, nameWithNick } from '../lib/plan.ts';
+import { titleText, topTitle } from '../lib/titles.ts';
 import type { SimNode } from '../types/whiteboard.ts';
 
 type Props = {
@@ -159,7 +160,10 @@ export const SimNodeView = memo(function SimNodeView({
   const match = ageMatch && bloodMatch && familyMatch;
   const dim = (highlighting || !!bloodlineIds || !!familyIds) && !match;
   const ageClass = (highlighting || !!familyIds) && match ? 'agehl' : dim ? 'agedim' : '';
-  const detail = plannedMoveIn ? PLANNED_MOVES_IN : cardDetailLine(n);
+  // Their highest title now says who they are better than "Resident" does.
+  const title = n.species ? undefined : topTitle(n);
+  const detail = plannedMoveIn ? PLANNED_MOVES_IN : title ? title.title : cardDetailLine(n);
+  const titleTip = title ? `${titleText(title)}${title.rank !== undefined ? `, rank ${title.rank}` : ''}` : '';
   // A planned baby says how many tries it has had, after its stage: "Not born yet · 2 tries".
   const tries = isPlannedSim(n) && n.tries?.length ? `${n.tries.length} ${n.tries.length === 1 ? 'try' : 'tries'}` : '';
   const h = n.h || CARD_H;
@@ -231,7 +235,7 @@ export const SimNodeView = memo(function SimNodeView({
   const lastLines: Part[][] = risk.length
     ? [...lines.filter((l) => l.some((p) => p.dyn)).map((l) => [...l, ...risk]), ...lines]
     : lines;
-  const lastTitle = [parents?.title, dynTitle].filter(Boolean).join('\n');
+  const lastTitle = [titleTip, parents?.title, dynTitle].filter(Boolean).join('\n');
 
   return (
     <g

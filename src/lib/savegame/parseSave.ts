@@ -1,4 +1,5 @@
 import deathTraitsData from '../../data/deathTraits.json' with { type: 'json' };
+import nobleTitlesData from '../../data/nobleTitles.json' with { type: 'json' };
 import { TREE_NAMES } from '../../data/treeNames.ts';
 import { homeWorld } from '../realm.ts';
 import { AGES_H, NON_BINARY } from '../constants.ts';
@@ -155,6 +156,13 @@ export type ParsedTreeRelative = {
   nameKey?: string;
   /** Their full name ("Cordelia Thebe II"), when TREE_NAMES knows the key. */
   name?: string;
+  /**
+   * Their royal title, as the tree keeps it (node field 10: 1 the title's
+   * text key, 3 the realm's, 4 the rank): "Queen" of "Ondarion", rank 10.
+   * Read 2026-11-28 from Slot 10, where eight Royalty & Legacy ancestors have
+   * one. The words come from nobleTitles.json (scripts/build-noble-titles.ts).
+   */
+  title?: { title: string; realm?: string; rank?: number };
 };
 
 /** Relationship status between two save sims; only pairs with a known status. */
@@ -303,7 +311,23 @@ const TREE_NODE = {
   name: 5,
   deathTrait: 7,
   gender: 8,
+  title: 10,
 } as const;
+
+const NOBLE_WORDS: Record<string, string> = nobleTitlesData.words;
+
+/** A tree node's royal title (field 10), in words: undefined when the game's text for it is unknown. */
+function treeTitle(rec: ProtoField[]): ParsedTreeRelative['title'] {
+  const raw = rec.find((f) => f.field === TREE_NODE.title && f.bytes)?.bytes;
+  if (!raw) return undefined;
+  const fs = decodeFields(raw);
+  const int = (n: number) => fs.find((f) => f.field === n && f.wire === 0)?.int;
+  const title = NOBLE_WORDS[idStr(int(1) ?? 0n)];
+  if (!title) return undefined;
+  const realm = NOBLE_WORDS[idStr(int(3) ?? 0n)];
+  const rank = Number(int(4) ?? 0n);
+  return { title, ...(realm ? { realm } : {}), ...(rank > 0 ? { rank } : {}) };
+}
 
 /** Family-tree node / edge types from the persistent graph. */
 const TREE = {
@@ -718,12 +742,14 @@ function parseTreeRelatives(graph: Uint8Array, simIds: ReadonlySet<string>): Par
     const key = nameRef ? decodeFields(nameRef).find((f) => f.field === 1)?.int : undefined;
     const nameKey = key ? idStr(key) : undefined;
     const name = nameKey ? TREE_NAMES[nameKey] : undefined;
+    const title = treeTitle(rec);
     out.push({
       treeId: idStr(id),
       gender: gender === undefined ? '' : mapGender(gender),
       ...(died ? { deceased: true as const, deathTrait: idStr(deathField!.int!) } : {}),
       ...(nameKey ? { nameKey } : {}),
       ...(name ? { name } : {}),
+      ...(title ? { title } : {}),
     });
   }
   return out;

@@ -118,7 +118,7 @@ export type FamilyNews =
   | { kind: 'parentFound'; parent: RecapSim; child: RecapSim; secret?: boolean };
 
 /** A sim's life changing: a new life state, or a new name. */
-export type LifeNews = { kind: 'state' | 'name' | 'renamed' | 'pronouns'; sim: RecapSim; from: string; to: string };
+export type LifeNews = { kind: 'state' | 'name' | 'renamed' | 'pronouns' | 'title'; sim: RecapSim; from: string; to: string };
 
 /** A household moving home together: to another lot, or another world. */
 export type HomeNews = { hh: string; ids: string[]; to: string; from?: string; renamedFrom?: string };
@@ -332,6 +332,12 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
   return recap;
 }
 
+/** The title the game gives a sim now (not the family tree's, nor one of your own), in words: '' for none. */
+function gameTitleNow(n: SimNode): string {
+  const t = (n.titles ?? []).find((x) => x.game && x.game !== 'tree' && x.to === undefined);
+  return t ? t.title : '';
+}
+
 /** "a vampire", "an alien": a life state in a sentence. */
 function aState(state: string): string {
   const s = state.toLowerCase();
@@ -344,6 +350,7 @@ export function lifeText(n: LifeNews): string {
   if (n.kind === 'pronouns') return `${name} now uses ${n.to}`;
   if (n.kind === 'name') return `${name} took the name ${n.to}`;
   if (n.kind === 'renamed') return `${n.from} is now called ${n.to}`;
+  if (n.kind === 'title') return n.to ? `${name} became ${n.to}` : `${name} is no longer ${n.from}`;
   if (n.from === DECEASED_STATE && n.to !== 'Ghost') return `${name} came back to life`;
   if (n.to === 'Sim') return `${name} is no longer ${aState(n.from)}`;
   return `${name} became ${aState(n.to)}`;
@@ -609,6 +616,11 @@ function tellTheRest(
     if (o.state !== n.state && n.state !== DECEASED_STATE) life.push({ kind: 'state', sim: sim(n), from: o.state, to: n.state });
     if (n.marriedSur && n.marriedSur !== o.marriedSur) life.push({ kind: 'name', sim: sim(n), from: o.marriedSur ?? o.sur, to: n.marriedSur });
     else if (`${o.first} ${o.sur}`.trim() !== `${n.first} ${n.sur}`.trim()) life.push({ kind: 'renamed', sim: sim(n), from: cardName(o), to: cardName(n) });
+    // A noble title the game gave or took: a promotion, a marriage, an inheritance.
+    const wasTitle = gameTitleNow(o);
+    const nowTitle = gameTitleNow(n);
+    // (Not when the board hadn't read titles before: the game gave those before the board knew it.)
+    if (before.saveGame?.titlesRead && wasTitle !== nowTitle && !hasDied(n.state)) life.push({ kind: 'title', sim: sim(n), from: wasTitle, to: nowTitle });
   }
   if (life.length) recap.life = life;
 

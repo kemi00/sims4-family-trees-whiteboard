@@ -94,6 +94,8 @@ export interface SimNode {
    * save, a gallery re-import): an older save still finds them by id.
    */
   pastSaveIds?: string[];
+  /** Titles they hold or held: the game's noble titles from the save, and your own (see SimTitle). */
+  titles?: SimTitle[];
   /** In the save and not on the shipped xlsx roster. */
   fromSave?: boolean;
   /**
@@ -277,6 +279,29 @@ export type Lifespan = 'Short' | 'Normal' | 'Long';
  * A sim's age as the last save import read it. Stored raw, so the editor
  * works out days and years from the save's current settings.
  */
+/**
+ * A title a sim holds or held. The save gives Royalty & Legacy's noble
+ * titles: a Noble career's (its level is the rank, 1 Knight to 10 King or
+ * Queen), one held by marriage to a noble or as a noble's child, and a family
+ * tree ancestor's (with its realm). You can give any sim titles of your own,
+ * in your words, with a rank to order them and the days they began and ended.
+ */
+export type SimTitle = {
+  /** "Grand Duchess", "High Priestess of the Moon". */
+  title: string;
+  /** What it is of: "Ondarion". */
+  realm?: string;
+  /** Higher outranks lower; the game's noble ranks are 1 to 10. */
+  rank?: number;
+  /** Game days it began and ended (abdicated, stripped, passed on). Typed years are kept as their first day. */
+  from?: number;
+  to?: number;
+  /** From the save, which keeps it current: career, marriage, birth, or the family tree. */
+  game?: 'career' | 'marriage' | 'birth' | 'tree';
+  /** For a title by marriage or birth: the card of the noble it comes from. */
+  via?: string;
+};
+
 export interface SimLife {
   /** Game tick of birth: the save's clock minus the ticks they have lived. */
   born: number;
@@ -361,6 +386,11 @@ export interface SaveGameInfo {
   lastPlayedGid?: string;
   /** The game's ids of every household played in this save (the household record's played mark). */
   playedHouseholds?: string[];
+  /**
+   * The board read noble titles at this import (SimTitle): the next upload
+   * tells a title that changed as news. Before, the board had none to compare.
+   */
+  titlesRead?: true;
   /**
    * The households played at earlier imports, newest first, without the
    * one active now: Up next suggests the one played longest ago first.

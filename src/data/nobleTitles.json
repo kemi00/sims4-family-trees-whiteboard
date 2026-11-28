@@ -1,0 +1,318 @@
+{
+ "ranks": [
+  {
+   "rank": 1,
+   "title": [
+    "Knight",
+    "Dame",
+    "Knightum"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 2,
+   "title": [
+    "Baronet",
+    "Baronetess",
+    "Baronetum"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 3,
+   "title": [
+    "Baron",
+    "Baroness",
+    "Baronum"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 4,
+   "title": [
+    "Viscount",
+    "Viscountess",
+    "Viscountum"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 5,
+   "title": [
+    "Count",
+    "Countess",
+    "Countum"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 6,
+   "title": [
+    "Margrave",
+    "Margravine",
+    "Margravum"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 7,
+   "title": [
+    "Marquess",
+    "Marchioness",
+    "Marquem"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 8,
+   "title": [
+    "Duke",
+    "Duchess",
+    "Duchum"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 9,
+   "title": [
+    "Grand Duke",
+    "Grand Duchess",
+    "Grand Duchum"
+   ],
+   "child": [
+    "Lord",
+    "Lady",
+    "Lordem"
+   ]
+  },
+  {
+   "rank": 10,
+   "title": [
+    "King",
+    "Queen",
+    "Monarch"
+   ],
+   "child": [
+    "Prince",
+    "Princess",
+    "Princem"
+   ]
+  }
+ ],
+ "words": {
+  "13324425": "Viscountess",
+  "25017978": "Lordem",
+  "58115866": "Forgotten Hollow",
+  "58150628": "Margrave",
+  "87868478": "Marquem",
+  "100036036": "Lord",
+  "140712463": "Baron",
+  "146775145": "Margravine",
+  "151581661": "StrangerVille",
+  "182852837": "Lordem",
+  "219203208": "Windenburg",
+  "252184141": "Batuu",
+  "288541905": "Grand Duchess",
+  "302571321": "San Myshuno",
+  "330073144": "Brindleton Bay",
+  "369449205": "Lady",
+  "378279182": "Viscountum",
+  "429978917": "Lady",
+  "465251421": "Glimmerbrook",
+  "478199900": "Grand Duchess",
+  "526969811": "Copperdale",
+  "527819209": "Duke",
+  "528267091": "Lord",
+  "529937492": "Del Sol Valley",
+  "544147756": "Tartosa",
+  "614598901": "King",
+  "632400555": "Britechester",
+  "632665424": "Grand Duchum",
+  "634242365": "Baronet",
+  "639532673": "Lady",
+  "661082126": "Lady",
+  "727446919": "San Myshuno",
+  "767287348": "Baronetum",
+  "804784939": "Dame",
+  "821420820": "Baron",
+  "834793326": "Princess",
+  "852769385": "Lord",
+  "864211893": "Duchess",
+  "871124440": "San Sequoia",
+  "893663268": "Chestnut Ridge",
+  "895459463": "Lordem",
+  "949263794": "Henford-on-Bagley",
+  "982138471": "Lady",
+  "1004086077": "Countess",
+  "1043491434": "Ciudad Enamorada",
+  "1052297871": "Mt. Komorebi",
+  "1112799357": "Prince",
+  "1115814570": "Baronetess",
+  "1123395163": "Moonwood Mill",
+  "1234363406": "Margravum",
+  "1279539870": "Lordem",
+  "1288882102": "Baronet",
+  "1300891721": "Prince",
+  "1348643919": "Margravine",
+  "1414920980": "StrangerVille",
+  "1418328956": "Lordem",
+  "1437827555": "Mt. Komorebi",
+  "1460832409": "Tomarang",
+  "1539476878": "Lord",
+  "1546131698": "Dame",
+  "1546694177": "Monarch",
+  "1563785418": "Viscount",
+  "1574165487": "Lady",
+  "1580276397": "Baronetess",
+  "1596335555": "Lady",
+  "1596802910": "Duke",
+  "1601416598": "Margravum",
+  "1628576546": "Evergreen Harbor",
+  "1640070132": "Countess",
+  "1661023753": "Glimmerbrook",
+  "1680155886": "Duchess",
+  "1711277105": "Evergreen Harbor",
+  "1744476382": "Lord",
+  "1803413179": "Countum",
+  "1811426856": "Lady",
+  "1846409218": "Margrave",
+  "1860313331": "Marchioness",
+  "1919379380": "Lord",
+  "1921258387": "Oasis Springs",
+  "1948333626": "Marquess",
+  "1962896040": "Lord",
+  "1968010657": "Lordem",
+  "2092419050": "Princess",
+  "2113224138": "Marquem",
+  "2138437758": "Baronum",
+  "2155717821": "Knight",
+  "2184091496": "Lordem",
+  "2188886924": "Lordem",
+  "2219245856": "Gibbi Point",
+  "2244812732": "Lordem",
+  "2289106728": "Marquess",
+  "2321173977": "Tomarang",
+  "2348738059": "Lordem",
+  "2353749706": "Duchum",
+  "2358261241": "Grand Duchum",
+  "2364403122": "Lady",
+  "2403694418": "Lordem",
+  "2447747036": "Lord",
+  "2449558469": "Gibbi Point",
+  "2451569699": "Lady",
+  "2482498576": "Lord",
+  "2529816915": "Lord",
+  "2554734735": "Baronetum",
+  "2616208776": "StrangerVille",
+  "2637015167": "San Sequoia",
+  "2637297385": "Moonwood Mill",
+  "2653196639": "Lady",
+  "2665986189": "Lordem",
+  "2685881015": "Lord",
+  "2703702240": "Lord",
+  "2705065176": "Mt. Komorebi",
+  "2750194474": "Henford-on-Bagley",
+  "2750979035": "Grand Duke",
+  "2753207167": "Baroness",
+  "2860880561": "Viscountess",
+  "2893684483": "Count",
+  "2903072024": "Viscountum",
+  "2928298725": "Willow Creek",
+  "2990019362": "Countum",
+  "3005269837": "Lady",
+  "3025893578": "Chestnut Ridge",
+  "3026220751": "Britechester",
+  "3045680443": "Innisgreen",
+  "3052290849": "Ravenwood",
+  "3069962246": "Count",
+  "3087061298": "Lordem",
+  "3108031517": "King",
+  "3113093800": "Princess",
+  "3118671250": "Viscount",
+  "3121402799": "Batuu",
+  "3148423088": "Del Sol Valley",
+  "3161159306": "Lord",
+  "3162596581": "Duke",
+  "3177216778": "Batuu",
+  "3187952395": "Lady",
+  "3236051139": "Duchess",
+  "3270218949": "Duchum",
+  "3271352527": "Princem",
+  "3287898295": "Monarch",
+  "3316396204": "Lord",
+  "3321744728": "Lord",
+  "3335311107": "Tartosa",
+  "3371722843": "Batuu",
+  "3397560628": "Lordem",
+  "3401017110": "Lord",
+  "3426963484": "Henford-on-Bagley",
+  "3435668562": "Lady",
+  "3438561421": "Forgotten Hollow",
+  "3442139115": "Newcrest",
+  "3451990434": "Batuu",
+  "3479417749": "Baronum",
+  "3497434074": "Grand Duke",
+  "3505582749": "Lord",
+  "3540876353": "Knightum",
+  "3551787086": "Brindleton Bay",
+  "3654296056": "Knight",
+  "3660070273": "Lordem",
+  "3666457721": "Magnolia Promenade",
+  "3669736032": "Baroness",
+  "3713449988": "Lady",
+  "3715767520": "Copperdale",
+  "3776445544": "Nordhaven",
+  "3780991442": "Queen",
+  "3788719733": "Batuu",
+  "3826704855": "StrangerVille",
+  "3862691020": "Lordem",
+  "3893101218": "Queen",
+  "3946684544": "Knightum",
+  "3949165324": "Ondarion",
+  "4014663700": "Lady",
+  "4039007301": "Princem",
+  "4058363760": "Lordem",
+  "4062243414": "Knight",
+  "4074817439": "Lady",
+  "4092300249": "Magnolia Promenade",
+  "4095218821": "Lord",
+  "4108691725": "Sulani",
+  "4152986084": "StrangerVille",
+  "4232498971": "Lady",
+  "4272519137": "Marchioness",
+  "4285476096": "Lordem",
+  "4288533569": "Sulani"
+ }
+}

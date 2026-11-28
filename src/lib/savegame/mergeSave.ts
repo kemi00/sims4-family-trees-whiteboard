@@ -4,7 +4,8 @@ import { advanceSuccession } from '../succession.ts';
 import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
 import { dynastyKey, rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
-import { TICKS_PER_HOUR, everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
+import { TICKS_PER_HOUR, dayOf, everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
+import { careerNobleRank, gameNobleTitle, withGameTitle, withTreeTitle } from '../titles.ts';
 import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
 import { homeLotFields, lotKey, lotsIn, saveLotCatalog, type GameLot, type LotCatalog } from '../places.ts';
 import { edgeSourceOf, joinNotes, sanitizeEdges, uKey, worldColor } from '../utils.ts';
@@ -728,6 +729,58 @@ export function followGameDynasties(before: SimNode[], after: SimNode[]): SimNod
     if (to) delete out.dynastyRef;
     return out;
   });
+}
+
+/**
+ * Every card's title from the save (see gameNobleTitle): the living from
+ * their Noble careers and their noble spouses and parents, by the links the
+ * game has (not planned ones, nor a secret parent the tree doesn't list);
+ * tree ancestors from the tree. A card the save doesn't have keeps its own.
+ */
+function applyNobleTitles(
+  nodes: SimNode[],
+  edges: readonly Edge[],
+  saveIdToBoard: ReadonlyMap<string, string>,
+  sims: readonly ParsedSaveSim[],
+  parsed: ParsedSave,
+  today: number | undefined,
+): void {
+  const career = new Map<string, number>();
+  for (const sim of sims) {
+    const id = saveIdToBoard.get(sim.saveSimId);
+    const rank = careerNobleRank(sim.about);
+    if (id && rank) career.set(id, rank);
+  }
+  const inSave = new Set(sims.flatMap((sim) => saveIdToBoard.get(sim.saveSimId) ?? []));
+  const game = edges.filter((e) => edgeSourceOf(e) !== 'planned' && !e.secret);
+  const treeTitles = new Map((parsed.relatives ?? []).flatMap((r) => (r.title ? [[r.treeId, r.title] as const] : [])));
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]!;
+    if (inSave.has(n.id) && !n.species) {
+      const spouses = game
+        .filter((e) => e.type === 'marriage' && (e.a === n.id || e.b === n.id))
+        .flatMap((e) => {
+          const other = e.a === n.id ? e.b : e.a;
+          const rank = career.get(other);
+          return rank ? [{ id: other, rank }] : [];
+        });
+      const parents = game
+        .filter((e) => e.type === 'parent' && e.b === n.id)
+        .flatMap((e) => (career.get(e.a) ? [{ id: e.a, rank: career.get(e.a)! }] : []));
+      const next = gameNobleTitle({ gender: n.gender, ...(career.get(n.id) ? { career: career.get(n.id)! } : {}), spouses, parents });
+      const titles = withGameTitle(n.titles, next, today);
+      if (JSON.stringify(titles ?? null) !== JSON.stringify(n.titles ?? null)) nodes[i] = withTitles(n, titles);
+    } else if (n.treeId && treeTitles.has(n.treeId)) {
+      const titles = withTreeTitle(n.titles, treeTitles.get(n.treeId));
+      if (JSON.stringify(titles ?? null) !== JSON.stringify(n.titles ?? null)) nodes[i] = withTitles(n, titles);
+    }
+  }
+}
+
+function withTitles(n: SimNode, titles: SimNode['titles']): SimNode {
+  if (titles) return { ...n, titles };
+  const { titles: _none, ...rest } = n;
+  return rest;
 }
 
 const STAGE_RANK = new Map<string, number>(AGES_H.map((a, i) => [a, i]));
@@ -1984,6 +2037,10 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     worldsFromParsed(parsed),
   );
 
+  // Noble titles, as the game gives them: by career, marriage or birth; and
+  // the family tree's for its ancestors. Kept current on every upload.
+  applyNobleTitles(nodes, sanitizeEdges(edges), saveIdToBoard, sims, parsed, input.game ? dayOf(parsed.game?.clock ?? 0) : undefined);
+
   // How the tree says a relative died, for the editor to name (SimNode.deathTrait).
   const treeDeaths = new Map((parsed.relatives ?? []).flatMap((r) => (r.deathTrait ? [[r.treeId, r.deathTrait] as const] : [])));
   if (treeDeaths.size) {
@@ -2090,6 +2147,7 @@ function saveGameFrom(
     ...(game.unplayedAging !== undefined ? { unplayedAging: game.unplayedAging } : {}),
     ...(active ? { activeHousehold: active } : {}),
     ...(game.playedHouseholds.length ? { playedHouseholds: [...game.playedHouseholds] } : {}),
+    titlesRead: true,
   };
   // Each household's money, and the home a move would sell.
   if (game.households) {

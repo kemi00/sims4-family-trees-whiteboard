@@ -74,11 +74,12 @@ import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelec
 import { pronounsLabel, theHousehold } from '../lib/utils.ts';
 import { heirAfterChoices, heirAfterHolder, successionLine, withSuccessionChoice, type LinePlace } from '../lib/succession.ts';
 import { simCardClass } from '../lib/simCard.ts';
-import type { BabyTry, DynastyRole, Edge, Group, PlannerCalendar, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
+import type { BabyTry, DynastyRole, Edge, Group, PlannerCalendar, SaveGameInfo, SimNode, SimTitle, World } from '../types/whiteboard.ts';
 import { bornDayOf, calendarYear, dayWithYear, pairKey, parseYear, simYears, yearLabel, type DeathWindow } from '../lib/calendar.ts';
 import { gameDeathIconOf, gameDeathOf } from '../lib/simAbout.ts';
 import { parentsExpecting, parentsOf, triesSummary } from '../lib/babyTries.ts';
 import { BabyTries } from './BabyTries.tsx';
+import { SimTitles } from './SimTitles.tsx';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
   const rest = items
@@ -322,6 +323,8 @@ type Props = {
     deathCause?: string;
     yearBorn?: number;
     yearDied?: number;
+    /** Their titles, the game's and your own (SimTitles); undefined clears. */
+    titles?: SimTitle[];
   }) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   /** Move this sim's whole household to another world (moveHouseholdToWorld). */
@@ -467,6 +470,7 @@ export function SimEditor({
   const [oplay, setOplay] = useState(n.oplay || 'Resident');
   const [nick, setNick] = useState(n.nick ?? '');
   const [bio, setBio] = useState(n.bio ?? '');
+  const [titles, setTitles] = useState<SimTitle[]>(n.titles ?? []);
   const [deathCause, setDeathCause] = useState(n.deathCause ?? '');
   /** How they died opened to write in, over the game's cause. */
   const [causeOpen, setCauseOpen] = useState(false);
@@ -821,6 +825,7 @@ export function SimEditor({
     sur !== n.sur ||
     nick.trim() !== (n.nick ?? '') ||
     bio.trim() !== (n.bio ?? '') ||
+    JSON.stringify(titles) !== JSON.stringify(n.titles ?? []) ||
     deathCause.trim() !== (n.deathCause ?? '') ||
     (yearBornTyped ?? undefined) !== n.yearBorn ||
     (yearDiedTyped ?? undefined) !== n.yearDied ||
@@ -846,6 +851,7 @@ export function SimEditor({
     onSave({
       nick: nick.trim() || undefined,
       bio: bio.trim() || undefined,
+      titles: titles.length ? titles : undefined,
       deathCause: deathCause.trim() || undefined,
       yearBorn: yearBornTyped ?? undefined,
       yearDied: yearDiedTyped ?? undefined,
@@ -1692,6 +1698,17 @@ export function SimEditor({
               </>
             );
           })()}
+          {!isPet && (
+            <SimTitles
+              titles={titles}
+              onChange={setTitles}
+              calendar={calendar}
+              nameOf={(id) => {
+                const x = nodes.find((m) => m.id === id);
+                return x ? cardName(x) : undefined;
+              }}
+            />
+          )}
           {!isPet && (
             <>
               <label htmlFor="edBio">Bio</label>
