@@ -89,6 +89,11 @@ export interface SimNode {
   pronouns?: SimPronouns;
   /** Sims 4 sim id from an imported .save, as a decimal string. */
   saveSimId?: string;
+  /**
+   * Game ids this sim had in other saves the board read (a Save As, a split
+   * save, a gallery re-import): an older save still finds them by id.
+   */
+  pastSaveIds?: string[];
   /** In the save and not on the shipped xlsx roster. */
   fromSave?: boolean;
   /**

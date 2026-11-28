@@ -4073,7 +4073,8 @@ export function useWhiteboard() {
       const resolve = Object.entries(choices?.resolve ?? {}).filter(
         (x): x is [string, PlanChoice] => x[1] !== 'later',
       );
-      if (!matches.length && !resolve.length) {
+      const renamed = Object.entries(choices?.renamed ?? {});
+      if (!matches.length && !resolve.length && !renamed.length) {
         applySaveBoard(saveImport.merge, svgWidth, svgHeight, 'merge', false, saveImport.parsed);
         return;
       }
@@ -4097,6 +4098,7 @@ export function useWhiteboard() {
         rosterEdges: seed.edges,
         movedByHand: new Set(householdMoves.filter((m) => !m.done && !released.has(m.simId)).map((m) => m.simId)),
         slotMatches: new Map(matches.map(([slot, save]) => [save, slot])),
+        renamed: new Map(renamed),
         game: saveGame,
         fileName: saveImport.merge.saveGame?.fileName,
         now: new Date().toISOString(),

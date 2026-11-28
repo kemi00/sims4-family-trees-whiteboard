@@ -100,6 +100,10 @@ export function SaveImportDialog({
     }
     setChoices({ ...choices, matches });
   };
+  /** Your answer to each "Is Isabella Goth your Bella Goth?": unanswered, they stay two cards. */
+  const [renamed, setRenamed] = useState<Record<string, boolean>>({});
+  const renamedChoice = (): Record<string, string> =>
+    Object.fromEntries(summary.renames.filter((r) => renamed[r.saveSimId]).map((r) => [r.saveSimId, r.cardId]));
   const hasDetails =
     summary.rejoined.length > 0 ||
     summary.relatives.length > 0 ||
@@ -340,6 +344,38 @@ export function SaveImportDialog({
               </span>
             </label>
           </fieldset>
+          {mode === 'merge' && summary.renames.length > 0 && (
+            <fieldset className="save-import__renames">
+              <legend className="save-import__lead">Renamed in your game?</legend>
+              <p className="save-import__choice-note">
+                Your save has {summary.renames.length === 1 ? 'a sim' : 'sims'} the board knows by another name. Yes
+                updates the card you have; No adds a new card. Unanswered, they stay two cards.
+              </p>
+              <ul className="save-import__renames-list">
+                {summary.renames.map((r) => (
+                  <li key={r.saveSimId}>
+                    <span className="save-import__rename-q">{`Is ${r.saveName} your ${r.cardName}?`}</span>
+                    <span className="save-import__pair" role="group" aria-label={`Is ${r.saveName} your ${r.cardName}?`}>
+                      <button
+                        type="button"
+                        aria-pressed={renamed[r.saveSimId] === true}
+                        onClick={() => setRenamed((x) => ({ ...x, [r.saveSimId]: true }))}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={renamed[r.saveSimId] === false}
+                        onClick={() => setRenamed((x) => ({ ...x, [r.saveSimId]: false }))}
+                      >
+                        No
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+          )}
           {unpicked && (
             <p className="save-import__unpicked" role="alert">
               Pick Merge or Replace first.
@@ -441,7 +477,12 @@ export function SaveImportDialog({
               }
               if (mode === 'replace') onReplace(story > 0 && keepStory);
               else if (step === 'choose' && reviewable) setStep('plan');
-              else onMerge(step === 'plan' ? { ...choices, matches: effectiveMatches(plan, choices) } : undefined);
+              else
+                onMerge(
+                  step === 'plan'
+                    ? { ...choices, matches: effectiveMatches(plan, choices), renamed: renamedChoice() }
+                    : { matches: {}, resolve: {}, renamed: renamedChoice() },
+                );
             }}
           >
             {mode === 'merge' && step === 'choose' && reviewable ? 'Next: your plan' : 'Proceed'}

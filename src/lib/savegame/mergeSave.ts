@@ -1,4 +1,4 @@
-import { DECEASED_STATE, GHOST_STATE, NON_BINARY, UNHOUSED_HH, hasDied } from '../constants.ts';
+import { AGES_H, DECEASED_STATE, GHOST_STATE, NON_BINARY, UNHOUSED_HH, hasDied } from '../constants.ts';
 import { gamesMissingFromSave } from '../packs.ts';
 import { advanceSuccession } from '../succession.ts';
 import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
@@ -53,6 +53,11 @@ export type SaveMergeSummary = {
   newLinks: number;
   stillPlanned: number;
   skipped: string[];
+  /**
+   * Save sims the board doesn't know by name who look like a card renamed in
+   * the game: same household, gender and family. The upload asks about each.
+   */
+  renames: { saveSimId: string; cardId: string; saveName: string; cardName: string }[];
   /** Board worlds whose names appear in the save. */
   saveWorlds: string[];
   /** World names in the save that are not a board world. */
@@ -116,6 +121,11 @@ export type SaveMergeInput = {
    * sim's card. That save sim takes the card over (see slotSuggestions).
    */
   slotMatches?: ReadonlyMap<string, string>;
+  /**
+   * Save sims the player said are a card renamed in the game, by save id →
+   * card id (the upload asked "Is Isabella Goth your Bella Goth?").
+   */
+  renamed?: ReadonlyMap<string, string>;
   /** The game clock and options from the board's last import. */
   game?: SaveGameInfo | null;
   /** The save file's name, for the save details. */
@@ -334,6 +344,32 @@ type BoardHome = {
   color: string;
 };
 
+/**
+ * One of several unclaimed cards of a save sim's name: the one at the same
+ * life stage, then of the same gender, then born nearest them (by the save's
+ * time alive). Undefined when that still leaves more than one.
+ */
+function sameNamePick(cards: SimNode[], sim: ParsedSaveSim, clock?: number): SimNode | undefined {
+  let left = cards;
+  const narrow = (keep: (n: SimNode) => boolean) => {
+    const kept = left.filter(keep);
+    if (kept.length) left = kept;
+  };
+  if (sim.age) narrow((n) => n.age === sim.age);
+  if (left.length > 1) narrow((n) => !sim.gender || n.gender === sim.gender);
+  if (left.length > 1 && clock !== undefined && sim.aliveTicks !== undefined) {
+    const born = clock - sim.aliveTicks;
+    const dated = left.filter((n) => n.life);
+    if (dated.length) {
+      const gap = (n: SimNode) => Math.abs(n.life!.born - born);
+      const best = Math.min(...dated.map(gap));
+      const nearest = dated.filter((n) => gap(n) === best);
+      if (nearest.length === 1) return nearest[0];
+    }
+  }
+  return left.length === 1 ? left[0] : undefined;
+}
+
 function matchSaveSim(
   sim: ParsedSaveSim,
   bySaveId: Map<string, SimNode>,
@@ -341,6 +377,7 @@ function matchSaveSim(
   byNameHh: Map<string, SimNode[]>,
   byLast: Map<string, SimNode[]>,
   claimed: Set<string>,
+  clock?: number,
 ): SimNode | 'ambiguous' | null {
   const hit = bySaveId.get(sim.saveSimId);
   if (hit && !claimed.has(hit.id)) return hit;
@@ -351,7 +388,9 @@ function matchSaveSim(
     const hk = householdKey(sim.first, sim.last, sim.household);
     const housed = (byNameHh.get(hk) ?? []).filter((n) => !claimed.has(n.id));
     if (housed.length === 1) return housed[0]!;
-    return 'ambiguous';
+    // Two of one name in one household: the one at their life stage, of their
+    // gender, then the one born nearest them.
+    return sameNamePick(housed.length ? housed : named, sim, clock) ?? 'ambiguous';
   }
   const last = foldName(sim.last);
   const first = foldName(sim.first);
@@ -691,6 +730,68 @@ export function followGameDynasties(before: SimNode[], after: SimNode[]): SimNod
   });
 }
 
+const STAGE_RANK = new Map<string, number>(AGES_H.map((a, i) => [a, i]));
+
+/** One first name inside the other ("Bella" in "Isabella"), or the same surname. */
+function namesNear(card: SimNode, sim: ParsedSaveSim): boolean {
+  const a = foldName(card.first);
+  const b = foldName(sim.first);
+  if (foldName(card.sur) && foldName(card.sur) === foldName(sim.last)) return true;
+  return a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a));
+}
+
+/**
+ * Save sims no card matched who look like a card renamed in the game: the
+ * only card of their gender in their household's box that the save doesn't
+ * have, at their life stage or younger, near their name or family to one of
+ * the household. The upload asks about each ("Is Isabella Goth your Bella
+ * Goth?"); a card two save sims could be is asked about for neither.
+ */
+function renameCandidates(
+  unmatched: readonly ParsedSaveSim[],
+  nodes: readonly SimNode[],
+  claimed: ReadonlySet<string>,
+  byHousehold: ReadonlyMap<string, { sim: ParsedSaveSim; id: string }[]>,
+  edges: readonly Edge[],
+  inSave: ReadonlySet<string>,
+): SaveMergeSummary['renames'] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const free = nodes.filter(
+    (n) => !claimed.has(n.id) && !isPlannedSim(n) && !n.species && (!n.saveSimId || !inSave.has(n.saveSimId)),
+  );
+  const picks: { sim: ParsedSaveSim; card: SimNode }[] = [];
+  for (const sim of unmatched) {
+    if (sim.species || !sim.householdId || sim.householdId === '0') continue;
+    const mates = (byHousehold.get(sim.householdId) ?? []).map((m) => m.id);
+    const gids = new Set(mates.flatMap((id) => (byId.get(id) ? [byId.get(id)!.gid] : [])));
+    if (!gids.size) continue;
+    const mateSet = new Set(mates);
+    const family = (n: SimNode) => edges.some((e) => (e.a === n.id && mateSet.has(e.b)) || (e.b === n.id && mateSet.has(e.a)));
+    const rank = STAGE_RANK.get(sim.age);
+    const found = free.filter(
+      (n) =>
+        gids.has(n.gid) &&
+        (!sim.gender || !n.gender || n.gender === sim.gender) &&
+        (rank === undefined || (STAGE_RANK.get(n.age) ?? 0) <= rank) &&
+        (namesNear(n, sim) || family(n)),
+    );
+    if (found.length === 1) picks.push({ sim, card: found[0]! });
+  }
+  const perCard = new Map<string, number>();
+  for (const p of picks) perCard.set(p.card.id, (perCard.get(p.card.id) ?? 0) + 1);
+  return picks
+    .filter((p) => perCard.get(p.card.id) === 1)
+    .map((p) => ({
+      saveSimId: p.sim.saveSimId,
+      cardId: p.card.id,
+      saveName: `${p.sim.first} ${p.sim.last}`.trim(),
+      cardName: cardName(p.card),
+    }));
+}
+
+/** How many earlier game ids a card keeps. */
+const PAST_IDS_KEPT = 12;
+
 function patchMatched(
   n: SimNode,
   sim: SaveSim,
@@ -706,6 +807,10 @@ function patchMatched(
     sur: sim.last || n.sur,
     saveSimId: sim.saveSimId,
   };
+  // The id the card had in another save stays known: that save still finds them by it.
+  const past = [...new Set([...(n.pastSaveIds ?? []), ...(n.saveSimId ? [n.saveSimId] : [])])].filter((id) => id !== sim.saveSimId);
+  if (past.length) next.pastSaveIds = past.slice(-PAST_IDS_KEPT);
+  else delete next.pastSaveIds;
   if (sim.marriedLast) next.marriedSur = sim.marriedLast;
   else delete next.marriedSur;
   syncDynasty(next, sim, saveHasDynasties, boardIds);
@@ -1213,6 +1318,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   const byLast = new Map<string, SimNode[]>();
   const index = (n: SimNode) => {
     if (n.saveSimId) bySaveId.set(n.saveSimId, n);
+    for (const old of n.pastSaveIds ?? []) if (!bySaveId.has(old)) bySaveId.set(old, n);
     const nk = nameKey(n.first, n.sur);
     const list = byName.get(nk) ?? [];
     list.push(n);
@@ -1290,7 +1396,10 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       fromSaveCount += 1;
       continue;
     }
-    const found = matchSaveSim(sim, bySaveId, byName, byNameHh, byLast, claimed);
+    // A card the player said this save sim is, renamed in the game.
+    const renamedTo = input.renamed?.get(sim.saveSimId);
+    const renamedCard = renamedTo ? nodes.find((n) => n.id === renamedTo && !claimed.has(n.id)) : undefined;
+    const found = renamedCard ?? matchSaveSim(sim, bySaveId, byName, byNameHh, byLast, claimed, parsed.game?.clock);
     if (found === 'ambiguous') {
       skipped.push(`${sim.first} ${sim.last}`.trim());
       continue;
@@ -1332,6 +1441,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     }
     unmatched.push(sim);
   }
+
+  const renames = renameCandidates(unmatched, nodes, claimed, byHousehold, input.edges, new Set(sims.map((x) => x.saveSimId)));
 
   const movedByHand = input.movedByHand ?? new Set<string>();
   const reference = input.packReference ?? [];
@@ -1910,6 +2021,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       relativesNamed: relativesNamed.map(nameOf),
       relativesDied: relativesDied.map(nameOf),
       slotsFilled,
+      renames,
       ownSurnames: sims.flatMap((sim) => {
         const id = saveIdToBoard.get(sim.saveSimId);
         if (!id || !sim.marriedLast || foldName(sim.marriedLast) === foldName(sim.last)) return [];

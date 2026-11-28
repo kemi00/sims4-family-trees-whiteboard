@@ -2302,3 +2302,106 @@ describe('sims who died in the game', () => {
     assert.equal(card(back, 'Bella').diedOnImport, undefined);
   });
 });
+
+describe('matching across saves: past ids, same names, renamed sims', () => {
+  const worlds = [{ name: 'Willow Creek', color: '#4e79a7' }, { name: 'Not in any world', color: '#9aa0a6' }];
+  const goth = (id: string, first: string, extra: Partial<SimNode> = {}) =>
+    sim({ id, first, sur: 'Goth', hh: 'Goth', ohh: 'Goth', gid: 'Willow Creek||Goth', gender: 'Female', ...extra });
+  const saveSim = (id: string, first: string, extra: Partial<ParsedSave['sims'][number]> = {}) => ({
+    saveSimId: id,
+    householdId: 'h1',
+    first,
+    last: 'Goth',
+    household: 'Goth',
+    age: 'Adult',
+    gender: 'Female',
+    world: 'Willow Creek',
+    ...extra,
+  });
+  const merge = (parsed: ParsedSave, nodes: SimNode[], extra: Partial<Parameters<typeof mergeSaveIntoBoard>[0]> = {}, edges: Edge[] = []) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges,
+      groups: [],
+      worlds,
+      parsed,
+      seedNameKeys: new Set(),
+      packReference: [],
+      now: 'x',
+      nextEdgeId: (() => {
+        let n = 0;
+        return () => `v${n++}`;
+      })(),
+      ...extra,
+    });
+
+  it('keeps the id a card had in another save, and finds the card by it', () => {
+    const board = [goth('b', 'Bella', { saveSimId: '111', age: 'Adult' })];
+    const first = merge({ sims: [saveSim('222', 'Bella')], rels: [] }, board);
+    const bella = first.nodes.find((n) => n.id === 'b')!;
+    assert.equal(bella.saveSimId, '222');
+    assert.deepEqual(bella.pastSaveIds, ['111']);
+    // The older save, with her renamed: still her by the old id.
+    const back = merge({ sims: [saveSim('111', 'Isabella')], rels: [] }, first.nodes);
+    const again = back.nodes.find((n) => n.id === 'b')!;
+    assert.equal(again.first, 'Isabella');
+    assert.equal(again.saveSimId, '111');
+    assert.deepEqual(again.pastSaveIds, ['222']);
+    assert.equal(back.summary.added, 0);
+  });
+
+  it('tells two sims of one name in one household apart by life stage, then gender', () => {
+    const board = [
+      goth('elder', 'Alex', { age: 'Elder', gender: 'Male' }),
+      goth('kid', 'Alex', { age: 'Child', gender: 'Male' }),
+      goth('twinM', 'Sam', { age: 'Teen', gender: 'Male' }),
+      goth('twinF', 'Sam', { age: 'Teen', gender: 'Female' }),
+    ];
+    const r = merge(
+      {
+        sims: [
+          saveSim('1', 'Alex', { age: 'Child', gender: 'Male' }),
+          saveSim('2', 'Alex', { age: 'Elder', gender: 'Male' }),
+          saveSim('3', 'Sam', { age: 'Teen', gender: 'Female' }),
+          saveSim('4', 'Sam', { age: 'Teen', gender: 'Male' }),
+        ],
+        rels: [],
+      },
+      board,
+    );
+    const ids = Object.fromEntries(r.nodes.map((n) => [n.id, n.saveSimId]));
+    assert.deepEqual(ids, { elder: '2', kid: '1', twinM: '4', twinF: '3' });
+    assert.deepEqual(r.summary.skipped, []);
+  });
+
+  it('asks whether a new name in a household is a card renamed in the game', () => {
+    const board = [
+      goth('m', 'Mortimer', { gender: 'Male' }),
+      goth('b', 'Bella'),
+    ];
+    const edges: Edge[] = [{ id: 'e1', a: 'm', b: 'b', type: 'spouse' } as Edge];
+    const parsed: ParsedSave = {
+      sims: [saveSim('1', 'Mortimer', { gender: 'Male' }), saveSim('2', 'Isabella')],
+      rels: [],
+    };
+    const r = merge(parsed, board, {}, edges);
+    assert.deepEqual(r.summary.renames, [{ saveSimId: '2', cardId: 'b', saveName: 'Isabella Goth', cardName: 'Bella Goth' }]);
+    // Unanswered: a new card beside hers.
+    assert.equal(r.summary.added, 1);
+    // Yes: her card, renamed.
+    const yes = merge(parsed, board, { renamed: new Map([['2', 'b']]) }, edges);
+    assert.equal(yes.summary.added, 0);
+    const bella = yes.nodes.find((n) => n.id === 'b')!;
+    assert.equal(bella.first, 'Isabella');
+    assert.equal(bella.saveSimId, '2');
+  });
+
+  it("doesn't ask about a baby born into a household with a card the save lacks", () => {
+    const board = [goth('m', 'Mortimer', { gender: 'Male' }), goth('c', 'Cassandra', { age: 'Teen' })];
+    const r = merge(
+      { sims: [saveSim('1', 'Mortimer', { gender: 'Male' }), saveSim('2', 'Lilith', { age: 'Infant' })], rels: [] },
+      board,
+    );
+    assert.deepEqual(r.summary.renames, []);
+  });
+});

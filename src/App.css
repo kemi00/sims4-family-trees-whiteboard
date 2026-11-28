@@ -2287,3 +2287,17 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .editor .edtries__result button:hover:not(:disabled){background:var(--hover)}
 .editor .edtries__result button:disabled{opacity:.45;cursor:default}
 @media (pointer:coarse){.editor .edtries__result button{min-height:40px}.editor button.edtries__bin{width:36px;height:36px}}
+
+/* Upload: "Is Isabella Goth your Bella Goth?" for a sim renamed in the game. */
+.save-import__renames{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;gap:6px}
+.save-import__renames legend{padding:0 4px;margin:0}
+.save-import__renames-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.save-import__renames-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.save-import__rename-q{font-size:13px;color:var(--ink);flex:1 1 180px}
+.save-import__pair{display:inline-flex;flex-wrap:nowrap;flex:none}
+.save-import__pair button{padding:5px 14px;border:1px solid var(--chip-line);border-radius:0;background:var(--chip);color:var(--accent-strong);font-size:12px;font-weight:600;cursor:pointer}
+.save-import__pair button:first-child{border-radius:6px 0 0 6px}
+.save-import__pair button:last-child{border-left:0;border-radius:0 6px 6px 0}
+.save-import__pair button:hover{background:var(--hover)}
+.save-import__pair button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (pointer:coarse){.save-import__pair button{min-height:40px}}

@@ -62,6 +62,8 @@ export type SavePlanReview = {
 export type PlanChoices = {
   matches: Record<string, string>;
   resolve: Record<string, PlanChoice | 'later'>;
+  /** Save sims you said are a card renamed in the game: save id → card id. */
+  renamed?: Record<string, string>;
 };
 
 const parentsInto = (edges: Edge[], id: string) =>
