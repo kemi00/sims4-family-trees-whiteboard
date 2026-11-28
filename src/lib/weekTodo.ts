@@ -21,11 +21,16 @@ export type WeekItemKind = 'ageUp' | 'baby' | 'outfits';
 export type WeekItem = {
   key: string;
   kind: WeekItemKind;
-  /** The household it is for, to filter by. */
+  /** The household it is for: Up next groups each section's items by it ('' for every household). */
   gid: string;
+  /** Its name ("Thebe"), for the group's heading. */
+  hh: string;
+  /** What to do, said without the household its group already names. */
   text: string;
   /** The game day it falls on, when it has one: the list is in day order. */
   day?: number;
+  /** Days of play still to go, for one that comes only while its household is played: soonest first. */
+  wait?: number;
 };
 
 export type WeekTodo = {
@@ -55,11 +60,6 @@ export function weekdayOf(day: number): string {
 /** "a Young Adult", "an Adult", "an Elder". */
 function aStage(stage: string): string {
   return `${/^[AEIOU]/.test(stage) ? 'an' : 'a'} ${stage}`;
-}
-
-/** "the Goth household", or "their household" for one with none. */
-function householdOf(n: Pick<SimNode, 'gid' | 'hh'>): string {
-  return isUnhousedGid(n.gid) || !n.hh ? 'their household' : `the ${n.hh} household`;
 }
 
 /** "the Goths, the Capps and 3 more households". */
@@ -112,17 +112,19 @@ export function weekTodo(opts: {
       const due = v.at + v.daysToNext * TICKS_PER_DAY;
       if (due >= weekEnds) continue;
       const day = dayOf(due);
-      items.push({ key: key('age', n.id, v.next), kind: 'ageUp', gid: n.gid, day, text: `${name} becomes ${aStage(v.next)} on ${dayText(day)}` });
-      items.push({ key: key('outfit', n.id, v.next), kind: 'outfits', gid: n.gid, day, text: `New outfits for ${name} as ${aStage(v.next)}` });
+      items.push({ key: key('age', n.id, v.next), kind: 'ageUp', gid: n.gid, hh: n.hh, day, text: `${name} becomes ${aStage(v.next)} on ${dayText(day)}` });
+      items.push({ key: key('outfit', n.id, v.next), kind: 'outfits', gid: n.gid, hh: n.hh, day, text: `New outfits for ${name} as ${aStage(v.next)}` });
     } else if (v.daysToNext * TICKS_PER_DAY <= weekEnds - saveGame.clock) {
       // Not aging now: it comes when their household is played that long.
       items.push({
         key: key('age', n.id, v.next),
         kind: 'ageUp',
         gid: n.gid,
-        text: `${name} becomes ${aStage(v.next)} after ${wholeDaysText(v.daysToNext)} of playing ${householdOf(n)}`,
+        hh: n.hh,
+        wait: v.daysToNext,
+        text: `${name} becomes ${aStage(v.next)} after ${wholeDaysText(v.daysToNext)} of play`,
       });
-      items.push({ key: key('outfit', n.id, v.next), kind: 'outfits', gid: n.gid, text: `New outfits for ${name} once ${aStage(v.next)}` });
+      items.push({ key: key('outfit', n.id, v.next), kind: 'outfits', gid: n.gid, hh: n.hh, wait: v.daysToNext, text: `New outfits for ${name} once ${aStage(v.next)}` });
     }
   }
 
@@ -133,7 +135,7 @@ export function weekTodo(opts: {
       const n = byId.get(g.id);
       if (!n || !living.includes(n)) continue;
       if (items.some((i) => i.key === key('outfit', n.id, g.to))) continue;
-      items.push({ key: key('outfit', n.id, g.to), kind: 'outfits', gid: n.gid, text: `New outfits for ${cardName(n)} as ${aStage(g.to)}` });
+      items.push({ key: key('outfit', n.id, g.to), kind: 'outfits', gid: n.gid, hh: n.hh, text: `New outfits for ${cardName(n)} as ${aStage(g.to)}` });
     }
   }
 
@@ -147,7 +149,7 @@ export function weekTodo(opts: {
     if (day > last) continue;
     const other = n.pregnancy.with ? byId.get(n.pregnancy.with) : undefined;
     const parents = other ? `${n.first} and ${cardName(other)}` : cardName(n);
-    items.push({ key: key('baby', n.id, day), kind: 'baby', gid: n.gid, day, text: `${parents}’s baby is due ${clockText(n.pregnancy.dueAt)}` });
+    items.push({ key: key('baby', n.id, day), kind: 'baby', gid: n.gid, hh: n.hh, day, text: `${parents}’s baby is due ${clockText(n.pregnancy.dueAt)}` });
   }
   for (const [pair, tries] of Object.entries(opts.tries ?? {})) {
     const [a, b] = pair.split('|').map((id) => byId.get(id));
@@ -158,7 +160,7 @@ export function weekTodo(opts: {
     if (day < today || day > last) continue;
     const home = [a, b].find((x) => inScope(x) && x.state !== DECEASED_STATE);
     if (!home) continue;
-    items.push({ key: key('baby', pair, took.day), kind: 'baby', gid: home.gid, day, text: `${a.first} and ${cardName(b)}’s baby is due about ${dayText(day)}, from your tries` });
+    items.push({ key: key('baby', pair, took.day), kind: 'baby', gid: home.gid, hh: home.hh, day, text: `${a.first} and ${cardName(b)}’s baby is due about ${dayText(day)}, from your tries` });
   }
 
   // A new decade on the board's calendar: new outfits everywhere.
@@ -173,6 +175,7 @@ export function weekTodo(opts: {
         key: key('decade', year),
         kind: 'outfits',
         gid: '',
+        hh: '',
         day,
         text: `The ${yearLabel(year)}s begin on ${dayText(day)}: new outfits for ${householdsText(homes)}`,
       });
@@ -180,6 +183,12 @@ export function weekTodo(opts: {
   }
 
   const order: Record<WeekItemKind, number> = { ageUp: 0, baby: 1, outfits: 2 };
-  items.sort((x, y) => order[x.kind] - order[y.kind] || (x.day ?? last + 1) - (y.day ?? last + 1) || x.text.localeCompare(y.text));
+  items.sort(
+    (x, y) =>
+      order[x.kind] - order[y.kind] ||
+      (x.day ?? last + 1) - (y.day ?? last + 1) ||
+      (x.wait ?? 0) - (y.wait ?? 0) ||
+      x.text.localeCompare(y.text),
+  );
   return { first, last, today, items };
 }

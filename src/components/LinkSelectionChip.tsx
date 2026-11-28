@@ -57,9 +57,11 @@ type TriesProps = {
 const DAYS_TO_DUE = 4;
 
 /**
- * A couple's tries for a baby, as the player logs them: each try's day and
- * whether it took, with the due date of one that did (the save's own, when
- * it has the pregnancy). Folded under its count until opened.
+ * A couple's baby, on their chip. When the save has one on the way, that
+ * is all it says: "Expecting: due Day 4, 5:59 AM", from the save. Until
+ * then, the player can log their tries as they play (a save only shows a
+ * pregnancy once it has begun): each try's day and whether it worked, with
+ * a due date for one that did. Folded until asked for.
  */
 function TriesForABaby({ tries }: { tries: TriesProps }) {
   const [open, setOpen] = useState(false);
@@ -67,11 +69,21 @@ function TriesForABaby({ tries }: { tries: TriesProps }) {
   const id = useId();
   const n = tries.list.length;
   const typed = /^-?\d+$/.test(day.trim()) ? Number(day.trim()) : null;
-  const lastPregnant = tries.list.map((t) => t.pregnant).lastIndexOf(true);
   const add = (pregnant: boolean) => {
     if (typed === null) return;
     tries.onAdd({ day: typed, pregnant });
   };
+  if (tries.expecting) {
+    return (
+      <div className="link-sel-chip__tries" role="group" aria-label="A baby on the way">
+        <p className="link-sel-chip__expecting">
+          <Baby weight="bold" aria-hidden="true" />
+          <span>{`Expecting: due ${tries.expecting}`}</span>
+        </p>
+        <p className="link-sel-chip__trynote">{n ? `From your save. You logged ${n} ${n === 1 ? 'try' : 'tries'} before.` : 'From your save.'}</p>
+      </div>
+    );
+  }
   return (
     <div className="link-sel-chip__tries" role="group" aria-label="Tries for a baby">
       <button
@@ -83,13 +95,16 @@ function TriesForABaby({ tries }: { tries: TriesProps }) {
         onClick={() => setOpen(!open)}
       >
         <Baby weight="bold" aria-hidden="true" />
-        <span>{n ? `Tries for a baby · ${n}` : 'Tries for a baby'}</span>
+        <span>{n ? `Tries for a baby · ${n}` : 'Log tries for a baby'}</span>
         <CaretDown className="link-sel-chip__note-caret" weight="bold" aria-hidden="true" />
       </button>
       {open && (
         <div id={id} className="link-sel-chip__trylog" onPointerDown={(e) => e.stopPropagation()}>
-          {tries.expecting && <p className="link-sel-chip__expecting">{`Expecting, due ${tries.expecting} (your save)`}</p>}
-          {n > 0 ? (
+          <p className="link-sel-chip__trynote">
+            Your save shows a pregnancy only once it has begun. Log each try for a baby as you play them, to count the
+            tries and see when a baby would be due.
+          </p>
+          {n > 0 && (
             <ol>
               {tries.list.map((t, i) => (
                 <li key={i}>
@@ -98,8 +113,8 @@ function TriesForABaby({ tries }: { tries: TriesProps }) {
                   </span>
                   <span className="link-sel-chip__try">
                     {t.pregnant
-                      ? `${tries.dayText(t.day)} · Pregnant${i === lastPregnant && tries.expecting ? '' : ` · due about ${tries.dayText(t.day + DAYS_TO_DUE)}`}`
-                      : `${tries.dayText(t.day)} · Not this time`}
+                      ? `${tries.dayText(t.day)} · It worked, due about ${tries.dayText(t.day + DAYS_TO_DUE)}`
+                      : `${tries.dayText(t.day)} · It didn’t`}
                   </span>
                   <button
                     type="button"
@@ -113,12 +128,10 @@ function TriesForABaby({ tries }: { tries: TriesProps }) {
                 </li>
               ))}
             </ol>
-          ) : (
-            <p className="link-sel-chip__tryempty">No tries logged yet.</p>
           )}
           <div className="link-sel-chip__tryform">
             <label className="link-sel-chip__tryday">
-              <span>Try {n + 1} on Day</span>
+              <span>{`Try ${n + 1}, on Day`}</span>
               <input
                 type="text"
                 inputMode="numeric"
@@ -128,10 +141,10 @@ function TriesForABaby({ tries }: { tries: TriesProps }) {
               />
             </label>
             <button type="button" className="link-sel-chip__act link-sel-chip__act--log" disabled={typed === null} onClick={() => add(true)}>
-              Pregnant
+              It worked
             </button>
             <button type="button" className="link-sel-chip__act link-sel-chip__act--log" disabled={typed === null} onClick={() => add(false)}>
-              Not this time
+              It didn’t
             </button>
           </div>
         </div>

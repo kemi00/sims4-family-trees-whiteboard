@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { BarPanel } from './BarPanel.tsx';
 import { calendarYear, yearLabel } from '../lib/calendar.ts';
 import { upNextReason, type UpNextRow } from '../lib/householdPlan.ts';
-import { WEEK_SCOPES, weekdayOf, type WeekItemKind, type WeekScope, type WeekTodo } from '../lib/weekTodo.ts';
+import { WEEK_SCOPES, weekdayOf, type WeekItem, type WeekItemKind, type WeekScope, type WeekTodo } from '../lib/weekTodo.ts';
 import type { Group, PlannerCalendar } from '../types/whiteboard.ts';
 
 /** The week's to-do, as Up next shows it (WeekSection). */
@@ -36,7 +36,18 @@ function weekText(todo: WeekTodo, calendar: PlannerCalendar | null): string {
  * due and who needs new outfits, in the households chosen, each ticked off
  * as it's done. The game's week the last save falls in, Sunday to Saturday.
  */
-function WeekSection({ week }: { week: WeekProps }) {
+/** One section's items in households, each household once, soonest first ('' for every household, first). */
+function byHousehold(items: WeekItem[]): { gid: string; hh: string; items: WeekItem[] }[] {
+  const out: { gid: string; hh: string; items: WeekItem[] }[] = [];
+  for (const i of items) {
+    const g = out.find((x) => x.gid === i.gid);
+    if (g) g.items.push(i);
+    else out.push({ gid: i.gid, hh: i.hh, items: [i] });
+  }
+  return out.sort((a, b) => Number(b.gid === '') - Number(a.gid === ''));
+}
+
+function WeekSection({ week, groups }: { week: WeekProps; groups: Group[] }) {
   const id = useId();
   const { todo, scope, done } = week;
   const kinds = (['ageUp', 'baby', 'outfits'] as const).filter((k) => todo.items.some((i) => i.kind === k));
@@ -63,18 +74,24 @@ function WeekSection({ week }: { week: WeekProps }) {
       {kinds.map((k) => (
         <div key={k} className="upweek__group">
           <h4>{KIND_HEADS[k]}</h4>
-          <ul>
-            {todo.items
-              .filter((i) => i.kind === k)
-              .map((i) => (
-                <li key={i.key} className={done.has(i.key) ? 'is-done' : undefined}>
-                  <label>
-                    <input type="checkbox" checked={done.has(i.key)} onChange={() => week.onToggle(i.key)} />
-                    <span>{i.text}</span>
-                  </label>
-                </li>
-              ))}
-          </ul>
+          {byHousehold(todo.items.filter((i) => i.kind === k)).map((h) => (
+            <div key={h.gid || 'every'} className="upweek__hh" role="group" aria-label={h.hh ? `The ${h.hh} household` : 'Every household'}>
+              <p className="upweek__hhname">
+                <span className="brief__dot" style={{ background: groups.find((g) => g.gid === h.gid)?.color ?? '#697380' }} aria-hidden />
+                <span>{h.hh ? `${h.hh} household` : 'Every household'}</span>
+              </p>
+              <ul>
+                {h.items.map((i) => (
+                  <li key={i.key} className={done.has(i.key) ? 'is-done' : undefined}>
+                    <label>
+                      <input type="checkbox" checked={done.has(i.key)} onChange={() => week.onToggle(i.key)} />
+                      <span>{i.text}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       ))}
     </section>
@@ -119,7 +136,7 @@ export function UpNextPanel({ rows, groups, nameOf, hhOf, onClose, onOpen, onSki
       description="A suggested order to play your households in"
       onClose={onClose}
     >
-      {week && <WeekSection week={week} />}
+      {week && <WeekSection week={week} groups={groups} />}
       {week && <h3 className="upnext__subhead">Who to play next</h3>}
       {!rows.length ? (
         <p className="upnext__empty">

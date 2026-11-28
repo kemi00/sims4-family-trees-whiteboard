@@ -2278,3 +2278,12 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .upnext .upweek__group li.is-done span{color:var(--ink-3);text-decoration:line-through}
 .upnext .upnext__subhead{margin:0 0 8px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
 @media (pointer:coarse){.upnext .upweek__scope button{min-height:40px}.upnext .upweek__group li input{width:20px;height:20px}}
+.link-sel-chip__tries .link-sel-chip__expecting{display:flex;align-items:center;gap:5px;margin:0;font-size:11.5px}
+.link-sel-chip__tries .link-sel-chip__expecting svg{width:12px;height:12px;flex:none;color:var(--ink-2)}
+.link-sel-chip__trynote{margin:1px 0 6px;font-size:11px;font-weight:500;line-height:1.4;color:var(--ink-3);white-space:normal}
+.link-sel-chip__tries > .link-sel-chip__trynote{margin:1px 0 0 17px}
+/* Each section's tasks in households: the household's dot and name, then its tasks. */
+.upnext .upweek__hh{margin:2px 0 8px}
+.upnext .upweek__hh + .upweek__hh{padding-top:6px;border-top:1px solid var(--rule)}
+.upnext .upweek__hhname{display:flex;align-items:center;gap:6px;margin:0 0 1px;font-size:12px;font-weight:700;color:var(--ink)}
+.upnext .upweek__hh ul{padding-left:2px}

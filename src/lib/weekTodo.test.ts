@@ -50,7 +50,7 @@ describe('the week’s to-do', () => {
 
   it('says how long to play a household that isn’t aging now', () => {
     const todo = weekTodo({ nodes: [teen('Lilith', 3, 'inactive')], saveGame: game(), scope: 'all' });
-    assert.equal(todo.items[0]!.text, 'Lilith Goth becomes a Young Adult after 3 days of playing the Goth household');
+    assert.equal(todo.items[0]!.text, 'Lilith Goth becomes a Young Adult after 3 days of play');
   });
 
   it('counts by your own stage lengths', () => {
