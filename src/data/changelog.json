@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "47340f4",
+   "date": "2026-11-28",
+   "text": "The ⋮ menu is grouped by what you came to do: Your game, Board, Save and files, Help. On a phone the first two are tiles, and the menu scrolls so every entry is in reach."
+  },
+  {
    "sha": "ecf5cf6",
    "date": "2026-11-28",
    "text": "The Gazette prints your story as a newspaper, an edition a save: scandals, royal and star weddings and tragedies on the front page, births and obituaries inside, with the game's moodlets as stickers. Download an edition as an image."
