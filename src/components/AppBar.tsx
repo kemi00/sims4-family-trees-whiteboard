@@ -121,6 +121,8 @@ type Props = {
   onOpenFind: () => void;
   /** "⌘K" or "Ctrl+K", shown on the Search button. */
   findKeys: string;
+  /** Close every other panel and menu: one popup at a time, so More never opens over another. */
+  onCloseOthers?: () => void;
 };
 
 export function AppBar({
@@ -130,6 +132,7 @@ export function AppBar({
   devUpdatesUnseen,
   onOpenFind,
   findKeys,
+  onCloseOthers,
 }: Props) {
   const compact = useCompactChrome();
   /** The More menu's wrapper: what popovers opened from it hang off. */
@@ -237,8 +240,17 @@ export function AppBar({
   };
   const toggleLinks = (from: OpenedFrom) => {
     closeSave();
+    // One popup at a time: View opening from the bar closes the panels (from More, More did).
+    if (!linksFrom && from === 'bar') onCloseOthers?.();
     setLinksFrom((f) => (f ? null : from));
   };
+  // A panel or the editor opening closes View and Your save: popups never overlap.
+  const panelOpen = !!(wb.upNextOpen || wb.dynastiesOpen || wb.chronicleView || wb.logOpen || wb.filtersOpen || wb.worldStatsOpen || wb.editNodeId || wb.briefGid);
+  useEffect(() => {
+    if (!panelOpen) return;
+    closeLinks();
+    closeSave();
+  }, [panelOpen, closeLinks, closeSave]);
 
   // More holds everything the bar has no room for, in named groups by what
   // you came to do. A phone folds the bar's own buttons into those groups,
@@ -593,6 +605,11 @@ export function AppBar({
         board={board}
         files={files}
         tiles={compact}
+        onOpenMenu={() => {
+          closeLinks();
+          closeSave();
+          onCloseOthers?.();
+        }}
         wrapRef={moreRef}
         calendar={wb.planner.calendar ?? null}
         onCalendar={wb.setCalendar}

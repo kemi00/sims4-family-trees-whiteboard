@@ -53,6 +53,8 @@ type Props = {
   files?: FoldedItem[];
   /** A phone: Your game and Board as tiles, three to a row, their notes in their names' tips. */
   tiles?: boolean;
+  /** The menu opens: every other panel and menu closes first (one popup at a time). */
+  onOpenMenu?: () => void;
   /** The menu's wrapper, so a popover opened from a folded item can hang off it. */
   wrapRef?: RefObject<HTMLDivElement | null>;
   /** The problem report's text, made when it is asked for (problemReport). */
@@ -117,6 +119,7 @@ export function OverflowMenu({
   board: boardItems = [],
   files: fileItems = [],
   tiles = false,
+  onOpenMenu,
   wrapRef: outerWrapRef,
   onProblemReport,
   calendar = null,
@@ -179,7 +182,16 @@ export function OverflowMenu({
         icon={DotsThreeVertical}
         label={label}
         expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (!open) {
+            onOpenMenu?.();
+            // Its own panels too: the calendar, the credits, a problem report.
+            setCreditsOpen(false);
+            setReport(null);
+            onCalendarOpen?.(false);
+          }
+          setOpen(!open);
+        }}
       />
       {open && (
         <div ref={popRef} className="pop pop--folded pop--more" role="menu" aria-label="More" style={popStyle}>

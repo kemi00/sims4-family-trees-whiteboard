@@ -1,8 +1,9 @@
 /**
  * Sim photos: pictures you add to a sim (a screenshot from the game), kept
- * in this browser's IndexedDB by card id, never uploaded and not in a board
- * file. Each is cut to a square and made small (PHOTO_SIZE) before it is
- * stored, so a whole board's photos stay a few hundred KB.
+ * in this browser's IndexedDB by card id, and in the board file you
+ * download (photosForFile), so a board moved to another browser or device
+ * brings them along. Never uploaded anywhere. Each is cut to a square and
+ * made small (PHOTO_SIZE) before it is stored: about 10 KB a photo.
  */
 
 import type { ShowToggles, SimNode } from '../types/whiteboard.ts';
@@ -110,4 +111,44 @@ export async function photoFromFile(file: Blob): Promise<Blob> {
   const out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.86));
   if (out && out.type === 'image/webp') return out;
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No image'))), 'image/png'));
+}
+
+/** A picture as text (a data URL): how a board file carries its photos. */
+async function blobToDataUrl(b: Blob): Promise<string> {
+  const bytes = new Uint8Array(await b.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return `data:${b.type || 'image/webp'};base64,${btoa(bin)}`;
+}
+
+/**
+ * The photos of a board's cards, as text to keep in its file: card id → a
+ * data URL of the small square picture. Only the cards the board has.
+ */
+export async function photosForFile(urls: ReadonlyMap<string, string>, cardIds: ReadonlySet<string>): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const [id, url] of urls) {
+    if (!cardIds.has(id)) continue;
+    try {
+      out[id] = await blobToDataUrl(await (await fetch(url)).blob());
+    } catch {
+      // A photo that can't be read stays in the browser only.
+    }
+  }
+  return out;
+}
+
+/** A board file's photos, back as pictures: only pictures, and only small ones (a photo is about 10 KB). */
+export async function photosFromFile(photos: unknown): Promise<Map<string, Blob>> {
+  const out = new Map<string, Blob>();
+  if (!photos || typeof photos !== 'object') return out;
+  for (const [id, data] of Object.entries(photos as Record<string, unknown>)) {
+    if (typeof data !== 'string' || !/^data:image\/(webp|png|jpeg);base64,/.test(data) || data.length > 400_000) continue;
+    try {
+      out.set(id, await (await fetch(data)).blob());
+    } catch {
+      // Not a picture: left out.
+    }
+  }
+  return out;
 }

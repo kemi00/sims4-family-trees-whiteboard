@@ -1728,6 +1728,8 @@ export function SimEditor({
               titles={titles}
               onChange={setTitles}
               calendar={calendar}
+              gender={gender}
+              nobles={!saveGame || !saveGame.gamesMissing?.includes(ROYALTY_AND_LEGACY)}
               nameOf={(id) => {
                 const x = nodes.find((m) => m.id === id);
                 return x ? cardName(x) : undefined;

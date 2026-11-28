@@ -24,7 +24,8 @@ export type StoryKind =
   | 'fame'
   | 'birthday'
   | 'head'
-  | 'heir';
+  | 'heir'
+  | 'outcast';
 
 export type Article = {
   kind: StoryKind | 'society';
@@ -258,7 +259,7 @@ export function gazetteEdition(opts: {
     else if (d.kind === 'heir')
       stories.push({ kind: 'heir', headline: `An heir for ${the}`, body: `${styled(d.sim)} is now heir of ${the}${d.replaced ? `, in place of ${d.replaced.name}` : ''}.`, score: 56, ids: [d.sim.id] });
     else if (d.kind === 'outcast')
-      stories.push({ kind: 'breakup', headline: `Cast out!`, body: `${d.sim.name} is an outcast of ${the}.`, score: 74, ids: [d.sim.id] });
+      stories.push({ kind: 'outcast', headline: `Cast out!`, body: `${d.sim.name} is an outcast of ${the}.`, score: 74, ids: [d.sim.id] });
     else if (d.kind === 'founded')
       stories.push({ kind: 'head', headline: `A new dynasty rises`, body: `${d.sim.name} founded ${the}.`, score: 60, ids: [d.sim.id] });
   }

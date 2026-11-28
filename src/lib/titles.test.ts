@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { NON_BINARY } from './constants.ts';
-import { currentTitles, gameNobleTitle, nobleTitle, titleSource, topTitle, withGameTitle, withTreeTitle } from './titles.ts';
+import { cardTitle, currentTitles, gameNobleTitle, nobleTitle, titleSource, topTitle, withGameTitle, withTreeTitle } from './titles.ts';
 import type { SimTitle } from '../types/whiteboard.ts';
 
 describe('noble titles', () => {
@@ -72,5 +72,17 @@ describe('noble titles', () => {
     assert.equal(titleSource({ title: 'Lady', rank: 9, game: 'birth', via: 't' }, nameOf), 'As the child of Tybalt Capp, rank 9');
     assert.equal(titleSource({ title: 'Grand Duke', rank: 9, game: 'marriage', via: 'x' }, nameOf), 'By marriage, rank 9');
     assert.equal(titleSource({ title: 'Founder' }, nameOf), '');
+  });
+
+  it('shows a planned title as a plan until the game gives that rank, then the game’s stands', () => {
+    const plan: SimTitle = { title: 'Duchess', rank: 8, planned: true };
+    assert.equal(topTitle({ titles: [plan] }), undefined);
+    assert.equal(cardTitle({ titles: [plan] })?.title, 'Duchess');
+    assert.equal(titleSource(plan, () => undefined), 'Planned, noble rank 8');
+    // A lower rank from the game leaves the plan; that rank or higher fulfils it.
+    assert.deepEqual(withGameTitle([plan], { title: 'Countess', rank: 5, game: 'career' }, 3), [plan, { title: 'Countess', rank: 5, game: 'career' }]);
+    assert.deepEqual(withGameTitle([plan], { title: 'Grand Duchess', rank: 9, game: 'marriage', via: 'x' }, 3), [
+      { title: 'Grand Duchess', rank: 9, game: 'marriage', via: 'x' },
+    ]);
   });
 });

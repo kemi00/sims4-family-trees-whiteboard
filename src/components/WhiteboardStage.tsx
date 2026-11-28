@@ -2114,6 +2114,11 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 node={wb.past ? pastNode(n, wb.past) : n}
                 markerDefs={wb.markers}
                 {...(wb.photoOf(n) ? { photo: wb.photoOf(n)! } : {})}
+                {...(() => {
+                  const key = n.dynasty && n.dynastyPlan !== 'member' ? dynastyKey(n) : undefined;
+                  const crest = key ? wb.saveGame?.dynastyStanding?.[key]?.crest : undefined;
+                  return crest ? { crest } : {};
+                })()}
                 celebrate={wb.celebrateIds.has(n.id)}
                 selected={
                   (wb.sel?.type === 'node' && wb.sel.id === n.id) ||

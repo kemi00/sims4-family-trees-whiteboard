@@ -2423,8 +2423,6 @@ button.wstats__name:hover{color:#1b6cd6;text-decoration:underline;text-underline
 .gz__story{position:relative;display:grid;grid-template-columns:auto 1fr;column-gap:14px;align-items:start;padding:14px 0;border-bottom:1px solid #c9d1db}
 .gz__story>:not(.gz__sticker){grid-column:2}
 .gz__story--lead{padding:6px 0 18px;border-bottom:2px solid #15202b}
-.gz__sticker{grid-row:1 / span 2;width:56px;height:56px;border-radius:50%;background:#fff;padding:3px;box-shadow:0 3px 8px rgba(21,32,43,.22)}
-.gz__story--lead .gz__sticker{width:92px;height:92px}
 .gz__headline{margin:0 0 4px;font-size:22px;line-height:1.15;font-weight:800}
 .gz__story--lead .gz__headline{font-size:clamp(24px,4.4vw,38px);text-transform:uppercase;letter-spacing:.01em}
 .gz__headline button,.gz__itemhead{all:unset;cursor:pointer}
@@ -2452,3 +2450,17 @@ button.wstats__name:hover{color:#1b6cd6;text-decoration:underline;text-underline
 .pop .pop__tile{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;min-height:64px;padding:9px 4px 7px;text-align:center;font-size:12px;font-weight:600;line-height:1.2;border:1px solid var(--line);border-radius:10px;background:#fff}
 .pop .pop__tile svg{width:20px;height:20px;color:var(--ink-2)}
 .pop .pop__tile:hover{background:var(--hover)}
+/* A sticker at its own size at most, in a white disc. */
+.gz .gz__sticker{grid-row:1 / span 2;display:flex;align-items:center;justify-content:center;width:56px;height:56px;padding:0;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(21,32,43,.22)}
+.gz .gz__sticker--lead{width:84px;height:84px}
+.gz .gz__sticker img{display:block;image-rendering:auto}
+/* Add a title: the kind first, one choice of two. */
+.editor .edtitles__kinds{display:inline-flex;flex-wrap:nowrap;align-self:flex-start}
+.editor .edtitles__kinds button{padding:6px 12px;border:1px solid var(--chip-line);border-radius:0;background:#fff;color:var(--ink-2);font-size:12px;font-weight:600;white-space:nowrap}
+.editor .edtitles__kinds button:first-child{border-radius:6px 0 0 6px}
+.editor .edtitles__kinds button:last-child{border-left:0;border-radius:0 6px 6px 0}
+.editor .edtitles__kinds button[aria-checked=true]{background:var(--chip);color:var(--accent-strong)}
+.editor .edtitles__item--planned .edtitles__name{color:#7c3aed}
+.editor label.edtitles__field select{width:100%}
+@media (pointer:coarse){.editor .edtitles__kinds button{min-height:40px}}
+.lgk__custom{flex:none;padding:1px 6px;border:1px dashed var(--line);border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}

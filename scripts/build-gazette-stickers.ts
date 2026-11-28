@@ -26,7 +26,8 @@ const OUT_LIST = join(ROOT, 'src/data/gazetteStickers.json');
 const SIMDATA = 0x545ac67a;
 const STBL = 0x220557da;
 const IMAGE = 0x00b2d882;
-const SIZE = 96;
+/** Larger pictures are made this size; a smaller one stays as it is: never stretched. */
+const MAX_SIZE = 128;
 
 /** Each kind of story, and the moodlet (Buff tuning id) its sticker is. */
 const KINDS: Record<string, string> = {
@@ -44,6 +45,7 @@ const KINDS: Record<string, string> = {
   birthday: '28561', // Birthday!
   head: '491558', // Stepping Into Power
   heir: '466620', // Chosen
+  outcast: '479172', // Cast Out Sorrow: the black sheep the game shows a cast-out sim (the Black Sheep trait's own icon is a placeholder llama)
 };
 
 const gameDir = process.argv[2] ?? '/Applications/EA Games';
@@ -99,7 +101,7 @@ for (const path of [...builds(join(appData, 'Simulation'), 'Simulation'), ...pac
     if (!rec) continue;
     const icon = (rec.row.icon as { instance?: string } | null)?.instance;
     if (icon && icon !== '0') iconOf.set(r.instance.toString(), icon);
-    const name = rec.row.buff_name;
+    const name = rec.row.buff_name ?? rec.row.display_name;
     if (typeof name === 'number' && name) nameKeyOf.set(r.instance.toString(), name);
   }
 }
@@ -138,6 +140,7 @@ rmSync(OUT_DIR, { recursive: true, force: true });
 mkdirSync(OUT_DIR, { recursive: true });
 const work = mkdtempSync(join(tmpdir(), 'gazette-stickers-'));
 const kinds: Record<string, string> = {};
+const sizes: Record<string, number> = {};
 for (const [kind, buff] of Object.entries(KINDS)) {
   const icon = iconOf.get(buff);
   const dds = icon ? pictures.get(icon) : undefined;
@@ -148,13 +151,16 @@ for (const [kind, buff] of Object.entries(KINDS)) {
   }
   const source = join(work, `${kind}.png`);
   writeFileSync(source, png(picture.w, picture.h, picture.px));
-  execFileSync('cwebp', ['-quiet', '-q', '85', '-alpha_q', '90', '-m', '6', '-resize', String(SIZE), String(SIZE), source, '-o', join(OUT_DIR, `${kind}.webp`)]);
+  const size = Math.min(picture.w, MAX_SIZE);
+  const resize = picture.w > MAX_SIZE ? ['-resize', String(MAX_SIZE), String(MAX_SIZE)] : [];
+  execFileSync('cwebp', ['-quiet', '-q', '90', '-alpha_q', '100', '-m', '6', ...resize, source, '-o', join(OUT_DIR, `${kind}.webp`)]);
+  sizes[kind] = size;
   const key = nameKeyOf.get(buff);
   kinds[kind] = (key ? strings.get(key) : undefined) ?? kind;
 }
 rmSync(work, { recursive: true, force: true });
 writeFileSync(
   OUT_LIST,
-  `${JSON.stringify({ note: 'Built by scripts/build-gazette-stickers.ts: the game moodlet each kind of story wears in the gazette, public/gazette-stickers/<kind>.webp.', kinds }, null, 1)}\n`,
+  `${JSON.stringify({ note: 'Built by scripts/build-gazette-stickers.ts: the game moodlet each kind of story wears in the gazette, public/gazette-stickers/<kind>.webp, and its size in pixels (never drawn larger).', kinds, sizes }, null, 1)}\n`,
 );
 console.log(`${Object.keys(kinds).length} of ${Object.keys(KINDS).length} stickers: ${Object.values(kinds).join(', ')}.`);

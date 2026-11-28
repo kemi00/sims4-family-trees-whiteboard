@@ -478,6 +478,16 @@ export default function App() {
             setFindOpen(true);
           }}
           findKeys={findKeys}
+          onCloseOthers={() => {
+            // One popup at a time: More opening closes the bar's panels, the editor and every menu.
+            closeBar();
+            wb.setEditNodeId(null);
+            wb.setBriefGid(null);
+            wb.setRecapOpen(false);
+            wb.closePartnerMenu();
+            wb.setAddMenu(null);
+            wb.setWorldStatsOpen(false);
+          }}
         />
         <WhiteboardStage
           wb={wb}

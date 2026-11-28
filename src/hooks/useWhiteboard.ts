@@ -14,7 +14,7 @@ import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
 import { cardYearsText, deathWindows, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
 import { boardMarkers } from '../lib/markers.ts';
-import { cardPhoto, deletePhoto, loadPhotos, photoFromFile, savePhoto } from '../lib/photos.ts';
+import { cardPhoto, deletePhoto, loadPhotos, photoFromFile, photosForFile, photosFromFile, savePhoto } from '../lib/photos.ts';
 import type { WeekScope } from '../lib/weekTodo.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
@@ -3656,9 +3656,12 @@ export function useWhiteboard() {
     [seed, flashStatus, fitWhenLaidOut, releaseLayout],
   );
 
-  const saveJson = useCallback(() => {
+  const saveJson = useCallback(async () => {
+    const payload = persistPayload();
+    // Its photos too, as small pictures in text: the file carries them to another browser.
+    const photos = photoUrls.size ? await photosForFile(photoUrls, new Set(payload.nodes.map((n) => n.id))) : {};
     const blob = new Blob(
-      [JSON.stringify(persistPayload(), null, 1)],
+      [JSON.stringify(Object.keys(photos).length ? { ...payload, photos } : payload, null, 1)],
       { type: 'application/json' },
     );
     const a = document.createElement('a');
@@ -3666,7 +3669,7 @@ export function useWhiteboard() {
     a.download = `sims4_family_trees_${fileStamp()}.json`;
     a.click();
     trackAction('/action/save-json');
-  }, [persistPayload]);
+  }, [persistPayload, photoUrls]);
 
   const applyLoadedJson = useCallback(
     (
@@ -3736,6 +3739,20 @@ export function useWhiteboard() {
         setPlanner((d as { planner?: PlannerData }).planner ?? {});
         setSaveGame(d.saveGame ?? null);
         setChronicle(d.chronicle ?? []);
+        // The file's photos, into this browser: they show on their cards.
+        void photosFromFile((parsed as { photos?: unknown }).photos).then(async (got) => {
+          if (!got.size) return;
+          for (const [id, blob] of got) await savePhoto(id, blob).catch(() => undefined);
+          setPhotoUrls((prev) => {
+            const next = new Map(prev);
+            for (const [id, blob] of got) {
+              const old = next.get(id);
+              if (old) URL.revokeObjectURL(old);
+              next.set(id, URL.createObjectURL(blob));
+            }
+            return next;
+          });
+        });
         eidcRef.current = nextEidc(
           loadedEdges,
           eidcRef.current,

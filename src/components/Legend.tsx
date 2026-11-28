@@ -428,7 +428,10 @@ function KeyPanel({
           )}
           {markers.length > 0 && (
             // Your own markers, as the cards show them before the name.
-            <li className="lgk lgk--marks" aria-label={`Your markers: ${markers.map((m) => m.label).join(', ')}`}>
+            <li className="lgk lgk--marks" aria-label={`Custom markers, on your board only: ${markers.map((m) => m.label).join(', ')}`}>
+              <span className="lgk__custom" aria-hidden="true">
+                Custom
+              </span>
               {markers.map((m) => (
                 <span key={m.id} className="lgk__mark" aria-hidden="true">
                   <span className="lgk__emoji" style={{ color: markerColor(m.mark) }}>

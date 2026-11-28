@@ -26,7 +26,7 @@ function SymbolPicker({ value, onChange, label }: { value: string; onChange: (ma
 }
 
 /**
- * A sim's markers, in the editor: the board's markers as chips to put on or
+ * A sim's custom markers, in the editor (board only: nothing in the game): the board's markers as chips to put on or
  * take off (saved with the editor's Save), a new one in your words, and the
  * board's list to rename or remove, which changes every card at once (one
  * undo step each).
@@ -59,7 +59,7 @@ export function SimMarkers({
     <section className="edmarkers" aria-labelledby="edMarkersHead">
       <div className="edlabel">
         <span className="edlabel__text" id="edMarkersHead">
-          Markers
+          Custom markers
         </span>
         {mode === 'pick' && defs.length > 0 && (
           <button type="button" className="edlink" onClick={() => setMode('edit')}>
@@ -157,7 +157,10 @@ export function SimMarkers({
               </div>
             </div>
           )}
-          <p className="edhint">Markers show before the name on every card that has them, and the Key explains them.</p>
+          <p className="edhint">
+            Your own marks, only on the board: the game has no markers. They show before the name on every card that has
+            them, and the Key explains them.
+          </p>
         </>
       )}
     </section>

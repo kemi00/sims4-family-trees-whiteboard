@@ -78,7 +78,8 @@ function sameTitle(a: SimTitle, b: SimTitle): boolean {
  * your own stay as they are.
  */
 export function withGameTitle(titles: readonly SimTitle[] | undefined, next: SimTitle | undefined, today?: number): SimTitle[] | undefined {
-  const list = [...(titles ?? [])];
+  // A planned title the game now gives (that rank or higher): the plan came true, the game's title stands.
+  const list = (titles ?? []).filter((t) => !(t.planned && next?.rank !== undefined && (t.rank ?? 0) <= next.rank));
   const i = list.findIndex((t) => t.game && t.game !== 'tree' && t.to === undefined);
   const cur = i >= 0 ? list[i] : undefined;
   if (cur && next && sameTitle(cur, next)) {
@@ -103,18 +104,26 @@ export function withTreeTitle(titles: readonly SimTitle[] | undefined, tree: Sim
   return list.length ? list : undefined;
 }
 
-/** The titles a sim holds now (no end day), highest rank first; unranked after ranked, newest first. */
-export function currentTitles(n: Pick<SimNode, 'titles'>): SimTitle[] {
+/**
+ * The titles a sim holds now (no end day), highest rank first; unranked after
+ * ranked, newest first. Planned titles only when asked: they aren't held yet.
+ */
+export function currentTitles(n: Pick<SimNode, 'titles'>, withPlanned = false): SimTitle[] {
   return (n.titles ?? [])
     .map((t, i) => ({ t, i }))
-    .filter(({ t }) => t.to === undefined)
+    .filter(({ t }) => t.to === undefined && (withPlanned || !t.planned))
     .sort((a, b) => (b.t.rank ?? -1) - (a.t.rank ?? -1) || b.i - a.i)
     .map(({ t }) => t);
 }
 
-/** Their highest title now: the one their card shows. */
+/** Their highest title held now. */
 export function topTitle(n: Pick<SimNode, 'titles'>): SimTitle | undefined {
   return currentTitles(n)[0];
+}
+
+/** The title their card shows: the highest held, else the highest planned (drawn as a plan). */
+export function cardTitle(n: Pick<SimNode, 'titles'>): SimTitle | undefined {
+  return currentTitles(n)[0] ?? currentTitles(n, true)[0];
 }
 
 /** "Grand Duke of Ondarion", or "Grand Duke". */
@@ -140,6 +149,7 @@ export function titleSource(t: SimTitle, nameOf: (id: string) => string | undefi
     case 'tree':
       return rank ? `In the family tree, ${rank}` : 'In the family tree';
     default:
+      if (t.planned) return rank ? `Planned, noble ${rank}` : 'Planned';
       return rank ? `Rank ${t.rank}` : '';
   }
 }

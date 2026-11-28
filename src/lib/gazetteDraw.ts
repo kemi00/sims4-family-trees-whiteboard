@@ -33,17 +33,18 @@ function loadImage(url: string | undefined): Promise<HTMLImageElement | null> {
   });
 }
 
-/** A sticker, tilted, with a white edge and a soft shadow. */
-function sticker(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, size: number, tilt: number) {
+/** A sticker, tilted, with a white edge and a soft shadow: centred in a `slot`, at `size` (its own at most). */
+function sticker(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, slot: number, tilt: number, own?: number) {
+  const size = Math.min(slot, own ?? img.naturalWidth);
   ctx.save();
-  ctx.translate(x + size / 2, y + size / 2);
+  ctx.translate(x + slot / 2, y + slot / 2);
   ctx.rotate((tilt * Math.PI) / 180);
   ctx.shadowColor = 'rgba(21,32,43,.25)';
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 3;
   ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.arc(0, 0, size / 2 + 5, 0, Math.PI * 2);
+  ctx.arc(0, 0, size / 2 + 8, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.drawImage(img, -size / 2, -size / 2, size, size);
@@ -55,7 +56,12 @@ function sticker(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number
  * front page in two columns, then the inside columns, and a footer with the
  * site. The same words as the dialog; the stickers are the game's moodlets.
  */
-export async function drawGazette(e: GazetteEdition, stickerOf: (kind: string) => string | undefined): Promise<Blob> {
+export async function drawGazette(
+  e: GazetteEdition,
+  stickerOf: (kind: string) => string | undefined,
+  /** The size to draw a sticker: never larger than its own (the moodlets are 40px). */
+  sizeOf: (kind: string, want: number) => number = (_k, want) => want,
+): Promise<Blob> {
   const kinds = [...new Set([e.lead, ...e.front].filter((a): a is Article => !!a).map((a) => a.kind))];
   const imgs = new Map(await Promise.all(kinds.map(async (k) => [k, await loadImage(stickerOf(k))] as const)));
   const canvas = document.createElement('canvas');
@@ -108,7 +114,7 @@ export async function drawGazette(e: GazetteEdition, stickerOf: (kind: string) =
       const head = wrap(ctx, e.lead.headline.toUpperCase(), tw);
       ctx.font = `400 27px ${SERIF}`;
       const body = wrap(ctx, e.lead.body, tw);
-      if (img && draw) sticker(ctx, img, PAD + 6, y + 6, 120, -6);
+      if (img && draw) sticker(ctx, img, PAD + 6, y + 6, 120, -6, sizeOf(e.lead.kind, 120));
       let ly = y;
       for (const l of head) {
         text(l, tx, ly, `800 50px ${SERIF}`, C.ink);
@@ -139,7 +145,7 @@ export async function drawGazette(e: GazetteEdition, stickerOf: (kind: string) =
         const head = wrap(ctx, a.headline, tw);
         ctx.font = `400 21px ${SERIF}`;
         const body = wrap(ctx, a.body, tw);
-        if (img && draw) sticker(ctx, img, x + 4, cy + 4, 64, [4, -3, 7, -5][i % 4]!);
+        if (img && draw) sticker(ctx, img, x + 4, cy + 4, 64, [4, -3, 7, -5][i % 4]!, sizeOf(a.kind, 64));
         const top = cy;
         for (const l of head) {
           text(l, tx, cy, `800 28px ${SERIF}`, C.ink);

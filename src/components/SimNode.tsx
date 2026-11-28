@@ -6,8 +6,9 @@ import { cardDetailLine } from '../lib/layout.ts';
 import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch, type HighlightSets } from '../lib/utils.ts';
 import { NOT_YET_AGE, PLANNED_MOVES_IN, cardName, isPlannedSim, nameWithNick } from '../lib/plan.ts';
-import { titleText, topTitle } from '../lib/titles.ts';
-import type { SimMarker, SimNode } from '../types/whiteboard.ts';
+import { cardTitle, titleText } from '../lib/titles.ts';
+import type { DynastyStanding, SimMarker, SimNode } from '../types/whiteboard.ts';
+import { crestPicture } from '../lib/crests.ts';
 import { markerColor, markersOf } from '../lib/markers.ts';
 
 type Props = {
@@ -48,6 +49,8 @@ type Props = {
   markerDefs?: readonly SimMarker[];
   /** Their photo's URL, or a silhouette in its place (an infant to teen, with Silhouettes on). */
   photo?: string;
+  /** Their game dynasty's crest from the save: drawn small before the dynasty's name. */
+  crest?: DynastyStanding['crest'];
   /**
    * A ♥ on each side of the card, where a couple's line meets it: it plans
    * a partner (married, romance, secret lovers, divorced). Shown on hover
@@ -85,7 +88,7 @@ const SPARKLES = [
 const STAR = 'M0,-6 C0.8,-1.4 1.4,-0.8 6,0 C1.4,0.8 0.8,1.4 0,6 C-0.8,1.4 -1.4,0.8 -6,0 C-1.4,-0.8 -0.8,-1.4 0,-6Z';
 
 /** A piece of a card's last line; `dyn` marks the dynasty, styled by its plan, and `risk` its warning. */
-type Part = { text: string; dyn?: true; risk?: true; later?: true };
+type Part = { text: string; dyn?: true; risk?: true; later?: true; plan?: true };
 
 /**
  * The first line (of parts) that fits `room`, else the last with its end
@@ -121,6 +124,9 @@ function stageLines(stage: string, n: Pick<SimNode, 'gender' | 'species'>, years
     full,
   ];
 }
+
+/** The room a crest takes before a dynasty's name: 13px and a space. */
+const CREST_ROOM = 15;
 
 /** Where a card's text starts when it has a photo: right of the 44px circle. */
 const TEXT_BESIDE_PHOTO = 64;
@@ -180,6 +186,7 @@ export const SimNodeView = memo(function SimNodeView({
   years,
   markerDefs,
   photo,
+  crest,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -201,9 +208,11 @@ export const SimNodeView = memo(function SimNodeView({
   const dim = (highlighting || !!bloodlineIds || !!familyIds) && !match;
   const ageClass = (highlighting || !!familyIds) && match ? 'agehl' : dim ? 'agedim' : '';
   // Their highest title now says who they are better than "Resident" does.
-  const title = n.species ? undefined : topTitle(n);
+  const title = n.species ? undefined : cardTitle(n);
   const detail = plannedMoveIn ? PLANNED_MOVES_IN : title ? title.title : cardDetailLine(n);
-  const titleTip = title ? `${titleText(title)}${title.rank !== undefined ? `, rank ${title.rank}` : ''}` : '';
+  const titleTip = title ? `${title.planned ? 'Planned: ' : ''}${titleText(title)}${title.rank !== undefined ? `, rank ${title.rank}` : ''}${title.planned ? ', not in your save yet' : ''}` : '';
+  // A planned title is drawn as plans are: violet.
+  const detailPart: Part = title?.planned && !plannedMoveIn ? { text: detail, plan: true } : { text: detail };
   // A planned baby says how many tries it has had, after its stage: "Not born yet · 2 tries".
   const tries = isPlannedSim(n) && n.tries?.length ? `${n.tries.length} ${n.tries.length === 1 ? 'try' : 'tries'}` : '';
   const h = n.h || CARD_H;
@@ -269,8 +278,8 @@ export const SimNodeView = memo(function SimNodeView({
       ]
     : detail
       ? dyns.length
-        ? [...dyns.map((d) => [{ text: detail }, sep, d]), ...dyns.map((d) => [d])]
-        : [[{ text: detail }]]
+        ? [...dyns.map((d) => [detailPart, sep, d]), ...dyns.map((d) => [d])]
+        : [[detailPart]]
       : dyns.map((d) => [d]);
   if (later) {
     const lead = parents ? parents.lines : detail ? [detail] : [];
@@ -329,7 +338,7 @@ export const SimNodeView = memo(function SimNodeView({
             fontWeight={700}
             fill="#1b2b3a"
             fontStyle={isPlannedSim(n) && !n.first.trim() ? 'italic' : undefined}
-            data-tip={roleTitle || offPlan || marks.length ? [offPlan, ...marks.map((m) => `${m.mark} ${m.label}`), roleTitle].filter(Boolean).join('\n') : undefined}
+            data-tip={roleTitle || offPlan || marks.length ? [offPlan, ...marks.map((m) => `${m.mark} ${m.label} (custom marker)`), roleTitle].filter(Boolean).join('\n') : undefined}
           >
             {offPlan && <tspan fill="#b45309">⚠ </tspan>}
             {marks.map((m, i) => (
@@ -351,16 +360,33 @@ export const SimNodeView = memo(function SimNodeView({
               ),
             )}
           </text>
-          {lastLines.length > 0 && (
+          {lastLines.length > 0 &&
+            (() => {
+              // The dynasty's crest just before its name: room is made for it, and it sits where the name begins.
+              const crestUrls = crest ? [crestPicture(crest.shield), crestPicture(crest.emblem)].filter((u): u is string => !!u) : [];
+              const line = fitParts(lastLines, (n.w || CARD_MIN_W) - tx - 30 - (crestUrls.length ? CREST_ROOM : 0));
+              const at = crestUrls.length ? line.findIndex((p) => p.dyn) : -1;
+              const crestX = at >= 0 ? tx + textWidth(line.slice(0, at).map((p) => p.text).join(''), 10.5, 400) : 0;
+              return (
+                <>
+                  {at >= 0 &&
+                    crestUrls.map((u) => (
+                      <image key={u} href={u} x={crestX} y={72 - 11} width={13} height={13} style={{ pointerEvents: 'none' }} />
+                    ))}
             <text x={tx} y={72} fontSize={10.5} fill="#697380" data-tip={lastTitle || undefined}>
-              {fitParts(lastLines, (n.w || CARD_MIN_W) - tx - 30).map((p, i) =>
+              {line.map((p, i) =>
                 p.risk ? (
                   <tspan key={i} fill="#b45309" fontWeight={600}>
+                    {p.text}
+                  </tspan>
+                ) : p.plan ? (
+                  <tspan key={i} fill={UEDIT}>
                     {p.text}
                   </tspan>
                 ) : p.dyn ? (
                   <tspan
                     key={i}
+                    dx={i === at ? CREST_ROOM : undefined}
                     fill="#3b4757"
                     fillOpacity={p.later || n.dynastyPlan === 'member' || n.dynastyPlan === 'none' ? 0.5 : undefined}
                     textDecoration={n.dynastyPlan === 'none' ? 'line-through' : undefined}
@@ -372,7 +398,9 @@ export const SimNodeView = memo(function SimNodeView({
                 ),
               )}
             </text>
-          )}
+                </>
+              );
+            })()}
         </>
       )}
       {hasBadge && (

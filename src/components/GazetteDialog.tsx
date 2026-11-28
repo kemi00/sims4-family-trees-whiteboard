@@ -2,16 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DownloadSimple } from '../icons.ts';
 import { editionHasNews, gazetteEdition, type Article, type GazetteEdition } from '../lib/gazette.ts';
 import { drawGazette } from '../lib/gazetteDraw.ts';
-import { STICKERS, stickerUrl } from '../lib/gazetteStickers.ts';
+import { STICKERS, stickerSize, stickerUrl } from '../lib/gazetteStickers.ts';
 import type { ChronicleEntry } from '../lib/chronicle.ts';
 import type { Edge, PlannerCalendar, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 import { CloseButton } from './CloseButton.tsx';
 import { useGameNames } from '../hooks/useGameNames.ts';
 
-function Sticker({ kind, tilt }: { kind: string; tilt: number }) {
+function Sticker({ kind, tilt, lead }: { kind: string; tilt: number; lead?: boolean }) {
   const url = stickerUrl(kind);
   if (!url) return null;
-  return <img className="gz__sticker" src={url} alt={STICKERS[kind]} title={STICKERS[kind]} style={{ transform: `rotate(${tilt}deg)` }} />;
+  // At its own size at most: the game's moodlets are 40px, never stretched.
+  const size = stickerSize(kind, lead ? 72 : 48);
+  return (
+    <span className={lead ? 'gz__sticker gz__sticker--lead' : 'gz__sticker'} style={{ transform: `rotate(${tilt}deg)` }}>
+      <img src={url} alt={STICKERS[kind]} title={STICKERS[kind]} width={size} height={size} />
+    </span>
+  );
 }
 
 /** A slight, steady tilt for each sticker: as if pressed on by hand. */
@@ -20,7 +26,7 @@ const tiltOf = (i: number) => [-6, 4, -3, 7, -5, 3][i % 6]!;
 function Story({ a, i, big, onFind }: { a: Article; i: number; big?: boolean; onFind: (ids: string[]) => void }) {
   return (
     <article className={big ? 'gz__story gz__story--lead' : 'gz__story'}>
-      {a.kind !== 'society' && <Sticker kind={a.kind} tilt={tiltOf(i)} />}
+      {a.kind !== 'society' && <Sticker kind={a.kind} tilt={tiltOf(i)} {...(big ? { lead: true } : {})} />}
       <h3 className="gz__headline">
         <button type="button" title="Show them on the board" onClick={() => onFind(a.ids)}>
           {a.headline}
@@ -80,7 +86,7 @@ export function GazetteDialog({
     if (!e) return;
     setSaving(true);
     try {
-      const blob = await drawGazette(e, (kind) => stickerUrl(kind));
+      const blob = await drawGazette(e, (kind) => stickerUrl(kind), stickerSize);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

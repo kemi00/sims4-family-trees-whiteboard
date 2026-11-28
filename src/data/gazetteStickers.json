@@ -1,5 +1,5 @@
 {
- "note": "Built by scripts/build-gazette-stickers.ts: the game moodlet each kind of story wears in the gazette, public/gazette-stickers/<kind>.webp.",
+ "note": "Built by scripts/build-gazette-stickers.ts: the game moodlet each kind of story wears in the gazette, public/gazette-stickers/<kind>.webp, and its size in pixels (never drawn larger).",
  "kinds": {
   "wedding": "Just Married!",
   "romance": "First Kiss!",
@@ -14,6 +14,24 @@
   "fame": "Proper Celebrity",
   "birthday": "Birthday!",
   "head": "Stepping Into Power",
-  "heir": "Chosen"
+  "heir": "Chosen",
+  "outcast": "Cast Out Sorrow"
+ },
+ "sizes": {
+  "wedding": 40,
+  "romance": 40,
+  "baby": 40,
+  "adoption": 40,
+  "death": 40,
+  "divorce": 40,
+  "breakup": 40,
+  "affair": 40,
+  "promotion": 40,
+  "noble": 40,
+  "fame": 40,
+  "birthday": 40,
+  "head": 40,
+  "heir": 40,
+  "outcast": 40
  }
 }

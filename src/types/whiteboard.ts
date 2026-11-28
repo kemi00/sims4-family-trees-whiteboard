@@ -321,6 +321,11 @@ export type SimTitle = {
   game?: 'career' | 'marriage' | 'birth' | 'tree';
   /** For a title by marriage or birth: the card of the noble it comes from. */
   via?: string;
+  /**
+   * A noble title in your plan, not in the game yet: shown as a plan until
+   * an upload has the game give them that rank (then the game's title stands).
+   */
+  planned?: true;
 };
 
 export interface SimLife {

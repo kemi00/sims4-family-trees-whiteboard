@@ -27,8 +27,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
 const OUT_DIR = join(ROOT, 'public/game-crests');
 const OUT_LIST = join(ROOT, 'src/data/gameCrests.json');
 const IMAGE = 0x00b2d882;
-/** The crest is shown at up to 40px: twice that is sharp on every screen. */
-const SIZE = 80;
+/** Kept at the game's own 128px: a poster draws a crest at 104px, and nothing is stretched. */
 
 const gameDir = process.argv[2] ?? '/Applications/EA Games';
 const pack = join(gameDir, 'The Sims 4 Packs/EP21/ClientFullBuild0.package');
@@ -59,7 +58,7 @@ for (const r of readDbpf(new Uint8Array(readFileSync(pack)))) {
   const id = r.instance.toString();
   const source = join(work, `${id}.png`);
   writeFileSync(source, png(picture.w, picture.h, picture.px));
-  execFileSync('cwebp', ['-quiet', '-q', '82', '-alpha_q', '90', '-m', '6', '-resize', String(SIZE), String(SIZE), source, '-o', join(OUT_DIR, `${id}.webp`)]);
+  execFileSync('cwebp', ['-quiet', '-q', '86', '-alpha_q', '95', '-m', '6', source, '-o', join(OUT_DIR, `${id}.webp`)]);
   ids.push(id);
 }
 rmSync(work, { recursive: true, force: true });

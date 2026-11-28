@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Trash } from '../icons.ts';
 import { calendarYear, dayWithYear, firstDayOfYear, parseYear, yearLabel } from '../lib/calendar.ts';
-import { titleSource, titleText } from '../lib/titles.ts';
+import { TOP_NOBLE_RANK, nobleTitle, titleSource, titleText } from '../lib/titles.ts';
 import type { PlannerCalendar, SimTitle } from '../types/whiteboard.ts';
 
 /** A day or year as typed: a game day without a calendar, a calendar year (its first day) with one. */
@@ -18,22 +18,34 @@ function parseWhen(text: string, calendar: PlannerCalendar | null): number | nul
 
 /**
  * A sim's titles, in the editor: the game's noble titles from the save, which
- * the next upload keeps current, and your own, in your words, with a rank to
- * order them and when each began and ended. The card shows the highest
- * title held now. Changes wait for Save, like the rest of the editor.
+ * the next upload keeps current; a noble title in your plan (a rank, worded
+ * for their gender as the game does), shown as a plan until your save gives
+ * it; and titles of your own, in your words, only on the board. The card
+ * shows the highest held, or a plan's faded. Changes wait for Save.
  */
 export function SimTitles({
   titles,
   onChange,
   calendar,
   nameOf,
+  gender,
+  nobles,
 }: {
   titles: readonly SimTitle[];
   onChange: (next: SimTitle[]) => void;
   /** The board's calendar, when on: dates are typed and shown as years. */
   calendar: PlannerCalendar | null;
   nameOf: (id: string) => string | undefined;
+  /** Their gender, for a planned noble title's words ("Duchess"). */
+  gender: string;
+  /** The save has Royalty & Legacy: noble titles can be planned. */
+  nobles: boolean;
 }) {
+  /** What is being added: a noble title for the plan, or a title of your own. */
+  const [kind, setKind] = useState<'plan' | 'own'>(nobles ? 'plan' : 'own');
+  // A plan starts one rank above the highest they hold: the next step up.
+  const held = Math.max(0, ...titles.filter((t) => t.to === undefined && !t.planned && t.rank !== undefined).map((t) => t.rank!));
+  const [planRank, setPlanRank] = useState(Math.min(TOP_NOBLE_RANK, held + 1));
   const [title, setTitle] = useState('');
   const [realm, setRealm] = useState('');
   const [rank, setRank] = useState('');
@@ -47,7 +59,15 @@ export function SimTitles({
   const backwards = typeof fromTyped === 'number' && typeof toTyped === 'number' && toTyped < fromTyped;
   const ok = !!title.trim() && rankTyped !== null && fromTyped !== null && toTyped !== null && !backwards;
   const when = (day: number) => (calendar ? yearLabel(calendarYear(day, calendar)) : dayWithYear(day, null));
+  const addPlan = () => {
+    const words = nobleTitle(planRank, gender);
+    if (!words) return;
+    onChange([...titles, { title: words, rank: planRank, planned: true, ...(fromTyped ? { from: fromTyped } : {}) }]);
+    setFrom('');
+    setAdding(false);
+  };
   const add = () => {
+    if (kind === 'plan') return addPlan();
     if (!ok) return;
     onChange([
       ...titles,
@@ -92,10 +112,17 @@ export function SimTitles({
                     ? `until ${when(t.to)}`
                     : '';
             return (
-              <li key={i} className={t.to !== undefined ? 'edtitles__item edtitles__item--past' : 'edtitles__item'}>
+              <li
+                key={i}
+                className={t.to !== undefined ? 'edtitles__item edtitles__item--past' : t.planned ? 'edtitles__item edtitles__item--planned' : 'edtitles__item'}
+              >
                 <span className="edtitles__text">
                   <span className="edtitles__name">{titleText(t)}</span>
-                  <span className="edtitles__meta">{[t.game ? `${source} · from your save` : source, span].filter(Boolean).join(' · ')}</span>
+                  <span className="edtitles__meta">
+                    {[t.game ? `${source} · from your save` : t.planned ? `${source} · not in your save yet` : `${source ? `${source} · ` : ''}your own, on the board only`, span]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
                 </span>
                 {t.game ? null : (
                   <button
@@ -114,44 +141,79 @@ export function SimTitles({
         </ul>
       )}
       {adding && (
-      <div className="edtitles__form" role="group" aria-label="Add a title">
-        <div className="edtitles__row">
-          <label className="edtitles__field edtitles__field--wide">
-            <span>Title</span>
-            <input type="text" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())} />
-          </label>
-          <label className="edtitles__field edtitles__field--wide">
-            <span>Of (optional)</span>
-            <input type="text" value={realm} onChange={(e) => setRealm(e.target.value)} />
-          </label>
+        <div className="edtitles__form" role="group" aria-label="Add a title">
+          {/* Two kinds, said first: one the game can give (a plan), or one only the board has. */}
+          {nobles && (
+            <span className="edtitles__kinds" role="radiogroup" aria-label="What kind of title">
+              <button type="button" role="radio" aria-checked={kind === 'plan'} onClick={() => setKind('plan')}>
+                A noble title to plan
+              </button>
+              <button type="button" role="radio" aria-checked={kind === 'own'} onClick={() => setKind('own')}>
+                A title of your own
+              </button>
+            </span>
+          )}
+          {kind === 'plan' ? (
+            <>
+              <div className="edtitles__row">
+                <label className="edtitles__field edtitles__field--wide">
+                  <span>Noble rank</span>
+                  <select value={planRank} onChange={(e) => setPlanRank(Number(e.target.value))}>
+                    {Array.from({ length: TOP_NOBLE_RANK }, (_, k) => k + 1).map((r) => (
+                      <option key={r} value={r}>{`${r} · ${nobleTitle(r, gender) ?? ''}`}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="edtitles__field">
+                  <span>{`By (${unit})`}</span>
+                  <input type="text" inputMode={calendar ? 'text' : 'numeric'} value={from} aria-invalid={fromTyped === null} onChange={(e) => setFrom(e.target.value)} />
+                </label>
+              </div>
+              <p className="edhint">
+                {`Part of your plan, shown faded until your save has the game give ${nobleTitle(planRank, gender) ?? 'it'}: through the Noble career, a marriage, or a noble parent.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="edtitles__row">
+                <label className="edtitles__field edtitles__field--wide">
+                  <span>Title</span>
+                  <input type="text" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())} />
+                </label>
+                <label className="edtitles__field edtitles__field--wide">
+                  <span>Of (optional)</span>
+                  <input type="text" value={realm} onChange={(e) => setRealm(e.target.value)} />
+                </label>
+              </div>
+              <div className="edtitles__row">
+                <label className="edtitles__field">
+                  <span>Rank</span>
+                  <input type="text" inputMode="numeric" value={rank} aria-invalid={rankTyped === null} onChange={(e) => setRank(e.target.value)} />
+                </label>
+                <label className="edtitles__field">
+                  <span>{`From (${unit})`}</span>
+                  <input type="text" inputMode={calendar ? 'text' : 'numeric'} value={from} aria-invalid={fromTyped === null || backwards} onChange={(e) => setFrom(e.target.value)} />
+                </label>
+                <label className="edtitles__field">
+                  <span>{`To (${unit})`}</span>
+                  <input type="text" inputMode={calendar ? 'text' : 'numeric'} value={to} aria-invalid={toTyped === null || backwards} onChange={(e) => setTo(e.target.value)} />
+                </label>
+              </div>
+              <p className="edhint">
+                Only on your board: the game never has it. A higher rank outranks a lower one, and the card shows the
+                highest title held now. Leave To empty for a title still held.
+              </p>
+            </>
+          )}
+          <div className="edtitles__row edtitles__row--end">
+            <button type="button" className="edtitles__cancel" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+            <button type="button" className="edtitles__add" disabled={kind === 'plan' ? fromTyped === null : !ok} onClick={add}>
+              {kind === 'plan' ? 'Plan this title' : 'Add title'}
+            </button>
+          </div>
         </div>
-        <div className="edtitles__row">
-          <label className="edtitles__field">
-            <span>Rank</span>
-            <input type="text" inputMode="numeric" value={rank} aria-invalid={rankTyped === null} onChange={(e) => setRank(e.target.value)} />
-          </label>
-          <label className="edtitles__field">
-            <span>{`From (${unit})`}</span>
-            <input type="text" inputMode={calendar ? 'text' : 'numeric'} value={from} aria-invalid={fromTyped === null || backwards} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label className="edtitles__field">
-            <span>{`To (${unit})`}</span>
-            <input type="text" inputMode={calendar ? 'text' : 'numeric'} value={to} aria-invalid={toTyped === null || backwards} onChange={(e) => setTo(e.target.value)} />
-          </label>
-        </div>
-        <div className="edtitles__row edtitles__row--end">
-          <button type="button" className="edtitles__cancel" onClick={() => setAdding(false)}>
-            Cancel
-          </button>
-          <button type="button" className="edtitles__add" disabled={!ok} onClick={add}>
-            Add title
-          </button>
-        </div>
-        <p className="edhint">
-          A higher rank outranks a lower one, and the card shows the highest title held now; the game’s noble ranks
-          run from 1, Knight or Dame, to 10, King or Queen. Leave To empty for a title still held.
-        </p>
-      </div>
       )}
     </section>
   );

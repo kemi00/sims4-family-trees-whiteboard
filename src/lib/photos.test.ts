@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { cardPhoto, squareCrop } from './photos.ts';
+import { cardPhoto, photosForFile, photosFromFile, squareCrop } from './photos.ts';
 
 describe('sim photos', () => {
   it('cuts a square from the middle of a wide picture, and near the top of a tall one', () => {
@@ -20,5 +20,22 @@ describe('sim photos', () => {
     assert.equal(cardPhoto({ id: 'a', age: 'Adult' }, { photos: false, silhouettes: true }, urls), undefined);
     assert.equal(cardPhoto({ id: 'a', age: 'Adult', species: 'Cat' }, on, urls), undefined);
     assert.equal(cardPhoto({ id: 'none', age: 'Adult' }, on, urls), undefined);
+  });
+});
+
+describe('photos in a board file', () => {
+  it('takes back only small pictures', async () => {
+    const png = 'data:image/png;base64,iVBORw0KGgo=';
+    const got = await photosFromFile({ a: png, b: 'javascript:alert(1)', c: 42, d: `data:image/png;base64,${'A'.repeat(500_000)}` });
+    assert.deepEqual([...got.keys()], ['a']);
+    assert.equal(got.get('a')!.type, 'image/png');
+    assert.equal((await photosFromFile(null)).size, 0);
+  });
+
+  it('writes the photos of the board’s own cards', async () => {
+    const url = 'data:image/webp;base64,UklGRg==';
+    const out = await photosForFile(new Map([['a', url], ['gone', url]]), new Set(['a']));
+    assert.deepEqual(Object.keys(out), ['a']);
+    assert.match(out.a!, /^data:image\/webp;base64,/);
   });
 });

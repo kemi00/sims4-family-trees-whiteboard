@@ -381,14 +381,14 @@ export function PartnerMenu({ menu, nodes, byid, edges, saveGame, onChoice, onPi
             )}
             {markerChoices.length > 0 && (
               <select
-                aria-label="Marker"
+                aria-label="Custom marker"
                 value={marker}
                 onChange={(e) => {
                   setMarker(e.target.value);
                   reset();
                 }}
               >
-                <option value="">Any marker or none</option>
+                <option value="">Any custom marker or none</option>
                 {markerChoices.map((m) => (
                   <option key={m.id} value={m.id}>{`${m.mark} ${m.label} (${markerCounts.get(m.id) ?? 0})`}</option>
                 ))}

@@ -3,7 +3,8 @@ import { useRef, useState } from 'react';
 /**
  * A sim's photo, in the editor: add one from a picture file (a screenshot
  * from Create a Sim works well), change it, or remove it. It is kept in this
- * browser only (photos.ts), at once, outside Undo; removing asks first.
+ * browser and in downloaded board files (photos.ts), at once, outside Undo;
+ * removing asks first.
  */
 export function SimPhoto({
   url,
@@ -79,7 +80,7 @@ export function SimPhoto({
           <span className="edhint">
             {failed
               ? 'That picture couldn’t be read. Try a PNG or JPEG.'
-              : 'Kept in this browser only: never uploaded, and not in a board file.'}
+              : 'Kept in this browser, and in the board file you download: never uploaded.'}
           </span>
         </span>
       </div>
