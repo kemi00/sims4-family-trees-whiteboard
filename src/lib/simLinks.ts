@@ -16,6 +16,11 @@ export type SimLinkRow = {
   removal: LinkRemoval;
   /** A couple a passing ended: kept as their history, faded, with nothing to plan. */
   ended?: true;
+  /**
+   * A parent link that can be the declared parent's (Edge.declared): its
+   * child has a secret parent, or it is marked already. `on` when it is.
+   */
+  declare?: { on: boolean };
 };
 
 /** Couples first, then parents, children, siblings and other links. */
@@ -74,10 +79,10 @@ export function simLinkRows(
       case 'parent':
         if (e.a === id) {
           kind = 'parentOf';
-          text = `${e.adopted ? 'Adoptive parent' : 'Parent'} of ${other}${secret}`;
+          text = `${e.adopted ? 'Adoptive parent' : e.declared ? 'Declared parent' : 'Parent'} of ${other}${secret}`;
         } else {
           kind = 'childOf';
-          text = `${e.adopted ? 'Adopted by' : 'Child of'} ${other}${secret}`;
+          text = `${e.adopted ? 'Adopted by' : 'Child of'} ${other}${secret}${e.declared ? ', declared parent' : ''}`;
         }
         break;
       case 'sibling':
@@ -92,7 +97,24 @@ export function simLinkRows(
     // One a passing ended has no end left to plan: it comes off like any link.
     const couple = (e.type === 'marriage' || e.type === 'romance') && !planned && !e.ending && !ended;
     const removal: LinkRemoval = !couple ? 'remove' : e.type === 'marriage' ? 'divorce' : 'breakup';
-    rows.push({ id: e.id, text, other, planned, removal, kind, ...(ended ? { ended: true as const } : {}) });
+    // A secret child with two listed parents: one carried them, the other may be
+    // the parent the game declared at birth, not by blood. One listed parent carried them.
+    const listed = (child: string) => edges.filter((x) => x.type === 'parent' && x.b === child && !x.secret && !x.adopted).length;
+    const declarable =
+      e.type === 'parent' &&
+      !e.secret &&
+      !e.adopted &&
+      (!!e.declared || (edges.some((x) => x.type === 'parent' && x.b === e.b && x.secret) && listed(e.b) >= 2));
+    rows.push({
+      id: e.id,
+      text,
+      other,
+      planned,
+      removal,
+      kind,
+      ...(ended ? { ended: true as const } : {}),
+      ...(declarable ? { declare: { on: !!e.declared } } : {}),
+    });
   }
   return rows
     .sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind) || a.other.localeCompare(b.other))

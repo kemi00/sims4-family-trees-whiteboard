@@ -197,6 +197,8 @@ function edgeIdentity(e: Edge) {
     ending: e.ending ?? null,
     secret: !!e.secret,
     adopted: !!e.adopted,
+    declared: !!e.declared,
+    declaredByHand: !!e.declaredByHand,
     plan: e.plan ?? null,
     wasPlanned: !!e.wasPlanned,
     note: e.note ?? null,

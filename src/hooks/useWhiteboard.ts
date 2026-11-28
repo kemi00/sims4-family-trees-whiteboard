@@ -1307,6 +1307,31 @@ export function useWhiteboard() {
     [planner, pushUndo],
   );
 
+  /**
+   * A parent link marked as, or no longer, the declared parent (Edge.declared):
+   * the one the game names for a secret child, not by blood. Set by hand, so
+   * an upload leaves it as it is. One undo step.
+   */
+  const setDeclaredParent = useCallback(
+    (edgeId: string, on: boolean) => {
+      const e = edges.find((x) => x.id === edgeId);
+      if (!e || e.type !== 'parent' || !!e.declared === on) return;
+      const nm = (id: string) => {
+        const x = nodesCore.find((m) => m.id === id);
+        return x ? cardName(x) : 'someone not on the board';
+      };
+      pushUndo(`${on ? 'Mark' : 'Unmark'} ${named(nm(e.a))} as ${named(nm(e.b))}’s declared parent`);
+      setEdges((es) =>
+        es.map((x) => {
+          if (x.id !== edgeId) return x;
+          const { declared: _was, ...rest } = x;
+          return { ...rest, ...(on ? { declared: true as const } : {}), declaredByHand: true as const };
+        }),
+      );
+    },
+    [edges, pushUndo, nodesCore],
+  );
+
   /** The markers sims can carry: the board's own, or the two it starts with. */
   const markers = useMemo(() => boardMarkers(planner), [planner]);
 
@@ -4823,6 +4848,7 @@ export function useWhiteboard() {
     calendar,
     markers,
     setMarkers,
+    setDeclaredParent,
     calendarOpen,
     setCalendarOpen,
     addBabyTry,

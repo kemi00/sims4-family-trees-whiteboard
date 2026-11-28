@@ -732,6 +732,31 @@ export function followGameDynasties(before: SimNode[], after: SimNode[]): SimNod
 }
 
 /**
+ * A secret child's declared parent (Edge.declared), as the game has it: the
+ * child's biological parent is kept secret (relationshipBit_SecretChild), and
+ * the family tree lists the carrier and, when the game asked at birth, the
+ * parent they declared. Of two listed parents, the carrier is the one with a
+ * couple link to the secret parent; the other is the declared parent. With no
+ * such link, or both, nothing is worked out: the Family tab says it by hand.
+ */
+export function markDeclaredParents(edges: Edge[]): void {
+  const union = (x: string, y: string) =>
+    edges.some((u) => (u.type === 'marriage' || u.type === 'romance' || u.type === 'divorced') && ((u.a === x && u.b === y) || (u.a === y && u.b === x)));
+  for (const s of edges) {
+    if (s.type !== 'parent' || !s.secret || edgeSourceOf(s) === 'planned') continue;
+    const listed = edges.filter(
+      (e) => e.type === 'parent' && e.b === s.b && e !== s && !e.secret && !e.adopted && edgeSourceOf(e) !== 'planned',
+    );
+    if (listed.length !== 2 || listed.some((e) => e.declaredByHand)) continue;
+    const carriers = listed.filter((e) => union(e.a, s.a));
+    if (carriers.length !== 1) continue;
+    const declared = listed.find((e) => e !== carriers[0])!;
+    declared.declared = true;
+    delete carriers[0]!.declared;
+  }
+}
+
+/**
  * Every card's title from the save (see gameNobleTitle): the living from
  * their Noble careers and their noble spouses and parents, by the links the
  * game has (not planned ones, nor a secret parent the tree doesn't list);
@@ -2036,6 +2061,10 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     [...input.nodes, ...(input.packReference ?? [])],
     worldsFromParsed(parsed),
   );
+
+  // A secret child's declared parent: of its two listed parents, the one not
+  // with the secret parent (the carrier is). Not one you set yourself.
+  markDeclaredParents(edges);
 
   // Noble titles, as the game gives them: by career, marriage or birth; and
   // the family tree's for its ancestors. Kept current on every upload.

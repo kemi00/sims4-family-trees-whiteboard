@@ -2835,6 +2835,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           onLayout={positionEditor}
           markerDefs={wb.markers}
           onSetMarkers={wb.setMarkers}
+          onDeclareParent={wb.setDeclaredParent}
           onSave={({ genRoot, ...patch }) => {
             wb.pushUndo(`Edit ${named(cardName(editNode))}`);
             wb.updateNode(editNode.id, patch);

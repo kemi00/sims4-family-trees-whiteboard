@@ -2364,3 +2364,7 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .editor button.edmarkers__add:hover:not(:disabled){background:var(--hover)}
 .editor button.edmarkers__add:disabled{opacity:.45;cursor:default}
 @media (pointer:coarse){.editor .edmarkers__symbols button{width:36px;height:36px}.editor button.edmarkers__chip{min-height:36px}.editor button.edmarkers__bin{width:36px;height:36px}.editor button.edmarkers__done,.editor button.edmarkers__add{min-height:40px}}
+.editor .edlinks__declare{flex:none;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink-2);font-size:11px;font-weight:600;cursor:pointer}
+.editor .edlinks__declare:hover{background:var(--hover)}
+.editor .edlinks__declare[aria-pressed=true]{border-color:var(--accent);background:var(--chip);color:var(--accent-strong)}
+@media (pointer:coarse){.editor .edlinks__declare{min-height:32px}}

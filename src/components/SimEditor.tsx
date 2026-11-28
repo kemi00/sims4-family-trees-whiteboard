@@ -329,6 +329,8 @@ type Props = {
     /** The board's markers they carry; undefined clears. */
     markers?: string[];
   }) => void;
+  /** Mark a parent link as the declared parent, not by blood, or not (Edge.declared). */
+  onDeclareParent?: (edgeId: string, on: boolean) => void;
   /** The board's markers (SimMarkers), and a change to that list: one undo step, every card at once. */
   markerDefs: readonly SimMarker[];
   onSetMarkers: (next: SimMarker[], undoLabel: string) => void;
@@ -423,6 +425,7 @@ export function SimEditor({
   calendar = null,
   markerDefs,
   onSetMarkers,
+  onDeclareParent,
   death,
   onAddTry,
   onRemoveTry,
@@ -2019,6 +2022,17 @@ export function SimEditor({
                         })()}
                         {l.planned && <span className="edlinks__tag">planned</span>}
                       </span>
+                      {l.declare && onDeclareParent && (
+                        <button
+                          type="button"
+                          className="edlinks__declare"
+                          aria-pressed={l.declare.on}
+                          title="The parent the game declared at birth for a secret child: family and dynasty, but not blood. The partner finder doesn't count this link as blood."
+                          onClick={() => onDeclareParent(l.id, !l.declare!.on)}
+                        >
+                          Declared
+                        </button>
+                      )}
                       {/* A link to take off: a quiet bin. A couple the game has: plan its end, said in words. */}
                       {l.removal === 'remove' ? (
                         <button

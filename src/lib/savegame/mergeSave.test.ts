@@ -12,6 +12,7 @@ import {
   followGameDynasties,
   gameGender,
   syncDynasty,
+  markDeclaredParents,
 } from './mergeSave.ts';
 import type { ParsedSave } from './parseSave.ts';
 
@@ -2404,5 +2405,37 @@ describe('matching across saves: past ids, same names, renamed sims', () => {
       board,
     );
     assert.deepEqual(r.summary.renames, []);
+  });
+});
+
+describe('a secret child’s declared parent', () => {
+  const parent = (id: string, a: string, b: string, extra: Partial<Edge> = {}): Edge => ({ id, a, b, type: 'parent', source: 'save', ...extra });
+  it('is the listed parent who is not with the secret parent', () => {
+    const edges: Edge[] = [
+      parent('p1', 'Mum', 'Kid'),
+      parent('p2', 'Dad', 'Kid'),
+      parent('p3', 'Lover', 'Kid', { secret: true }),
+      { id: 'r', a: 'Mum', b: 'Lover', type: 'romance', source: 'save', secret: true },
+      { id: 'm', a: 'Mum', b: 'Dad', type: 'marriage', source: 'save' },
+    ];
+    markDeclaredParents(edges);
+    assert.deepEqual(edges.filter((e) => e.declared).map((e) => e.id), ['p2']);
+  });
+
+  it('is not worked out with one listed parent, no clue who carried, or a choice made by hand', () => {
+    const one: Edge[] = [parent('p1', 'Mum', 'Kid'), parent('p3', 'Lover', 'Kid', { secret: true })];
+    markDeclaredParents(one);
+    assert.equal(one.some((e) => e.declared), false);
+    const unclear: Edge[] = [parent('p1', 'A', 'Kid'), parent('p2', 'B', 'Kid'), parent('p3', 'Lover', 'Kid', { secret: true })];
+    markDeclaredParents(unclear);
+    assert.equal(unclear.some((e) => e.declared), false);
+    const byHand: Edge[] = [
+      parent('p1', 'Mum', 'Kid'),
+      parent('p2', 'Dad', 'Kid', { declaredByHand: true }),
+      parent('p3', 'Lover', 'Kid', { secret: true }),
+      { id: 'r', a: 'Mum', b: 'Lover', type: 'romance', source: 'save' },
+    ];
+    markDeclaredParents(byHand);
+    assert.equal(byHand.some((e) => e.declared), false);
   });
 });

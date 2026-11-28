@@ -581,6 +581,8 @@ export interface Edge {
    * family, never as blood in the partner finder.
    */
   declared?: true;
+  /** You set or cleared `declared` yourself: an upload doesn't work it out again. */
+  declaredByHand?: true;
   /**
    * Your note on this link: why you planned it. Stays when a save shows the
    * plan done, so the reason is still there in your game's history.

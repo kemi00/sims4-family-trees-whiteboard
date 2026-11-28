@@ -59,3 +59,23 @@ describe("a sim's links in the editor", () => {
     assert.equal(rows[0]!.text, 'Adopted by Tybalt Capp, secret');
   });
 });
+
+describe('a declared parent in the link list', () => {
+  it('offers Declared on a secret child’s other parent links, and says it once marked', () => {
+    const edges: Edge[] = [
+      { id: 'p1', a: 'Dad', b: 'Kid', type: 'parent', source: 'save', declared: true },
+      { id: 'p2', a: 'Mum', b: 'Kid', type: 'parent', source: 'save' },
+      { id: 'p3', a: 'Lover', b: 'Kid', type: 'parent', source: 'save', secret: true },
+    ];
+    const rows = simLinkRows('Kid', edges, (id) => id);
+    assert.deepEqual(
+      rows.map((r) => [r.text, r.declare?.on]),
+      [
+        ['Child of Dad, declared parent', true],
+        ['Child of Lover, secret', undefined],
+        ['Child of Mum', false],
+      ],
+    );
+    assert.equal(simLinkRows('Dad', edges, (id) => id)[0]!.text, 'Declared parent of Kid');
+  });
+});
