@@ -651,6 +651,8 @@ export function useWhiteboard() {
   const [upNextOpen, setUpNextOpen] = useState(false);
   /** The Dynasties panel: every dynasty and its members. */
   const [dynastiesOpen, setDynastiesOpen] = useState(false);
+  /** Worlds in numbers (WorldStatsPanel): one of the bar's panels. */
+  const [worldStatsOpen, setWorldStatsOpen] = useState(false);
   const [upNextSkipped, setUpNextSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [householdMoves, setHouseholdMoves] = useState<HouseholdMove[]>(
     () => boot.householdMoves ?? [],
@@ -4900,6 +4902,8 @@ export function useWhiteboard() {
     setUpNextOpen,
     dynastiesOpen,
     setDynastiesOpen,
+    worldStatsOpen,
+    setWorldStatsOpen,
     upNextSkipped,
     setUpNextSkipped,
     connectionLog,

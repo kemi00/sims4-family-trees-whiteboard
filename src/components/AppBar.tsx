@@ -2,6 +2,7 @@ import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import {
   CalendarBlank,
   Check,
+  ChartBar,
   Coins,
   ImageSquare,
   User,
@@ -218,6 +219,11 @@ export function AppBar({
     if (next) trackAction('/action/dynasties');
     wb.setDynastiesOpen(next);
   };
+  const openWorldStats = () => {
+    const next = !wb.worldStatsOpen;
+    if (next) trackAction('/action/world-stats');
+    wb.setWorldStatsOpen(next);
+  };
   const openLog = () => {
     const next = !wb.logOpen;
     if (next) trackAction('/action/log');
@@ -237,6 +243,13 @@ export function AppBar({
   // folds in there too, in the bar's order, each with the words its tooltip
   // or pressed state gives on a wider screen.
   const always: FoldedItem[] = [
+    {
+      id: 'worlds',
+      icon: ChartBar,
+      label: 'Worlds in numbers',
+      note: 'Sims by life stage and gender, households, free lots',
+      onSelect: openWorldStats,
+    },
     {
       id: 'organise',
       icon: MagicWand,

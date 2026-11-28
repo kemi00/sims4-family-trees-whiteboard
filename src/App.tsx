@@ -24,6 +24,7 @@ import { partnerWindows } from './lib/matchClock.ts';
 import { storyLines } from './lib/chronicle.ts';
 import { PosterDialog } from './components/PosterDialog.tsx';
 import { weekTodo } from './lib/weekTodo.ts';
+import { WorldStatsPanel } from './components/WorldStatsPanel.tsx';
 import { dynastyPoster, householdPoster, withPosterPhotos, withPosterYears, type PosterModel } from './lib/poster.ts';
 import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
 import { dynastyKey, dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
@@ -176,6 +177,7 @@ export default function App() {
     list: listOf !== null,
     upnext: wb.upNextOpen,
     dynasties: wb.dynastiesOpen,
+    worlds: wb.worldStatsOpen,
     story: !!wb.chronicleView,
     log: wb.logOpen,
     filters: wb.filtersOpen || wb.gamesOpen || wb.playOpen || wb.agesOpen,
@@ -186,6 +188,7 @@ export default function App() {
       if (keep !== 'list') setListOf(null);
       if (keep !== 'upnext') wb.setUpNextOpen(false);
       if (keep !== 'dynasties') wb.setDynastiesOpen(false);
+      if (keep !== 'worlds') wb.setWorldStatsOpen(false);
       if (keep !== 'story') wb.setChronicleView(null);
       if (keep !== 'log') wb.setLogOpen(false);
       if (keep !== 'filters') {
@@ -243,7 +246,7 @@ export default function App() {
    */
   // One drawer at a time: the sim editor and a household's plan are drawers too.
   const otherPanelOpen =
-    barOpen.upnext || barOpen.dynasties || barOpen.story || barOpen.log || barOpen.filters || !!wb.editNodeId || !!wb.briefGid;
+    barOpen.upnext || barOpen.dynasties || barOpen.worlds || barOpen.story || barOpen.log || barOpen.filters || !!wb.editNodeId || !!wb.briefGid;
   const autoList: ListOf | null =
     sheetMode && !listOf && !otherPanelOpen && !wb.staleTab
       ? wb.bloodlineId
@@ -595,6 +598,19 @@ export default function App() {
                 })
               }
             />
+        )}
+        {wb.worldStatsOpen && (
+          <WorldStatsPanel
+            nodes={wb.visibleNodes}
+            freeLots={wb.freeLots}
+            order={wb.worlds.map((w) => w.name)}
+            onClose={() => wb.setWorldStatsOpen(false)}
+            onFindWorld={(world) => {
+              if (isPanelSheet()) foldSheets();
+              const rect = svgRef.current?.getBoundingClientRect();
+              wb.zoomToWorld(world, rect?.width ?? 800, rect?.height ?? 600, 0);
+            }}
+          />
         )}
         {wb.dynastiesOpen && wb.hasGame(ROYALTY_AND_LEGACY) && (
             <DynastiesPanel

@@ -2386,3 +2386,25 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .editor button.edphoto__remove{padding:6px 12px;border:1px solid var(--danger);border-radius:6px;background:var(--danger);color:#fff;font-size:12px;font-weight:600}
 .editor button.edphoto__remove:hover{filter:brightness(.95)}
 @media (pointer:coarse){.editor button.edphoto__add,.editor button.edphoto__keep,.editor button.edphoto__remove{min-height:40px}}
+
+/* Worlds in numbers. */
+.lg-stats{display:block;margin:2px 0 8px;padding:0;border:0;background:none;color:#1b6cd6;font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.lg-stats:hover{color:#155bb8}
+.wstats__list{list-style:none;margin:0;padding:0 0 4px;display:flex;flex-direction:column;gap:8px}
+.wstats__card{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;display:flex;flex-direction:column;gap:6px}
+.wstats__head{display:flex;align-items:center;gap:8px}
+.wstats__icon{flex:none;width:24px;height:24px;border-radius:50%;object-fit:cover}
+.wstats__name{flex:1 1 auto;min-width:0;padding:0;border:0;background:none;text-align:left;font-size:13px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+button.wstats__name{cursor:pointer}
+button.wstats__name:hover{color:#1b6cd6;text-decoration:underline;text-underline-offset:2px}
+.wstats__count{flex:none;font-size:12px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.wstats__bar{display:flex;gap:2px;height:8px;border-radius:999px;overflow:hidden}
+.wstats__part{min-width:2px;height:100%}
+.wstats__legend{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:2px 12px;font-size:11.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.wstats__legend li{display:inline-flex;align-items:center;gap:5px}
+.wstats__swatch{width:8px;height:8px;border-radius:2px;flex:none}
+.wstats__line{margin:0;font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+.wstats__line--quiet{color:var(--ink-2)}
+.wstats__foot{margin:8px 2px 4px;font-size:11px;color:var(--ink-3)}
+.wstats .wstats__head button.wstats__name{display:block;justify-content:flex-start;text-align:left;font:inherit;font-size:13px;font-weight:700;color:var(--ink);padding:0;border:0;background:none;min-height:0}
+.wstats .wstats__head button.wstats__name:hover{color:#1b6cd6;background:none}

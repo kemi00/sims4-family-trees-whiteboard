@@ -243,6 +243,8 @@ type Props = {
   marks: ReadonlySet<KeyMark>;
   /** The board's own markers some sim on it carries (markersInUse). */
   markers?: readonly SimMarker[];
+  /** Open Worlds in numbers (WorldStatsPanel). */
+  onStats?: () => void;
   /** Hide while a filter panel is open so it does not overlap the controls. */
   hidden?: boolean;
   onPickWorld: (world: string) => void;
@@ -578,7 +580,7 @@ function KeyPanel({
   );
 }
 
-export function Legend({ worlds, liveWorlds, totals, marks, markers, hidden, onPickWorld, ref }: Props) {
+export function Legend({ worlds, liveWorlds, totals, marks, markers, onStats, hidden, onPickWorld, ref }: Props) {
   const compact = useCompactChrome();
   const [expanded, setExpanded] = useState(!compact);
   const [keyOpen, setKeyOpen] = useState(readKeyOpen);
@@ -661,6 +663,11 @@ export function Legend({ worlds, liveWorlds, totals, marks, markers, hidden, onP
         >
           <h3 id="legend-worlds-h">Worlds</h3>
           <WorldTotalsRow totals={totals} hidden={worlds.filter((w) => w.name !== NOT_IN_WORLD && !liveWorlds.has(w.name))} />
+          {onStats && (
+            <button type="button" className="lg-stats" onClick={onStats}>
+              Worlds in numbers
+            </button>
+          )}
           <div className="legend-card__body">
             {worlds.map((w) => {
               const live = liveWorlds.has(w.name);
