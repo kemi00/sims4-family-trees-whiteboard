@@ -672,7 +672,8 @@ export default function App() {
               const worlds = list.filter((x) => x.world !== NOT_IN_WORLD).length;
               return `${all.sims} ${all.sims === 1 ? 'sim' : 'sims'} in ${worlds} ${worlds === 1 ? 'world' : 'worlds'}`;
             })()}
-            pages={worldRects(wb.visibleNodes, wb.worlds.map((w) => w.name))}
+            // By generation there are no worlds on the board to page through: the picture alone.
+            pages={wb.genView ? [] : worldRects(wb.visibleNodes, wb.worlds.map((w) => w.name))}
             onExporting={wb.setBoardExporting}
             onClose={() => wb.setTreeExportOpen(false)}
           />

@@ -14,6 +14,7 @@ import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
 import { cardYearsText, deathWindows, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
 import { boardMarkers } from '../lib/markers.ts';
+import { generationLayout, type GenMode } from '../lib/generationView.ts';
 import { cardPhoto, deletePhoto, loadPhotos, photoFromFile, photosForFile, photosFromFile, savePhoto } from '../lib/photos.ts';
 import type { WeekScope } from '../lib/weekTodo.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
@@ -353,6 +354,18 @@ function writePhotoView(v: Pick<ShowToggles, 'photos' | 'silhouettes'>): void {
     localStorage.setItem(PHOTO_VIEW_KEY, JSON.stringify({ photos: v.photos, silhouettes: v.silhouettes }));
   } catch {
     // Private mode: forgotten when the page closes.
+  }
+}
+
+/** Where this browser remembers the generation view (item 15). */
+const GEN_VIEW_KEY = 'board-gen-view';
+
+function readGenView(): GenMode | null {
+  try {
+    const v = localStorage.getItem(GEN_VIEW_KEY);
+    return v === 'known' || v === 'living' ? v : null;
+  } catch {
+    return null;
   }
 }
 
@@ -811,11 +824,33 @@ export function useWhiteboard() {
     [viewRect],
   );
 
+  /**
+   * The generation view (item 15): every card in a row by generation, Gen 1
+   * the oldest known ancestors or the oldest living. A view only: the board's
+   * own arrangement stays as it is, and cards don't move by hand there.
+   */
+  const [genView, setGenViewState] = useState<GenMode | null>(readGenView);
+  const setGenView = useCallback((mode: GenMode | null) => {
+    setGenViewState(mode);
+    try {
+      if (mode) localStorage.setItem(GEN_VIEW_KEY, mode);
+      else localStorage.removeItem(GEN_VIEW_KEY);
+    } catch {
+      // Private mode: forgotten when the page closes.
+    }
+  }, []);
+
   /** Positions and card sizes are derived on every render from layout rules. */
-  const nodes = useMemo(() => {
+  const boardNodes = useMemo(() => {
     const laid = computeLayout(nodesCore, worlds, edges);
     return snap ? snapNodesToTiles(laid) : laid;
   }, [nodesCore, worlds, edges, snap]);
+  const genLaid = useMemo(() => (genView ? generationLayout(boardNodes, edges, genView) : null), [genView, boardNodes, edges]);
+  /** The board's own places: everything that arranges or saves positions works on these. */
+  const nodes = boardNodes;
+  /** Where cards are drawn: by generation in that view, else the board's places. */
+  const viewNodes = genLaid ? genLaid.nodes : boardNodes;
+  const genRows = genLaid?.rows ?? null;
 
   const byid = useMemo(() => {
     const m: Record<string, SimNode> = {};
@@ -824,6 +859,13 @@ export function useWhiteboard() {
     });
     return m;
   }, [nodes]);
+  /** Cards by id where they are drawn: by generation in that view. */
+  const viewById = useMemo(() => {
+    if (!genLaid) return byid;
+    const m: Record<string, SimNode> = {};
+    for (const n of genLaid.nodes) m[n.id] = n;
+    return m;
+  }, [genLaid, byid]);
   /** A sim as an undo step names them: as their card does. */
   const simCalled = useCallback((id: string) => {
     const n = byid[id];
@@ -985,18 +1027,19 @@ export function useWhiteboard() {
       skipRoute
         ? EMPTY_EDGE_DATA
         : computeEdgeRenderData({
-            nodes,
+            nodes: viewNodes,
             edges: viewEdges,
-            groups,
-            show,
+            // By generation there are no household or world boxes to route around.
+            groups: genView ? [] : groups,
+            show: genView ? { ...show, groups: false, worlds: false } : show,
             packVis: nodeVis,
             fastRoute,
             cache: routeCache,
           }),
-    [nodes, viewEdges, groups, show, nodeVis, fastRoute, skipRoute, routeCache],
+    [viewNodes, viewEdges, groups, show, nodeVis, fastRoute, skipRoute, routeCache, genView],
   );
 
-  const nodeBuckets = useMemo(() => bucketNodes(nodes), [nodes]);
+  const nodeBuckets = useMemo(() => bucketNodes(viewNodes), [viewNodes]);
 
   /** The game lot each household lives on (householdLots). */
   const lotZones = saveGame?.lotZones;
@@ -1057,9 +1100,10 @@ export function useWhiteboard() {
     [edgeData.blood],
   );
 
+  /** The cards shown, where they are drawn (by generation in that view). */
   const visibleNodes = useMemo(
-    () => nodes.filter(nodeVis),
-    [nodes, nodeVis],
+    () => viewNodes.filter(nodeVis),
+    [viewNodes, nodeVis],
   );
 
   // A world with only lots on the board is live too: there are lots to see.
@@ -3405,7 +3449,7 @@ export function useWhiteboard() {
   );
 
   const fit = useCallback((svgWidth: number, svgHeight: number) => {
-    const [x0, y0, x1, y1] = bbox(nodes, nodeVis);
+    const [x0, y0, x1, y1] = bbox(viewNodes, nodeVis);
     const w = x1 - x0;
     const h = y1 - y0;
     const k = Math.min(svgWidth / (w + 120), svgHeight / (h + 120), 1.1);
@@ -3414,7 +3458,7 @@ export function useWhiteboard() {
       tx: (svgWidth - w * k) / 2 - x0 * k,
       ty: (svgHeight - h * k) / 2 - y0 * k,
     });
-  }, [nodes, nodeVis]);
+  }, [viewNodes, nodeVis]);
 
   /**
    * Fit once a board just set is laid out. A fit queued with setTimeout ran
@@ -3593,12 +3637,13 @@ export function useWhiteboard() {
    */
   const focusSim = useCallback(
     (id: string, svgWidth: number, svgHeight: number, select = true) => {
-      const n = byid[id];
+      // Where the card is drawn: by generation in that view.
+      const n = genLaid ? genLaid.nodes.find((x) => x.id === id) : byid[id];
       if (!n) return;
       if (select) setSel({ type: 'node', id });
       frameSim(n, svgWidth, svgHeight);
     },
-    [byid, frameSim],
+    [byid, frameSim, genLaid],
   );
 
   const boardSourceLabel = sourceFileName
@@ -4825,7 +4870,9 @@ export function useWhiteboard() {
   );
 
   return {
-    nodes,
+    // Where cards are drawn (by generation in that view): the board's own places stay inside.
+    nodes: viewNodes,
+    boardNodes,
     edges,
     groups,
     worlds,
@@ -4936,7 +4983,7 @@ export function useWhiteboard() {
     upNextSkipped,
     setUpNextSkipped,
     connectionLog,
-    byid,
+    byid: viewById,
     packVis,
     playVis,
     nodeVis,
@@ -4951,6 +4998,9 @@ export function useWhiteboard() {
     markers,
     setMarkers,
     setDeclaredParent,
+    genView,
+    setGenView,
+    genRows,
     photoUrls,
     photoOf,
     setPhoto,

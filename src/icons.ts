@@ -15,6 +15,7 @@ export { CaretDown } from '@phosphor-icons/react/CaretDown';
 export { CaretLeft } from '@phosphor-icons/react/CaretLeft';
 export { CaretUp } from '@phosphor-icons/react/CaretUp';
 export { ChartBar } from '@phosphor-icons/react/ChartBar';
+export { Rows } from '@phosphor-icons/react/Rows';
 export { Newspaper } from '@phosphor-icons/react/Newspaper';
 export { FileImage } from '@phosphor-icons/react/FileImage';
 export { Check } from '@phosphor-icons/react/Check';

@@ -1183,6 +1183,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
       return;
     }
 
+    // By generation, cards keep their rows: a press is a click, never a move.
+    if (wbRef.current.genView && (multiDragRef.current || dragRef.current)) return;
+
     if (multiDragRef.current) {
       const d = multiDragRef.current;
       if (!d.armed) {
@@ -2022,12 +2025,37 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
               pointerEvents="none"
             />
           )}
+          {wb.genRows && (
+            // By generation: each row's name over it, a faint rule between rows.
+            <g className="genrows" aria-hidden="true" style={{ pointerEvents: 'none' }}>
+              {(() => {
+                return wb.genRows.map((r) => (
+                  <g key={r.label + r.y}>
+                    {r.rule !== 'none' && (
+                      <line
+                        x1={-80}
+                        x2={r.x2}
+                        y1={r.y - (r.rule === 'solid' ? 110 : 75)}
+                        y2={r.y - (r.rule === 'solid' ? 110 : 75)}
+                        stroke={r.rule === 'solid' ? '#9aa7b6' : '#c9d1db'}
+                        strokeWidth={r.rule === 'solid' ? 4 : 2}
+                        strokeDasharray={r.rule === 'solid' ? undefined : '10 8'}
+                      />
+                    )}
+                    <text x={0} y={r.y - 22} fontSize={30} fontWeight={800} fill="#3b4757">
+                      {`${r.label} · ${r.count} ${r.count === 1 ? (r.label === 'Pets' ? 'pet' : 'sim') : r.label === 'Pets' ? 'pets' : 'sims'}`}
+                    </text>
+                  </g>
+                ));
+              })()}
+            </g>
+          )}
           <WorldLayer
             mode="frames"
             nodes={wb.nodes}
             groups={wb.groups}
             worlds={wb.worlds}
-            show={wb.show.worlds}
+            show={wb.show.worlds && !wb.genView}
             zoom={layerK}
             packVis={wb.nodeVis}
             selectedWorlds={selectedWorlds}
@@ -2038,7 +2066,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             mode="frames"
             groups={wb.groups}
             nodes={wb.nodes}
-            show={wb.show.groups}
+            show={wb.show.groups && !wb.genView}
             labels={labels}
             packVis={wb.nodeVis}
             selectedGids={selectedGids}
@@ -2176,7 +2204,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             mode="handles"
             groups={wb.groups}
             nodes={wb.nodes}
-            show={wb.show.groups}
+            show={wb.show.groups && !wb.genView}
             labels={labels}
             packVis={wb.nodeVis}
             selectedGids={selectedGids}
@@ -2200,7 +2228,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           <LotLayer
             boxes={wb.lotBoxes}
             worlds={wb.worlds}
-            show={wb.show.groups}
+            show={wb.show.groups && !wb.genView}
             labels={labels}
             cull={cullWin}
             onPickLot={onPickLot}
@@ -2213,7 +2241,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             nodes={wb.nodes}
             groups={wb.groups}
             worlds={wb.worlds}
-            show={wb.show.worlds}
+            show={wb.show.worlds && !wb.genView}
             zoom={layerK}
             packVis={wb.nodeVis}
             selectedWorlds={selectedWorlds}

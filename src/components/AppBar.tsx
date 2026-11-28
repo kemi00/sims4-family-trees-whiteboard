@@ -1,6 +1,7 @@
 import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import {
   CaretLeft,
+  Rows,
   Check,
   GearSix,
   Highlighter,
@@ -76,7 +77,7 @@ function layersNote(wb: WhiteboardApi): string {
         : worlds
           ? 'world boxes'
           : 'no boxes';
-  return `${links} · ${boxes}`;
+  return wb.genView ? `${links} · by generation` : `${links} · ${boxes}`;
 }
 
 /**
@@ -508,12 +509,45 @@ export function AppBar({
         </span>
         {wb.show.silhouettes && wb.show.photos && <Check className="pop__check" aria-hidden="true" />}
       </button>
-      {/* Arranging the board is how it looks too. */}
+      {/* How the cards are arranged: your board's places, or rows by generation (a view: nothing moves). */}
       <span className="pop__rule" aria-hidden="true" />
+      <div className="pop__head" aria-hidden="true">
+        Arrange
+      </div>
+      {(
+        [
+          [null, House, 'By household and world', 'Your board as you arranged it'],
+          ['known', Rows, 'By generation, from the oldest known', 'Gen 1 is the oldest ancestors, living or passed away'],
+          ['living', Rows, 'By generation, from the oldest living', 'Gen 1 is the oldest living; those passed away sit above'],
+        ] as const
+      ).map(([mode, Glyph, label, note]) => (
+        <button
+          key={mode ?? 'board'}
+          type="button"
+          role="menuitemradio"
+          aria-checked={wb.genView === mode}
+          className="pop__noted"
+          onClick={() => {
+            closeLinks();
+            if (wb.genView !== mode) {
+              trackAction(mode ? `/action/generations/${mode}` : '/action/generations/off');
+              wb.setGenView(mode);
+            }
+          }}
+        >
+          <Glyph aria-hidden="true" />
+          <span className="pop__text">
+            {label}
+            <small>{note}</small>
+          </span>
+          {wb.genView === mode && <Check className="pop__check" aria-hidden="true" />}
+        </button>
+      ))}
       <button
         type="button"
         role="menuitem"
         className="pop__noted"
+        disabled={!!wb.genView}
         onClick={() => {
           closeLinks();
           organise();
@@ -522,7 +556,7 @@ export function AppBar({
         <MagicWand aria-hidden="true" />
         <span className="pop__text">
           Organise
-          <small>Arrange the board like the starter one</small>
+          <small>{wb.genView ? 'Arranges your board by household: switch back to it first' : 'Arrange the board like the starter one'}</small>
         </span>
       </button>
     </div>
