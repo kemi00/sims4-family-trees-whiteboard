@@ -368,24 +368,6 @@ type Props = {
   unions?: ReadonlyMap<string, { by: number; type: 'marriage' | 'romance' }>;
 };
 
-/** Causes the editor suggests for "How they died": the game's deaths, and those of a historical save. */
-const DEATH_CAUSES = [
-  'Old age',
-  'Childbirth',
-  'Illness',
-  'The plague',
-  'Starvation',
-  'Accident',
-  'Drowning',
-  'Fire',
-  'Electrocution',
-  'Battle',
-  'A duel',
-  'Murder',
-  'Execution',
-  'Unknown',
-] as const;
-
 export function SimEditor({
   node: n,
   worlds,
@@ -1646,18 +1628,12 @@ export function SimEditor({
                 <input
                   id="edDeathCause"
                   value={deathCause}
-                  list="edDeathCauses"
                   placeholder={fromGame ?? 'e.g. Childbirth, the plague, a duel'}
                   autoComplete="off"
                   autoFocus={causeOpen && own === ''}
                   aria-describedby="edDeathHint"
                   onChange={(e) => setDeathCause(e.target.value)}
                 />
-                <datalist id="edDeathCauses">
-                  {DEATH_CAUSES.map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
                 <div id="edDeathHint" className={fromGame ? 'edhint edhint--row' : 'edhint'}>
                   {fromGame ? (
                     <>
