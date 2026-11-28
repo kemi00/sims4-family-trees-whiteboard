@@ -1,3 +1,4 @@
+import { crestPicture } from './crests.ts';
 import { neighbourhoodIconUrl, worldIconUrl } from './places.ts';
 import type { PosterCard, PosterCouple, PosterModel } from './poster.ts';
 
@@ -265,10 +266,13 @@ function polyline(ctx: CanvasRenderingContext2D, points: [number, number][], opt
 
 /** The poster as a PNG. */
 export async function drawPoster(model: PosterModel): Promise<Blob> {
-  const [worldImg, nbImg] = await Promise.all([
+  const [worldImg, nbImg, shieldImg, emblemImg] = await Promise.all([
     loadImage(model.world ? worldIconUrl(model.world) : undefined),
     loadImage(model.world && model.nb ? neighbourhoodIconUrl(model.world, model.nb) : undefined),
+    loadImage(crestPicture(model.crest?.shield)),
+    loadImage(crestPicture(model.crest?.emblem)),
   ]);
+  const crest = !!(shieldImg || emblemImg);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('No canvas');
@@ -279,12 +283,15 @@ export async function drawPoster(model: PosterModel): Promise<Blob> {
   const W = Math.ceil(Math.max(BASE_W, PAD * 2 + widest * cw + (widest - 1) * GAP));
 
   // Measure first: the poster is as tall as its rows.
-  const badges = (model.world ? 1 : 0) + (model.nb ? 1 : 0);
+  const badges = (model.world ? 1 : 0) + (model.nb ? 1 : 0) + (crest ? 1 : 0);
   const textMax = W - PAD * 2 - badges * 112;
   const title = fit(ctx, model.title, textMax, 2, 60, 40, 800);
   ctx.font = font(26, 400);
   const sub = model.subtitle ? wrap(ctx, model.subtitle, textMax) : [];
-  const headH = Math.max(240, PAD + title.lines.length * title.size * 1.15 + 14 + sub.length * 34 + 48);
+  // A game dynasty's description, in its own words, under the subtitle, in full.
+  ctx.font = `italic ${font(23, 400)}`;
+  const about = model.about ? wrap(ctx, model.about, textMax) : [];
+  const headH = Math.max(240, PAD + title.lines.length * title.size * 1.15 + 14 + sub.length * 34 + (about.length ? 10 + about.length * 31 : 0) + 48);
   ctx.font = font(26, 600);
   const lineText = model.line?.join('   →   ') ?? '';
   const lineRows = lineText ? wrap(ctx, lineText, W - PAD * 2 - 40) : [];
@@ -377,13 +384,28 @@ export async function drawPoster(model: PosterModel): Promise<Blob> {
     ctx.fillText(l, PAD, ty);
     ty += 34;
   }
-  // The world's picture and the neighbourhood's icon, top right.
+  if (about.length) {
+    ty += 10;
+    ctx.font = `italic ${font(23, 400)}`;
+    for (const l of about) {
+      ctx.fillText(l, PAD, ty);
+      ty += 31;
+    }
+  }
+  // The world's picture and the neighbourhood's icon, top right, and a dynasty's crest beside them.
   let bx = W - PAD - 48;
   if (model.nb) {
     badge(ctx, nbImg, bx, PAD + 48, 48);
     bx -= 112;
   }
-  if (model.world) badge(ctx, worldImg, bx, PAD + 48, 48);
+  if (model.world) {
+    badge(ctx, worldImg, bx, PAD + 48, 48);
+    bx -= 112;
+  }
+  if (crest) {
+    // As the game draws it: the shield, its emblem over it, the same size.
+    for (const img of [shieldImg, emblemImg]) if (img) ctx.drawImage(img, bx - 52, PAD - 4, 104, 104);
+  }
 
   // A dynasty's line of succession.
   if (lineRows.length) {

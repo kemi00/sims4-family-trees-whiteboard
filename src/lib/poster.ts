@@ -66,6 +66,9 @@ export type PosterModel = {
   color: string;
   /** A dynasty's line: "👑 Mortimer Goth", "⚜️ Cassandra Goth", "Olivia Goth". */
   line?: string[];
+  /** A game dynasty's crest and description, from the save. */
+  crest?: DynastyStanding['crest'];
+  about?: string;
   /** Each row is one line of cards, partners side by side and children under their parents. */
   rows: PosterRow[];
   couples: PosterCouple[];
@@ -405,6 +408,8 @@ export function dynastyPoster(opts: {
     ...(head?.nb && head.nb !== '-' ? { nb: head.nb } : {}),
     color: head?.color ?? '#5a6675',
     ...(line.length ? { line } : {}),
+    ...(standing?.crest ? { crest: standing.crest } : {}),
+    ...(standing?.description ? { about: standing.description } : {}),
     rows,
     couples,
     families,

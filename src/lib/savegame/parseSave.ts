@@ -1194,7 +1194,9 @@ function floatField(fields: ReturnType<typeof decodeFields>, n: number): number 
 }
 
 /**
- * Each dynasty's standing, by dynasty id. Its prestige is the record's field
+ * Each dynasty's standing, by dynasty id, with its crest (fields 11 and 3,
+ * read 2026-11-28: the Goths' red shield and rose) and description (10).
+ * Its prestige is the record's field
  * 13, a float: the points the game shows as Prestige Level 0 to 10 (32,100
  * for a dynasty cheated to the top, exactly 16,100 for one set to Level 7).
  * One of field 12's trackers (id 294913) holds the perk points left to
@@ -1215,6 +1217,17 @@ function parseDynastyStanding(gameplay: Uint8Array | null): Record<string, Dynas
     const standing: DynastyStanding = {};
     const prestige = floatField(fields, 13);
     if (prestige !== undefined) standing.prestige = prestige;
+    // The crest: field 11 the shield, field 3 the emblem, each a picture key {1 type, 2 group, 3 instance}.
+    const picture = (n: number) => {
+      const key = fields.find((x) => x.field === n && x.bytes)?.bytes;
+      const inst = key ? decodeFields(key).find((x) => x.field === 3 && x.wire === 0)?.int : undefined;
+      return inst ? inst.toString() : undefined;
+    };
+    const shield = picture(11);
+    const emblem = picture(3);
+    if (shield || emblem) standing.crest = { ...(shield ? { shield } : {}), ...(emblem ? { emblem } : {}) };
+    const description = utf8(fields.find((x) => x.field === 10 && x.bytes)?.bytes ?? null)?.trim();
+    if (description) standing.description = description;
     for (const f of fields) {
       if (f.field !== 12 || !f.bytes) continue;
       const t = decodeFields(f.bytes);

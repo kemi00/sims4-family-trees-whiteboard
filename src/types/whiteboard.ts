@@ -433,6 +433,13 @@ export interface DynastyStanding {
   perkPoints?: number;
   /** How many Dynasty Perks are active. */
   perks?: number;
+  /**
+   * The dynasty's crest as the game draws it: a shield and the emblem on it,
+   * each a picture of the pack by its instance (public/game-crests/<id>.webp).
+   */
+  crest?: { shield?: string; emblem?: string };
+  /** The dynasty's description, as written in the game (premades come with one). */
+  description?: string;
 }
 
 /** A world record in an uploaded save, as the problem report lists it. */

@@ -9,6 +9,7 @@ import { windowText } from '../lib/matchClock.ts';
 import type { DynastyStanding, SaveGameInfo } from '../types/whiteboard.ts';
 import { fold } from '../lib/utils.ts';
 import { BarPanel } from './BarPanel.tsx';
+import { Crest } from './Crest.tsx';
 import { PrestigeBar } from './PrestigeBar.tsx';
 
 type Props = {
@@ -432,6 +433,7 @@ export function DynastiesPanel({
                       }
                     >
                       <span className="dynp__top">
+                        <Crest crest={standingOf?.(r.key)?.crest} size={28} title={`The ${label} crest`} />
                         <span className="dynp__name">{labelOf(r)}</span>
                         {(() => {
                           // A board from before knows only perk points: said in words here.
@@ -489,6 +491,7 @@ export function DynastiesPanel({
                     </div>
                     {expanded && (
                       <div id={listId}>
+                      {standingOf?.(r.key)?.description && <p className="dynp__about">{standingOf(r.key)!.description}</p>}
                       <LineForecast f={forecastOf(r.key)} game={game} nameOf={nameOf} hhOf={hhOf} onFind={onFind} />
                       <ul className="dynp__members" aria-label={`${labelOf(r)} members`}>
                         {r.members.map((m) => (
