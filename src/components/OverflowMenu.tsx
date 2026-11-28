@@ -21,7 +21,7 @@ import { ProblemReportPanel } from './ProblemReportPanel.tsx';
 import { StepText } from './StepText.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
-/** A bar control that phones fold into this menu, listed above the file actions. */
+/** An entry of the menu: an icon, its name, and a line on what it does or is set to. */
 export type FoldedItem = {
   id: string;
   icon: Icon;
@@ -42,8 +42,17 @@ type Props = {
   devUpdatesUnseen: boolean;
   /** The button's name and tooltip. */
   label?: string;
-  /** Bar controls with no room on a phone; empty on wider screens. */
-  folded?: FoldedItem[];
+  /**
+   * The menu's own groups, by what you came to do: Your game (Up next,
+   * Story, the Gazette, Dynasties, Worlds in numbers), Board (View,
+   * Organise, the Log), and entries added to Save and files (Your save, the
+   * whole tree as a file). A phone folds the bar's buttons into these.
+   */
+  play?: FoldedItem[];
+  board?: FoldedItem[];
+  files?: FoldedItem[];
+  /** A phone: Your game and Board as tiles, three to a row, their notes in their names' tips. */
+  tiles?: boolean;
   /** The menu's wrapper, so a popover opened from a folded item can hang off it. */
   wrapRef?: RefObject<HTMLDivElement | null>;
   /** The problem report's text, made when it is asked for (problemReport). */
@@ -58,7 +67,43 @@ type Props = {
   game?: SaveGameInfo | null;
 };
 
-/** File actions, kept out of the bar because they are used rarely. */
+/** One entry: its icon, its name over its note. */
+function MenuEntry({
+  item,
+  first,
+  tile = false,
+  onRun,
+}: {
+  item: FoldedItem;
+  first?: RefObject<HTMLButtonElement | null> | undefined;
+  /** A tile: the icon over the name, the note in its tip. */
+  tile?: boolean;
+  onRun: (fn: () => void) => void;
+}) {
+  const { icon: Glyph, label: name, note, onSelect } = item;
+  if (tile)
+    return (
+      <button ref={first} type="button" role="menuitem" className="pop__tile" title={note} onClick={() => onRun(onSelect)}>
+        <Glyph aria-hidden="true" />
+        <span>{name}</span>
+      </button>
+    );
+  return (
+    <button ref={first} type="button" role="menuitem" className="pop__noted" onClick={() => onRun(onSelect)}>
+      <Glyph aria-hidden="true" />
+      <span className="pop__text">
+        {name}
+        {note && (
+          <small>
+            <StepText text={note} />
+          </small>
+        )}
+      </span>
+    </button>
+  );
+}
+
+/** The More menu: everything the bar has no room for, in named groups. */
 export function OverflowMenu({
   onSave,
   onLoad,
@@ -68,7 +113,10 @@ export function OverflowMenu({
   onDevUpdates,
   devUpdatesUnseen,
   label = 'Save, load, contact, and credits',
-  folded = [],
+  play: gameItems = [],
+  board: boardItems = [],
+  files: fileItems = [],
+  tiles = false,
   wrapRef: outerWrapRef,
   onProblemReport,
   calendar = null,
@@ -134,150 +182,150 @@ export function OverflowMenu({
         onClick={() => setOpen((o) => !o)}
       />
       {open && (
-        <div
-          ref={popRef}
-          className={folded.length ? 'pop pop--folded' : 'pop'}
-          role="menu"
-          aria-label="More actions"
-          style={popStyle}
-        >
-          {folded.map(({ id, icon: Glyph, label: name, note, onSelect }, i) => (
+        <div ref={popRef} className="pop pop--folded pop--more" role="menu" aria-label="More" style={popStyle}>
+          {/* Grouped by what you came to do; each group named, the rare and the risky last. */}
+          {gameItems.length > 0 && (
+            <div role="group" aria-labelledby="more-game">
+              <div className="pop__head" id="more-game">
+                Your game
+              </div>
+              <div className={tiles ? 'pop__tiles' : undefined}>
+                {gameItems.map((item, i) => (
+                  <MenuEntry key={item.id} item={item} tile={tiles} first={i === 0 ? firstItemRef : undefined} onRun={run} />
+                ))}
+              </div>
+            </div>
+          )}
+          {boardItems.length > 0 && (
+            <div role="group" aria-labelledby="more-board">
+              <span className="pop__rule" aria-hidden="true" />
+              <div className="pop__head" id="more-board">
+                Board
+              </div>
+              <div className={tiles ? 'pop__tiles' : undefined}>
+                {boardItems.map((item, i) => (
+                  <MenuEntry key={item.id} item={item} tile={tiles} first={!gameItems.length && i === 0 ? firstItemRef : undefined} onRun={run} />
+                ))}
+              </div>
+            </div>
+          )}
+          <div role="group" aria-labelledby="more-files">
+            {(gameItems.length > 0 || boardItems.length > 0) && <span className="pop__rule" aria-hidden="true" />}
+            <div className="pop__head" id="more-files">
+              Save and files
+            </div>
             <button
-              key={id}
-              ref={i === 0 ? firstItemRef : undefined}
+              ref={gameItems.length || boardItems.length ? undefined : firstItemRef}
               type="button"
               role="menuitem"
               className="pop__noted"
-              onClick={() => run(onSelect)}
+              onClick={() => saveRef.current?.click()}
             >
-              <Glyph aria-hidden="true" />
+              <UploadSimple aria-hidden="true" />
               <span className="pop__text">
-                {name}
-                {note && <small><StepText text={note} /></small>}
+                Upload your save (.save)
+                <small>Your newest save brings the board up to date</small>
               </span>
             </button>
-          ))}
-          {folded.length > 0 && <span className="pop__rule" aria-hidden="true" />}
-          <button
-            ref={folded.length ? undefined : firstItemRef}
-            type="button"
-            role="menuitem"
-            onClick={() => run(onSave)}
-          >
-            <DownloadSimple aria-hidden="true" />
-            Download the board (.json)
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => fileRef.current?.click()}
-          >
-            <UploadSimple aria-hidden="true" />
-            Upload a board (.json)
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => saveRef.current?.click()}
-          >
-            <UploadSimple aria-hidden="true" />
-            Upload your save (.save)
-          </button>
-          {onCalendar && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                setCreditsOpen(false);
-                setReport(null);
-                onCalendarOpen?.(true);
-              }}
-            >
-              <CalendarBlank aria-hidden="true" />
-              <span className="pop__stack">
-                Calendar years
-                <span className="pop__sub">{calendarSummary(calendar)}</span>
-              </span>
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            className="pop__danger"
-            disabled={!canResetBoard}
-            title={
-              canResetBoard
-                ? undefined
-                : 'Already the starter fodder board'
-            }
-            onClick={() =>
-              run(() => {
-                if (!canResetBoard) return;
-                if (
-                  confirm(
-                    'Reset to the initial starter board (fodder roster)? This clears the browser draft and discards the current board. Download JSON first if you need a copy.',
-                  )
-                ) {
-                  onResetBuiltIn();
-                }
-              })
-            }
-          >
-            <ArrowCounterClockwise aria-hidden="true" />
-            Reset the board
-          </button>
-          {onProblemReport && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                setCreditsOpen(false);
-                onCalendarOpen?.(false);
-                setReport({ text: onProblemReport() });
-              }}
-            >
-              <ClipboardText aria-hidden="true" />
-              <span className="pop__stack">
-                Send a problem report
-                <span className="pop__sub">To the developer, with no names</span>
-              </span>
-            </button>
-          )}
-          <DeveloperContact
-            variant="menu"
-            heading={`Contact ${DEVELOPER_NAME}`}
-            note="Problems, feedback or ideas"
-            onPick={() => setOpen(false)}
-          />
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => run(onDevUpdates)}
-          >
-            <Megaphone aria-hidden="true" />
-            Developer updates
-            {devUpdatesUnseen && (
-              <span
-                className="pop__dot"
-                aria-label="New since you last looked"
-              />
+            {fileItems.map((item) => (
+              <MenuEntry key={item.id} item={item} onRun={run} />
+            ))}
+            {onCalendar && (
+              <button
+                type="button"
+                role="menuitem"
+                className="pop__noted"
+                onClick={() => {
+                  setOpen(false);
+                  setCreditsOpen(false);
+                  setReport(null);
+                  onCalendarOpen?.(true);
+                }}
+              >
+                <CalendarBlank aria-hidden="true" />
+                <span className="pop__text">
+                  Calendar years
+                  <small>{calendarSummary(calendar)}</small>
+                </span>
+              </button>
             )}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              setReport(null);
-              onCalendarOpen?.(false);
-              setCreditsOpen(true);
-            }}
-          >
-            <Info aria-hidden="true" />
-            Credits
-          </button>
+            <button type="button" role="menuitem" onClick={() => run(onSave)}>
+              <DownloadSimple aria-hidden="true" />
+              Download the board (.json)
+            </button>
+            <button type="button" role="menuitem" onClick={() => fileRef.current?.click()}>
+              <UploadSimple aria-hidden="true" />
+              Upload a board (.json)
+            </button>
+          </div>
+          <div role="group" aria-labelledby="more-help">
+            <span className="pop__rule" aria-hidden="true" />
+            <div className="pop__head" id="more-help">
+              Help
+            </div>
+            <button type="button" role="menuitem" onClick={() => run(onDevUpdates)}>
+              <Megaphone aria-hidden="true" />
+              Developer updates
+              {devUpdatesUnseen && <span className="pop__dot" aria-label="New since you last looked" />}
+            </button>
+            {onProblemReport && (
+              <button
+                type="button"
+                role="menuitem"
+                className="pop__noted"
+                onClick={() => {
+                  setOpen(false);
+                  setCreditsOpen(false);
+                  onCalendarOpen?.(false);
+                  setReport({ text: onProblemReport() });
+                }}
+              >
+                <ClipboardText aria-hidden="true" />
+                <span className="pop__text">
+                  Send a problem report
+                  <small>To the developer, with no names</small>
+                </span>
+              </button>
+            )}
+            <DeveloperContact variant="menu" heading={`Contact ${DEVELOPER_NAME}`} note="Problems, feedback or ideas" onPick={() => setOpen(false)} />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setReport(null);
+                onCalendarOpen?.(false);
+                setCreditsOpen(true);
+              }}
+            >
+              <Info aria-hidden="true" />
+              Credits
+            </button>
+            {/* The one entry that throws work away: last, apart, in red, and it asks first. */}
+            <span className="pop__rule" aria-hidden="true" />
+            <button
+              type="button"
+              role="menuitem"
+              className="pop__danger"
+              disabled={!canResetBoard}
+              title={canResetBoard ? undefined : 'Already the starter fodder board'}
+              onClick={() =>
+                run(() => {
+                  if (!canResetBoard) return;
+                  if (
+                    confirm(
+                      'Reset to the initial starter board (fodder roster)? This clears the browser draft and discards the current board. Download JSON first if you need a copy.',
+                    )
+                  ) {
+                    onResetBuiltIn();
+                  }
+                })
+              }
+            >
+              <ArrowCounterClockwise aria-hidden="true" />
+              Reset the board
+            </button>
+          </div>
         </div>
       )}
       {calendarOpen && onCalendar && (

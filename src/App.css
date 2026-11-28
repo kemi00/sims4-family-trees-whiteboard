@@ -2445,3 +2445,10 @@ button.wstats__name:hover{color:#1b6cd6;text-decoration:underline;text-underline
 .gz__paper{flex:1 1 auto}
 .gz__bar .poster__btn{display:inline-flex;flex-direction:row;align-items:center;gap:6px;flex:none;padding:7px 12px;min-height:0;font-size:13px}
 .gz__bar .poster__btn svg{width:16px;height:16px}
+
+/* More: named groups; it scrolls within the window, so Help and Reset are always in reach. */
+.pop--more{max-height:calc(100dvh - 64px);overflow-y:auto;overscroll-behavior:contain}
+.pop__tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:2px 2px 4px}
+.pop .pop__tile{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;min-height:64px;padding:9px 4px 7px;text-align:center;font-size:12px;font-weight:600;line-height:1.2;border:1px solid var(--line);border-radius:10px;background:#fff}
+.pop .pop__tile svg{width:20px;height:20px;color:var(--ink-2)}
+.pop .pop__tile:hover{background:var(--hover)}

@@ -240,21 +240,70 @@ export function AppBar({
     setLinksFrom((f) => (f ? null : from));
   };
 
-  // Rare tools live in More on every screen: Organise and the Log. A phone
-  // has room for the edit tools, search and More, so the rest of the bar
-  // folds in there too, in the bar's order, each with the words its tooltip
-  // or pressed state gives on a wider screen.
-  const always: FoldedItem[] = [
-    {
-      id: 'gazette',
-      icon: Newspaper,
-      label: 'The Gazette',
-      note: wb.chronicle.length ? 'Your story as a newspaper, an edition a save' : 'Upload a newer save for the first edition',
-      onSelect: () => {
-        trackAction('/action/gazette');
-        wb.setGazetteOpen(true);
-      },
+  // More holds everything the bar has no room for, in named groups by what
+  // you came to do. A phone folds the bar's own buttons into those groups,
+  // each with the words its tooltip or pressed state gives on a wider screen.
+  const gazette: FoldedItem = {
+    id: 'gazette',
+    icon: Newspaper,
+    label: 'The Gazette',
+    note: wb.chronicle.length ? 'Your story as a newspaper, an edition a save' : 'Upload a newer save for the first edition',
+    onSelect: () => {
+      trackAction('/action/gazette');
+      wb.setGazetteOpen(true);
     },
+  };
+  const worldNumbers: FoldedItem = {
+    id: 'worlds',
+    icon: ChartBar,
+    label: 'Worlds in numbers',
+    note: 'Sims by life stage and gender, households, free lots',
+    onSelect: openWorldStats,
+  };
+  const play: FoldedItem[] = compact
+    ? [
+        { id: 'upnext', icon: ListNumbers, label: 'Up next', note: 'A suggested order to play your households in', onSelect: openUpNext },
+        { id: 'story', icon: BookOpenText, label: 'Story', note: 'What happened in your game, save by save', onSelect: openStory },
+        gazette,
+        // Dynasties come with Royalty & Legacy: no entry without it.
+        ...(wb.hasGame(ROYALTY_AND_LEGACY)
+          ? [{ id: 'dynasties', icon: Crown, label: 'Dynasties', note: 'Every dynasty, with its members', onSelect: openDynasties }]
+          : []),
+        worldNumbers,
+      ]
+    : [gazette, worldNumbers];
+  const board: FoldedItem[] = [
+    // Redo has no room on a phone's bar: it waits here while there is something to put back.
+    ...(compact && wb.redoWhat ? [{ id: 'redo', icon: ArrowClockwise, label: 'Redo', note: wb.redoWhat, onSelect: wb.redo }] : []),
+    ...(compact ? [{ id: 'layers', icon: Eye, label: 'View', note: layersNote(wb), onSelect: () => toggleLinks('more') }] : []),
+    { id: 'organise', icon: MagicWand, label: 'Organise', note: 'Arrange the board like the starter one', onSelect: organise },
+    {
+      id: 'log',
+      icon: Scroll,
+      label: wb.connectionLog.length ? `Log (${wb.connectionLog.length})` : 'Log',
+      note: 'Links and household moves you added',
+      onSelect: openLog,
+    },
+  ];
+  const files: FoldedItem[] = [
+    // A phone's board corner has no room for Your save: it is here.
+    ...(compact && wb.saveGame
+      ? [
+          {
+            id: 'save',
+            icon: CalendarBlank,
+            label: 'Your save',
+            note: saveChipText(wb.saveGame),
+            onSelect: () => {
+              closeLinks();
+              setSaveOpen((o) => {
+                if (!o) trackAction('/action/save-details');
+                return !o;
+              });
+            },
+          },
+        ]
+      : []),
     {
       id: 'tree-export',
       icon: FileImage,
@@ -265,96 +314,7 @@ export function AppBar({
         wb.setTreeExportOpen(true);
       },
     },
-    {
-      id: 'worlds',
-      icon: ChartBar,
-      label: 'Worlds in numbers',
-      note: 'Sims by life stage and gender, households, free lots',
-      onSelect: openWorldStats,
-    },
-    {
-      id: 'organise',
-      icon: MagicWand,
-      label: 'Organise',
-      note: 'Arrange the board like the starter one',
-      onSelect: organise,
-    },
-    {
-      id: 'log',
-      icon: Scroll,
-      label: wb.connectionLog.length ? `Log (${wb.connectionLog.length})` : 'Log',
-      note: 'Links and household moves you added',
-      onSelect: openLog,
-    },
   ];
-  const folded: FoldedItem[] = compact
-    ? [
-        // Redo has no room in the bar: it waits here while there is
-        // something to put back.
-        ...(wb.redoWhat
-          ? [
-              {
-                id: 'redo',
-                icon: ArrowClockwise,
-                label: 'Redo',
-                note: wb.redoWhat,
-                onSelect: wb.redo,
-              },
-            ]
-          : []),
-        {
-          id: 'upnext',
-          icon: ListNumbers,
-          label: 'Up next',
-          note: 'A suggested order to play your households in',
-          onSelect: openUpNext,
-        },
-        // Dynasties come with Royalty & Legacy: no button without it.
-        ...(wb.hasGame(ROYALTY_AND_LEGACY)
-          ? [
-              {
-                id: 'dynasties',
-                icon: Crown,
-                label: 'Dynasties',
-                note: 'Every dynasty, with its members',
-                onSelect: openDynasties,
-              },
-            ]
-          : []),
-        {
-          id: 'story',
-          icon: BookOpenText,
-          label: 'Story',
-          note: 'What happened in your game, save by save',
-          onSelect: openStory,
-        },
-        {
-          id: 'layers',
-          icon: Eye,
-          label: 'View',
-          note: layersNote(wb),
-          onSelect: () => toggleLinks('more'),
-        },
-        ...always,
-        ...(wb.saveGame
-          ? [
-              {
-                id: 'save',
-                icon: CalendarBlank,
-                label: 'Your save',
-                note: saveChipText(wb.saveGame),
-                onSelect: () => {
-                  closeLinks();
-                  setSaveOpen((o) => {
-                    if (!o) trackAction('/action/save-details');
-                    return !o;
-                  });
-                },
-              },
-            ]
-          : []),
-      ]
-    : always;
 
   const linksMenu = (
     <div
@@ -626,10 +586,13 @@ export function AppBar({
         devUpdatesUnseen={devUpdatesUnseen}
         label={
           compact
-            ? `More: ${wb.redoWhat ? 'redo, ' : ''}Up next, dynasties, story, view, organise, log, save, load, and credits`
-            : 'More: organise, log, save, load, and credits'
+            ? `More: your game, the board, save and files, help`
+            : 'More: the Gazette, worlds in numbers, organise, log, save and files, help'
         }
-        folded={folded}
+        play={play}
+        board={board}
+        files={files}
+        tiles={compact}
         wrapRef={moreRef}
         calendar={wb.planner.calendar ?? null}
         onCalendar={wb.setCalendar}
