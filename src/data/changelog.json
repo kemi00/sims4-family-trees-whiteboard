@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "5e8ceca",
+   "date": "2026-11-28",
+   "text": "Add a photo to any sim in their editor: it shows on their card and posters, and stays in this browser only. View can show infants to teens as silhouettes until they're young adults."
+  },
+  {
    "sha": "3b930fe",
    "date": "2026-11-28",
    "text": "A secret child's declared parent is marked as the game names it: family and dynasty, but not blood in the partner finder. Set it yourself in the Family tab."
