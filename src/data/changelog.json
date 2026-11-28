@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "e8562d0",
+   "date": "2026-11-28",
+   "text": "New view: the board by generation (View, Arrange). Gen 1 can be the oldest known ancestors or the oldest living sims; each family keeps together, children under their parents."
+  },
+  {
    "sha": "b5018d8",
    "date": "2026-11-28",
    "text": "The bar is grouped by what you do: edit the tree; find and show (Search, Highlight, Filters, View); your game (Play, Dynasties, Story); Share. Rare settings sit under the gear, and phones get tabs at the bottom."
