@@ -1,8 +1,7 @@
 import { useCallback, useId, useRef, useState } from 'react';
 import type { ChipObstacle, ChipSim, LinkSelectionInfo } from '../lib/linkLabel.ts';
 import { placeChipOnVisiblePath } from '../lib/linkLabel.ts';
-import { Baby, CaretDown, Heart, LinkBreak, NotePencil, Plus, Trash, UserPlus } from '../icons.ts';
-import type { BabyTry } from '../types/whiteboard.ts';
+import { CaretDown, Heart, LinkBreak, NotePencil, Plus, Trash, UserPlus } from '../icons.ts';
 import type { NextStep, StoryStep } from '../lib/coupleStory.ts';
 import { NoteEditor } from './NoteEditor.tsx';
 
@@ -37,128 +36,7 @@ type Props = {
   onSaveNote?: (text: string) => void;
   /** Take the picked link off the board (the Delete key's job too). */
   onDelete?: () => void;
-  /** The couple's tries for a baby (TriesForABaby). */
-  tries?: TriesProps;
 };
-
-type TriesProps = {
-  /** The tries for their next baby: those not yet led to one. */
-  list: BabyTry[];
-  /** Their last baby the tries led to, and how many it took: "Liam came after 4 tries". */
-  lastBaby?: string;
-  /** The baby on the way by the last save: when it is due, as the game's clock says it. */
-  expecting?: string;
-  /** Today in the game, by the last save: the day a new try starts at. */
-  today: number;
-  /** "Day 3", or "Day 3 · 1300" with calendar years. */
-  dayText: (day: number) => string;
-  onAdd: (t: BabyTry) => void;
-  onRemove: (index: number) => void;
-};
-
-/** A pregnancy lasts 100 sim hours (the game's PREGNANCY_RATE to 100): a baby is due about four days after. */
-const DAYS_TO_DUE = 4;
-
-/**
- * A couple's baby, on their chip. When the save has one on the way, that
- * is all it says: "Expecting: due Day 4, 5:59 AM", from the save. Until
- * then, the player can log their tries as they play (a save only shows a
- * pregnancy once it has begun): each try's day and whether it worked, with
- * a due date for one that did. Folded until asked for.
- */
-function TriesForABaby({ tries }: { tries: TriesProps }) {
-  const [open, setOpen] = useState(false);
-  const [day, setDay] = useState(String(tries.today));
-  const id = useId();
-  const n = tries.list.length;
-  const typed = /^-?\d+$/.test(day.trim()) ? Number(day.trim()) : null;
-  const add = (pregnant: boolean) => {
-    if (typed === null) return;
-    tries.onAdd({ day: typed, pregnant });
-  };
-  if (tries.expecting) {
-    return (
-      <div className="link-sel-chip__tries" role="group" aria-label="A baby on the way">
-        <p className="link-sel-chip__expecting">
-          <Baby weight="bold" aria-hidden="true" />
-          <span>{`Expecting: due ${tries.expecting}`}</span>
-        </p>
-        <p className="link-sel-chip__trynote">{n ? `From your save. You logged ${n} ${n === 1 ? 'try' : 'tries'} before.` : 'From your save.'}</p>
-      </div>
-    );
-  }
-  return (
-    <div className="link-sel-chip__tries" role="group" aria-label="Tries for a baby">
-      <button
-        type="button"
-        className="link-sel-chip__act link-sel-chip__act--tries"
-        aria-expanded={open}
-        aria-controls={id}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={() => setOpen(!open)}
-      >
-        <Baby weight="bold" aria-hidden="true" />
-        <span>{n ? `Tries for a baby · ${n}` : 'Log tries for a baby'}</span>
-        <CaretDown className="link-sel-chip__note-caret" weight="bold" aria-hidden="true" />
-      </button>
-      {open && (
-        <div id={id} className="link-sel-chip__trylog" onPointerDown={(e) => e.stopPropagation()}>
-          <p className="link-sel-chip__trynote">
-            Your save shows a pregnancy only once it has begun. Log each try for a baby as you play them, to count the
-            tries and see when a baby would be due. Once the baby is born, they keep the count.
-          </p>
-          {tries.lastBaby && <p className="link-sel-chip__trylast">{tries.lastBaby}</p>}
-          {n > 0 && (
-            <ol>
-              {tries.list.map((t, i) => (
-                <li key={i}>
-                  <span className="link-sel-chip__num" aria-hidden="true">
-                    {i + 1}
-                  </span>
-                  <span className="link-sel-chip__try">
-                    {t.pregnant
-                      ? `${tries.dayText(t.day)} · It worked, due about ${tries.dayText(t.day + DAYS_TO_DUE)}`
-                      : `${tries.dayText(t.day)} · It didn’t`}
-                  </span>
-                  <button
-                    type="button"
-                    className="link-sel-chip__bin"
-                    aria-label={`Remove try ${i + 1}`}
-                    title="Remove this try. Undo takes it back."
-                    onClick={() => tries.onRemove(i)}
-                  >
-                    <Trash aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )}
-          <div className="link-sel-chip__tryform">
-            <label className="link-sel-chip__tryday">
-              <span>{`Try ${n + 1}, on Day`}</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={day}
-                aria-invalid={typed === null}
-                onChange={(e) => setDay(e.target.value)}
-              />
-            </label>
-            {/* One choice, two answers: they stay side by side, whatever the width. */}
-            <span className="link-sel-chip__tryresult" role="group" aria-label={`How try ${n + 1} went`}>
-              <button type="button" className="link-sel-chip__act link-sel-chip__act--log" disabled={typed === null} onClick={() => add(true)}>
-                It worked
-              </button>
-              <button type="button" className="link-sel-chip__act link-sel-chip__act--log" disabled={typed === null} onClick={() => add(false)}>
-                It didn’t
-              </button>
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** Each story step's mark, as Connect's menu marks the links. */
 const STEP_MARK: Record<StoryStep['kind'], string> = {
@@ -241,7 +119,6 @@ export function LinkSelectionChip({
   next = [],
   onSaveNote,
   onDelete,
-  tries,
 }: Props) {
   const [editingNote, setEditingNote] = useState(false);
   const [noteExpanded, setNoteExpanded] = useState(false);
@@ -298,7 +175,7 @@ export function LinkSelectionChip({
   return (
     <div
       ref={ref}
-      className={`link-sel-chip${directed || hasPlans || told || hasNoteControl || onDelete || tries ? ' link-sel-chip--tall' : ''}${editingNote ? ' link-sel-chip--editing' : ''}`}
+      className={`link-sel-chip${directed || hasPlans || told || hasNoteControl || onDelete ? ' link-sel-chip--tall' : ''}${editingNote ? ' link-sel-chip--editing' : ''}`}
       data-side={placement.side}
       style={{ left, top }}
       role="status"
@@ -378,7 +255,6 @@ export function LinkSelectionChip({
             </ol>
           </div>
         )}
-        {tries && <TriesForABaby tries={tries} />}
         {hasPlans && (
           <div className="link-sel-chip__plans" role="group" aria-label="Relationship plans">
             <span className="link-sel-chip__head">Plan next</span>

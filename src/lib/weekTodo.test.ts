@@ -59,20 +59,26 @@ describe('the week’s to-do', () => {
     assert.equal(todo.items[0]!.text, 'Cassandra Goth becomes a Young Adult on Day 5');
   });
 
-  it('lists babies due: the save’s, and a try that took', () => {
+  it('lists babies due: the save’s, and a planned baby whose last try worked', () => {
     const jesminder = sim('Jesminder', { sur: 'Bheeda', hh: 'Bheeda', gid: 'San Myshuno||Bheeda', hhId: 'h-bheeda', pregnancy: { dueAt: 3 * TICKS_PER_DAY + 6 * TICKS_PER_HOUR, with: 'Arun' } });
     const arun = sim('Arun', { sur: 'Bheeda', hh: 'Bheeda', gid: 'San Myshuno||Bheeda', hhId: 'h-bheeda', gender: 'Male' });
     const nancy = sim('Nancy', { sur: 'Landgraab', hh: 'Landgraab', gid: 'Willow Creek||Landgraab', hhId: 'h-landgraab' });
     const geoffrey = sim('Geoffrey', { sur: 'Landgraab', hh: 'Landgraab', gid: 'Willow Creek||Landgraab', hhId: 'h-landgraab', gender: 'Male' });
+    // Two planned Landgraab babies: one took on Day 2, the other hasn't yet.
+    const heir = sim('Heir', { sur: 'Landgraab', hh: 'Landgraab', gid: 'Willow Creek||Landgraab', added: true, tries: [{ day: 1, pregnant: false }, { day: 2, pregnant: true }] });
+    const spare = sim('Spare', { sur: 'Landgraab', hh: 'Landgraab', gid: 'Willow Creek||Landgraab', added: true, tries: [{ day: 2, pregnant: false }] });
+    // A planned Bheeda baby whose try worked: the save's own pregnancy tells it instead.
+    const bheedaBaby = sim('Baby', { sur: 'Bheeda', hh: 'Bheeda', gid: 'San Myshuno||Bheeda', added: true, tries: [{ day: 1, pregnant: true }] });
+    const parent = (a: string, b: string) => ({ id: `${a}>${b}`, a, b, type: 'parent' as const });
     const todo = weekTodo({
-      nodes: [jesminder, arun, nancy, geoffrey],
+      nodes: [jesminder, arun, nancy, geoffrey, heir, spare, bheedaBaby],
+      edges: [parent('Nancy', 'Heir'), parent('Geoffrey', 'Heir'), parent('Nancy', 'Spare'), parent('Geoffrey', 'Spare'), parent('Jesminder', 'Baby'), parent('Arun', 'Baby')],
       saveGame: game(),
-      tries: { 'Geoffrey|Nancy': [{ day: 1, pregnant: false }, { day: 2, pregnant: true }], 'Arun|Jesminder': [{ day: 1, pregnant: true }] },
       scope: 'all',
     });
     assert.deepEqual(
       todo.items.filter((i) => i.kind === 'baby').map((i) => i.text),
-      ['Jesminder and Arun Bheeda’s baby is due Day 4, 6:00 AM', 'Geoffrey and Nancy Landgraab’s baby is due about Day 6, from your tries'],
+      ['Jesminder and Arun Bheeda’s baby is due Day 4, 6:00 AM', 'Heir Landgraab is due about Day 6, from your tries'],
     );
   });
 

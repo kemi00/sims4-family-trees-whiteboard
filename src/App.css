@@ -2219,24 +2219,6 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .editor .edcause__icon{flex:0 0 auto;width:16px;height:16px}
 .editor .edhint--row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
 
-/* ── a couple's tries for a baby (LinkSelectionChip › TriesForABaby) ─────── */
-.link-sel-chip__tries{margin-top:5px;pointer-events:auto}
-.link-sel-chip__act--tries{color:var(--ink-2)}
-.link-sel-chip__act--tries[aria-expanded=true] .link-sel-chip__note-caret{transform:rotate(180deg)}
-.link-sel-chip__trylog{margin-top:4px;padding:6px 7px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:11px;font-weight:500;color:var(--ink-2);user-select:text}
-.link-sel-chip__trylog ol{margin:0 0 6px;padding:0;list-style:none}
-.link-sel-chip__trylog li{display:flex;align-items:center;gap:6px;min-height:22px}
-.link-sel-chip__try{flex:1;min-width:0;font-variant-numeric:tabular-nums}
-.link-sel-chip__expecting{margin:0 0 5px;font-weight:600;color:var(--ink)}
-.link-sel-chip__tryempty{margin:0 0 6px;color:var(--ink-3)}
-.link-sel-chip__tryform{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding-top:5px;border-top:1px solid var(--line)}
-.link-sel-chip__tryday{display:inline-flex;align-items:center;gap:5px;margin-right:2px;font-weight:600;color:var(--ink-2)}
-.link-sel-chip__tryday input{width:46px;height:24px;padding:0 6px;border:1px solid var(--chip-line);border-radius:6px;font:inherit;font-size:11px;font-variant-numeric:tabular-nums;text-align:right;box-sizing:border-box}
-.link-sel-chip__tryday input[aria-invalid=true]{border-color:var(--danger)}
-@media (pointer:coarse){.link-sel-chip__tryday input{height:32px}}
-.link-sel-chip__act--log{border-color:var(--chip-line);background:var(--chip);color:var(--accent-strong)}
-.link-sel-chip__act--log:hover:not(:disabled){background:var(--hover)}
-.link-sel-chip__act--log:disabled{opacity:.45;cursor:default}
 /* Life stage lengths (StageLengthsControl): a stage, then its days. */
 .stagelen__row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600;color:var(--ink)}
 .stagelen__days{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink-2)}
@@ -2278,19 +2260,30 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .upnext .upweek__group li.is-done span{color:var(--ink-3);text-decoration:line-through}
 .upnext .upnext__subhead{margin:0 0 8px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
 @media (pointer:coarse){.upnext .upweek__scope button{min-height:40px}.upnext .upweek__group li input{width:20px;height:20px}}
-.link-sel-chip__tries .link-sel-chip__expecting{display:flex;align-items:center;gap:5px;margin:0;font-size:11.5px}
-.link-sel-chip__tries .link-sel-chip__expecting svg{width:12px;height:12px;flex:none;color:var(--ink-2)}
-.link-sel-chip__trynote{margin:1px 0 6px;font-size:11px;font-weight:500;line-height:1.4;color:var(--ink-3);white-space:normal}
-.link-sel-chip__tries > .link-sel-chip__trynote{margin:1px 0 0 17px}
 /* Each section's tasks in households: the household's dot and name, then its tasks. */
 .upnext .upweek__hh{margin:2px 0 8px}
 .upnext .upweek__hh + .upweek__hh{padding-top:6px;border-top:1px solid var(--rule)}
 .upnext .upweek__hhname{display:flex;align-items:center;gap:6px;margin:0 0 1px;font-size:12px;font-weight:700;color:var(--ink)}
 .upnext .upweek__hh ul{padding-left:2px}
-/* The try's day on one line, its two answers as one joined pair under it. */
-.link-sel-chip__tryform{flex-direction:column;align-items:flex-start;gap:6px}
-.link-sel-chip__tryresult{display:inline-flex;flex-wrap:nowrap}
-.link-sel-chip__tryresult .link-sel-chip__act--log{border-radius:0}
-.link-sel-chip__tryresult .link-sel-chip__act--log:first-child{border-radius:6px 0 0 6px}
-.link-sel-chip__tryresult .link-sel-chip__act--log:last-child{border-left:0;border-radius:0 6px 6px 0}
-.link-sel-chip__trylast{margin:0 0 6px;font-size:11px;font-weight:600;color:var(--ink-2)}
+
+/* ── a planned baby's tries (SimEditor › BabyTries) ─────────────────────── */
+.editor .edtries{margin-top:8px}
+.editor .edtries__expecting{margin:2px 2px 4px;font-size:12px;font-weight:600;color:var(--ink)}
+.editor .edexpecting{font-weight:600;color:var(--ink)}
+.editor .edtries__list{margin:6px 0;padding:0;list-style:none}
+.editor .edtries__list li{display:flex;align-items:center;gap:8px;min-height:24px;font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+.editor .edtries__num{width:14px;flex:none;text-align:right;color:var(--ink-3)}
+.editor .edtries__try{flex:1;min-width:0}
+.editor button.edtries__bin{display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--ink-3)}
+.editor button.edtries__bin svg{width:13px;height:13px}
+.editor button.edtries__bin:hover{background:var(--danger-soft);color:var(--danger)}
+.editor .edtries__form{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:6px;padding-top:8px;border-top:1px solid var(--line)}
+.editor .edtries__day{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink-2);text-transform:none;letter-spacing:normal}
+.editor .edtries__day input{width:56px;text-align:right;font-variant-numeric:tabular-nums}
+.editor .edtries__result{display:inline-flex;flex-wrap:nowrap}
+.editor .edtries__result button{padding:5px 12px;border:1px solid var(--chip-line);border-radius:0;background:var(--chip);color:var(--accent-strong);font-size:12px;font-weight:600}
+.editor .edtries__result button:first-child{border-radius:6px 0 0 6px}
+.editor .edtries__result button:last-child{border-left:0;border-radius:0 6px 6px 0}
+.editor .edtries__result button:hover:not(:disabled){background:var(--hover)}
+.editor .edtries__result button:disabled{opacity:.45;cursor:default}
+@media (pointer:coarse){.editor .edtries__result button{min-height:40px}.editor button.edtries__bin{width:36px;height:36px}}

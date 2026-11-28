@@ -145,6 +145,12 @@ export interface SimNode {
    * once the baby comes.
    */
   pregnancy?: { dueAt: number; with?: string };
+  /**
+   * The tries for a baby that led to this one, as the player logged them on
+   * its planned card, in order. The card keeps them once the save brings the
+   * baby: "Born after 4 tries".
+   */
+  tries?: BabyTry[];
   /** Work, school, traits, skills and aspiration from the last save import (see SimAbout). */
   about?: SimAbout;
   /**
@@ -213,17 +219,10 @@ export type StageLengths = Partial<Record<string, number>>;
 export interface BabyTry {
   day: number;
   pregnant: boolean;
-  /**
-   * The baby (twins: babies) these tries led to, by card id: set when an
-   * upload shows the couple's baby born. Tries without it are for their next.
-   */
-  for?: string[];
 }
 
 /** What the player keeps on the board beyond the family tree itself. */
 export interface PlannerData {
-  /** Each couple's tries for a baby, in order, by the two cards' pairKey (calendar.ts). */
-  tries?: Record<string, BabyTry[]>;
   /**
    * The week's to-do in Up next (weekTodo.ts): the households it covers, and
    * what's ticked off, by item key. Undo leaves both as they are.

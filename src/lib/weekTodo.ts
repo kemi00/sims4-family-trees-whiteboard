@@ -1,11 +1,11 @@
-import { openTries } from './babyTries.ts';
+import { dueFromTries, parentsExpecting, parentsOf } from './babyTries.ts';
 import { calendarYear, yearLabel } from './calendar.ts';
 import type { ChronicleEntry } from './chronicle.ts';
-import { DECEASED_STATE, hasDied } from './constants.ts';
+import { hasDied } from './constants.ts';
 import { TICKS_PER_DAY, clockText, dayOf, dayText, lifeView, wholeDaysText } from './lifeClock.ts';
 import { cardName, isPlannedSim } from './plan.ts';
 import { isUnhousedGid } from './unhoused.ts';
-import type { BabyTry, PlannerCalendar, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
+import type { Edge, PlannerCalendar, SaveGameInfo, SimNode } from '../types/whiteboard.ts';
 
 /** Which households the week's to-do covers: the one played last, every one played, or all. */
 export type WeekScope = 'active' | 'played' | 'all';
@@ -42,9 +42,6 @@ export type WeekTodo = {
   items: WeekItem[];
 };
 
-/** A pregnancy lasts 100 sim hours (the game's PREGNANCY_RATE to 100): a try that took is due about four days on. */
-export const DAYS_TO_DUE = 4;
-
 /** The game's week `day` falls in: Sunday (Day 1, 8, 15…) to Saturday. */
 export function gameWeek(day: number): { first: number; last: number } {
   const into = (((day - 1) % 7) + 7) % 7;
@@ -77,8 +74,9 @@ function householdsText(names: string[]): string {
  * - age-ups: a sim whose next stage comes this week, on the day it comes
  *   when their household ages, or after so many days of playing it when it
  *   doesn't (only the active household ages, say);
- * - babies due: pregnancies the save has (their due day), and tries for a
- *   baby that took with no pregnancy in the save yet (about four days on);
+ * - babies due: pregnancies the save has (their due day), and planned
+ *   babies whose last try worked with no pregnancy in the save yet (about
+ *   four days on);
  * - outfits: new ones after an age-up (this week's, and those the last
  *   upload saw this week), and for every household when a new calendar
  *   decade begins this week (calendar years on).
@@ -88,7 +86,8 @@ export function weekTodo(opts: {
   nodes: readonly SimNode[];
   saveGame: SaveGameInfo;
   calendar?: PlannerCalendar | null;
-  tries?: Record<string, BabyTry[]>;
+  /** The board's links: a planned baby's parents. */
+  edges?: readonly Edge[];
   chronicle?: readonly ChronicleEntry[];
   scope: WeekScope;
 }): WeekTodo {
@@ -152,16 +151,14 @@ export function weekTodo(opts: {
     const parents = other ? `${n.first} and ${cardName(other)}` : cardName(n);
     items.push({ key: key('baby', n.id, day), kind: 'baby', gid: n.gid, hh: n.hh, day, text: `${parents}’s baby is due ${clockText(n.pregnancy.dueAt)}` });
   }
-  for (const [pair, tries] of Object.entries(opts.tries ?? {})) {
-    const [a, b] = pair.split('|').map((id) => byId.get(id));
-    if (!a || !b || expecting.has(a.id) || expecting.has(b.id)) continue;
-    const took = [...openTries(tries)].reverse().find((t) => t.pregnant);
-    if (!took) continue;
-    const day = took.day + DAYS_TO_DUE;
-    if (day < today || day > last) continue;
-    const home = [a, b].find((x) => inScope(x) && x.state !== DECEASED_STATE);
-    if (!home) continue;
-    items.push({ key: key('baby', pair, took.day), kind: 'baby', gid: home.gid, hh: home.hh, day, text: `${a.first} and ${cardName(b)}’s baby is due about ${dayText(day)}, from your tries` });
+  // Planned babies whose last try worked, with no pregnancy in the save yet: due about four days on.
+  for (const baby of nodes) {
+    if (!isPlannedSim(baby) || !inScope(baby)) continue;
+    const day = dueFromTries(baby.tries);
+    if (day === null || day < today || day > last) continue;
+    const parents = parentsOf(baby.id, opts.edges ?? [], byId);
+    if (parentsExpecting(parents)) continue;
+    items.push({ key: key('baby', baby.id, day), kind: 'baby', gid: baby.gid, hh: baby.hh, day, text: `${cardName(baby)} is due about ${dayText(day)}, from your tries` });
   }
 
   // A new decade on the board's calendar: new outfits everywhere.

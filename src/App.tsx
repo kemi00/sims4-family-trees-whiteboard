@@ -552,7 +552,7 @@ export default function App() {
                       nodes: wb.nodes,
                       saveGame: wb.saveGame,
                       calendar: wb.calendar,
-                      tries: wb.planner.tries,
+                      edges: wb.edges,
                       chronicle: wb.chronicle,
                       scope,
                     });

@@ -74,9 +74,11 @@ import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelec
 import { pronounsLabel, theHousehold } from '../lib/utils.ts';
 import { heirAfterChoices, heirAfterHolder, successionLine, withSuccessionChoice, type LinePlace } from '../lib/succession.ts';
 import { simCardClass } from '../lib/simCard.ts';
-import type { DynastyRole, Edge, Group, PlannerCalendar, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
+import type { BabyTry, DynastyRole, Edge, Group, PlannerCalendar, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 import { bornDayOf, calendarYear, dayWithYear, pairKey, parseYear, simYears, yearLabel, type DeathWindow } from '../lib/calendar.ts';
 import { gameDeathIconOf, gameDeathOf } from '../lib/simAbout.ts';
+import { parentsExpecting, parentsOf, triesSummary } from '../lib/babyTries.ts';
+import { BabyTries } from './BabyTries.tsx';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
   const rest = items
@@ -365,8 +367,9 @@ type Props = {
   calendar?: PlannerCalendar | null;
   /** When their death came to light, by the story's uploads (deathWindows). */
   death?: DeathWindow;
-  /** The tries for a baby that led to them, as their parents' log has it (babyTries.ts). */
-  triedFor?: { count: number; first: number; last: number };
+  /** Log a try for this planned baby, or take one off (BabyTries). */
+  onAddTry?: (t: BabyTry) => void;
+  onRemoveTry?: (index: number) => void;
   /** When couples the story saw begin got together (unionDays), by pairKey: "m. 1299" on their links. */
   unions?: ReadonlyMap<string, { by: number; type: 'marriage' | 'romance' }>;
 };
@@ -410,7 +413,8 @@ export function SimEditor({
   funds,
   calendar = null,
   death,
-  triedFor,
+  onAddTry,
+  onRemoveTry,
   unions,
 }: Props) {
   const compact = useCompactChrome();
@@ -1505,13 +1509,21 @@ export function SimEditor({
               {ageLine}
             </p>
           )}
-          {triedFor && (
-            <p className="edwhen">
-              {`Born after ${triedFor.count} ${triedFor.count === 1 ? 'try' : 'tries'} for a baby, ${
-                triedFor.first === triedFor.last ? dayWithYear(triedFor.first, calendar ?? null) : `${dayWithYear(triedFor.first, calendar ?? null)} to ${dayWithYear(triedFor.last, calendar ?? null)}`
-              }.`}
-            </p>
-          )}
+          {(() => {
+            // Expecting, by the save: whose baby, and when it's due.
+            if (!n.pregnancy || isPet) return null;
+            const other = n.pregnancy.with ? byId[n.pregnancy.with] : undefined;
+            return (
+              <p className="edwhen edexpecting">{`Expecting${other ? `, with ${cardName(other)}` : ''}: due ${clockText(n.pregnancy.dueAt)}`}</p>
+            );
+          })()}
+          {(() => {
+            // A born baby keeps the tries that led to it.
+            const tried = planned ? null : triesSummary(n.tries);
+            if (!tried) return null;
+            const days = tried.first === tried.last ? dayWithYear(tried.first, calendar ?? null) : `${dayWithYear(tried.first, calendar ?? null)} to ${dayWithYear(tried.last, calendar ?? null)}`;
+            return <p className="edwhen">{`Born after ${tried.count} ${tried.count === 1 ? 'try' : 'tries'} for a baby, ${days}.`}</p>;
+          })()}
           {deathLine && (
             <div id="edLifeSum" className={gone ? 'eddeath eddeath--gone' : 'eddeath'}>
               <span className="eddeath__icon" aria-hidden="true">
@@ -1526,6 +1538,19 @@ export function SimEditor({
           {!life && n.life && !isPet && n.life.stage !== n.age && (
             <div className="edhint">Changed since your save: load it again to see its days.</div>
           )}
+          {planned && plannedChild && !isPet && onAddTry && onRemoveTry && (() => {
+            const expecting = parentsExpecting(parentsOf(n.id, edges, byId));
+            return (
+              <BabyTries
+                tries={n.tries ?? []}
+                today={saveGame ? dayOf(saveGame.clock) : 1}
+                dayText={(day) => dayWithYear(day, calendar ?? null)}
+                {...(expecting?.pregnancy ? { expecting: clockText(expecting.pregnancy.dueAt) } : {})}
+                onAdd={onAddTry}
+                onRemove={onRemoveTry}
+              />
+            );
+          })()}
           {!isPet && (
             <>
               <label htmlFor="edNick">Nickname</label>

@@ -12,9 +12,8 @@ import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
 import { firstChapter } from '../lib/firstChapter.ts';
 import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
-import { cardYearsText, deathWindows, pairKey, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
+import { cardYearsText, deathWindows, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
 import type { WeekScope } from '../lib/weekTodo.ts';
-import { triesToBirths } from '../lib/babyTries.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
@@ -1341,29 +1340,28 @@ export function useWhiteboard() {
       return { ...p, week: { ...p.week, done } };
     });
   }, []);
-  /** A couple's tries for a baby (PlannerData.tries), logged one at a time: one undo step each. */
+  /** A try for a baby, logged on that baby's planned card: one undo step each. */
   const addBabyTry = useCallback(
-    (a: string, b: string, t: BabyTry) => {
-      const key = pairKey(a, b);
-      pushUndo(t.pregnant ? 'Log a try for a baby: pregnant' : 'Log a try for a baby');
-      setPlanner((p) => ({ ...p, tries: { ...p.tries, [key]: [...(p.tries?.[key] ?? []), t] } }));
+    (babyId: string, t: BabyTry) => {
+      pushUndo(t.pregnant ? 'Log a try for a baby: it worked' : 'Log a try for a baby');
+      setNodesCore((ns) => ns.map((n) => (n.id === babyId ? { ...n, tries: [...(n.tries ?? []), t] } : n)));
     },
     [pushUndo],
   );
   const removeBabyTry = useCallback(
-    (a: string, b: string, index: number) => {
-      const key = pairKey(a, b);
-      if (!planner.tries?.[key]?.[index]) return;
+    (babyId: string, index: number) => {
       pushUndo('Remove a try for a baby');
-      setPlanner((p) => {
-        const left = (p.tries?.[key] ?? []).filter((_, i) => i !== index);
-        const { [key]: _gone, ...others } = p.tries ?? {};
-        const tries = left.length ? { ...others, [key]: left } : others;
-        const { tries: _old, ...rest } = p;
-        return Object.keys(tries).length ? { ...rest, tries } : rest;
-      });
+      setNodesCore((ns) =>
+        ns.map((n) => {
+          if (n.id !== babyId || !n.tries) return n;
+          const left = n.tries.filter((_, i) => i !== index);
+          if (left.length) return { ...n, tries: left };
+          const { tries: _gone, ...rest } = n;
+          return rest;
+        }),
+      );
     },
-    [planner, pushUndo],
+    [pushUndo],
   );
 
   const setLinksView = useCallback(
@@ -3947,13 +3945,6 @@ export function useWhiteboard() {
         if (told && !recapHasNews(told)) {
           // Nothing happened since: the story has no new page.
         } else setChronicle((prev) => withEntry(goesOn ? prev : [], entry));
-      }
-      // A baby the upload found born: the couple's tries for one led to it.
-      if (told?.born.length) {
-        setPlanner((p) => {
-          const tries = triesToBirths(p.tries, told.born);
-          return tries === p.tries ? p : { ...p, tries };
-        });
       }
       if (told && recapHasNews(told)) {
         setRecap(told);

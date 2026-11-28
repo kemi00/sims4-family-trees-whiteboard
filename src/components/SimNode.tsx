@@ -160,6 +160,8 @@ export const SimNodeView = memo(function SimNodeView({
   const dim = (highlighting || !!bloodlineIds || !!familyIds) && !match;
   const ageClass = (highlighting || !!familyIds) && match ? 'agehl' : dim ? 'agedim' : '';
   const detail = plannedMoveIn ? PLANNED_MOVES_IN : cardDetailLine(n);
+  // A planned baby says how many tries it has had, after its stage: "Not born yet · 2 tries".
+  const tries = isPlannedSim(n) && n.tries?.length ? `${n.tries.length} ${n.tries.length === 1 ? 'try' : 'tries'}` : '';
   const h = n.h || CARD_H;
   const role = n.dynastyRole ? DYNASTY_ROLES[n.dynastyRole] : null;
   const shownName = nameWithNick(n);
@@ -285,7 +287,7 @@ export const SimNodeView = memo(function SimNodeView({
             {shownName}
           </text>
           <text x={16} y={52} fontSize={10.5} fill="#5b6472">
-            {fitParts(stageLines(stage, n, years), (n.w || CARD_MIN_W) - 16 - 10).map((p, i) =>
+            {fitParts(stageLines(stage, n, years || tries || undefined), (n.w || CARD_MIN_W) - 16 - 10).map((p, i) =>
               p.dyn ? (
                 <tspan key={i} fill="#3b4757" fontWeight={600}>
                   {p.text}
