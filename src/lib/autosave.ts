@@ -179,6 +179,7 @@ function nodeIdentity(n: SimNode) {
     tries: n.tries ?? null,
     titles: n.titles ?? null,
     markers: n.markers ?? null,
+    fame: n.fame ?? null,
     pastSaveIds: n.pastSaveIds ?? null,
     yearBorn: n.yearBorn ?? null,
     yearDied: n.yearDied ?? null,

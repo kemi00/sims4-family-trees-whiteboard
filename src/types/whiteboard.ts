@@ -98,6 +98,8 @@ export interface SimNode {
   titles?: SimTitle[];
   /** The board's markers they carry, by id (PlannerData.markers). */
   markers?: string[];
+  /** Fame stars from the last save (Get Famous): 1 Notable Newcomer to 5 Global Superstar. */
+  fame?: number;
   /** In the save and not on the shipped xlsx roster. */
   fromSave?: boolean;
   /**
@@ -410,6 +412,8 @@ export interface SaveGameInfo {
    * tells a title that changed as news. Before, the board had none to compare.
    */
   titlesRead?: true;
+  /** The board read fame stars at this import: the next upload tells a star gained or lost. */
+  fameRead?: true;
   /**
    * The households played at earlier imports, newest first, without the
    * one active now: Up next suggests the one played longest ago first.
@@ -609,7 +613,11 @@ export type PairTag =
   | 'friends'
   | 'disliked'
   | 'despised'
-  | 'enemies';
+  | 'enemies'
+  /** One cheated with the other (the game's "cheated with" bit): an affair. */
+  | 'affair'
+  /** One feels betrayed by the other's cheating ("Betrayed by Cheating"): found out. */
+  | 'betrayed';
 
 /** Relationship status between two board sims, from the last save import. */
 export interface PairStatus {

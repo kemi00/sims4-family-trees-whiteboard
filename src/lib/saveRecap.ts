@@ -67,7 +67,7 @@ export type ArrivalNews = { sim: RecapSim; hh: string; ids: string[]; as?: strin
  * a secret parent or secret lovers no longer secret.
  */
 export type RelationshipNews = {
-  kind: 'friendship' | 'rivalry' | 'enemies' | 'engaged' | 'partners' | 'secretKnown';
+  kind: 'friendship' | 'rivalry' | 'enemies' | 'engaged' | 'partners' | 'secretKnown' | 'affair' | 'betrayed';
   a: RecapSim;
   b: RecapSim;
   from?: number;
@@ -118,7 +118,10 @@ export type FamilyNews =
   | { kind: 'parentFound'; parent: RecapSim; child: RecapSim; secret?: boolean };
 
 /** A sim's life changing: a new life state, or a new name. */
-export type LifeNews = { kind: 'state' | 'name' | 'renamed' | 'pronouns' | 'title'; sim: RecapSim; from: string; to: string };
+export type LifeNews = { kind: 'state' | 'name' | 'renamed' | 'pronouns' | 'title' | 'fame'; sim: RecapSim; from: string; to: string };
+
+/** Fame stars in the game's words: 1 Notable Newcomer to 5 Global Superstar. */
+export const FAME_WORDS = ['', 'Notable Newcomer', 'Rising Star', 'B-Lister', 'Proper Celebrity', 'Global Superstar'];
 
 /** A household moving home together: to another lot, or another world. */
 export type HomeNews = { hh: string; ids: string[]; to: string; from?: string; renamedFrom?: string };
@@ -351,6 +354,10 @@ export function lifeText(n: LifeNews): string {
   if (n.kind === 'name') return `${name} took the name ${n.to}`;
   if (n.kind === 'renamed') return `${n.from} is now called ${n.to}`;
   if (n.kind === 'title') return n.to ? `${name} became ${n.to}` : `${name} is no longer ${n.from}`;
+  if (n.kind === 'fame') {
+    const to = Number(n.to);
+    return to > Number(n.from) ? `${name} is now a ${FAME_WORDS[to]}, ${to} ${to === 1 ? 'star' : 'stars'} of fame` : to ? `${name} fell to ${to} ${to === 1 ? 'star' : 'stars'} of fame` : `${name} is no longer famous`;
+  }
   if (n.from === DECEASED_STATE && n.to !== 'Ghost') return `${name} came back to life`;
   if (n.to === 'Sim') return `${name} is no longer ${aState(n.from)}`;
   return `${name} became ${aState(n.to)}`;
@@ -422,6 +429,10 @@ export function relationshipText(r: RelationshipNews): string {
       return `${both} became partners`;
     case 'secretKnown':
       return r.link === 'parent' ? `${r.a.name} is no longer a secret parent of ${r.b.name}` : `${both} are no longer secret lovers`;
+    case 'affair':
+      return `${both} had an affair`;
+    case 'betrayed':
+      return `Cheating came to light between ${both}`;
   }
 }
 
@@ -621,6 +632,9 @@ function tellTheRest(
     const nowTitle = gameTitleNow(n);
     // (Not when the board hadn't read titles before: the game gave those before the board knew it.)
     if (before.saveGame?.titlesRead && wasTitle !== nowTitle && !hasDied(n.state)) life.push({ kind: 'title', sim: sim(n), from: wasTitle, to: nowTitle });
+    // Fame stars gained or lost, once the board has read them before.
+    if (before.saveGame?.fameRead && (o.fame ?? 0) !== (n.fame ?? 0) && !hasDied(n.state))
+      life.push({ kind: 'fame', sim: sim(n), from: String(o.fame ?? 0), to: String(n.fame ?? 0) });
   }
   if (life.length) recap.life = life;
 
@@ -734,6 +748,9 @@ function tellTheRest(
       if (u.includes('engaged') && !t.includes('engaged') && !u.includes('married')) relationships.push({ kind: 'engaged', ...pair });
       if (u.includes('partners') && !t.includes('partners') && !u.includes('engaged') && !u.includes('married'))
         relationships.push({ kind: 'partners', ...pair });
+      // Cheating: one cheated with the other (an affair), and one who found out.
+      if (u.includes('affair') && !t.includes('affair')) relationships.push({ kind: 'affair', ...pair });
+      if (u.includes('betrayed') && !t.includes('betrayed')) relationships.push({ kind: 'betrayed', ...pair });
     }
   }
   // Secrets coming out: a secret parent, or secret lovers, the save no longer keeps secret.

@@ -1990,6 +1990,12 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         const { pregnancy: _born, ...rest } = nodes[i]!;
         nodes[i] = rest;
       }
+      // Fame stars, as the game has them now.
+      if (sim.fame) nodes[i] = { ...nodes[i]!, fame: sim.fame };
+      else if (nodes[i]!.fame) {
+        const { fame: _gone, ...rest } = nodes[i]!;
+        nodes[i] = rest;
+      }
       // What they do and are, as the game has it now: the save's word, every upload.
       if (sim.about) nodes[i] = { ...nodes[i]!, about: sim.about };
       else if (nodes[i]!.about) {
@@ -2177,6 +2183,7 @@ function saveGameFrom(
     ...(active ? { activeHousehold: active } : {}),
     ...(game.playedHouseholds.length ? { playedHouseholds: [...game.playedHouseholds] } : {}),
     titlesRead: true,
+    fameRead: true,
   };
   // Each household's money, and the home a move would sell.
   if (game.households) {

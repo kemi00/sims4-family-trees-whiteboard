@@ -1,0 +1,19 @@
+{
+ "note": "Built by scripts/build-gazette-stickers.ts: the game moodlet each kind of story wears in the gazette, public/gazette-stickers/<kind>.webp.",
+ "kinds": {
+  "wedding": "Just Married!",
+  "romance": "First Kiss!",
+  "baby": "New Baby!",
+  "adoption": "Ready-Made Kid",
+  "death": "A Loved One Has Passed",
+  "divorce": "Divorced",
+  "breakup": "Break Up Blues",
+  "affair": "Heartbroken by Betrayal",
+  "promotion": "Got the Promotion!",
+  "noble": "Royal Radiance",
+  "fame": "Proper Celebrity",
+  "birthday": "Birthday!",
+  "head": "Stepping Into Power",
+  "heir": "Chosen"
+ }
+}

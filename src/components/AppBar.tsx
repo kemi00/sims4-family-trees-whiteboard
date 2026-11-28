@@ -3,6 +3,7 @@ import {
   CalendarBlank,
   Check,
   ChartBar,
+  Newspaper,
   FileImage,
   Coins,
   ImageSquare,
@@ -244,6 +245,16 @@ export function AppBar({
   // folds in there too, in the bar's order, each with the words its tooltip
   // or pressed state gives on a wider screen.
   const always: FoldedItem[] = [
+    {
+      id: 'gazette',
+      icon: Newspaper,
+      label: 'The Gazette',
+      note: wb.chronicle.length ? 'Your story as a newspaper, an edition a save' : 'Upload a newer save for the first edition',
+      onSelect: () => {
+        trackAction('/action/gazette');
+        wb.setGazetteOpen(true);
+      },
+    },
     {
       id: 'tree-export',
       icon: FileImage,

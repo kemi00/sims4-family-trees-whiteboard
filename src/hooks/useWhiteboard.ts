@@ -655,6 +655,8 @@ export function useWhiteboard() {
   const [worldStatsOpen, setWorldStatsOpen] = useState(false);
   /** The whole tree is being drawn as a file: the stage mounts every card, named (boardExport.ts). */
   const [boardExporting, setBoardExporting] = useState(false);
+  /** The Gazette (GazetteDialog): the story as a newspaper. */
+  const [gazetteOpen, setGazetteOpen] = useState(false);
   /** The whole tree's export dialog (TreeExportDialog). */
   const [treeExportOpen, setTreeExportOpen] = useState(false);
   const [upNextSkipped, setUpNextSkipped] = useState<ReadonlySet<string>>(() => new Set());
@@ -4912,6 +4914,8 @@ export function useWhiteboard() {
     setBoardExporting,
     treeExportOpen,
     setTreeExportOpen,
+    gazetteOpen,
+    setGazetteOpen,
     upNextSkipped,
     setUpNextSkipped,
     connectionLog,

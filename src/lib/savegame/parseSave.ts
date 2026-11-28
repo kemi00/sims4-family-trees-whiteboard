@@ -82,6 +82,8 @@ export type ParsedSaveSim = {
    * too (Consort Capp, Old Age), though only a death in play has `death`.
    */
   deathTrait?: string;
+  /** Fame stars (Get Famous): 1 to 5, from the fame statistic's points. */
+  fame?: number;
   /**
    * Expecting a baby: the save's pregnancy record (SimData 30.8: 2 the two
    * parents, carrier first, as fixed64; 6 the other parent) and how far along
@@ -364,6 +366,11 @@ const REL_BIT = {
   nemesis: 15801n,
   enemy: 26560n,
   secretChild: 487507n,
+  /** romantic_Target_CheatedWith_Actor: an affair, read from tuning 2026-11-28 (no save had one yet). */
+  cheatedWith: 37265n,
+  /** Betrayed by Cheating, Furious about Cheating: the sentiments of one who found out. */
+  betrayedLong: 246536n,
+  betrayedShort: 246622n,
 } as const;
 
 /**
@@ -405,6 +412,8 @@ const TAG_RULES: { kind: string; tag: PairTag; bits: bigint[] }[] = [
   { kind: 'foe', tag: 'enemies', bits: [REL_BIT.nemesis, REL_BIT.enemy] },
   { kind: 'foe', tag: 'despised', bits: [REL_BIT.despised] },
   { kind: 'foe', tag: 'disliked', bits: [REL_BIT.disliked] },
+  { kind: 'affair', tag: 'affair', bits: [REL_BIT.cheatedWith] },
+  { kind: 'betrayal', tag: 'betrayed', bits: [REL_BIT.betrayedLong, REL_BIT.betrayedShort] },
 ];
 
 /** Strongest tag of each kind present in `bits`. */
@@ -509,6 +518,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
   let about: SimAbout = {};
   let death: ParsedSaveSim['death'];
   let pregnancy: ParsedSaveSim['pregnancy'];
+  let fame: number | undefined;
   for (const f of fields) {
     if (f.field === SIM.id && (f.wire === 0 || f.wire === 1) && f.int > 0n) {
       saveSimId = idStr(f.int);
@@ -538,6 +548,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
       about = { ...about, ...parseTrackers(f.bytes) };
       death = parseDeath(f.bytes) ?? death;
       pregnancy = parsePregnancy(f.bytes, saveSimIdOf(fields)) ?? pregnancy;
+      fame = parseFame(f.bytes) ?? fame;
     } else if (f.field === SIM.aspiration && f.wire === 0 && f.int > 0n) {
       about = { ...about, aspiration: idStr(f.int) };
     } else if (f.field === SIM.creation && f.bytes) {
@@ -568,6 +579,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     ...(Object.keys(about).length ? { about } : {}),
     ...(death ? { death } : {}),
     ...(pregnancy ? { pregnancy } : {}),
+    ...(fame ? { fame } : {}),
     ...(() => {
       const deathTrait = about.traits?.find((t) => DEATH_TRAITS.has(t));
       return deathTrait ? { deathTrait } : {};
@@ -609,6 +621,27 @@ function parsePregnancy(trackers: Uint8Array, self: string): ParsedSaveSim['preg
   }
   if (!Number.isFinite(progress)) progress = 0;
   return { progress: Math.min(100, Math.max(0, progress)), ...(withId ? { with: withId } : {}) };
+}
+
+/** Fame points where each star begins (Get Famous): 1 Notable Newcomer to 5 Global Superstar. */
+const FAME_STARS = [162, 837, 1917, 3334, 5021];
+/** The fame ranked statistic (statistic_Fame), among a sim's ranked statistics (SIM.trackers → 21). */
+const FAME_STAT = '188229';
+
+/** Fame stars from a sim's ranked statistics: 0 to 5, or none without fame. Read 2026-11-28: Judith Ward 5,021 points, five stars. */
+function parseFame(trackers: Uint8Array): number | undefined {
+  const box = decodeFields(trackers).find((f) => f.field === 21 && f.bytes)?.bytes;
+  if (!box) return undefined;
+  for (const entry of decodeFields(box)) {
+    if (!entry.bytes) continue;
+    const e = decodeFields(entry.bytes);
+    if (idStr(e.find((x) => x.field === 1 && x.wire === 0)?.int ?? 0n) !== FAME_STAT) continue;
+    const value = e.find((x) => x.field === 2 && x.wire === 5);
+    const points = value ? float32(value.int) : 0;
+    const stars = FAME_STARS.filter((t) => points >= t).length;
+    return stars || undefined;
+  }
+  return undefined;
 }
 
 /** A death in play from a sim's trackers (SIM.trackers → 7): its tick and type, or none. */

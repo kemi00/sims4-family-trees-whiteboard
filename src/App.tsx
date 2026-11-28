@@ -26,6 +26,7 @@ import { PosterDialog } from './components/PosterDialog.tsx';
 import { weekTodo } from './lib/weekTodo.ts';
 import { WorldStatsPanel } from './components/WorldStatsPanel.tsx';
 import { TreeExportDialog } from './components/TreeExportDialog.tsx';
+import { GazetteDialog } from './components/GazetteDialog.tsx';
 import { worldRects } from './lib/boardExport.ts';
 import { boardStats, worldStats } from './lib/worldStats.ts';
 import { NOT_IN_WORLD } from './lib/constants.ts';
@@ -602,6 +603,27 @@ export default function App() {
                 })
               }
             />
+        )}
+        {wb.gazetteOpen && (
+          <GazetteDialog
+            chronicle={wb.chronicle}
+            nodes={wb.nodes}
+            edges={wb.edges}
+            saveGame={wb.saveGame}
+            calendar={wb.calendar}
+            {...(() => {
+              const gid = wb.saveGame?.lastPlayedGid;
+              const world = gid ? wb.groups.find((g) => g.gid === gid)?.world : undefined;
+              return world && world !== NOT_IN_WORLD ? { world } : {};
+            })()}
+            onFind={(ids) => {
+              wb.setGazetteOpen(false);
+              const rect = svgRef.current?.getBoundingClientRect();
+              if (ids[0]) wb.focusSim(ids[0], rect?.width ?? 800, rect?.height ?? 600);
+              wb.setBriefHover(new Set(ids));
+            }}
+            onClose={() => wb.setGazetteOpen(false)}
+          />
         )}
         {wb.treeExportOpen && (
           <TreeExportDialog

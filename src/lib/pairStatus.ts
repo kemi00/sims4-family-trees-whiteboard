@@ -36,6 +36,8 @@ const WORD: Record<PairTag, string> = {
   disliked: 'Dislike each other',
   despised: 'Despise each other',
   enemies: 'Enemies',
+  affair: 'Cheated together',
+  betrayed: 'Betrayed by cheating',
 };
 
 const ROMANCE: readonly PairTag[] = ['married', 'engaged', 'partners', 'secretLovers'];
