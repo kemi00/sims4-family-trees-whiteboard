@@ -4,6 +4,7 @@ import { isUnhousedGid } from './unhoused.ts';
 import { cardName } from './plan.ts';
 import { edgeSourceOf, endedByPassing, fold } from './utils.ts';
 import { isOngoingCouple } from './coupleStory.ts';
+import { currentTitles, rankOf } from './titles.ts';
 import type { Edge, SaveGameInfo, SimLife, SimNode } from '../types/whiteboard.ts';
 
 /**
@@ -14,7 +15,8 @@ export function bloodRelatives(id: string, edges: Edge[]): Set<string> {
   const parents = new Map<string, string[]>();
   const children = new Map<string, string[]>();
   for (const e of edges) {
-    if (e.type !== 'parent') continue;
+    // A declared parent (the one the game names for a secret child) is no blood.
+    if (e.type !== 'parent' || e.declared) continue;
     parents.set(e.b, [...(parents.get(e.b) ?? []), e.a]);
     children.set(e.a, [...(children.get(e.a) ?? []), e.b]);
   }
@@ -40,6 +42,74 @@ export function bloodRelatives(id: string, edges: Edge[]): Set<string> {
   return out;
 }
 
+/** Each sim's parents on the board's links: a declared parent (Edge.declared) is no blood. */
+function parentMap(edges: readonly Edge[]): Map<string, string[]> {
+  const parents = new Map<string, string[]>();
+  for (const e of edges) {
+    if (e.type !== 'parent' || e.declared) continue;
+    parents.set(e.b, [...(parents.get(e.b) ?? []), e.a]);
+  }
+  return parents;
+}
+
+/** A sim and their ancestors, each with how many generations up (the sim 0, a parent 1). */
+function ancestorDepths(id: string, parents: ReadonlyMap<string, string[]>): Map<string, number> {
+  const out = new Map<string, number>([[id, 0]]);
+  let level = [id];
+  for (let depth = 1; level.length; depth++) {
+    const next: string[] = [];
+    for (const x of level) {
+      for (const p of parents.get(x) ?? []) {
+        if (out.has(p)) continue;
+        out.set(p, depth);
+        next.push(p);
+      }
+    }
+    level = next;
+  }
+  return out;
+}
+
+/**
+ * How two sims are kin by their closest shared ancestor: generations up to it
+ * from each. Undefined when they share none. A parent is (1, 0) from their
+ * child; siblings (1, 1); first cousins (2, 2); second cousins (3, 3).
+ */
+export function kinship(a: string, b: string, edges: readonly Edge[]): { up: number; down: number } | undefined {
+  const parents = parentMap(edges);
+  const mine = ancestorDepths(a, parents);
+  const theirs = ancestorDepths(b, parents);
+  let best: { up: number; down: number } | undefined;
+  for (const [x, up] of mine) {
+    const down = theirs.get(x);
+    if (down === undefined) continue;
+    if (!best || Math.min(up, down) < Math.min(best.up, best.down) || (Math.min(up, down) === Math.min(best.up, best.down) && up + down < best.up + best.down)) {
+      best = { up, down };
+    }
+  }
+  return best;
+}
+
+/** Second cousins share only great-grandparents: three generations up from each. */
+export const FAR_KIN_GENERATIONS = 3;
+
+/** Kin who share no ancestor closer than a great-grandparent on either side: second cousins and further. */
+export function isFarKin(k: { up: number; down: number }): boolean {
+  return Math.min(k.up, k.down) >= FAR_KIN_GENERATIONS;
+}
+
+const ORDINALS = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth'];
+const TIMES = ['', 'once', 'twice', 'three times', 'four times'];
+
+/** "second cousin", "third cousin once removed": cousins by their closest shared ancestor. */
+export function cousinText(k: { up: number; down: number }): string {
+  const degree = Math.min(k.up, k.down) - 1;
+  const removed = Math.abs(k.up - k.down);
+  const nth = ORDINALS[degree] ?? `${degree}th`;
+  const times = removed ? ` ${TIMES[removed] ?? `${removed} times`} removed` : '';
+  return `${nth} cousin${times}`;
+}
+
 export type PartnerCandidate = {
   id: string;
   /** Normal-lifespan days between their place in life and the sim's. */
@@ -51,6 +121,8 @@ export type PartnerCandidate = {
   frozen?: SimLife['frozen'];
   /** In a romance with someone on the board. */
   taken: boolean;
+  /** Kin too far to count as blood here ("second cousin"), when the finder lets them in. */
+  kin?: string;
 };
 
 /**
@@ -127,6 +199,8 @@ export function partnerCandidates(opts: {
   limit?: number;
   /** List married sims too (the ♥ finder says who they're with, and can hide them). */
   includeMarried?: boolean;
+  /** Let in kin who share no ancestor closer than a great-grandparent: second cousins and further. */
+  farKin?: boolean;
 }): PartnerCandidate[] {
   const focus = opts.nodes.find((n) => n.id === opts.id);
   if (!focus || focus.species) return [];
@@ -153,7 +227,13 @@ export function partnerCandidates(opts: {
   const out: PartnerCandidate[] = [];
   for (const n of opts.nodes) {
     if (n.id === focus.id || n.species || n.state === DECEASED_STATE) continue;
-    if (blood.has(n.id) || (married.has(n.id) && !opts.includeMarried)) continue;
+    let kin: string | undefined;
+    if (blood.has(n.id)) {
+      const k = opts.farKin ? kinship(focus.id, n.id, opts.edges) : undefined;
+      if (!k || !isFarKin(k)) continue;
+      kin = cousinText(k);
+    }
+    if (married.has(n.id) && !opts.includeMarried) continue;
     if (opts.gender && n.gender !== opts.gender) continue;
     if (!band.includes(n.age)) continue;
     if (opts.housedOnly && hasNoHome(n)) continue;
@@ -167,6 +247,7 @@ export function partnerCandidates(opts: {
       approx: me.approx || them.approx,
       ...(n.life?.frozen && !them.approx ? { frozen: n.life.frozen } : {}),
       taken: romance.has(n.id),
+      ...(kin ? { kin } : {}),
     });
   }
   // Ties by name: every sim whose age is guessed from their life stage has
@@ -317,8 +398,20 @@ export function coupleLine(couples: readonly CoupleNow[] | undefined, nameOf: (i
   return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
-/** The ♥ finder's filters; '' is any. */
-export type PartnerFilters = { stage: string; gender: string; relation: '' | PartnerRelation; world: string; housedOnly: boolean };
+/**
+ * The ♥ finder's filters; '' is any. `title`: 'titled' for any title held
+ * now, or 'rN' for rank N or higher (titles.ts rankOf). `marker`: a board
+ * marker's id.
+ */
+export type PartnerFilters = {
+  stage: string;
+  gender: string;
+  relation: '' | PartnerRelation;
+  world: string;
+  housedOnly: boolean;
+  title?: string;
+  marker?: string;
+};
 
 /** A sim the ♥ finder can list, with what its filters look at. */
 export type PartnerOption = {
@@ -330,20 +423,67 @@ export type PartnerOption = {
   gender: string;
   world: string;
   noHome: boolean;
+  /** Holds a title now, and the highest rank among them. */
+  titled: boolean;
+  rank?: number;
+  /** The board's markers they carry. */
+  markers: string[];
 };
 
 /**
  * Everyone who could partner `id` for the ♥ finder, closest in life first:
  * as partnerCandidates, married sims too, each with who they're with now.
  */
-export function partnerOptions(opts: { id: string; nodes: SimNode[]; edges: Edge[]; game?: SaveGameInfo | null }): PartnerOption[] {
+export function partnerOptions(opts: { id: string; nodes: SimNode[]; edges: Edge[]; game?: SaveGameInfo | null; farKin?: boolean }): PartnerOption[] {
   const byId = new Map(opts.nodes.map((n) => [n.id, n]));
   const couples = couplesNow(opts.nodes, opts.edges);
   return partnerCandidates({ ...opts, includeMarried: true }).map((c) => {
     const n = byId.get(c.id)!;
     const cs = couples.get(c.id) ?? [];
-    return { id: c.id, candidate: c, couples: cs, relation: relationOf(cs), stage: n.age, gender: n.gender, world: n.world, noHome: hasNoHome(n) };
+    const rank = rankOf(n);
+    return {
+      id: c.id,
+      candidate: c,
+      couples: cs,
+      relation: relationOf(cs),
+      stage: n.age,
+      gender: n.gender,
+      world: n.world,
+      noHome: hasNoHome(n),
+      titled: currentTitles(n).length > 0,
+      ...(rank !== undefined ? { rank } : {}),
+      markers: n.markers ?? [],
+    };
   });
+}
+
+/** Whether an option passes the Title filter: any title, or rank N or higher. */
+function titlePasses(o: PartnerOption, title: string | undefined): boolean {
+  if (!title) return true;
+  if (title === 'titled') return o.titled;
+  const at = /^r(\d+)$/.exec(title);
+  return !!at && o.rank !== undefined && o.rank >= Number(at[1]);
+}
+
+/**
+ * The Title menu: 'titled', then each rank someone listed holds, highest
+ * first ("rank 9 or higher"), each with how many it leaves.
+ */
+export function partnerTitleChoices(list: readonly PartnerOption[], f: PartnerFilters): { value: string; count: number }[] {
+  const pool = filterPartners(list, f, 'title');
+  const ranks = [...new Set(pool.flatMap((o) => (o.rank !== undefined ? [o.rank] : [])))].sort((a, b) => b - a);
+  const titled = pool.filter((o) => o.titled).length;
+  return [
+    ...(titled ? [{ value: 'titled', count: titled }] : []),
+    ...ranks.map((r) => ({ value: `r${r}`, count: pool.filter((o) => o.rank !== undefined && o.rank >= r).length })),
+  ];
+}
+
+/** How many each marker leaves, with the other filters on. */
+export function partnerMarkerCounts(list: readonly PartnerOption[], f: PartnerFilters): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const o of filterPartners(list, f, 'marker')) for (const m of o.markers) out.set(m, (out.get(m) ?? 0) + 1);
+  return out;
 }
 
 /** The options the filters keep; `skip` leaves one filter out, for that menu's own counts. */
@@ -354,7 +494,9 @@ export function filterPartners(list: readonly PartnerOption[], f: PartnerFilters
       (skip === 'gender' || !f.gender || o.gender === f.gender) &&
       (skip === 'relation' || !f.relation || o.relation === f.relation) &&
       (skip === 'world' || !f.world || o.world === f.world) &&
-      (skip === 'housedOnly' || !f.housedOnly || !o.noHome),
+      (skip === 'housedOnly' || !f.housedOnly || !o.noHome) &&
+      (skip === 'title' || titlePasses(o, f.title)) &&
+      (skip === 'marker' || !f.marker || o.markers.includes(f.marker)),
   );
 }
 

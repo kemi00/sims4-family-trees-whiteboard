@@ -3,7 +3,9 @@ import { simDynastyRisk, type DynastyRisk } from './dynastyMenu.ts';
 import { dynastyKey, dynastyPhrase, type DynastyName } from './generations.ts';
 import { gapText, type PartnerCandidate } from './partners.ts';
 import { cardName } from './plan.ts';
-import type { SimNode } from '../types/whiteboard.ts';
+import type { SimMarker, SimNode } from '../types/whiteboard.ts';
+import { markersOf } from './markers.ts';
+import { topTitle } from './titles.ts';
 
 export type SimCardOptions = {
   /** Every dynasty's name on the board (dynastyNames), for "Watson dynasty". */
@@ -25,6 +27,10 @@ export type SimCardOptions = {
   brief?: boolean;
   /** A blood relative: found by name, never suggested. */
   related?: boolean;
+  /** Kin the finder lets in ("second cousin"), said in place of "related". */
+  kin?: string;
+  /** The board's markers: those the sim carries show before the name, as on the board. */
+  markerDefs?: readonly SimMarker[];
   married?: boolean;
   /**
    * Who they're with now, by name ("Married to Bob Pancakes"), first on the
@@ -64,8 +70,10 @@ export function simCardLines(p: SimNode, o: SimCardOptions): SimCardLines {
   // A partner's age is weighed from where they are in life; anyone else's
   // only when the save says so for their life stage now.
   const frozen = c ? !!c.frozen : !passed && !!p.life?.frozen && p.life.stage === p.age;
+  const title = o.brief ? undefined : topTitle(p);
   const meta = [
     o.what ?? (c ? gapText(c) : p.age),
+    title ? title.title : '',
     passed ? 'passed away' : '',
     o.brief ? '' : p.hh || 'no household',
     o.world && !o.brief ? p.world : '',
@@ -78,7 +86,7 @@ export function simCardLines(p: SimNode, o: SimCardOptions): SimCardLines {
     : [
         ...[
           o.couples ?? '',
-          o.related ? 'related' : '',
+          o.kin ?? (o.related ? 'related' : ''),
           o.couples !== undefined ? '' : o.married ? 'married' : c?.taken ? 'in a romance' : '',
           frozen ? 'not aging now' : '',
           phrase,
@@ -89,7 +97,7 @@ export function simCardLines(p: SimNode, o: SimCardOptions): SimCardLines {
         ...(o.extra ?? []).filter(Boolean).map((text) => ({ text })),
       ];
   return {
-    mark: p.dynastyRole ? DYNASTY_ROLES[p.dynastyRole].mark : '',
+    mark: [...(o.markerDefs ? markersOf(p, o.markerDefs).map((m) => m.mark) : []), p.dynastyRole ? DYNASTY_ROLES[p.dynastyRole].mark : ''].filter(Boolean).join(' '),
     name: cardName(p),
     meta: meta.filter(Boolean).join(' · '),
     flags,

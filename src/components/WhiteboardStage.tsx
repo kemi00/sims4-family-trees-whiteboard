@@ -2460,6 +2460,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           byid={wb.byid}
           edges={wb.edges}
           saveGame={wb.saveGame}
+          markers={wb.markers}
           onChoice={wb.setPartnerChoice}
           onPick={wb.pickPartner}
           lots={wb.partnerMenu.picked ? coupleLots(wb.partnerMenu.id, wb.partnerMenu.picked, wb.closePartnerMenu) : undefined}

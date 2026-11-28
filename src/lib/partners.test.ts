@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Edge, SimNode, SimLife } from '../types/whiteboard.ts';
-import { bloodRelatives, coupleLine, couplesNow, filterPartners, gapText, livesApart, moveInChoices, partnerCandidates, partnerCounts, partnerOptions, partnerSearch, partnerWorlds } from './partners.ts';
+import { bloodRelatives, coupleLine, couplesNow, filterPartners, gapText, livesApart, moveInChoices, partnerCandidates, partnerCounts, partnerOptions, partnerSearch, partnerWorlds, kinship, cousinText, isFarKin, partnerTitleChoices, partnerMarkerCounts } from './partners.ts';
 import { NOT_IN_WORLD } from './constants.ts';
 import { unhousedGid } from './unhoused.ts';
 
@@ -210,5 +210,64 @@ describe('the ♥ finder', () => {
     const worlds = partnerCounts(list, any, 'world');
     assert.deepEqual(partnerWorlds(worlds, 'Oasis Springs', ''), ['Oasis Springs', 'Ondarion', 'Willow Creek', NOT_IN_WORLD]);
     assert.deepEqual(partnerWorlds(partnerCounts(list, { ...any, relation: 'single' }, 'world'), 'Oasis Springs', 'Ondarion'), ['Oasis Springs', 'Ondarion']);
+  });
+});
+
+describe('kin and standing in the ♥ finder', () => {
+  // Great-gran → Gran A, Gran B → Mum, Uncle → Me, Cousin2 → Kid (second cousin once removed to Me).
+  const edges: Edge[] = [
+    parent('GG', 'GranA'),
+    parent('GG', 'GranB'),
+    parent('GranA', 'Mum'),
+    parent('GranB', 'Uncle'),
+    parent('Mum', 'Me'),
+    parent('Uncle', 'Cousin2'),
+    parent('Cousin2', 'Kid'),
+    parent('Mum', 'Sis'),
+  ];
+
+  it('names cousins by their closest shared ancestor', () => {
+    assert.deepEqual(kinship('Me', 'Cousin2', edges), { up: 3, down: 3 });
+    assert.equal(cousinText(kinship('Me', 'Cousin2', edges)!), 'second cousin');
+    assert.equal(cousinText(kinship('Me', 'Kid', edges)!), 'second cousin once removed');
+    assert.equal(isFarKin(kinship('Me', 'Sis', edges)!), false);
+    assert.equal(isFarKin(kinship('Me', 'Uncle', edges)!), false);
+    assert.equal(kinship('Me', 'Stranger', edges), undefined);
+  });
+
+  it('lets second cousins in only when asked, each named', () => {
+    const nodes = ['Me', 'Cousin2', 'Sis', 'Uncle', 'Stranger'].map((id) => sim(id, 'Young Adult', { life: life('Young Adult', 4) }));
+    const without = partnerCandidates({ id: 'Me', nodes, edges }).map((c) => c.id);
+    assert.deepEqual(without, ['Stranger']);
+    const withFar = partnerCandidates({ id: 'Me', nodes, edges, farKin: true });
+    assert.deepEqual(withFar.map((c) => [c.id, c.kin]), [['Cousin2', 'second cousin'], ['Stranger', undefined]]);
+  });
+
+  it('counts no declared parent as blood', () => {
+    const declared: Edge[] = [parent('Dad', 'A'), { ...parent('Dad', 'B'), declared: true }];
+    assert.deepEqual([...bloodRelatives('A', declared)].sort(), ['Dad']);
+    const nodes = ['A', 'B'].map((id) => sim(id, 'Young Adult', { life: life('Young Adult', 4) }));
+    assert.deepEqual(partnerCandidates({ id: 'A', nodes, edges: declared }).map((c) => c.id), ['B']);
+  });
+
+  it('filters by title or rank and by marker, with counts', () => {
+    const home = { gid: 'W||H', world: 'W' };
+    const nodes = [
+      sim('Me', 'Adult', { ...home, life: life('Adult', 4) }),
+      sim('Duke', 'Adult', { ...home, life: life('Adult', 4), titles: [{ title: 'Duke', rank: 8, game: 'career' }] }),
+      sim('Lady', 'Adult', { ...home, life: life('Adult', 4), titles: [{ title: 'Lady', rank: 9, game: 'birth' }], markers: ['wealthy'] }),
+      sim('Poet', 'Adult', { ...home, life: life('Adult', 4), titles: [{ title: 'Laureate' }] }),
+      sim('Plain', 'Adult', { ...home, life: life('Adult', 4), markers: ['wealthy', 'illegitimate'] }),
+    ];
+    const options = partnerOptions({ id: 'Me', nodes, edges: [] });
+    const f = { stage: '', gender: '', relation: '' as const, world: '', housedOnly: false };
+    assert.deepEqual(partnerTitleChoices(options, f), [
+      { value: 'titled', count: 3 },
+      { value: 'r9', count: 1 },
+      { value: 'r8', count: 2 },
+    ]);
+    assert.deepEqual(filterPartners(options, { ...f, title: 'r8' }).map((o) => o.id).sort(), ['Duke', 'Lady']);
+    assert.deepEqual([...partnerMarkerCounts(options, f)].sort(), [['illegitimate', 1], ['wealthy', 2]]);
+    assert.deepEqual(filterPartners(options, { ...f, marker: 'wealthy', title: 'titled' }).map((o) => o.id), ['Lady']);
   });
 });
