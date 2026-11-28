@@ -1,4 +1,4 @@
-import { GROWN_UP, daysFromBirth, daysUntilStage, everyoneAges, lifeView, wholeDaysText } from './lifeClock.ts';
+import { GROWN_UP, daysFromBirth, daysUntilStage, everyoneAges, lifeView, paceOf, wholeDaysText } from './lifeClock.ts';
 import { cardName, conflictText, isPlannedSim, type PlanConflict } from './plan.ts';
 import { changesWorld, movesHousehold } from './householdMove.ts';
 import { isUnhousedGid } from './unhoused.ts';
@@ -197,7 +197,7 @@ function moveOf(gid: string, life: SimNode['life'], saveGame: SaveGameInfo | nul
  * baby not born yet, or being found for a planned sim the game lacks.
  */
 export function stageWait(n: SimNode, stage: string, ctx: WaitContext): PlanWait | null {
-  const lifespan = ctx.saveGame?.lifespan;
+  const lifespan = paceOf(ctx.saveGame);
   if (isPlannedSim(n)) {
     return ctx.plannedChild(n)
       ? { sim: n.id, why: 'notBorn', stage, gid: ctx.birthGid(n), move: 'play', days: daysFromBirth(stage, lifespan) }

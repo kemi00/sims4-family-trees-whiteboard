@@ -1,4 +1,4 @@
-import type { Lifespan, SaveGameInfo, SimLife, SimNode } from '../types/whiteboard.ts';
+import type { Lifespan, SaveGameInfo, SimLife, SimNode, StageLengths } from '../types/whiteboard.ts';
 
 /**
  * The game's clock and life stages, as read from real saves on 2026-11-06/07:
@@ -33,6 +33,69 @@ function stageKey(stage: string, newborn?: boolean): string {
 
 export function scaleOf(lifespan?: Lifespan): number {
   return LIFESPAN_SCALE[lifespan ?? 'Normal'];
+}
+
+/** The stages a player can give their own length to (a mod like MCCC); a newborn's day stays the game's. */
+export const STAGES_WITH_LENGTHS = ['Infant', 'Toddler', 'Child', 'Teen', 'Young Adult', 'Adult', 'Elder'] as const;
+
+/** A stage's length on the game's lifespan, in whole or half days: Short Teen 10.5. */
+export function gameStageDays(stage: string, lifespan?: Lifespan): number | undefined {
+  const normal = NORMAL_DAYS[stage];
+  return normal === undefined ? undefined : normal * scaleOf(lifespan);
+}
+
+/**
+ * How fast life goes: the game's lifespan, or that with the player's own
+ * days for some stages (`days`, from a mod like MCCC). Every count of days
+ * to a stage takes one.
+ */
+export type Pace = Lifespan | { lifespan?: Lifespan; days?: StageLengths };
+
+/** The save's pace: its lifespan, and the player's stage lengths when set. */
+export function paceOf(game?: Pick<SaveGameInfo, 'lifespan' | 'stageLengths' | 'stageLengthsOff'> | null): Pace | undefined {
+  if (!game) return undefined;
+  const days = game.stageLengthsOff ? undefined : game.stageLengths;
+  return days && Object.keys(days).length ? { ...(game.lifespan ? { lifespan: game.lifespan } : {}), days } : game.lifespan;
+}
+
+function lifespanOf(pace?: Pace): Lifespan | undefined {
+  return typeof pace === 'object' ? pace.lifespan : pace;
+}
+
+/** Whether the player's own stage lengths are on (they may have none typed yet). */
+export function stageLengthsOn(game?: Pick<SaveGameInfo, 'stageLengths' | 'stageLengthsOff'> | null): boolean {
+  return !!game?.stageLengths && !game.stageLengthsOff;
+}
+
+/** One line for where stage lengths are summed up (⋮ and Your save). */
+export function stageLengthsSummary(game?: Pick<SaveGameInfo, 'lifespan' | 'stageLengths' | 'stageLengthsOff'> | null): string {
+  const lifespan = game?.lifespan ?? 'Normal';
+  if (!stageLengthsOn(game)) return `Off · the game’s ${lifespan} lifespan`;
+  const set = STAGES_WITH_LENGTHS.filter((s) => game!.stageLengths![s] !== undefined).map((s) => `${s} ${game!.stageLengths![s]}`);
+  return set.length ? `On · ${set.join(', ')} days` : 'On · no stage set yet';
+}
+
+/** Real days per Normal day in `stage`: the player's length for it, else the lifespan's. */
+export function stageScale(stage: string, pace?: Pace): number {
+  const own = typeof pace === 'object' ? pace.days?.[stage] : undefined;
+  const normal = NORMAL_DAYS[stage];
+  if (own !== undefined && own > 0 && normal) return own / normal;
+  return scaleOf(lifespanOf(pace));
+}
+
+/** Whether any stage has the player's own length: then each stage counts on its own. */
+function ownLengths(pace?: Pace): boolean {
+  return typeof pace === 'object' && !!pace.days && Object.keys(pace.days).length > 0;
+}
+
+/**
+ * A sim's Normal days into `stage` as their stage lengths count them. The
+ * board keeps the save's days scaled by its lifespan (lifeFor); a stage with
+ * the player's own length counts those real days against it instead.
+ */
+export function paceStageDays(stage: string, stageDays: number, pace?: Pace): number {
+  if (!ownLengths(pace)) return stageDays;
+  return (stageDays * scaleOf(lifespanOf(pace))) / stageScale(stage, pace);
 }
 
 /** The stage a sim can marry in, and the first one counted as grown up. */
@@ -75,13 +138,40 @@ export function daysUntilStage(
   stage: string,
   stageDays: number,
   target: string,
-  lifespan?: Lifespan,
+  lifespan?: Pace,
   newborn?: boolean,
 ): number | null {
   const from = daysBeforeStage(stage, newborn);
   const to = daysBeforeStage(target);
   if (from === null || to === null) return null;
-  return Math.max(0, to - (from + stageDays)) * scaleOf(lifespan);
+  if (!ownLengths(lifespan)) return Math.max(0, to - (from + stageDays)) * scaleOf(lifespanOf(lifespan));
+  // Each stage on its own length: what is left of this one, then the ones between.
+  const key = stageKey(stage, newborn);
+  const at = ORDER.indexOf(key);
+  const end = ORDER.indexOf(target);
+  if (end <= at) return 0;
+  let days = Math.max(0, NORMAL_DAYS[key]! - paceStageDays(key, stageDays, lifespan)) * stageScale(key, lifespan);
+  for (const s of ORDER.slice(at + 1, end)) days += NORMAL_DAYS[s]! * stageScale(s, lifespan);
+  return days;
+}
+
+/** The stage a sim reaches `days` real days on, from `stageDays` Normal days into `stage`. */
+export function stageAfterDays(stage: string, stageDays: number, days: number, pace?: Pace, newborn?: boolean): string {
+  const key = stageKey(stage, newborn);
+  let at = ORDER.indexOf(key);
+  if (at < 0) return stage;
+  if (!ownLengths(pace)) return stageAtLifeDays(daysBeforeStage(key)! + stageDays + days / scaleOf(lifespanOf(pace)));
+  let left = days - Math.max(0, NORMAL_DAYS[key]! - paceStageDays(key, stageDays, pace)) * stageScale(key, pace);
+  while (left >= 0 && at < ORDER.length - 1) {
+    at += 1;
+    left -= NORMAL_DAYS[ORDER[at]!]! * stageScale(ORDER[at]!, pace);
+  }
+  return ORDER[at]!;
+}
+
+/** The stage a sim is in `days` real days after birth. */
+export function stageAtAge(days: number, pace?: Pace): string {
+  return stageAfterDays('Newborn', 0, days, pace);
 }
 
 /** The life stage `days` Normal-lifespan days into a life: "Newborn" for the first. */
@@ -92,9 +182,13 @@ export function stageAtLifeDays(days: number): string {
 }
 
 /** Days from birth to `target` on `lifespan`: a baby not born yet grows up 24 Short days after birth. */
-export function daysFromBirth(target: string, lifespan?: Lifespan): number | null {
+export function daysFromBirth(target: string, lifespan?: Pace): number | null {
   const to = daysBeforeStage(target);
-  return to === null ? null : to * scaleOf(lifespan);
+  if (to === null) return null;
+  if (!ownLengths(lifespan)) return to * scaleOf(lifespanOf(lifespan));
+  let days = 0;
+  for (const s of ORDER.slice(0, ORDER.indexOf(target))) days += NORMAL_DAYS[s]! * stageScale(s, lifespan);
+  return days;
 }
 
 /**
@@ -102,8 +196,8 @@ export function daysFromBirth(target: string, lifespan?: Lifespan): number | nul
  * `stageDays` Normal days in: the earliest, never a date (ELDER_MIN_DAYS).
  * 0 once they are past it.
  */
-export function oldAgeEarliest(stageDays: number, lifespan?: Lifespan): number {
-  return Math.max(0, ELDER_MIN_DAYS - stageDays) * scaleOf(lifespan);
+export function oldAgeEarliest(stageDays: number, lifespan?: Pace): number {
+  return Math.max(0, ELDER_MIN_DAYS - paceStageDays('Elder', stageDays, lifespan)) * stageScale('Elder', lifespan);
 }
 
 /** "old age in 4+ days", "old age in under a day", "old age any day now". */
@@ -191,6 +285,8 @@ export type LifeView = {
   lifespan: Lifespan;
   /** The save's lifespan is unknown; Normal is assumed. */
   lifespanGuessed: boolean;
+  /** Some stages count by the player's own lengths (a mod like MCCC). */
+  ownLengths?: true;
   /** The facts come from an import before the board's last one. */
   fromEarlierImport: boolean;
   /** Game clock when they were read. */
@@ -205,10 +301,12 @@ export function lifeView(n: SimNode, game?: SaveGameInfo | null): LifeView | nul
   const life = n.life;
   if (!life || n.species || life.stage !== n.age) return null;
   const lifespan = game?.lifespan ?? 'Normal';
-  const scale = scaleOf(lifespan);
+  const pace = paceOf(game) ?? lifespan;
   const key = stageKey(life.stage, life.newborn);
   const length = NORMAL_DAYS[key];
   if (length === undefined) return null;
+  const scale = stageScale(key, pace);
+  const stageDays = paceStageDays(key, life.stageDays, pace);
   const bornDay = dayOf(life.born);
   const nextKey = key === 'Elder' ? undefined : ORDER[ORDER.indexOf(key) + 1];
   return {
@@ -219,17 +317,18 @@ export function lifeView(n: SimNode, game?: SaveGameInfo | null): LifeView | nul
     ...(game?.seasonDays ? { bornYear: yearOf(bornDay, game.seasonDays) } : {}),
     inPlay: !!life.inPlay,
     ...(key === 'Elder'
-      ? { elderDays: life.stageDays * scale, oldAgeIn: oldAgeEarliest(life.stageDays, lifespan) }
+      ? { elderDays: stageDays * scale, oldAgeIn: oldAgeEarliest(life.stageDays, pace) }
       : {
-          through: Math.min(1, life.stageDays / length),
-          daysToNext: Math.max(0, (length - life.stageDays) * scale),
+          through: Math.min(1, stageDays / length),
+          daysToNext: Math.max(0, (length - stageDays) * scale),
           next: nextKey,
         }),
     ...(ORDER.indexOf(key) < ORDER.indexOf(GROWN_UP)
-      ? { grownUpIn: daysUntilStage(life.stage, life.stageDays, GROWN_UP, lifespan, life.newborn)! }
+      ? { grownUpIn: daysUntilStage(life.stage, life.stageDays, GROWN_UP, pace, life.newborn)! }
       : {}),
     ...(life.frozen ? { frozen: life.frozen } : {}),
     lifespan,
+    ...(ownLengths(pace) ? { ownLengths: true as const } : {}),
     lifespanGuessed: !game?.lifespan,
     fromEarlierImport: !!game && game.clock !== life.at,
     at: life.at,

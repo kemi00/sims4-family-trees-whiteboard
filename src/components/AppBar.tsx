@@ -38,7 +38,7 @@ import { REDO_KEYS, UNDO_KEYS, redoTip, undoTip } from '../lib/undoNames.ts';
 import { StepTip } from './StepText.tsx';
 import { BUILD } from '../lib/build.ts';
 import { OverflowMenu, type FoldedItem } from './OverflowMenu.tsx';
-import { SaveDetails } from './SaveStatus.tsx';
+import { SavePopupBody, type SaveView } from './SaveStatus.tsx';
 import { ToolButton } from './ToolButton.tsx';
 
 /** The family-links views, in the menu's order: most shown to least. */
@@ -143,6 +143,11 @@ export function AppBar({
    * details hang off the More button; wider screens show it in the status bar.
    */
   const [saveOpen, setSaveOpen] = useState(false);
+  /** Your save's details, or a setting opened inside them; each opening starts at the details. */
+  const [saveView, setSaveView] = useState<SaveView>('details');
+  useEffect(() => {
+    if (!saveOpen) setSaveView('details');
+  }, [saveOpen]);
   const { popRef: savePopRef, style: savePopStyle } = useDropdownPosition(saveOpen, moreRef);
   const closeSave = useCallback(() => setSaveOpen(false), []);
   useDismiss(saveOpen, moreRef, closeSave, savePopRef);
@@ -602,15 +607,15 @@ export function AppBar({
           aria-label="Your save"
           style={savePopStyle}
         >
-          <SaveDetails
+          <SavePopupBody
+            view={saveView}
+            onView={setSaveView}
             game={wb.saveGame}
             limit={wb.householdLimit}
             onLimit={wb.setHouseholdLimit}
             calendar={wb.planner.calendar ?? null}
-            onOpenCalendar={() => {
-              setSaveOpen(false);
-              wb.setCalendarOpen(true);
-            }}
+            onCalendar={wb.setCalendar}
+            onStageLengths={wb.setStageLengths}
             {...(wb.recap
               ? {
                   onRecap: () => {

@@ -206,6 +206,9 @@ export interface PlannerCalendar {
   off?: true;
 }
 
+/** Days each life stage lasts, by stage name ("Teen": 12), as a mod like MCCC sets them. */
+export type StageLengths = Partial<Record<string, number>>;
+
 /** A try for a baby, logged by the player: the game day, and whether it took. */
 export interface BabyTry {
   day: number;
@@ -312,6 +315,15 @@ export interface SaveGameInfo {
   /** Game ticks (90,000 a sim hour). */
   clock: number;
   lifespan?: Lifespan;
+  /**
+   * Days each life stage lasts in this game, as the player set them with a
+   * mod like MCCC (Infant, Toddler, Child, Teen, Young Adult, Adult, Elder).
+   * A stage set here counts by it; the rest by the game's lifespan. Kept
+   * across uploads: the save can't say it.
+   */
+  stageLengths?: StageLengths;
+  /** The player's stage lengths turned off: kept for when they turn them on again. */
+  stageLengthsOff?: true;
   /** Days in a season (Seasons); a year is four seasons. */
   seasonDays?: number;
   /**

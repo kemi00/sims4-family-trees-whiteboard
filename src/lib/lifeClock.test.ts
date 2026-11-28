@@ -171,3 +171,43 @@ describe('the save chip’s calendar', () => {
     assert.equal(saveChipText(game), 'Short · 7-day seasons');
   });
 });
+
+describe('stage lengths of your own (a mod like MCCC)', () => {
+  it('counts a stage you set by its days, and the rest by the game’s lifespan', async () => {
+    const { paceOf, stageScale, paceStageDays, stageAfterDays, stageAtAge } = await import('./lifeClock.ts');
+    // Malcolm, 5.45 days into his teens on Short (10.9 Normal), with teens set to last 12 days.
+    const own = game('Short', { stageLengths: { Teen: 12 } });
+    const pace = paceOf(own);
+    assert.deepEqual(pace, { lifespan: 'Short', days: { Teen: 12 } });
+    assert.equal(stageScale('Teen', pace), 12 / 21);
+    assert.equal(stageScale('Young Adult', pace), 0.5);
+    // His 5.45 real days in, counted on a 12-day teen life.
+    assert.ok(Math.abs(paceStageDays('Teen', 10.9, pace) - (5.45 * 21) / 12) < 1e-9);
+    // A young adult in 12 − 5.45 days, then an adult 14 Short days after.
+    assert.ok(Math.abs(daysUntilStage('Teen', 10.9, 'Young Adult', pace)! - 6.55) < 1e-9);
+    assert.ok(Math.abs(daysUntilStage('Teen', 10.9, 'Adult', pace)! - (6.55 + 14)) < 1e-9);
+    assert.equal(stageAfterDays('Teen', 10.9, 6, pace), 'Teen');
+    assert.equal(stageAfterDays('Teen', 10.9, 7, pace), 'Young Adult');
+    // From birth: newborn 0.5 + infant 2.5 + toddler 3.5 + child 7 + teen 12 on Short with a 12-day teen.
+    assert.equal(daysFromBirth('Young Adult', pace), 0.5 + 2.5 + 3.5 + 7 + 12);
+    // Young adult at 25.5 days with a 12-day teen life, at 24 on plain Short.
+    assert.equal(stageAtAge(25, pace), 'Teen');
+    assert.equal(stageAtAge(26, pace), 'Young Adult');
+    assert.equal(stageAtAge(25, 'Short'), 'Young Adult');
+    assert.equal(stageAtAge(20, pace), 'Teen');
+  });
+
+  it('shows the editor’s days by them, and changes nothing without them', () => {
+    const own = lifeView(malcolm, game('Short', { stageLengths: { Teen: 12 } }))!;
+    assert.ok(Math.abs(own.daysToNext! - 6.55) < 1e-9);
+    const plain = lifeView(malcolm, game('Short'))!;
+    assert.ok(Math.abs(plain.daysToNext! - 5.05) < 1e-9);
+    assert.equal(daysUntilStage('Teen', 10.9, 'Young Adult', 'Short'), daysUntilStage('Teen', 10.9, 'Young Adult', { lifespan: 'Short', days: {} }));
+  });
+
+  it('gives old age by the elder days you set', () => {
+    // 7 Normal days into old age on Short (3.5 real), elders set to last 20 days.
+    assert.equal(oldAgeEarliest(7, { lifespan: 'Short', days: { Elder: 20 } }), 20 - 3.5);
+    assert.equal(oldAgeEarliest(7, 'Short'), 3.5);
+  });
+});

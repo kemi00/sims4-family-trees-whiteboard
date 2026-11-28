@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { CalendarBlank, CaretUp, Flower, Leaf, Snowflake, Sun } from '../icons.ts';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { CalendarBlank, CaretLeft, CaretUp, Flower, Leaf, Snowflake, Sun } from '../icons.ts';
 import { HouseholdLimitControl } from './HouseholdLimitControl.tsx';
 import { trackAction } from '../lib/analytics.ts';
 import {
@@ -13,8 +13,10 @@ import {
   yearOf,
   yearText,
 } from '../lib/lifeClock.ts';
-import type { PlannerCalendar, SaveGameInfo } from '../types/whiteboard.ts';
-import { CalendarRow } from './CalendarControl.tsx';
+import type { PlannerCalendar, SaveGameInfo, StageLengths } from '../types/whiteboard.ts';
+import { CalendarControl, CalendarRow } from './CalendarControl.tsx';
+import { IconButton } from './CloseButton.tsx';
+import { StageLengthsControl, StageLengthsRow } from './StageLengthsControl.tsx';
 
 /** "Nov 7, 12:10 AM" for when the board read the save. */
 function readAt(iso: string): string {
@@ -52,6 +54,7 @@ export function SaveDetails({
   onLimit,
   calendar,
   onOpenCalendar,
+  onOpenStageLengths,
 }: {
   game: SaveGameInfo;
   onRecap?: () => void;
@@ -62,6 +65,8 @@ export function SaveDetails({
   /** The board's calendar years, summed up in a row that opens their panel (CalendarRow). */
   calendar?: PlannerCalendar | null;
   onOpenCalendar?: () => void;
+  /** The player's own stage lengths, summed up in a row that opens their panel (StageLengthsRow). */
+  onOpenStageLengths?: () => void;
 }) {
   const day = dayOf(game.clock);
   const rows: [string, string][] = [
@@ -106,7 +111,7 @@ export function SaveDetails({
         {read ? `, read ${read}` : ''}. To change these options, use Game Options in the game,
         then load the save again.
       </p>
-      {(onLimit || onOpenCalendar) && (
+      {(onLimit || onOpenCalendar || onOpenStageLengths) && (
         <div className="savechip__board">
           <div className="pop__head">On the board</div>
           {onLimit && (
@@ -119,9 +124,82 @@ export function SaveDetails({
             </>
           )}
           {onOpenCalendar && <CalendarRow calendar={calendar ?? null} onOpen={onOpenCalendar} />}
+          {onOpenStageLengths && <StageLengthsRow game={game} onOpen={onOpenStageLengths} />}
         </div>
       )}
     </>
+  );
+}
+
+/** What Your save shows: its details, or one of its board settings opened inside it. */
+export type SaveView = 'details' | 'calendar' | 'lengths';
+
+/**
+ * Your save's popup, wherever it opens (the board's corner, a phone's More):
+ * the save's details, and its board settings opened in place, with a way
+ * back, so a setting never jumps to another side of the window.
+ */
+export function SavePopupBody({
+  view,
+  onView,
+  game,
+  onRecap,
+  onStory,
+  limit,
+  onLimit,
+  calendar,
+  onCalendar,
+  onStageLengths,
+}: {
+  view: SaveView;
+  onView: (view: SaveView) => void;
+  game: SaveGameInfo;
+  onRecap?: () => void;
+  onStory?: () => void;
+  limit?: number | null;
+  onLimit?: (n: number | null) => void;
+  calendar?: PlannerCalendar | null;
+  onCalendar?: (cal: PlannerCalendar | null) => void;
+  onStageLengths?: (lengths: StageLengths, off: boolean) => void;
+}) {
+  if (view === 'calendar' && onCalendar) {
+    return (
+      <SaveSettingView title="Calendar years" onBack={() => onView('details')}>
+        <CalendarControl calendar={calendar ?? null} onCalendar={onCalendar} game={game} />
+      </SaveSettingView>
+    );
+  }
+  if (view === 'lengths' && onStageLengths) {
+    return (
+      <SaveSettingView title="Life stage lengths" onBack={() => onView('details')}>
+        <StageLengthsControl game={game} onStageLengths={onStageLengths} />
+      </SaveSettingView>
+    );
+  }
+  return (
+    <SaveDetails
+      game={game}
+      {...(onLimit ? { limit: limit ?? null, onLimit } : {})}
+      {...(onCalendar ? { calendar: calendar ?? null, onOpenCalendar: () => onView('calendar') } : {})}
+      {...(onStageLengths ? { onOpenStageLengths: () => onView('lengths') } : {})}
+      {...(onRecap ? { onRecap } : {})}
+      {...(onStory ? { onStory } : {})}
+    />
+  );
+}
+
+/** A board setting inside Your save: its name, a way back to the save, then the setting. */
+function SaveSettingView({ title, onBack, children }: { title: string; onBack: () => void; children: ReactNode }) {
+  return (
+    <div className="savesetting">
+      <div className="savesetting__head">
+        <IconButton label="Back to Your save" onClick={onBack}>
+          <CaretLeft aria-hidden="true" />
+        </IconButton>
+        <b>{title}</b>
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -137,7 +215,8 @@ export function SaveStatus({
   limit,
   onLimit,
   calendar,
-  onOpenCalendar,
+  onCalendar,
+  onStageLengths,
 }: {
   game: SaveGameInfo;
   onRecap?: () => void;
@@ -145,9 +224,21 @@ export function SaveStatus({
   limit?: number | null;
   onLimit?: (n: number | null) => void;
   calendar?: PlannerCalendar | null;
-  onOpenCalendar?: () => void;
+  onCalendar?: (cal: PlannerCalendar | null) => void;
+  onStageLengths?: (lengths: StageLengths, off: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
+  const [view, setView] = useState<SaveView>('details');
+  const popRef = useRef<HTMLDivElement>(null);
+  /** Closing starts the next opening at the save's details. */
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    if (!next) setView('details');
+  };
+  const showView = (next: SaveView) => {
+    setView(next);
+    popRef.current?.scrollTo({ top: 0 });
+  };
   const ref = useRef<HTMLSpanElement>(null);
   /** How tall the details may grow above the chip and stay under the top bar: past it, they scroll. */
   const [room, setRoom] = useState<number | null>(null);
@@ -171,7 +262,9 @@ export function SaveStatus({
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key !== 'Escape') return;
       ev.stopPropagation();
-      setOpen(false);
+      // A setting opened inside goes back to the save first.
+      if (view !== 'details') showView('details');
+      else setOpen(false);
     };
     document.addEventListener('pointerdown', onPointer, true);
     document.addEventListener('keydown', onKey, true);
@@ -179,7 +272,8 @@ export function SaveStatus({
       document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, view]);
   return (
     <span className="savestatus" ref={ref}>
       <button
@@ -202,23 +296,19 @@ export function SaveStatus({
       </button>
       {open && (
         <div
+          ref={popRef}
           className="pop pop--save savestatus__pop"
           role="dialog"
           aria-label="Your save"
           style={room !== null ? { maxHeight: room } : undefined}
         >
-          <SaveDetails
+          <SavePopupBody
+            view={view}
+            onView={showView}
             game={game}
             {...(onLimit ? { limit: limit ?? null, onLimit } : {})}
-            {...(onOpenCalendar
-              ? {
-                  calendar: calendar ?? null,
-                  onOpenCalendar: () => {
-                    setOpen(false);
-                    onOpenCalendar();
-                  },
-                }
-              : {})}
+            {...(onCalendar ? { calendar: calendar ?? null, onCalendar } : {})}
+            {...(onStageLengths ? { onStageLengths } : {})}
             {...(onRecap
               ? {
                   onRecap: () => {

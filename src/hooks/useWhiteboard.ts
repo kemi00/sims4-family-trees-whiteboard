@@ -140,6 +140,7 @@ import type {
   HouseholdMove,
   LotBoxPins,
   BabyTry,
+  StageLengths,
   PlannerCalendar,
   PlannerData,
   PairStatus,
@@ -1301,6 +1302,26 @@ export function useWhiteboard() {
     [planner, pushUndo],
   );
 
+  /**
+   * The player's own stage lengths (SaveGameInfo.stageLengths, a mod's), on
+   * or off; off keeps them for next time. One undo step.
+   */
+  const setStageLengths = useCallback(
+    (lengths: StageLengths, off: boolean) => {
+      if (!saveGame) return;
+      const same =
+        !!saveGame.stageLengthsOff === off &&
+        JSON.stringify(saveGame.stageLengths ?? null) === JSON.stringify(lengths);
+      if (same) return;
+      pushUndo(off ? 'Turn off your stage lengths' : saveGame.stageLengthsOff || !saveGame.stageLengths ? 'Turn on your stage lengths' : 'Change your stage lengths');
+      setSaveGame((g) => {
+        if (!g) return g;
+        const { stageLengths: _s, stageLengthsOff: _o, ...rest } = g;
+        return { ...rest, stageLengths: lengths, ...(off ? { stageLengthsOff: true as const } : {}) };
+      });
+    },
+    [saveGame, pushUndo],
+  );
   /** A couple's tries for a baby (PlannerData.tries), logged one at a time: one undo step each. */
   const addBabyTry = useCallback(
     (a: string, b: string, t: BabyTry) => {
@@ -4757,6 +4778,7 @@ export function useWhiteboard() {
     setCalendarOpen,
     addBabyTry,
     removeBabyTry,
+    setStageLengths,
     deaths,
     unions,
     cardYears,

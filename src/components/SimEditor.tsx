@@ -195,6 +195,7 @@ function LifeFacts({ v, died }: { v: LifeView; died?: { at?: number; gone: boole
       <div className="edlife__note">
         {v.fromEarlierImport ? 'From an earlier save import, at ' : 'From your save at '}
         {clockText(v.at)} · {v.lifespan} lifespan{v.lifespanGuessed ? ' (assumed)' : ''}
+        {v.ownLengths ? ', with your stage lengths' : ''}
         {v.fromEarlierImport ? '. Load the save again to refresh.' : ''}
       </div>
     </div>

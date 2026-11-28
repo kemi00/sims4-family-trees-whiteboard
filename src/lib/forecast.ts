@@ -10,9 +10,11 @@ import {
   daysUntilStage,
   lifeDays,
   oldAgeEarliest,
-  scaleOf,
+  paceOf,
   seasonAt,
-  stageAtLifeDays,
+  stageAfterDays,
+  stageAtAge,
+  stageScale,
 } from './lifeClock.ts';
 import { isPlannedSim } from './plan.ts';
 import { successionLine } from './succession.ts';
@@ -149,7 +151,7 @@ export type LifeAhead = {
  */
 export function lifeAhead(n: SimNode, game: SaveGameInfo | null | undefined): LifeAhead {
   const clock = agingClock(n, game);
-  const lifespan = game?.lifespan;
+  const lifespan = paceOf(game);
   if (isPlannedSim(n) && !factsOf(n)) return { clock, unborn: true, grownUpIn: daysFromBirth(GROWN_UP, lifespan)! };
   const out: LifeAhead = { clock, unborn: false };
   const life = factsOf(n);
@@ -166,7 +168,7 @@ export function lifeAhead(n: SimNode, game: SaveGameInfo | null | undefined): Li
   const toElder = daysUntilStage(life.stage, life.stageDays, 'Elder', lifespan, life.newborn);
   if (toElder === null) return out;
   out.elderIn = left(toElder)!;
-  out.oldAgeIn = left(toElder + ELDER_MIN_DAYS * scaleOf(lifespan))!;
+  out.oldAgeIn = left(toElder + ELDER_MIN_DAYS * stageScale('Elder', lifespan))!;
   return out;
 }
 
@@ -206,8 +208,7 @@ export function homeText(n: Pick<SimNode, 'gid' | 'hh'>): string {
 function stageIn(n: SimNode, days: number, game: SaveGameInfo | null | undefined): string | undefined {
   const life = factsOf(n);
   if (!life || !game) return undefined;
-  const lived = lifeDays(life);
-  return lived === null ? undefined : stageAtLifeDays(lived + days / scaleOf(game.lifespan));
+  return lifeDays(life) === null ? undefined : stageAfterDays(life.stage, life.stageDays, days, paceOf(game), life.newborn);
 }
 
 /** Do `a` and `b` age on the same days? Then their countdowns line up. */
@@ -228,7 +229,7 @@ function handover(a: LineStep, b: LineStep, bNode: SimNode, game: SaveGameInfo |
     const days = a.oldAgeIn - b.grownUpIn;
     if (days > 0) return { kind: 'bornBy', days };
     // Born today, where they'd be when old age can come.
-    return { kind: 'bornBy', days, stage: stageAtLifeDays(a.oldAgeIn / scaleOf(game?.lifespan)) };
+    return { kind: 'bornBy', days, stage: stageAtAge(a.oldAgeIn, paceOf(game)) };
   }
   if (!sameClock(a, b)) return { kind: 'apart' };
   if (b.grownUpIn <= a.oldAgeIn) return { kind: 'first' };

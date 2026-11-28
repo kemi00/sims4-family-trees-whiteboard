@@ -9,6 +9,7 @@ export { ArrowsDownUp } from '@phosphor-icons/react/ArrowsDownUp';
 export { BabyCarriage } from '@phosphor-icons/react/BabyCarriage';
 export { Cake } from '@phosphor-icons/react/Cake';
 export { Baby } from '@phosphor-icons/react/Baby';
+export { Hourglass } from '@phosphor-icons/react/Hourglass';
 export { CalendarBlank } from '@phosphor-icons/react/CalendarBlank';
 export { CaretDown } from '@phosphor-icons/react/CaretDown';
 export { CaretLeft } from '@phosphor-icons/react/CaretLeft';

@@ -1998,6 +1998,9 @@ function saveGameFrom(
   // From the first import where every household ages, sims at the same place
   // in life grow older together; the board keeps that moment until it ends.
   if (everyoneAges(next)) next.allAgingSince = prev?.allAgingSince ?? game.clock;
+  // The player's own stage lengths (a mod's): the save can't say them.
+  if (prev?.stageLengths) next.stageLengths = prev.stageLengths;
+  if (prev?.stageLengthsOff) next.stageLengthsOff = true;
   return next;
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
-import { CalendarBlank, CaretRight } from '../icons.ts';
+import { CalendarBlank } from '../icons.ts';
+import { SettingRow } from './BoardSettingPanel.tsx';
 import {
   MAX_DAYS_PER_YEAR,
   MIN_DAYS_PER_YEAR,
@@ -215,19 +216,7 @@ export function CalendarControl({
   );
 }
 
-/**
- * Calendar years summed up in one row, in Your save's On the board: on or
- * off, and its years. It opens the calendar's own panel.
- */
+/** Calendar years summed up in one row, in Your save's On the board: on or off, and its years. */
 export function CalendarRow({ calendar, onOpen }: { calendar: PlannerCalendar | null; onOpen: () => void }) {
-  return (
-    <button type="button" className="calrow" aria-haspopup="dialog" onClick={onOpen}>
-      <CalendarBlank aria-hidden="true" />
-      <span className="pop__stack">
-        Calendar years
-        <span className="pop__sub">{calendarSummary(calendar)}</span>
-      </span>
-      <CaretRight className="calrow__end" aria-hidden="true" />
-    </button>
-  );
+  return <SettingRow icon={CalendarBlank} title="Calendar years" summary={calendarSummary(calendar)} onOpen={onOpen} />;
 }
