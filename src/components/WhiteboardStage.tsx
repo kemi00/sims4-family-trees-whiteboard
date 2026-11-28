@@ -193,7 +193,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
   const stageSizeRef = useRef(stageSize);
   stageSizeRef.current = stageSize;
   /** Render window (see viewportCull). Moves with the live camera, not only on commit. */
-  const [cullWin, setCullWin] = useState<WorldRect | null>(null);
+  const [cullWinLive, setCullWin] = useState<WorldRect | null>(null);
+  /** While the whole tree is drawn as a file, every card is mounted: no render window. */
+  const cullWin = wb.boardExporting ? null : cullWinLive;
   const cullWinRef = useRef<WorldRect | null>(null);
   /** Sims and households a live drag is moving — kept mounted wherever they are. */
   const [dragUnit, setDragUnit] = useState<{
@@ -344,7 +346,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
    * later — and shaping a few thousand `<text>` nodes is the single most
    * expensive thing on the board.
    */
-  const labels = viewFitted && k >= LABEL_MIN_K;
+  const labels = wb.boardExporting || (viewFitted && k >= LABEL_MIN_K);
+  /** The zoom the tags are sized for: a picture of the whole tree draws them at their own size. */
+  const layerK = wb.boardExporting ? 1 : k;
 
   /**
    * Re-centre the render window once the (live) view nears its edge. A jump
@@ -2009,7 +2013,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           </pattern>
         </defs>
         <g id="scene" ref={sceneRef} transform={sceneTransformAttr({ tx, ty, k })}>
-          {wb.snap && (
+          {wb.snap && !wb.boardExporting && (
             <rect
               className="stage-tilegrid"
               {...tileGridRect(cullWin)}
@@ -2023,7 +2027,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             groups={wb.groups}
             worlds={wb.worlds}
             show={wb.show.worlds}
-            zoom={k}
+            zoom={layerK}
             packVis={wb.nodeVis}
             selectedWorlds={selectedWorlds}
             buckets={wb.nodeBuckets}
@@ -2194,7 +2198,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             labels={labels}
             cull={cullWin}
             onPickLot={onPickLot}
-            k={k}
+            k={layerK}
             onMoveBox={wb.moveLotBox}
           />
           {/* World chips last so they paint above household tags + sim cards. */}
@@ -2204,7 +2208,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
             groups={wb.groups}
             worlds={wb.worlds}
             show={wb.show.worlds}
-            zoom={k}
+            zoom={layerK}
             packVis={wb.nodeVis}
             selectedWorlds={selectedWorlds}
             buckets={wb.nodeBuckets}

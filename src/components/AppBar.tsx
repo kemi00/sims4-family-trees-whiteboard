@@ -3,6 +3,7 @@ import {
   CalendarBlank,
   Check,
   ChartBar,
+  FileImage,
   Coins,
   ImageSquare,
   User,
@@ -243,6 +244,16 @@ export function AppBar({
   // folds in there too, in the bar's order, each with the words its tooltip
   // or pressed state gives on a wider screen.
   const always: FoldedItem[] = [
+    {
+      id: 'tree-export',
+      icon: FileImage,
+      label: 'The whole tree as a file',
+      note: 'A picture or PDF of the board, with a link to the site',
+      onSelect: () => {
+        trackAction('/action/tree-export');
+        wb.setTreeExportOpen(true);
+      },
+    },
     {
       id: 'worlds',
       icon: ChartBar,

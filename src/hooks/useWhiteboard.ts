@@ -653,6 +653,10 @@ export function useWhiteboard() {
   const [dynastiesOpen, setDynastiesOpen] = useState(false);
   /** Worlds in numbers (WorldStatsPanel): one of the bar's panels. */
   const [worldStatsOpen, setWorldStatsOpen] = useState(false);
+  /** The whole tree is being drawn as a file: the stage mounts every card, named (boardExport.ts). */
+  const [boardExporting, setBoardExporting] = useState(false);
+  /** The whole tree's export dialog (TreeExportDialog). */
+  const [treeExportOpen, setTreeExportOpen] = useState(false);
   const [upNextSkipped, setUpNextSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [householdMoves, setHouseholdMoves] = useState<HouseholdMove[]>(
     () => boot.householdMoves ?? [],
@@ -4904,6 +4908,10 @@ export function useWhiteboard() {
     setDynastiesOpen,
     worldStatsOpen,
     setWorldStatsOpen,
+    boardExporting,
+    setBoardExporting,
+    treeExportOpen,
+    setTreeExportOpen,
     upNextSkipped,
     setUpNextSkipped,
     connectionLog,

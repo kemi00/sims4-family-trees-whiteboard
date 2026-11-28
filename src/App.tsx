@@ -25,6 +25,10 @@ import { storyLines } from './lib/chronicle.ts';
 import { PosterDialog } from './components/PosterDialog.tsx';
 import { weekTodo } from './lib/weekTodo.ts';
 import { WorldStatsPanel } from './components/WorldStatsPanel.tsx';
+import { TreeExportDialog } from './components/TreeExportDialog.tsx';
+import { worldRects } from './lib/boardExport.ts';
+import { boardStats, worldStats } from './lib/worldStats.ts';
+import { NOT_IN_WORLD } from './lib/constants.ts';
 import { dynastyPoster, householdPoster, withPosterPhotos, withPosterYears, type PosterModel } from './lib/poster.ts';
 import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
 import { dynastyKey, dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
@@ -598,6 +602,20 @@ export default function App() {
                 })
               }
             />
+        )}
+        {wb.treeExportOpen && (
+          <TreeExportDialog
+            svgRef={svgRef}
+            summary={(() => {
+              const list = worldStats(wb.visibleNodes, new Map());
+              const all = boardStats(list);
+              const worlds = list.filter((x) => x.world !== NOT_IN_WORLD).length;
+              return `${all.sims} ${all.sims === 1 ? 'sim' : 'sims'} in ${worlds} ${worlds === 1 ? 'world' : 'worlds'}`;
+            })()}
+            pages={worldRects(wb.visibleNodes, wb.worlds.map((w) => w.name))}
+            onExporting={wb.setBoardExporting}
+            onClose={() => wb.setTreeExportOpen(false)}
+          />
         )}
         {wb.worldStatsOpen && (
           <WorldStatsPanel
