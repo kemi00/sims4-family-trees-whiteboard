@@ -1327,6 +1327,9 @@ svg{width:100%;height:100%;display:block;touch-action:none}
 .menu .limitctl .limitctl__btn:hover,.pop .limitctl .limitctl__btn:hover{background:var(--hover)}
 .savechip__board{margin-top:10px}
 .savechip__board .limitctl{margin-top:4px;padding-top:0;border-top:none}
+/* The label on its own line: the reset kept for the game's 8 then fits beside No limit instead of wrapping to an empty line. */
+.savechip__board .limitctl__label{flex-basis:100%}
+.savechip__board .limitctl{gap:6px}
 .menu .pmenu__back{display:inline-flex;align-items:center;gap:4px;width:auto;margin:0;padding:2px 6px 2px 2px;background:transparent;color:var(--ink)}
 .menu .pmenu__back:hover{background:var(--hover)}
 .pmenu__back svg{width:13px;height:13px;color:var(--ink-3)}
@@ -1944,7 +1947,7 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 
 
 /* ── save chip: the game clock and aging options from the last save ─────── */
-.pop--save{width:300px;padding:6px 6px 8px}
+.pop--save{width:min(320px,calc(100vw - 24px));padding:6px 6px 8px;max-height:calc(100dvh - 72px);overflow:auto;overscroll-behavior:contain}
 .savechip__list{margin:0;padding:2px 9px 0}
 .savechip__row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--rule);font-size:12px;line-height:1.35}
 .savechip__row:last-child{border-bottom:none}
@@ -2151,33 +2154,50 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .savechip__recap:hover{border-color:var(--celebrate)}
 
 
-/* ── calendar years (CalendarControl) ───────────────────────────────────── */
-.calctl{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--ink-2)}
-.savechip__board .calctl{margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
-.calctl__head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.calctl__label{font-size:12px;font-weight:600;color:var(--ink-2)}
-.calctl__state{font-size:11px;font-weight:600;color:var(--ink-3)}
-.calctl__state--on{color:var(--done)}
-.calctl__lead{margin:0;font-size:11px;line-height:1.4;color:var(--ink-3)}
-.calctl__fields{display:flex;flex-direction:column;gap:6px}
-.calctl__field{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink)}
-.calctl__days{display:inline-flex;align-items:center;gap:6px}
-.calctl input{width:64px;height:28px;padding:0 8px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:#fff;font:inherit;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink)}
-.calctl__days input{width:44px}
-.calctl input:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
-.calctl input[aria-invalid=true]{border-color:var(--danger)}
-.calctl__note{margin:0;min-height:15px;font-size:11px;line-height:1.4;color:var(--ink-3);font-variant-numeric:tabular-nums}
+/* ── calendar years (CalendarControl, CalendarRow, CalendarPanel) ───────── */
+.calctl{display:flex;flex-direction:column;gap:10px;font-size:12px;color:var(--ink-2)}
+.calctl__lead{margin:0 2px;font-size:11.5px;line-height:1.45;color:var(--ink-3)}
+/* Off, the whole calendar is greyed out and can't be used: only the switch above it works. */
+.calctl__set{display:flex;flex-direction:column;gap:9px;min-width:0;margin:0;padding:10px;border:1px solid var(--line);border-radius:var(--r-control);transition:opacity .15s ease}
+.calctl__set:disabled{opacity:.42}
+/* Inside the box, not on its border: a floated legend is laid out as the first item. */
+.calctl__set>legend{float:left;width:100%}
+.calctl__set:disabled,.calctl__set:disabled *{cursor:default}
+.calctl__head{margin:0 0 1px;padding:0;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.calctl__field{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600;color:var(--ink)}
+.calctl__days{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink-2)}
+.calctl input{font:inherit;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)}
+.calctl .calctl__year-in{width:84px;height:28px;padding:0 8px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:#fff;text-align:right;box-sizing:border-box}
+.calctl .hlstep input{width:36px;height:100%;padding:0;border:0;border-left:1px solid var(--chip-line);border-right:1px solid var(--chip-line);border-radius:0;background:#fff;text-align:center}
+.calctl input:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+.calctl .calctl__year-in:focus-visible{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.calctl input[aria-invalid=true]{color:var(--danger)}
+.calctl .calctl__year-in[aria-invalid=true]{border-color:var(--danger)}
+.calctl__picks{display:flex;flex-wrap:wrap;gap:6px}
+.gpanel .calctl__picks button{padding:5px 10px;border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);color:var(--ink-2);font-size:11.5px;font-variant-numeric:tabular-nums}
+.gpanel .calctl__picks button:hover:not(:disabled){background:var(--hover)}
+.gpanel .calctl__picks button[aria-pressed=true]{border-color:var(--accent-soft-hi);background:var(--accent-soft);color:var(--accent-strong)}
+/* Three years and their game days, the save's own year tinted. */
+.calctl__ruler{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0;padding:0;list-style:none}
+.calctl__year{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 4px;border:1px solid var(--line);border-radius:8px;background:var(--chip);text-align:center;font-variant-numeric:tabular-nums}
+.calctl__year b{font-size:13px;color:var(--ink)}
+.calctl__year span{font-size:10.5px;font-weight:600;color:var(--ink-3)}
+.calctl__year em{font-size:10px;font-style:normal;font-weight:700;color:var(--accent-strong)}
+.calctl__year--now{border-color:var(--accent-soft-hi);background:var(--accent-soft)}
+.calctl__note{margin:0;font-size:11.5px;line-height:1.4;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .calctl__note--bad{color:var(--danger)}
-.calctl__actions{display:flex;gap:6px}
-.calctl .calctl__btn{display:inline-flex;align-items:center;width:auto;min-height:28px;padding:0 10px;border:1px solid var(--chip-line);border-radius:var(--r-control);background:var(--chip);color:var(--ink-2);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer}
-.calctl .calctl__btn:hover:not(:disabled){background:var(--hover)}
-.calctl .calctl__btn--primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.calctl .calctl__btn--primary:hover:not(:disabled){background:var(--accent-strong)}
-.calctl .calctl__btn:disabled{opacity:.45;cursor:default}
-.calendar-panel .calctl{margin-top:2px}
+.calctl__where{margin:0 2px}
+.calctl__where ul{margin:3px 0 0;padding:0 0 0 16px;font-size:11.5px;line-height:1.45;color:var(--ink-2)}
+.calctl__where li+li{margin-top:2px}
+.calctl__where b{color:var(--ink);font-variant-numeric:tabular-nums}
+.calendar-panel{font-size:12px}
+@media (pointer:coarse){.calctl .calctl__year-in{height:44px}}
+/* Your save › On the board: the calendar in one row, opening its panel. */
+.pop .calrow{min-height:44px;margin-top:8px;border-top:1px solid var(--rule);border-radius:0 0 var(--r-control) var(--r-control)}
+.pop .calrow .pop__sub{word-break:normal}
+.pop .calrow .calrow__end{margin-left:auto;width:14px;height:14px}
 
 /* ── the editor's bio (SimEditor) ───────────────────────────────────────── */
 .editor textarea.edbio{display:block;width:100%;min-height:58px;padding:5px 6px;border:1px solid #cdd3da;border-radius:6px;font:inherit;font-size:12px;line-height:1.45;box-sizing:border-box;resize:vertical;-webkit-user-select:text;user-select:text}
 .editor textarea.edbio:focus{outline:none;border-color:#9bb4d6;box-shadow:0 0 0 3px var(--accent-ring)}
 .editor input[aria-invalid=true]{border-color:var(--danger)}
-.calendar-panel .calctl__head{display:none}

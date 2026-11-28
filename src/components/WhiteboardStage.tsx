@@ -2692,7 +2692,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
                 limit={wb.householdLimit}
                 onLimit={wb.setHouseholdLimit}
                 calendar={wb.planner.calendar ?? null}
-                onCalendar={wb.setCalendar}
+                onOpenCalendar={() => wb.setCalendarOpen(true)}
                 onRecap={wb.recap ? () => wb.setRecapOpen(true) : undefined}
                 onStory={() => {
                   wb.setRecapOpen(false);

@@ -188,11 +188,16 @@ export interface SimNode {
 export interface PlannerCalendar {
   startYear: number;
   daysPerYear: number;
+  /** Turned off on the board: the game's days show, and these years wait for it to be turned on again. */
+  off?: true;
 }
 
 /** What the player keeps on the board beyond the family tree itself. */
 export interface PlannerData {
-  /** Years for days on the board's cards, couples, story and posters. None: the game's own days. */
+  /**
+   * Years for days on the board's cards, couples, story and posters, while
+   * not `off`. None: the game's own days, and the player never set one.
+   */
   calendar?: PlannerCalendar;
 }
 

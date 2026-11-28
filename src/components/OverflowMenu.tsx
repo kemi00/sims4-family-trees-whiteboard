@@ -14,6 +14,7 @@ import { DEVELOPER_NAME } from '../lib/credits.ts';
 import { useDropdownPosition } from '../hooks/useDropdownPosition.ts';
 import type { PlannerCalendar, SaveGameInfo } from '../types/whiteboard.ts';
 import { CalendarPanel } from './CalendarPanel.tsx';
+import { calendarSummary } from '../lib/calendar.ts';
 import { CreditsPanel } from './CreditsPanel.tsx';
 import { DeveloperContact } from './DeveloperContact.tsx';
 import { ProblemReportPanel } from './ProblemReportPanel.tsx';
@@ -50,6 +51,9 @@ type Props = {
   /** The board's calendar years, set in its panel (CalendarPanel). */
   calendar?: PlannerCalendar | null;
   onCalendar?: (cal: PlannerCalendar | null) => void;
+  /** The calendar's panel, open from here or from Your save (useWhiteboard's calendarOpen). */
+  calendarOpen?: boolean;
+  onCalendarOpen?: (open: boolean) => void;
   /** The last save read, for the calendar's "your save now". */
   game?: SaveGameInfo | null;
 };
@@ -69,11 +73,12 @@ export function OverflowMenu({
   onProblemReport,
   calendar = null,
   onCalendar,
+  calendarOpen = false,
+  onCalendarOpen,
   game = null,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
   /** The problem report, made when the panel opened, to send or copy. */
   const [report, setReport] = useState<{ text: string } | null>(null);
   const ownWrapRef = useRef<HTMLDivElement>(null);
@@ -89,7 +94,8 @@ export function OverflowMenu({
       if (!wrapRef.current?.contains(ev.target as Node)) {
         setOpen(false);
         setCreditsOpen(false);
-        setCalendarOpen(false);
+        // A phone's calendar sheet folds on a press outside it, as every drawer does; only ✕ closes it.
+        if (!document.getElementById('calendar-panel')?.hasAttribute('data-detent')) onCalendarOpen?.(false);
         setReport(null);
       }
     };
@@ -97,7 +103,7 @@ export function OverflowMenu({
       if (ev.key === 'Escape') {
         ev.stopPropagation();
         if (creditsOpen) setCreditsOpen(false);
-        else if (calendarOpen) setCalendarOpen(false);
+        else if (calendarOpen) onCalendarOpen?.(false);
         else if (report) setReport(null);
         else setOpen(false);
       }
@@ -108,7 +114,7 @@ export function OverflowMenu({
       document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [open, creditsOpen, calendarOpen, report, wrapRef]);
+  }, [open, creditsOpen, calendarOpen, onCalendarOpen, report, wrapRef]);
 
   useEffect(() => {
     if (open) firstItemRef.current?.focus();
@@ -185,13 +191,13 @@ export function OverflowMenu({
                 setOpen(false);
                 setCreditsOpen(false);
                 setReport(null);
-                setCalendarOpen(true);
+                onCalendarOpen?.(true);
               }}
             >
               <CalendarBlank aria-hidden="true" />
               <span className="pop__stack">
                 Calendar years
-                <span className="pop__sub">{calendar ? `On: Day 1 is ${calendar.startYear}` : 'For decades and historical saves'}</span>
+                <span className="pop__sub">{calendarSummary(calendar)}</span>
               </span>
             </button>
           )}
@@ -228,7 +234,7 @@ export function OverflowMenu({
               onClick={() => {
                 setOpen(false);
                 setCreditsOpen(false);
-                setCalendarOpen(false);
+                onCalendarOpen?.(false);
                 setReport({ text: onProblemReport() });
               }}
             >
@@ -265,7 +271,7 @@ export function OverflowMenu({
             onClick={() => {
               setOpen(false);
               setReport(null);
-              setCalendarOpen(false);
+              onCalendarOpen?.(false);
               setCreditsOpen(true);
             }}
           >
@@ -280,7 +286,7 @@ export function OverflowMenu({
           calendar={calendar}
           onCalendar={onCalendar}
           game={game}
-          onClose={() => setCalendarOpen(false)}
+          onClose={() => onCalendarOpen?.(false)}
         />
       )}
       {creditsOpen && (

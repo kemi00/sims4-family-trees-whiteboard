@@ -1,5 +1,5 @@
 import type { ChronicleEntry } from './chronicle.ts';
-import { DECEASED_STATE } from './constants.ts';
+import { hasDied } from './constants.ts';
 import { dayOf } from './lifeClock.ts';
 import type { PlannerCalendar, SimNode } from '../types/whiteboard.ts';
 
@@ -22,6 +22,26 @@ export function validCalendar(c: Partial<PlannerCalendar> | null | undefined): P
   if (typeof daysPerYear !== 'number' || !Number.isInteger(daysPerYear)) return null;
   if (daysPerYear < MIN_DAYS_PER_YEAR || daysPerYear > MAX_DAYS_PER_YEAR) return null;
   return { startYear, daysPerYear };
+}
+
+/** Whether the board shows these years now. */
+export function calendarOn(cal: PlannerCalendar | null | undefined): cal is PlannerCalendar {
+  return !!cal && !cal.off;
+}
+
+/** "1 sim day", "4 sim days". */
+export function simDays(n: number): string {
+  return n === 1 ? '1 sim day' : `${n} sim days`;
+}
+
+/**
+ * One line for where the calendar is summed up (⋮ and Your save): on and
+ * its years, or off and what it is for.
+ */
+export function calendarSummary(cal: PlannerCalendar | null | undefined): string {
+  return calendarOn(cal)
+    ? `On · Day 1 is ${yearLabel(cal.startYear)}, a year every ${simDays(cal.daysPerYear)}`
+    : 'Off · for decades and historical saves';
 }
 
 /** The calendar year of a game day: Day 1 starts `startYear`. */
@@ -123,7 +143,8 @@ export function simYears(
   } else if (bornDayOf(n) !== undefined) {
     out.born = calendarYear(bornDay!, cal);
   }
-  const dead = n.state === DECEASED_STATE;
+  // A ghost died too: a playable one keeps their years.
+  const dead = hasDied(n.state);
   if (n.yearDied !== undefined) {
     out.died = n.yearDied;
     out.diedTyped = true;
@@ -143,7 +164,7 @@ export function simYears(
 }
 
 /**
- * The years on a card: "1266–1299" for one who died, "b. 1282" for one
+ * The years on a card: "1266–1299" for one who died (a ghost too), "b. 1282" for one
  * alive, "d. 1299" for a death with no birth. Empty when the board knows
  * neither, or for one alive with no birth year.
  */

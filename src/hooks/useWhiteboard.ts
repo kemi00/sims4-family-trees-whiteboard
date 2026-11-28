@@ -12,7 +12,7 @@ import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
 import { firstChapter } from '../lib/firstChapter.ts';
 import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
-import { cardYearsText, deathWindows, simYears, unionDays } from '../lib/calendar.ts';
+import { cardYearsText, deathWindows, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
@@ -620,8 +620,10 @@ export function useWhiteboard() {
   const petKinds = useMemo(() => petKindsAvailable(gamesOff), [gamesOff]);
   /** The board's story, one entry per save upload (the chronicle). */
   const [chronicle, setChronicle] = useState<ChronicleEntry[]>(() => boot.chronicle ?? []);
-  /** The board's calendar years, when the player set some (PlannerCalendar). */
-  const calendar = planner.calendar ?? null;
+  /** The board's calendar years, while the player has them on (PlannerCalendar). */
+  const calendar = planner.calendar && !planner.calendar.off ? planner.calendar : null;
+  /** The calendar's panel (CalendarPanel), opened from ⋮ or from Your save. */
+  const [calendarOpen, setCalendarOpen] = useState(false);
   /** When each death came to light, by the story's uploads (deathWindows). */
   const deaths = useMemo(() => deathWindows(chronicle), [chronicle]);
   /** When each couple the story saw begin got together (unionDays). */
@@ -1273,17 +1275,26 @@ export function useWhiteboard() {
   );
 
   /**
-   * The board's calendar years (PlannerCalendar), or none to go back to the
-   * game's days. One undo step.
+   * The board's calendar years (PlannerCalendar): on, off (`off`, its years
+   * kept) or never set (null). One undo step.
    */
   const setCalendar = useCallback(
     (cal: PlannerCalendar | null) => {
       const had = planner.calendar;
-      if (had && cal ? had.startYear === cal.startYear && had.daysPerYear === cal.daysPerYear : !had && !cal) return;
-      pushUndo(cal ? `Calendar: Day 1 is ${cal.startYear}, a year every ${cal.daysPerYear} ${cal.daysPerYear === 1 ? 'day' : 'days'}` : 'Turn off calendar years');
+      const same = (a: PlannerCalendar, b: PlannerCalendar) =>
+        a.startYear === b.startYear && a.daysPerYear === b.daysPerYear && !a.off === !b.off;
+      if (had && cal ? same(had, cal) : !had && !cal) return;
+      const wasOn = !!had && !had.off;
+      pushUndo(
+        !cal || cal.off
+          ? 'Turn off calendar years'
+          : !wasOn
+            ? `Turn on calendar years: Day 1 is ${yearLabel(cal.startYear)}`
+            : `Calendar: Day 1 is ${yearLabel(cal.startYear)}, a year every ${cal.daysPerYear} ${cal.daysPerYear === 1 ? 'day' : 'days'}`,
+      );
       setPlanner((p) => {
         const { calendar: _old, ...rest } = p;
-        return cal ? { ...rest, calendar: cal } : rest;
+        return cal ? { ...rest, calendar: cal.off ? { startYear: cal.startYear, daysPerYear: cal.daysPerYear, off: true } : { startYear: cal.startYear, daysPerYear: cal.daysPerYear } } : rest;
       });
     },
     [planner, pushUndo],
@@ -4716,6 +4727,8 @@ export function useWhiteboard() {
     planner,
     setCalendar,
     calendar,
+    calendarOpen,
+    setCalendarOpen,
     deaths,
     unions,
     cardYears,

@@ -16,7 +16,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from 'react';
-import { AGES, DECEASED_STATE, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY } from '../lib/constants.ts';
+import { AGES, DECEASED_STATE, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY, hasDied } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { BookOpenText, CaretDown, Copy, DotsThreeVertical, Info, Trash } from '../icons.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
@@ -1495,7 +1495,8 @@ export function SimEditor({
               death,
             );
             const bornDay = bornDayOf(n);
-            const dead = state === DECEASED_STATE;
+            // A ghost died too: a playable one has a year of death and an age at it.
+            const dead = hasDied(state);
             const sums: string[] = [];
             if (shown.born !== undefined) {
               sums.push(
@@ -1553,8 +1554,10 @@ export function SimEditor({
               </>
             );
           })()}
-          {state === DECEASED_STATE && !isPet && (() => {
+          {!isPet && (() => {
             const fromGame = gameDeathOf(n, gameNames.names);
+            // Deceased, a ghost (playable ones too), or one the save says died: their ghost trait names the death.
+            if (!hasDied(state) && !fromGame) return null;
             return (
               <>
                 <label htmlFor="edDeathCause">How they died</label>

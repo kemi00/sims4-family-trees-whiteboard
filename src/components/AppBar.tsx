@@ -553,6 +553,8 @@ export function AppBar({
         wrapRef={moreRef}
         calendar={wb.planner.calendar ?? null}
         onCalendar={wb.setCalendar}
+        calendarOpen={wb.calendarOpen}
+        onCalendarOpen={wb.setCalendarOpen}
         game={wb.saveGame}
         onProblemReport={() => {
           const latest = changelog.entries[0];
@@ -605,7 +607,10 @@ export function AppBar({
             limit={wb.householdLimit}
             onLimit={wb.setHouseholdLimit}
             calendar={wb.planner.calendar ?? null}
-            onCalendar={wb.setCalendar}
+            onOpenCalendar={() => {
+              setSaveOpen(false);
+              wb.setCalendarOpen(true);
+            }}
             {...(wb.recap
               ? {
                   onRecap: () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CalendarBlank, CaretUp, Flower, Leaf, Snowflake, Sun } from '../icons.ts';
 import { HouseholdLimitControl } from './HouseholdLimitControl.tsx';
 import { trackAction } from '../lib/analytics.ts';
@@ -14,7 +14,7 @@ import {
   yearText,
 } from '../lib/lifeClock.ts';
 import type { PlannerCalendar, SaveGameInfo } from '../types/whiteboard.ts';
-import { CalendarControl } from './CalendarControl.tsx';
+import { CalendarRow } from './CalendarControl.tsx';
 
 /** "Nov 7, 12:10 AM" for when the board read the save. */
 function readAt(iso: string): string {
@@ -51,7 +51,7 @@ export function SaveDetails({
   limit,
   onLimit,
   calendar,
-  onCalendar,
+  onOpenCalendar,
 }: {
   game: SaveGameInfo;
   onRecap?: () => void;
@@ -59,9 +59,9 @@ export function SaveDetails({
   /** The household limit the board warns past: a game rule a mod may change, so the player sets it here. */
   limit?: number | null;
   onLimit?: (n: number | null) => void;
-  /** The board's calendar years (CalendarControl). */
+  /** The board's calendar years, summed up in a row that opens their panel (CalendarRow). */
   calendar?: PlannerCalendar | null;
-  onCalendar?: (cal: PlannerCalendar | null) => void;
+  onOpenCalendar?: () => void;
 }) {
   const day = dayOf(game.clock);
   const rows: [string, string][] = [
@@ -106,19 +106,19 @@ export function SaveDetails({
         {read ? `, read ${read}` : ''}. To change these options, use Game Options in the game,
         then load the save again.
       </p>
-      {onLimit && (
+      {(onLimit || onOpenCalendar) && (
         <div className="savechip__board">
           <div className="pop__head">On the board</div>
-          <HouseholdLimitControl limit={limit ?? null} onLimit={onLimit} />
-          <p className="savechip__note">
-            The board warns when a household has more sims and pets than this. Raised it with a mod like MCCC? Set its
-            number.
-          </p>
-        </div>
-      )}
-      {onCalendar && (
-        <div className="savechip__board">
-          <CalendarControl calendar={calendar ?? null} onCalendar={onCalendar} game={game} />
+          {onLimit && (
+            <>
+              <HouseholdLimitControl limit={limit ?? null} onLimit={onLimit} />
+              <p className="savechip__note">
+                The board warns when a household has more sims and pets than this. Raised it with a mod like MCCC? Set
+                its number.
+              </p>
+            </>
+          )}
+          {onOpenCalendar && <CalendarRow calendar={calendar ?? null} onOpen={onOpenCalendar} />}
         </div>
       )}
     </>
@@ -137,7 +137,7 @@ export function SaveStatus({
   limit,
   onLimit,
   calendar,
-  onCalendar,
+  onOpenCalendar,
 }: {
   game: SaveGameInfo;
   onRecap?: () => void;
@@ -145,10 +145,24 @@ export function SaveStatus({
   limit?: number | null;
   onLimit?: (n: number | null) => void;
   calendar?: PlannerCalendar | null;
-  onCalendar?: (cal: PlannerCalendar | null) => void;
+  onOpenCalendar?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
+  /** How tall the details may grow above the chip and stay under the top bar: past it, they scroll. */
+  const [room, setRoom] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const fit = () => {
+      const chip = ref.current?.getBoundingClientRect();
+      if (!chip) return;
+      const bar = document.querySelector('.appbar')?.getBoundingClientRect().bottom ?? 0;
+      setRoom(Math.max(160, chip.top - 10 - bar - 8));
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const onPointer = (ev: PointerEvent) => {
@@ -187,11 +201,24 @@ export function SaveStatus({
         <CaretUp className="savestatus__caret" weight="bold" aria-hidden="true" />
       </button>
       {open && (
-        <div className="pop pop--save savestatus__pop" role="dialog" aria-label="Your save">
+        <div
+          className="pop pop--save savestatus__pop"
+          role="dialog"
+          aria-label="Your save"
+          style={room !== null ? { maxHeight: room } : undefined}
+        >
           <SaveDetails
             game={game}
             {...(onLimit ? { limit: limit ?? null, onLimit } : {})}
-            {...(onCalendar ? { calendar: calendar ?? null, onCalendar } : {})}
+            {...(onOpenCalendar
+              ? {
+                  calendar: calendar ?? null,
+                  onOpenCalendar: () => {
+                    setOpen(false);
+                    onOpenCalendar();
+                  },
+                }
+              : {})}
             {...(onRecap
               ? {
                   onRecap: () => {

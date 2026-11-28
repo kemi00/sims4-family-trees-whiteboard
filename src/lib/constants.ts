@@ -59,6 +59,17 @@ export const LIFE_STATES = [
 /** Editor / age-up use this life state for a sim who has died. */
 export const DECEASED_STATE: (typeof LIFE_STATES)[number] = 'Deceased';
 
+/** A ghost: a sim who died and still plays, in a household or out of their urn. */
+export const GHOST_STATE: (typeof LIFE_STATES)[number] = 'Ghost';
+
+/**
+ * Whether a sim has died: deceased, or a ghost the game lets the player
+ * play. Both have a death, its year and how it came.
+ */
+export function hasDied(state: string | undefined): boolean {
+  return state === DECEASED_STATE || state === GHOST_STATE;
+}
+
 export const AGES_H = [
   'Infant',
   'Toddler',

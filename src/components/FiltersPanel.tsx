@@ -1,4 +1,4 @@
-import { CaretRight, Check, GameController, Highlighter, IdentificationBadge, LockSimple, Skull, UsersThree, type Icon } from '../icons.ts';
+import { CaretRight, GameController, Highlighter, IdentificationBadge, LockSimple, Skull, UsersThree, type Icon } from '../icons.ts';
 import { ROYALTY_AND_LEGACY } from '../lib/packs.ts';
 import type { WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { trackAction } from '../lib/analytics.ts';
@@ -6,6 +6,7 @@ import { REACH_NOUN } from '../lib/bloodline.ts';
 import { simName } from '../lib/connectionLog.ts';
 import { filterCounts } from '../lib/filterCount.ts';
 import { AgesPanel } from './AgesPanel.tsx';
+import { ToggleRow } from './ToggleRow.tsx';
 import { BarPanel } from './BarPanel.tsx';
 import { GamesPanel } from './GamesPanel.tsx';
 import { PlayabilityPanel } from './PlayabilityPanel.tsx';
@@ -18,34 +19,6 @@ function bloodlineNote(wb: WhiteboardApi): string {
   }
   if (wb.sel?.type === 'node') return 'Dims everyone outside the line of the sim you picked. Choose children, all descendants or ancestors too on the banner.';
   return 'Pick a sim on the board first, then this dims everyone outside their line: children, descendants or ancestors too.';
-}
-
-/** An on/off filter: its name, what it does, a check while on. */
-function ToggleRow({
-  icon: Glyph,
-  label,
-  note,
-  on,
-  disabled,
-  onClick,
-}: {
-  icon: Icon;
-  label: string;
-  note: string;
-  on: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" role="switch" aria-checked={on} disabled={disabled} className="fpanel__row" onClick={onClick}>
-      <Glyph aria-hidden="true" />
-      <span className="fpanel__text">
-        {label}
-        <small>{note}</small>
-      </span>
-      {on && <Check className="fpanel__end" weight="bold" aria-hidden="true" />}
-    </button>
-  );
 }
 
 /** A filter with choices of its own: it opens inside the panel. */

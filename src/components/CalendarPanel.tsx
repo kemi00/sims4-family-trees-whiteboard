@@ -22,7 +22,7 @@ export function CalendarPanel({ anchorRect, calendar, onCalendar, game, onClose 
   if (!compact && !anchorRect) return null;
   const desktopPos = (() => {
     if (compact || !anchorRect) return {};
-    const w = 320;
+    const w = 340;
     let left = anchorRect.right - w;
     if (left + w > window.innerWidth - 6) left = window.innerWidth - w - 6;
     if (left < 6) left = 6;

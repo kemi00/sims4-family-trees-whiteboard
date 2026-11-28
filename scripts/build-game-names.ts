@@ -110,13 +110,27 @@ const skills: Record<string, [string, number]> = {};
 const aspirations: Record<string, string> = {};
 /** The ghost traits a death leaves a sim with (trait_Ghost_OldAge…): trait id → the death, for the editor's "How they died". */
 const deaths: Record<string, string> = {};
-/** "trait_Ghost_OldAge" → "Old Age": a ghost trait's tuning name in words, when it has no name of its own. */
+/** "trait_Ghost_UrbanMyth" → "Urban Myth": a ghost trait's tuning name in words, for one with no name of its own. */
 const deathWords = (tuning: string): string =>
   tuning
     .replace(/^trait_Ghost_?/i, '')
     .replace(/_/g, ' ')
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .trim();
+/**
+ * The death a ghost trait stands for, in the game's words: "Death by Old
+ * Age" gives "Old Age", "Consumed by the Mother" stays as it is. Null for
+ * the ghost forms a living sim takes for a while (Temporary Specter, a
+ * séance's Spiritual Ascendance, a failed immortality potion, the Night
+ * Wraith curse): the game calls them temporary, or gives them no story.
+ */
+function deathOf(tuning: string, name: string, description: string): string | null {
+  if (!name) return deathWords(tuning) || null;
+  const by = /^Death by\s+(.+)$/i.exec(name);
+  if (by) return by[1]!.trim();
+  if (!description || /temporar|will pass/i.test(description)) return null;
+  return name;
+}
 const levelTitle = new Map<string, string>();
 const rawTracks = new Map<string, { name: string; levels: string[]; branches: string[] }>();
 let baseTuning = '';
@@ -136,15 +150,15 @@ for (const path of packages) {
     if (rec.schema === 'Trait') {
       const name = say(row.display_name);
       const type = Number(row.trait_type);
-      if (!name && /^trait_Ghost_./i.test(rec.name ?? '')) {
-        deaths[id] = deathWords(rec.name!);
+      // How a ghost died is a trait of its own, named for the death ("Death by Old Age").
+      if (/^trait_Ghost_./i.test(rec.name ?? '')) {
+        const death = deathOf(rec.name!, name, say(row.trait_description));
+        if (death) deaths[id] = death;
         continue;
       }
       if (!name) continue;
       if (type === PERSONALITY) traits[id] = [name, 'p'];
       else if (EARNED.has(type)) traits[id] = [name, 'e'];
-      // How a ghost died is a trait of its own; its tuning name says which death.
-      if (/^trait_Ghost_./i.test(rec.name ?? '')) deaths[id] = deathWords(rec.name!) || name;
     } else if (rec.schema === 'Skill' || rec.schema === 'statistics.skill.Skill') {
       const name = say(row.stat_name);
       if (name && !/hidden/i.test(rec.name)) skills[id] = [name, Number(row.skill_level_type)];
