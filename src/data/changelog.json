@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "3b930fe",
+   "date": "2026-11-28",
+   "text": "A secret child's declared parent is marked as the game names it: family and dynasty, but not blood in the partner finder. Set it yourself in the Family tab."
+  },
+  {
    "sha": "f8cc490",
    "date": "2026-11-28",
    "text": "The partner finder can let in second cousins and further, each named on their card, and filter by title, noble rank or marker."
