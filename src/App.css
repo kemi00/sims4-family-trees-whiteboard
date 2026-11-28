@@ -2213,3 +2213,8 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .editor .edlife--gone,.editor .edabout--gone>section{opacity:.6}
 .editor .edgone{margin:10px 2px 2px;font-size:11.5px;color:var(--ink-3)}
 .editor .edchip--death{border-color:var(--line);background:var(--chip);color:var(--ink-2)}
+/* How they died, as the game says it: the cause as text, and a way to write your own. */
+.editor .edcause{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:30px;padding:4px 9px;border:1px solid var(--line);border-radius:6px;background:var(--chip);box-sizing:border-box}
+.editor .edcause__text{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:12px;font-weight:600;color:var(--ink)}
+.editor .edcause__icon{flex:0 0 auto;width:16px;height:16px}
+.editor .edhint--row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}

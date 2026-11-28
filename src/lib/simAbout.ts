@@ -214,6 +214,14 @@ export function aboutView(about: SimAbout | undefined, names: GameNames, gender?
  * records for a relative (SimNode.deathTrait), else a ghost trait among
  * their traits. Null when the game says nothing, or the names don't know it.
  */
+/** The ghost trait whose icon pictures their death, when the game has one: the tree's, else their own. */
+export function gameDeathIconOf(n: { deathTrait?: string; about?: SimAbout }, names: GameNames | null): string | undefined {
+  const deaths = names?.deaths;
+  if (!deaths || !names.icons) return undefined;
+  const ids = [...(n.deathTrait ? [n.deathTrait] : []), ...(n.about?.traits ?? [])];
+  return ids.find((id) => deaths[id] && names.icons!.has(id));
+}
+
 export function gameDeathOf(n: { deathTrait?: string; about?: SimAbout }, names: GameNames | null): string | null {
   const deaths = names?.deaths;
   if (!deaths) return null;

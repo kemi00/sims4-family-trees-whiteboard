@@ -21,7 +21,7 @@ import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { BookOpenText, CaretDown, Copy, DotsThreeVertical, Info, Trash } from '../icons.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import { useGameNames } from '../hooks/useGameNames.ts';
-import { SimLife } from './SimLife.tsx';
+import { GameIcon, SimLife } from './SimLife.tsx';
 import { trackAction } from '../lib/analytics.ts';
 import {
   dynastyKey,
@@ -76,7 +76,7 @@ import { heirAfterChoices, heirAfterHolder, successionLine, withSuccessionChoice
 import { simCardClass } from '../lib/simCard.ts';
 import type { DynastyRole, Edge, Group, PlannerCalendar, SaveGameInfo, SimNode, World } from '../types/whiteboard.ts';
 import { bornDayOf, calendarYear, dayWithYear, pairKey, parseYear, simYears, yearLabel, type DeathWindow } from '../lib/calendar.ts';
-import { gameDeathOf } from '../lib/simAbout.ts';
+import { gameDeathIconOf, gameDeathOf } from '../lib/simAbout.ts';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
   const rest = items
@@ -478,6 +478,8 @@ export function SimEditor({
   const [nick, setNick] = useState(n.nick ?? '');
   const [bio, setBio] = useState(n.bio ?? '');
   const [deathCause, setDeathCause] = useState(n.deathCause ?? '');
+  /** How they died opened to write in, over the game's cause. */
+  const [causeOpen, setCauseOpen] = useState(false);
   const [yearBornText, setYearBornText] = useState(n.yearBorn === undefined ? '' : yearLabel(n.yearBorn));
   const [yearDiedText, setYearDiedText] = useState(n.yearDied === undefined ? '' : yearLabel(n.yearDied));
   const [dynastyRole, setDynastyRole] = useState<DynastyRole | ''>(n.dynastyRole ?? '');
@@ -1618,6 +1620,26 @@ export function SimEditor({
             const fromGame = gameDeathOf(n, gameNames.names);
             // Deceased, a ghost (playable ones too), or one the save says died: their ghost trait names the death.
             if (!hasDied(state) && !fromGame) return null;
+            const own = deathCause.trim();
+            // The game's cause is said as it is; a box to write in opens only when asked for, or holds your words.
+            const writing = !fromGame || causeOpen || own !== '';
+            if (!writing) {
+              const icon = gameDeathIconOf(n, gameNames.names);
+              return (
+                <>
+                  <label id="edDeathLabel">How they died</label>
+                  <div className="edcause" aria-labelledby="edDeathLabel">
+                    <span className="edcause__text">
+                      {icon && <GameIcon id={icon} size={16} className="edcause__icon" />}
+                      <span>{fromGame}</span>
+                    </span>
+                    <button type="button" className="edlink" onClick={() => setCauseOpen(true)}>
+                      Write your own
+                    </button>
+                  </div>
+                </>
+              );
+            }
             return (
               <>
                 <label htmlFor="edDeathCause">How they died</label>
@@ -1627,6 +1649,7 @@ export function SimEditor({
                   list="edDeathCauses"
                   placeholder={fromGame ?? 'e.g. Childbirth, the plague, a duel'}
                   autoComplete="off"
+                  autoFocus={causeOpen && own === ''}
                   aria-describedby="edDeathHint"
                   onChange={(e) => setDeathCause(e.target.value)}
                 />
@@ -1635,12 +1658,24 @@ export function SimEditor({
                     <option key={c} value={c} />
                   ))}
                 </datalist>
-                <div id="edDeathHint" className="edhint">
-                  {fromGame
-                    ? deathCause.trim() && deathCause.trim() !== fromGame
-                      ? `Your words, over the game’s: ${fromGame}.`
-                      : `The game says: ${fromGame}.`
-                    : 'Your words: your save doesn’t say how, or a mod decided it.'}
+                <div id="edDeathHint" className={fromGame ? 'edhint edhint--row' : 'edhint'}>
+                  {fromGame ? (
+                    <>
+                      <span>{own ? `Your words, over the game’s: ${fromGame}.` : `Leave it empty for the game’s: ${fromGame}.`}</span>
+                      <button
+                        type="button"
+                        className="edlink edlink--quiet"
+                        onClick={() => {
+                          setDeathCause('');
+                          setCauseOpen(false);
+                        }}
+                      >
+                        Use the game’s
+                      </button>
+                    </>
+                  ) : (
+                    'Your words: your save doesn’t say how, or a mod decided it.'
+                  )}
                 </div>
               </>
             );

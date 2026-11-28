@@ -19,7 +19,7 @@ function jobLevel(j: AboutJob): string {
  * first shows (lazy, so a hidden tab fetches nothing); if it can't load,
  * the name stands alone.
  */
-function GameIcon({ id, size, className }: { id: string; size: number; className: string }) {
+export function GameIcon({ id, size, className }: { id: string; size: number; className: string }) {
   const [broken, setBroken] = useState(false);
   if (broken) return null;
   return (
