@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "2f07d6e",
+   "date": "2026-11-28",
+   "text": "A sim renamed in your game is asked about on upload (\"Is Isabella Goth your Bella Goth?\"), two sims of one name in one household are told apart, and a card remembers the ids it had in other saves."
+  },
+  {
    "sha": "ad9bb45",
    "date": "2026-11-28",
    "text": "Tries for a baby belong to each planned baby, not to the couple: its own count on its card and in its editor, which the baby keeps once born."
