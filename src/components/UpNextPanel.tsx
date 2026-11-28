@@ -1,6 +1,85 @@
+import { useId } from 'react';
 import { BarPanel } from './BarPanel.tsx';
+import { calendarYear, yearLabel } from '../lib/calendar.ts';
 import { upNextReason, type UpNextRow } from '../lib/householdPlan.ts';
-import type { Group } from '../types/whiteboard.ts';
+import { WEEK_SCOPES, weekdayOf, type WeekItemKind, type WeekScope, type WeekTodo } from '../lib/weekTodo.ts';
+import type { Group, PlannerCalendar } from '../types/whiteboard.ts';
+
+/** The week's to-do, as Up next shows it (WeekSection). */
+export type WeekProps = {
+  todo: WeekTodo;
+  scope: WeekScope;
+  /** Keys of the items ticked off. */
+  done: ReadonlySet<string>;
+  /** "the Goth household": the one the save was made in, for the Active choice. */
+  activeHousehold?: string;
+  /** Whether the save info says which households were played (uploads from before didn't). */
+  playedKnown: boolean;
+  calendar: PlannerCalendar | null;
+  onScope: (scope: WeekScope) => void;
+  onToggle: (key: string) => void;
+};
+
+const KIND_HEADS: Record<WeekItemKind, string> = { ageUp: 'Age-ups', baby: 'Babies due', outfits: 'Outfits' };
+
+/** "Sunday, Day 1 to Saturday, Day 7", with the calendar's year when it has one. */
+function weekText(todo: WeekTodo, calendar: PlannerCalendar | null): string {
+  const days = `${weekdayOf(todo.first)}, Day ${todo.first} to ${weekdayOf(todo.last)}, Day ${todo.last}`;
+  if (!calendar) return days;
+  const from = calendarYear(todo.first, calendar);
+  const to = calendarYear(todo.last, calendar);
+  return `${days} · ${from === to ? yearLabel(from) : `${yearLabel(from)}–${yearLabel(to)}`}`;
+}
+
+/**
+ * This week of play, at the top of Up next: who ages up, which babies are
+ * due and who needs new outfits, in the households chosen, each ticked off
+ * as it's done. The game's week the last save falls in, Sunday to Saturday.
+ */
+function WeekSection({ week }: { week: WeekProps }) {
+  const id = useId();
+  const { todo, scope, done } = week;
+  const kinds = (['ageUp', 'baby', 'outfits'] as const).filter((k) => todo.items.some((i) => i.kind === k));
+  const left = todo.items.filter((i) => !done.has(i.key)).length;
+  return (
+    <section className="upweek" aria-labelledby={`${id}-head`}>
+      <div className="upweek__head">
+        <h3 id={`${id}-head`}>This week</h3>
+        <span className="upweek__count">{todo.items.length ? `${left} of ${todo.items.length} to do` : ''}</span>
+      </div>
+      <p className="upweek__when">{weekText(todo, week.calendar)}</p>
+      <div className="upweek__scope" role="group" aria-label="Households this week covers">
+        {WEEK_SCOPES.map((s) => (
+          <button key={s.scope} type="button" aria-pressed={scope === s.scope} onClick={() => week.onScope(s.scope)}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      {scope === 'played' && !week.playedKnown && (
+        <p className="upweek__hint">Upload your save again to see which households you’ve played.</p>
+      )}
+      {scope === 'active' && <p className="upweek__hint">{week.activeHousehold ? `The ${week.activeHousehold} household, played last in your save.` : 'Your save doesn’t say which household was played last.'}</p>}
+      {!kinds.length && (scope !== 'played' || week.playedKnown) && <p className="upweek__empty">Nothing due this week in these households.</p>}
+      {kinds.map((k) => (
+        <div key={k} className="upweek__group">
+          <h4>{KIND_HEADS[k]}</h4>
+          <ul>
+            {todo.items
+              .filter((i) => i.kind === k)
+              .map((i) => (
+                <li key={i.key} className={done.has(i.key) ? 'is-done' : undefined}>
+                  <label>
+                    <input type="checkbox" checked={done.has(i.key)} onChange={() => week.onToggle(i.key)} />
+                    <span>{i.text}</span>
+                  </label>
+                </li>
+              ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 type Props = {
   rows: UpNextRow[];
@@ -11,6 +90,8 @@ type Props = {
   onClose: () => void;
   onOpen: (row: UpNextRow) => void;
   onSkip: (gid: string, skip: boolean) => void;
+  /** This week's to-do, at the top; none without a save. */
+  week?: WeekProps;
 };
 
 /** "Gen 2 · you played them last". */
@@ -27,7 +108,7 @@ function metaText(r: UpNextRow): string {
  * handed a plan than pick by mood: only households where playing does
  * something, each with why it is where it is. It never changes the board.
  */
-export function UpNextPanel({ rows, groups, nameOf, hhOf, onClose, onOpen, onSkip }: Props) {
+export function UpNextPanel({ rows, groups, nameOf, hhOf, onClose, onOpen, onSkip, week }: Props) {
   // The suggestion is the first household you can play now.
   const first = rows.findIndex((r) => !r.skipped && !r.notInGame);
   return (
@@ -38,6 +119,8 @@ export function UpNextPanel({ rows, groups, nameOf, hhOf, onClose, onOpen, onSki
       description="A suggested order to play your households in"
       onClose={onClose}
     >
+      {week && <WeekSection week={week} />}
+      {week && <h3 className="upnext__subhead">Who to play next</h3>}
       {!rows.length ? (
         <p className="upnext__empty">
           Nothing to suggest yet. Plan a couple or a baby, and the households with something to do show up here.

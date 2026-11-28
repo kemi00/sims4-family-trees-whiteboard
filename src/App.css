@@ -2257,3 +2257,24 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .pop .savesetting .calctl__picks button{width:auto;min-height:0;padding:5px 10px;border:1px solid var(--chip-line);border-radius:999px;background:var(--chip);color:var(--ink-2);font-size:11.5px;font-variant-numeric:tabular-nums}
 .pop .savesetting .calctl__picks button[aria-pressed=true]{border-color:var(--accent-soft-hi);background:var(--accent-soft);color:var(--accent-strong)}
 .pop .savesetting .hlstep button{width:28px}
+
+/* ── This week, at the top of Up next (UpNextPanel › WeekSection) ────────── */
+.upnext .upweek{margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-surface);background:#fff}
+.upnext .upweek__head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.upnext .upweek__head h3{margin:0;font-size:13px;font-weight:700;color:var(--ink)}
+.upnext .upweek__count{font-size:11px;font-weight:600;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.upnext .upweek__when{margin:2px 0 8px;font-size:11.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.upnext .upweek__scope{display:inline-flex;margin:0 0 6px;border:1px solid var(--chip-line);border-radius:8px;overflow:hidden}
+.upnext .upweek__scope button{padding:5px 11px;border:0;border-radius:0;background:var(--chip);font:inherit;font-size:11.5px;font-weight:600;color:var(--ink-2)}
+.upnext .upweek__scope button + button{border-left:1px solid var(--chip-line)}
+.upnext .upweek__scope button:hover{background:var(--hover)}
+.upnext .upweek__scope button[aria-pressed=true]{background:var(--accent-soft);color:var(--accent-strong)}
+.upnext .upweek__hint{margin:0 0 6px;font-size:11px;color:var(--ink-3)}
+.upnext .upweek__empty{margin:6px 0 2px;font-size:11.5px;color:var(--ink-3)}
+.upnext .upweek__group h4{margin:8px 0 3px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.upnext .upweek__group ul{margin:0;padding:0;list-style:none}
+.upnext .upweek__group li label{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12px;line-height:1.4;color:var(--ink);cursor:pointer}
+.upnext .upweek__group li input{flex:none;width:15px;height:15px;margin:2px 0 0;accent-color:var(--accent)}
+.upnext .upweek__group li.is-done span{color:var(--ink-3);text-decoration:line-through}
+.upnext .upnext__subhead{margin:0 0 8px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+@media (pointer:coarse){.upnext .upweek__scope button{min-height:40px}.upnext .upweek__group li input{width:20px;height:20px}}

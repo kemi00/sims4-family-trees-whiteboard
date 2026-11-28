@@ -13,6 +13,7 @@ import { firstChapter } from '../lib/firstChapter.ts';
 import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
 import { cardYearsText, deathWindows, pairKey, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
+import type { WeekScope } from '../lib/weekTodo.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
@@ -1193,7 +1194,9 @@ export function useWhiteboard() {
     setPairStatus(snap.pairStatus);
     setLotBoxAt(snap.lotBoxAt);
     setLotPrices(snap.lotPrices);
-    setPlanner(snap.planner);
+    // The week's ticks and households are today's, whatever step is undone.
+    const { week: _week, ...snapPlanner } = snap.planner;
+    setPlanner((cur) => (cur.week ? { ...snapPlanner, week: cur.week } : snapPlanner));
     setSaveGame(snap.saveGame);
     setChronicle(snap.chronicle);
     if (snap.filters) {
@@ -1322,6 +1325,21 @@ export function useWhiteboard() {
     },
     [saveGame, pushUndo],
   );
+  /** The week's to-do: which households it covers (kept with the board, not an undo step). */
+  const setWeekScope = useCallback((scope: WeekScope) => {
+    setPlanner((p) => ({ ...p, week: { ...p.week, scope } }));
+  }, []);
+  /**
+   * Tick a to-do item off, or back on. Keys carry their week's first day:
+   * ticks from weeks before go once a new week's are made.
+   */
+  const toggleWeekDone = useCallback((key: string, weekFirst: number) => {
+    setPlanner((p) => {
+      const kept = (p.week?.done ?? []).filter((k) => k.startsWith(`${weekFirst}|`));
+      const done = kept.includes(key) ? kept.filter((k) => k !== key) : [...kept, key];
+      return { ...p, week: { ...p.week, done } };
+    });
+  }, []);
   /** A couple's tries for a baby (PlannerData.tries), logged one at a time: one undo step each. */
   const addBabyTry = useCallback(
     (a: string, b: string, t: BabyTry) => {
@@ -4778,6 +4796,8 @@ export function useWhiteboard() {
     setCalendarOpen,
     addBabyTry,
     removeBabyTry,
+    setWeekScope,
+    toggleWeekDone,
     setStageLengths,
     deaths,
     unions,

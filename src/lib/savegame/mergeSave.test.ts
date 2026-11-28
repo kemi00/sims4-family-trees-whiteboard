@@ -1922,6 +1922,8 @@ describe('ages, game options and first heads from the save', () => {
       playedAging: 'Active',
       unplayedAging: false,
       activeHousehold: 'Bheeda',
+      // Every household played in the save, for the week's to-do.
+      playedHouseholds: ['h1', 'h2'],
       // Its box on the board: Kelvin's.
       lastPlayedGid: 'Willow Creek||Bheeda',
     });

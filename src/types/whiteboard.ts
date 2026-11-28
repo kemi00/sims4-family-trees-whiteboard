@@ -220,6 +220,11 @@ export interface PlannerData {
   /** Each couple's tries for a baby, in order, by the two cards' pairKey (calendar.ts). */
   tries?: Record<string, BabyTry[]>;
   /**
+   * The week's to-do in Up next (weekTodo.ts): the households it covers, and
+   * what's ticked off, by item key. Undo leaves both as they are.
+   */
+  week?: { scope?: 'active' | 'played' | 'all'; done?: string[] };
+  /**
    * Years for days on the board's cards, couples, story and posters, while
    * not `off`. None: the game's own days, and the player never set one.
    */
@@ -345,6 +350,8 @@ export interface SaveGameInfo {
   activeHousehold?: string;
   /** Its box on the board, as the import found its sims. */
   lastPlayedGid?: string;
+  /** The game's ids of every household played in this save (the household record's played mark). */
+  playedHouseholds?: string[];
   /**
    * The households played at earlier imports, newest first, without the
    * one active now: Up next suggests the one played longest ago first.

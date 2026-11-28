@@ -1977,6 +1977,7 @@ function saveGameFrom(
     ...(game.playedAging ? { playedAging: game.playedAging } : {}),
     ...(game.unplayedAging !== undefined ? { unplayedAging: game.unplayedAging } : {}),
     ...(active ? { activeHousehold: active } : {}),
+    ...(game.playedHouseholds.length ? { playedHouseholds: [...game.playedHouseholds] } : {}),
   };
   // Each household's money, and the home a move would sell.
   if (game.households) {

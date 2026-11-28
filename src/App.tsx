@@ -23,6 +23,7 @@ import { successionForecast } from './lib/forecast.ts';
 import { partnerWindows } from './lib/matchClock.ts';
 import { storyLines } from './lib/chronicle.ts';
 import { PosterDialog } from './components/PosterDialog.tsx';
+import { weekTodo } from './lib/weekTodo.ts';
 import { dynastyPoster, householdPoster, withPosterYears, type PosterModel } from './lib/poster.ts';
 import { dynastyIndex, renamePlannedDynasty, type DynastyRow } from './lib/dynastyMenu.ts';
 import { dynastyKey, dynastyLabelText, dynastyNames, dynastyPhrase } from './lib/generations.ts';
@@ -544,6 +545,31 @@ export default function App() {
                 return n ? cardName(n) : 'someone';
               }}
               hhOf={(gid) => householdName(gid, wb.groups, wb.nodes)}
+              {...(wb.saveGame
+                ? (() => {
+                    const scope = wb.planner.week?.scope ?? 'all';
+                    const todo = weekTodo({
+                      nodes: wb.nodes,
+                      saveGame: wb.saveGame,
+                      calendar: wb.calendar,
+                      tries: wb.planner.tries,
+                      chronicle: wb.chronicle,
+                      scope,
+                    });
+                    return {
+                      week: {
+                        todo,
+                        scope,
+                        done: new Set(wb.planner.week?.done ?? []),
+                        ...(wb.saveGame.activeHousehold ? { activeHousehold: wb.saveGame.activeHousehold } : {}),
+                        playedKnown: !!wb.saveGame.playedHouseholds,
+                        calendar: wb.calendar,
+                        onScope: wb.setWeekScope,
+                        onToggle: (key: string) => wb.toggleWeekDone(key, todo.first),
+                      },
+                    };
+                  })()
+                : {})}
               onClose={() => wb.setUpNextOpen(false)}
               onOpen={(r) => {
                 wb.setUpNextOpen(false);
