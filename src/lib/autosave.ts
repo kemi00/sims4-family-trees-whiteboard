@@ -178,6 +178,7 @@ function nodeIdentity(n: SimNode) {
     pregnancy: n.pregnancy ?? null,
     tries: n.tries ?? null,
     titles: n.titles ?? null,
+    markers: n.markers ?? null,
     pastSaveIds: n.pastSaveIds ?? null,
     yearBorn: n.yearBorn ?? null,
     yearDied: n.yearDied ?? null,

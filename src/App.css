@@ -2333,3 +2333,34 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .crest>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none}
 .dynp__top .crest{margin-right:-2px;align-self:center}
 .dynp__about{margin:2px 10px 6px;font-size:12px;line-height:1.45;color:var(--ink-2);font-style:italic}
+
+/* Editor: Markers, the board's own marks for sims. */
+.editor .edmarkers{margin-top:10px}
+.editor .edmarkers .edlabel{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.editor .edmarkers__chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px}
+.editor button.edmarkers__chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font-size:12px;font-weight:500;line-height:1.2}
+.editor button.edmarkers__chip:hover{background:var(--hover)}
+.editor button.edmarkers__chip[aria-pressed=true]{border-color:var(--accent);background:var(--chip);color:var(--accent-strong);font-weight:600}
+.editor button.edmarkers__chip--new{border-style:dashed;color:var(--ink-2)}
+.editor .edmarkers__mark{font-size:13px;line-height:1}
+.editor .edmarkers__new,.editor .edmarkers__edit{display:flex;flex-direction:column;gap:6px;margin-top:6px;padding-top:8px;border-top:1px solid var(--line)}
+.editor label.edmarkers__field{display:flex;flex-direction:column;gap:2px;margin:0}
+.editor label.edmarkers__field>span{font-size:10px;color:#667;text-transform:uppercase;letter-spacing:.3px}
+.editor .edmarkers__symbols{display:flex;flex-wrap:wrap;gap:4px}
+.editor .edmarkers__symbols button{width:28px;height:28px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:15px;line-height:1}
+.editor .edmarkers__symbols button:hover{background:var(--hover)}
+.editor .edmarkers__symbols button[aria-checked=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-ring)}
+.editor .edmarkers__list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.editor .edmarkers__list li{display:flex;flex-direction:column;gap:4px}
+.editor .edmarkers__row{display:flex;align-items:center;gap:6px}
+.editor .edmarkers__row input{flex:1;min-width:0}
+.editor button.edmarkers__bin{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--ink-3)}
+.editor button.edmarkers__bin svg{width:14px;height:14px}
+.editor button.edmarkers__bin:hover{background:var(--danger-soft);color:var(--danger)}
+.editor .edmarkers__actions{display:flex;justify-content:flex-end;gap:6px}
+.editor button.edmarkers__done{padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink-2);font-size:12px;font-weight:600}
+.editor button.edmarkers__done:hover{background:var(--hover)}
+.editor button.edmarkers__add{padding:6px 12px;border:1px solid var(--chip-line);border-radius:6px;background:var(--chip);color:var(--accent-strong);font-size:12px;font-weight:600}
+.editor button.edmarkers__add:hover:not(:disabled){background:var(--hover)}
+.editor button.edmarkers__add:disabled{opacity:.45;cursor:default}
+@media (pointer:coarse){.editor .edmarkers__symbols button{width:36px;height:36px}.editor button.edmarkers__chip{min-height:36px}.editor button.edmarkers__bin{width:36px;height:36px}.editor button.edmarkers__done,.editor button.edmarkers__add{min-height:40px}}

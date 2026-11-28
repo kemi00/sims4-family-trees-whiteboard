@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
 import { CloseButton } from './CloseButton.tsx';
 import type { ReactNode, Ref } from 'react';
-import type { DynastyRole, World } from '../types/whiteboard.ts';
+import type { DynastyRole, SimMarker, World } from '../types/whiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { Crown, House, Key, User } from '../icons.ts';
 import {
@@ -23,6 +23,7 @@ import {
 import { ALL_KEY_MARKS, type KeyMark } from '../lib/keyMarks.ts';
 import type { WorldTotals } from '../lib/worldTag.ts';
 import { worldIconUrl } from '../lib/places.ts';
+import { markerColor } from '../lib/markers.ts';
 import { DivorcePill, HeartPill, OffPlanMark, RingPill, SecretLoversPill } from './EdgeLayer.tsx';
 import { LockGlyph } from './LockGlyph.tsx';
 import { UnhousedGlyph } from './UnhousedGlyph.tsx';
@@ -240,6 +241,8 @@ type Props = {
   totals: WorldTotals;
   /** The marks the board shows now, so the key explains those (keyMarks). */
   marks: ReadonlySet<KeyMark>;
+  /** The board's own markers some sim on it carries (markersInUse). */
+  markers?: readonly SimMarker[];
   /** Hide while a filter panel is open so it does not overlap the controls. */
   hidden?: boolean;
   onPickWorld: (world: string) => void;
@@ -255,7 +258,17 @@ const PLAN_MARKS: KeyMark[] = ['added', 'plannedRole', 'offPlan', 'closing', 'ho
  * the other marks only when the board has one, with every mark a click
  * away. Every sample is drawn the same size, so the meanings line up.
  */
-function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; sheet: boolean; onClose: () => void }) {
+function KeyPanel({
+  marks,
+  markers = [],
+  sheet,
+  onClose,
+}: {
+  marks: ReadonlySet<KeyMark>;
+  markers?: readonly SimMarker[];
+  sheet: boolean;
+  onClose: () => void;
+}) {
   const [every, setEvery] = useState(false);
   const has = (m: KeyMark) => every || marks.has(m);
   const missing = [...ALL_KEY_MARKS].filter((m) => !marks.has(m)).length;
@@ -411,6 +424,19 @@ function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; shee
               ))}
             </li>
           )}
+          {markers.length > 0 && (
+            // Your own markers, as the cards show them before the name.
+            <li className="lgk lgk--marks" aria-label={`Your markers: ${markers.map((m) => m.label).join(', ')}`}>
+              {markers.map((m) => (
+                <span key={m.id} className="lgk__mark" aria-hidden="true">
+                  <span className="lgk__emoji" style={{ color: markerColor(m.mark) }}>
+                    {m.mark}
+                  </span>
+                  {m.label}
+                </span>
+              ))}
+            </li>
+          )}
           {has('deceased') && <KeyRow sample={<CardSample label="Faded card" kind="dead" />} label="Deceased" />}
           {has('fromSave') && (
             <KeyRow
@@ -552,7 +578,7 @@ function KeyPanel({ marks, sheet, onClose }: { marks: ReadonlySet<KeyMark>; shee
   );
 }
 
-export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld, ref }: Props) {
+export function Legend({ worlds, liveWorlds, totals, marks, markers, hidden, onPickWorld, ref }: Props) {
   const compact = useCompactChrome();
   const [expanded, setExpanded] = useState(!compact);
   const [keyOpen, setKeyOpen] = useState(readKeyOpen);
@@ -606,7 +632,7 @@ export function Legend({ worlds, liveWorlds, totals, marks, hidden, onPickWorld,
     setKeyOpen(open);
     keepKeyOpen(open);
   };
-  const keyPanel = keyOpen && <KeyPanel marks={marks} sheet={compact} onClose={() => toggleKey(false)} />;
+  const keyPanel = keyOpen && <KeyPanel marks={marks} {...(markers ? { markers } : {})} sheet={compact} onClose={() => toggleKey(false)} />;
 
   return (
     <div

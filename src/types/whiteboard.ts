@@ -96,6 +96,8 @@ export interface SimNode {
   pastSaveIds?: string[];
   /** Titles they hold or held: the game's noble titles from the save, and your own (see SimTitle). */
   titles?: SimTitle[];
+  /** The board's markers they carry, by id (PlannerData.markers). */
+  markers?: string[];
   /** In the save and not on the shipped xlsx roster. */
   fromSave?: boolean;
   /**
@@ -240,6 +242,23 @@ export interface PlannerData {
    * not `off`. None: the game's own days, and the player never set one.
    */
   calendar?: PlannerCalendar;
+  /**
+   * The markers sims can carry (SimMarker). None: the board's two to start
+   * with, Illegitimate and Wealthy; an empty list once you removed both.
+   */
+  markers?: SimMarker[];
+}
+
+/**
+ * A marker of your own for sims, in your words: "Illegitimate", "Wealthy",
+ * "Cursed bloodline". Its symbol shows before the name on every card that
+ * carries it, and the Key explains it.
+ */
+export interface SimMarker {
+  id: string;
+  label: string;
+  /** One symbol from MARKER_SYMBOLS (markers.ts), which also gives its colour. */
+  mark: string;
 }
 
 /** A planned sim as it was before a sim from the save filled it. */

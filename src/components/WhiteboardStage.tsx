@@ -109,6 +109,7 @@ import { connectOptions } from '../lib/connectOptions.ts';
 import { isOngoingCouple, isUnionEdge, nextStepLabel, nextSteps, storiesByPair, storySteps, type StoryStep } from '../lib/coupleStory.ts';
 import { Legend } from './Legend.tsx';
 import { keyMarks } from '../lib/keyMarks.ts';
+import { markersInUse } from '../lib/markers.ts';
 import { LinkSelectionChip } from './LinkSelectionChip.tsx';
 import { Minimap } from './Minimap.tsx';
 import { SimEditor } from './SimEditor.tsx';
@@ -1652,6 +1653,9 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
     [wb.visibleNodes, wb.shownEdges, wb.show.groups, wb.freeLots, wb.offPlan, wb.planTally, wb.overLimit],
   );
 
+  // The board's markers some sim on it carries: the Key explains those.
+  const markersShown = useMemo(() => markersInUse(wb.visibleNodes, wb.markers), [wb.visibleNodes, wb.markers]);
+
   // What of the board is on screen, for new sims to land where you can see
   // them: the stage, less the legend column beside it.
   wb.visibleAreaRef.current = () => {
@@ -2104,6 +2108,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
               <SimNodeView
                 key={n.id}
                 node={wb.past ? pastNode(n, wb.past) : n}
+                markerDefs={wb.markers}
                 celebrate={wb.celebrateIds.has(n.id)}
                 selected={
                   (wb.sel?.type === 'node' && wb.sel.id === n.id) ||
@@ -2657,6 +2662,7 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
         liveWorlds={wb.liveWorlds}
         totals={wb.boardTotals}
         marks={marksShown}
+        markers={markersShown}
         hidden={!!briefGroup}
         onPickWorld={(world) => {
           const r = svgRef.current?.getBoundingClientRect();
@@ -2826,6 +2832,8 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
           top={editorPos.top}
           editorRef={editorRef}
           onLayout={positionEditor}
+          markerDefs={wb.markers}
+          onSetMarkers={wb.setMarkers}
           onSave={({ genRoot, ...patch }) => {
             wb.pushUndo(`Edit ${named(cardName(editNode))}`);
             wb.updateNode(editNode.id, patch);

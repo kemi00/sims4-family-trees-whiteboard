@@ -7,7 +7,8 @@ import { textWidth } from '../lib/textWidth.ts';
 import { isUserE, isHighlightMatch, type HighlightSets } from '../lib/utils.ts';
 import { NOT_YET_AGE, PLANNED_MOVES_IN, cardName, isPlannedSim, nameWithNick } from '../lib/plan.ts';
 import { titleText, topTitle } from '../lib/titles.ts';
-import type { SimNode } from '../types/whiteboard.ts';
+import type { SimMarker, SimNode } from '../types/whiteboard.ts';
+import { markerColor, markersOf } from '../lib/markers.ts';
 
 type Props = {
   node: SimNode;
@@ -43,6 +44,8 @@ type Props = {
    * Shown on hover and while the card is selected.
    */
   babyPlus?: boolean;
+  /** The board's markers (PlannerData.markers): the card shows those it carries before the name. */
+  markerDefs?: readonly SimMarker[];
   /**
    * A ♥ on each side of the card, where a couple's line meets it: it plans
    * a partner (married, romance, secret lovers, divorced). Shown on hover
@@ -140,6 +143,7 @@ export const SimNodeView = memo(function SimNodeView({
   heirAfter,
   celebrate = false,
   years,
+  markerDefs,
   onPointerDown,
 }: Props) {
   const added = !!n.added;
@@ -169,7 +173,9 @@ export const SimNodeView = memo(function SimNodeView({
   const h = n.h || CARD_H;
   const role = n.dynastyRole ? DYNASTY_ROLES[n.dynastyRole] : null;
   const shownName = nameWithNick(n);
-  const name = `${offPlan ? '⚠ ' : ''}${role ? role.mark + ' ' : ''}${shownName}`;
+  const marks = markerDefs ? markersOf(n, markerDefs) : [];
+  const markText = marks.map((m) => m.mark).join('');
+  const name = `${offPlan ? '⚠ ' : ''}${markText ? markText + ' ' : ''}${role ? role.mark + ' ' : ''}${shownName}`;
   const stage = isPlannedSim(n) && n.age === NOT_YET_AGE && notYet ? notYet : n.age;
   // The name stops short of the corner badges; a long one (a crown and
   // "Anne-Shirley Cuthbert") is set a little smaller rather than run under them.
@@ -284,9 +290,14 @@ export const SimNodeView = memo(function SimNodeView({
             fontWeight={700}
             fill="#1b2b3a"
             fontStyle={isPlannedSim(n) && !n.first.trim() ? 'italic' : undefined}
-            data-tip={roleTitle || offPlan ? [offPlan, roleTitle].filter(Boolean).join('\n') : undefined}
+            data-tip={roleTitle || offPlan || marks.length ? [offPlan, ...marks.map((m) => `${m.mark} ${m.label}`), roleTitle].filter(Boolean).join('\n') : undefined}
           >
             {offPlan && <tspan fill="#b45309">⚠ </tspan>}
+            {marks.map((m, i) => (
+              <tspan key={m.id} fill={markerColor(m.mark)}>
+                {i === marks.length - 1 ? `${m.mark} ` : m.mark}
+              </tspan>
+            ))}
             {role && <tspan fillOpacity={rolePlanned ? 0.4 : undefined}>{role.mark} </tspan>}
             {shownName}
           </text>

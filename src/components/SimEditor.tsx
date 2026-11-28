@@ -74,11 +74,12 @@ import { SearchSelect, type SearchGroup, type SearchOption } from './SearchSelec
 import { pronounsLabel, theHousehold } from '../lib/utils.ts';
 import { heirAfterChoices, heirAfterHolder, successionLine, withSuccessionChoice, type LinePlace } from '../lib/succession.ts';
 import { simCardClass } from '../lib/simCard.ts';
-import type { BabyTry, DynastyRole, Edge, Group, PlannerCalendar, SaveGameInfo, SimNode, SimTitle, World } from '../types/whiteboard.ts';
+import type { BabyTry, DynastyRole, Edge, Group, PlannerCalendar, SaveGameInfo, SimMarker, SimNode, SimTitle, World } from '../types/whiteboard.ts';
 import { bornDayOf, calendarYear, dayWithYear, pairKey, parseYear, simYears, yearLabel, type DeathWindow } from '../lib/calendar.ts';
 import { gameDeathIconOf, gameDeathOf } from '../lib/simAbout.ts';
 import { parentsExpecting, parentsOf, triesSummary } from '../lib/babyTries.ts';
 import { BabyTries } from './BabyTries.tsx';
+import { SimMarkers } from './SimMarkers.tsx';
 import { SimTitles } from './SimTitles.tsx';
 
 function pinnedAlpha<T extends string>(items: readonly T[], pin: T): T[] {
@@ -325,7 +326,12 @@ type Props = {
     yearDied?: number;
     /** Their titles, the game's and your own (SimTitles); undefined clears. */
     titles?: SimTitle[];
+    /** The board's markers they carry; undefined clears. */
+    markers?: string[];
   }) => void;
+  /** The board's markers (SimMarkers), and a change to that list: one undo step, every card at once. */
+  markerDefs: readonly SimMarker[];
+  onSetMarkers: (next: SimMarker[], undoLabel: string) => void;
   onMove: (world: string, houseGid: string, newName: string) => void;
   /** Move this sim's whole household to another world (moveHouseholdToWorld). */
   onMoveHousehold: (world: string, house?: string) => void;
@@ -415,6 +421,8 @@ export function SimEditor({
   whenOf,
   funds,
   calendar = null,
+  markerDefs,
+  onSetMarkers,
   death,
   onAddTry,
   onRemoveTry,
@@ -471,6 +479,7 @@ export function SimEditor({
   const [nick, setNick] = useState(n.nick ?? '');
   const [bio, setBio] = useState(n.bio ?? '');
   const [titles, setTitles] = useState<SimTitle[]>(n.titles ?? []);
+  const [markerIds, setMarkerIds] = useState<string[]>(n.markers ?? []);
   const [deathCause, setDeathCause] = useState(n.deathCause ?? '');
   /** How they died opened to write in, over the game's cause. */
   const [causeOpen, setCauseOpen] = useState(false);
@@ -826,6 +835,7 @@ export function SimEditor({
     nick.trim() !== (n.nick ?? '') ||
     bio.trim() !== (n.bio ?? '') ||
     JSON.stringify(titles) !== JSON.stringify(n.titles ?? []) ||
+    JSON.stringify([...markerIds].sort()) !== JSON.stringify([...(n.markers ?? [])].sort()) ||
     deathCause.trim() !== (n.deathCause ?? '') ||
     (yearBornTyped ?? undefined) !== n.yearBorn ||
     (yearDiedTyped ?? undefined) !== n.yearDied ||
@@ -852,6 +862,7 @@ export function SimEditor({
       nick: nick.trim() || undefined,
       bio: bio.trim() || undefined,
       titles: titles.length ? titles : undefined,
+      markers: markerIds.length ? markerIds : undefined,
       deathCause: deathCause.trim() || undefined,
       yearBorn: yearBornTyped ?? undefined,
       yearDied: yearDiedTyped ?? undefined,
@@ -1709,6 +1720,7 @@ export function SimEditor({
               }}
             />
           )}
+          {!isPet && <SimMarkers defs={markerDefs} picked={markerIds} onPick={setMarkerIds} onDefs={onSetMarkers} />}
           {!isPet && (
             <>
               <label htmlFor="edBio">Bio</label>

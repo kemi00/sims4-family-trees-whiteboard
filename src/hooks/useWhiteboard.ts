@@ -13,6 +13,7 @@ import { firstChapter } from '../lib/firstChapter.ts';
 import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
 import { cardYearsText, deathWindows, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
+import { boardMarkers } from '../lib/markers.ts';
 import type { WeekScope } from '../lib/weekTodo.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
@@ -153,6 +154,7 @@ import type {
   Viewport,
   WhiteboardData,
   World,
+  SimMarker,
 } from '../types/whiteboard.ts';
 import {
   dynastyGenerations,
@@ -1303,6 +1305,32 @@ export function useWhiteboard() {
       });
     },
     [planner, pushUndo],
+  );
+
+  /** The markers sims can carry: the board's own, or the two it starts with. */
+  const markers = useMemo(() => boardMarkers(planner), [planner]);
+
+  /**
+   * The board's markers, added to, renamed or given another symbol: one undo
+   * step. A marker taken off the list comes off every sim that carried it.
+   */
+  const setMarkers = useCallback(
+    (next: SimMarker[], undoLabel: string) => {
+      pushUndo(undoLabel);
+      const kept = new Set(next.map((m) => m.id));
+      setPlanner((p) => ({ ...p, markers: next }));
+      setNodesCore((ns) =>
+        ns.some((n) => n.markers?.some((id) => !kept.has(id)))
+          ? ns.map((n) => {
+              if (!n.markers?.some((id) => !kept.has(id))) return n;
+              const left = n.markers.filter((id) => kept.has(id));
+              const { markers: _all, ...rest } = n;
+              return left.length ? { ...rest, markers: left } : rest;
+            })
+          : ns,
+      );
+    },
+    [pushUndo],
   );
 
   /**
@@ -4793,6 +4821,8 @@ export function useWhiteboard() {
     planner,
     setCalendar,
     calendar,
+    markers,
+    setMarkers,
     calendarOpen,
     setCalendarOpen,
     addBabyTry,
