@@ -12,7 +12,7 @@ import { recapHasNews, saveRecap, type SaveRecap } from '../lib/saveRecap.ts';
 import { firstChapter } from '../lib/firstChapter.ts';
 import { logError } from '../lib/errorLog.ts';
 import { chronicleEntry, mergeChronicles, withEntry, type ChronicleEntry } from '../lib/chronicle.ts';
-import { cardYearsText, deathWindows, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
+import { cardYearsText, deathWindows, pairKey, simYears, unionDays, yearLabel } from '../lib/calendar.ts';
 import { pastEdges, pastView } from '../lib/lookBack.ts';
 import {
   AUTOSAVE_DEBOUNCE_MS,
@@ -139,6 +139,7 @@ import type {
   HouseholdAgeUp,
   HouseholdMove,
   LotBoxPins,
+  BabyTry,
   PlannerCalendar,
   PlannerData,
   PairStatus,
@@ -1295,6 +1296,31 @@ export function useWhiteboard() {
       setPlanner((p) => {
         const { calendar: _old, ...rest } = p;
         return cal ? { ...rest, calendar: cal.off ? { startYear: cal.startYear, daysPerYear: cal.daysPerYear, off: true } : { startYear: cal.startYear, daysPerYear: cal.daysPerYear } } : rest;
+      });
+    },
+    [planner, pushUndo],
+  );
+
+  /** A couple's tries for a baby (PlannerData.tries), logged one at a time: one undo step each. */
+  const addBabyTry = useCallback(
+    (a: string, b: string, t: BabyTry) => {
+      const key = pairKey(a, b);
+      pushUndo(t.pregnant ? 'Log a try for a baby: pregnant' : 'Log a try for a baby');
+      setPlanner((p) => ({ ...p, tries: { ...p.tries, [key]: [...(p.tries?.[key] ?? []), t] } }));
+    },
+    [pushUndo],
+  );
+  const removeBabyTry = useCallback(
+    (a: string, b: string, index: number) => {
+      const key = pairKey(a, b);
+      if (!planner.tries?.[key]?.[index]) return;
+      pushUndo('Remove a try for a baby');
+      setPlanner((p) => {
+        const left = (p.tries?.[key] ?? []).filter((_, i) => i !== index);
+        const { [key]: _gone, ...others } = p.tries ?? {};
+        const tries = left.length ? { ...others, [key]: left } : others;
+        const { tries: _old, ...rest } = p;
+        return Object.keys(tries).length ? { ...rest, tries } : rest;
       });
     },
     [planner, pushUndo],
@@ -4729,6 +4755,8 @@ export function useWhiteboard() {
     calendar,
     calendarOpen,
     setCalendarOpen,
+    addBabyTry,
+    removeBabyTry,
     deaths,
     unions,
     cardYears,

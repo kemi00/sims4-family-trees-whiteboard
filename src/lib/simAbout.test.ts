@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { aboutView, sayFor, skillLevel, type GameNames } from './simAbout.ts';
+import { aboutView, gameDeathIconOf, gameDeathOf, sayFor, skillLevel, type GameNames } from './simAbout.ts';
 
 const MAJOR = [100, 1440, 2160, 3600, 5280, 7200, 10140, 13440, 17100, 21120];
 const names: GameNames = {
@@ -116,5 +116,40 @@ describe('names with both forms', () => {
       'Female',
     );
     assert.deepEqual([v.earned, v.aspiration, v.jobs[0]?.name], [[{ name: 'Matriarch' }], 'Lady of the Knits', 'Fisherwoman']);
+  });
+});
+
+describe('a death the game names, or a mod made', () => {
+  const names: GameNames = {
+    skillLevels: {},
+    traits: { '16850': ['Creative', 'p'] },
+    skills: {},
+    tracks: {},
+    aspirations: {},
+    deaths: { '379066': 'Broken Heart', '101685': 'Old Age' },
+    icons: new Set(['379066']),
+  };
+
+  it('names a death the game knows, with its icon when there is one', () => {
+    const bella = { about: { traits: ['16850', '379066'] } };
+    assert.equal(gameDeathOf(bella, names), 'Broken Heart');
+    assert.equal(gameDeathIconOf(bella, names), '379066');
+    assert.deepEqual(aboutView(bella.about, names).death, { name: 'Broken Heart', icon: '379066' });
+    // Old Age has a name but no icon: the name stands alone.
+    assert.deepEqual(aboutView({ traits: ['101685'] }, names).death, { name: 'Old Age' });
+    assert.equal(gameDeathIconOf({ about: { traits: ['101685'] } }, names), undefined);
+  });
+
+  it('says nothing, and breaks nothing, for a death a mod made', () => {
+    // A modded ghost trait the names don't know: no cause, no icon, no Death row; the player's words do.
+    const modded = { deathTrait: '9876543210', about: { traits: ['16850', '9876543210'] } };
+    assert.equal(gameDeathOf(modded, names), null);
+    assert.equal(gameDeathIconOf(modded, names), undefined);
+    const v = aboutView(modded.about, names);
+    assert.equal(v.death, undefined);
+    assert.deepEqual(v.personality, [{ name: 'Creative' }]);
+    // Names built before deaths were read, or not loaded yet.
+    assert.equal(gameDeathIconOf(modded, { ...names, deaths: undefined }), undefined);
+    assert.equal(gameDeathOf(modded, null), null);
   });
 });

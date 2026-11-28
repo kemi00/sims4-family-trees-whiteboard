@@ -5,7 +5,7 @@ import { AGES_H, NON_BINARY } from '../constants.ts';
 import { RESIDENTIAL_RENTAL_VENUE, worldOfLotHashes } from '../places.ts';
 import type { DynastyRole, DynastyStanding, PairTag, SaveLotZone, SaveReadInfo, SaveWorldRecord, SimAbout, SimPronouns } from '../../types/whiteboard.ts';
 import { readDbpf, SAVE_GAME_DATA_TYPE } from './dbpf.ts';
-import { decodeFields, firstBytes, packedVarints, utf8 } from './protobuf.ts';
+import { decodeFields, firstBytes, packedVarints, utf8, type ProtoField } from './protobuf.ts';
 import { refpackDecompress } from './refpack.ts';
 
 export type SaveRelType = 'parent' | 'marriage' | 'romance' | 'divorced';
@@ -81,7 +81,19 @@ export type ParsedSaveSim = {
    * too (Consort Capp, Old Age), though only a death in play has `death`.
    */
   deathTrait?: string;
+  /**
+   * Expecting a baby: the save's pregnancy record (SimData 30.8: 2 the two
+   * parents, carrier first, as fixed64; 6 the other parent) and how far along
+   * (the game's commodity_Pregnancy, 0 to 100). Read 2026-11-28 in Slot 10,
+   * where Jesminder Bheeda (by Arun) and Bernice Robles (by Ian) were at 53 and
+   * 28. It rises a point every sim hour (the game's PREGNANCY_RATE), whether
+   * or not their household is played, and labour comes at 100.
+   */
+  pregnancy?: { progress: number; with?: string };
 };
+
+/** The game's pregnancy commodity: 0 to 100, labour at 100. */
+const PREGNANCY_COMMODITY = '16640';
 
 /** The traits that tell a death (scripts/build-game-names.ts). */
 const DEATH_TRAITS: ReadonlySet<string> = new Set(deathTraitsData.ids);
@@ -472,6 +484,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
   let stageDays: number | undefined;
   let about: SimAbout = {};
   let death: ParsedSaveSim['death'];
+  let pregnancy: ParsedSaveSim['pregnancy'];
   for (const f of fields) {
     if (f.field === SIM.id && (f.wire === 0 || f.wire === 1) && f.int > 0n) {
       saveSimId = idStr(f.int);
@@ -500,6 +513,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     } else if (f.field === SIM.trackers && f.bytes) {
       about = { ...about, ...parseTrackers(f.bytes) };
       death = parseDeath(f.bytes) ?? death;
+      pregnancy = parsePregnancy(f.bytes, saveSimIdOf(fields)) ?? pregnancy;
     } else if (f.field === SIM.aspiration && f.wire === 0 && f.int > 0n) {
       about = { ...about, aspiration: idStr(f.int) };
     } else if (f.field === SIM.creation && f.bytes) {
@@ -529,11 +543,48 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     ...(bornInPlay ? { bornInPlay: true as const } : {}),
     ...(Object.keys(about).length ? { about } : {}),
     ...(death ? { death } : {}),
+    ...(pregnancy ? { pregnancy } : {}),
     ...(() => {
       const deathTrait = about.traits?.find((t) => DEATH_TRAITS.has(t));
       return deathTrait ? { deathTrait } : {};
     })(),
   };
+}
+
+/** The sim's own id, wherever it sits among their fields. */
+function saveSimIdOf(fields: ProtoField[]): string {
+  const f = fields.find((x) => x.field === SIM.id && (x.wire === 0 || x.wire === 1) && x.int > 0n);
+  return f ? idStr(f.int) : '';
+}
+
+/**
+ * A pregnancy from a sim's trackers (SIM.trackers → 8, and the pregnancy
+ * commodity in → 2): how far along, and the other parent. None for a sim
+ * not expecting, whose record keeps no parents.
+ */
+function parsePregnancy(trackers: Uint8Array, self: string): ParsedSaveSim['pregnancy'] | undefined {
+  const fields = decodeFields(trackers);
+  const box = fields.find((f) => f.field === 8 && f.bytes)?.bytes;
+  if (!box) return undefined;
+  const record = decodeFields(box);
+  const parents = record.find((f) => f.field === 2 && f.bytes)?.bytes;
+  if (!parents || parents.length < 8) return undefined;
+  const ids: string[] = [];
+  const view = new DataView(parents.buffer, parents.byteOffset, parents.byteLength);
+  for (let i = 0; i + 8 <= parents.length; i += 8) ids.push(view.getBigUint64(i, true).toString());
+  const other = record.find((f) => f.field === 6 && (f.wire === 1 || f.wire === 0) && f.int > 0n);
+  const withId = other ? idStr(other.int) : ids.find((id) => id !== self && id !== '0');
+  let progress = 0;
+  const commodities = fields.find((f) => f.field === 2 && f.bytes)?.bytes;
+  for (const entry of commodities ? decodeFields(commodities) : []) {
+    if (entry.field !== 1 || !entry.bytes) continue;
+    const e = decodeFields(entry.bytes);
+    if (idStr(e.find((x) => x.field === 1)?.int ?? 0n) !== PREGNANCY_COMMODITY) continue;
+    const value = e.find((x) => x.field === 2 && x.wire === 5);
+    if (value) progress = float32(value.int);
+  }
+  if (!Number.isFinite(progress)) progress = 0;
+  return { progress: Math.min(100, Math.max(0, progress)), ...(withId ? { with: withId } : {}) };
 }
 
 /** A death in play from a sim's trackers (SIM.trackers → 7): its tick and type, or none. */

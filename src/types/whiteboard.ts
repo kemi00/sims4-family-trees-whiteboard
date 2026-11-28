@@ -138,6 +138,13 @@ export interface SimNode {
   genRootOf?: string;
   /** Age facts from the last save import (see SimLife). Pets have none. */
   life?: SimLife;
+  /**
+   * Expecting, by the last save: when the baby is due, in game ticks (labour
+   * comes when the game's pregnancy reaches 100, a point a sim hour, played
+   * or not) and the other parent's card. Every upload refreshes it; it goes
+   * once the baby comes.
+   */
+  pregnancy?: { dueAt: number; with?: string };
   /** Work, school, traits, skills and aspiration from the last save import (see SimAbout). */
   about?: SimAbout;
   /**
@@ -199,8 +206,16 @@ export interface PlannerCalendar {
   off?: true;
 }
 
+/** A try for a baby, logged by the player: the game day, and whether it took. */
+export interface BabyTry {
+  day: number;
+  pregnant: boolean;
+}
+
 /** What the player keeps on the board beyond the family tree itself. */
 export interface PlannerData {
+  /** Each couple's tries for a baby, in order, by the two cards' pairKey (calendar.ts). */
+  tries?: Record<string, BabyTry[]>;
   /**
    * Years for days on the board's cards, couples, story and posters, while
    * not `off`. None: the game's own days, and the player never set one.

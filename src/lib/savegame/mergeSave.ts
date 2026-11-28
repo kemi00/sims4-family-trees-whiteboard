@@ -4,7 +4,7 @@ import { advanceSuccession } from '../succession.ts';
 import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
 import { dynastyKey, rememberFirstHeads } from '../generations.ts';
 import { OTHER_WORLD } from '../layout.ts';
-import { everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
+import { TICKS_PER_HOUR, everyoneAges, frozenReason, playedAgingText, scaleOf } from '../lifeClock.ts';
 import { isUnhousedGid, unhousedGid } from '../unhoused.ts';
 import { homeLotFields, lotKey, lotsIn, saveLotCatalog, type GameLot, type LotCatalog } from '../places.ts';
 import { edgeSourceOf, joinNotes, sanitizeEdges, uKey, worldColor } from '../utils.ts';
@@ -1790,6 +1790,15 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       if (life) nodes[i] = { ...nodes[i]!, life };
       else if (nodes[i]!.life) {
         const { life: _old, ...rest } = nodes[i]!;
+        nodes[i] = rest;
+      }
+      // Expecting, by this save: due when the game's pregnancy reaches 100, a point a sim hour.
+      if (sim.pregnancy) {
+        const other = sim.pregnancy.with ? saveIdToBoard.get(sim.pregnancy.with) : undefined;
+        const dueAt = parsed.game.clock + Math.round((100 - sim.pregnancy.progress) * TICKS_PER_HOUR);
+        nodes[i] = { ...nodes[i]!, pregnancy: { dueAt, ...(other ? { with: other } : {}) } };
+      } else if (nodes[i]!.pregnancy) {
+        const { pregnancy: _born, ...rest } = nodes[i]!;
         nodes[i] = rest;
       }
       // What they do and are, as the game has it now: the save's word, every upload.

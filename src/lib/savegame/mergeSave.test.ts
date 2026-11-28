@@ -2275,6 +2275,14 @@ describe('sims who died in the game', () => {
     assert.equal(card(again, 'Bella').state, 'Ghost');
   });
 
+  it('takes a death a mod made, whose type and trait the game names don’t know', () => {
+    const modded = roaming('Bella', { death: { tick: 2_667_018, type: 987_654 }, about: { traits: ['9876543210'] }, deathTrait: undefined });
+    const r = merge([goth('Bella'), goth('Mortimer', { gender: 'Male' })], [modded, inSave('Mortimer', { gender: 'Male' })]);
+    assert.equal(card(r, 'Bella').state, 'Deceased');
+    assert.equal(card(r, 'Bella').diedAt, 2_667_018);
+    assert.equal(card(r, 'Bella').gid, 'Willow Creek||Goth');
+  });
+
   it('brings back to life one the game resurrected', () => {
     const first = merge([goth('Bella'), goth('Mortimer', { gender: 'Male' })], [roaming('Bella'), inSave('Mortimer', { gender: 'Male' })]);
     const back = merge(first.nodes, [inSave('Bella'), inSave('Mortimer', { gender: 'Male' })]);

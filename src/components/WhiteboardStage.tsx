@@ -68,7 +68,7 @@ import { whyCantAdopt } from '../lib/adoption.ts';
 import { edgeSourceOf, endedByPassing, isPet, isUserE, siblingsShareParents, uKey } from '../lib/utils.ts';
 import { PARTNER_LABEL, type WhiteboardApi } from '../hooks/useWhiteboard.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
-import type { BoardMultiSel, SimNode, UnionRender } from '../types/whiteboard.ts';
+import type { BabyTry, BoardMultiSel, SimNode, UnionRender } from '../types/whiteboard.ts';
 import { BloodlineBanner } from './BloodlineBanner.tsx';
 import { bloodlineOf, generationCounts } from '../lib/bloodline.ts';
 import { DynastyBanner } from './DynastyBanner.tsx';
@@ -76,6 +76,8 @@ import { FamilyBanner } from './FamilyBanner.tsx';
 import { HighlightBanner } from './HighlightBanner.tsx';
 import type { ListOf } from './HighlightList.tsx';
 import { SaveStatus } from './SaveStatus.tsx';
+import { dayWithYear, pairKey } from '../lib/calendar.ts';
+import { clockText, dayOf } from '../lib/lifeClock.ts';
 import { SelectionBar } from './SelectionBar.tsx';
 import { StaleTabBanner } from './StaleTabBanner.tsx';
 import { ConnectMenu } from './ConnectMenu.tsx';
@@ -2274,6 +2276,22 @@ export function WhiteboardStage({ wb, svgRef, stageRef, tipsReady, onOpenSave, o
               }
             : {})}
           {...pickedStoryProps()}
+          {...(chipUnion && wb.lookBackAt === null
+            ? (() => {
+                const { a, b } = chipUnion;
+                const carrier = [wb.byid[a], wb.byid[b]].find((x) => x?.pregnancy && (!x.pregnancy.with || x.pregnancy.with === (x.id === a ? b : a)));
+                return {
+                  tries: {
+                    list: wb.planner.tries?.[pairKey(a, b)] ?? [],
+                    ...(carrier?.pregnancy ? { expecting: clockText(carrier.pregnancy.dueAt) } : {}),
+                    today: wb.saveGame ? dayOf(wb.saveGame.clock) : 1,
+                    dayText: (day: number) => dayWithYear(day, wb.calendar),
+                    onAdd: (t: BabyTry) => wb.addBabyTry(a, b, t),
+                    onRemove: (i: number) => wb.removeBabyTry(a, b, i),
+                  },
+                };
+              })()
+            : {})}
           // Delete takes the link off, except a couple the game has: for that
           // one Delete plans its end, which the action above already offers.
           onDelete={wb.sel?.type === 'link' && !gameCoupleIntact(wb.sel.ids) ? wb.deleteSelected : undefined}
