@@ -1,6 +1,11 @@
 {
  "entries": [
   {
+   "sha": "e313777",
+   "date": "2026-11-28",
+   "text": "Save the whole tree as a file from ⋮: a PNG at a glance, a PDF with a page for each world, or an SVG, each with a link to the site."
+  },
+  {
    "sha": "5a0fe5d",
    "date": "2026-11-28",
    "text": "Worlds in numbers shows each world's sims by life stage and gender, with its households and free lots. Open it from ⋮ or the Legend."
