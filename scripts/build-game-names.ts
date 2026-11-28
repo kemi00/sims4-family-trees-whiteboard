@@ -2,7 +2,8 @@
  * Builds src/data/gameNames.json: the game's own English names for what a
  * save stores as numbers on each sim — traits (personality or earned),
  * careers with their branch and level titles, skills with their level
- * steps, and aspirations — for the base game and every installed pack.
+ * steps, and aspirations — for the base game and every installed pack —
+ * and src/data/deathTraits.json, the ids of the traits that tell a death.
  *
  * Names come from each item's SimData record (the small binary record the
  * game's interface reads, the same layout in the base game and the packs;
@@ -24,6 +25,7 @@ import { readDataRecord, type DataValue } from './simdata.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const OUT = join(ROOT, 'src/data/gameNames.json');
+const DEATHS_OUT = join(ROOT, 'src/data/deathTraits.json');
 const SIMDATA = 0x545ac67a;
 const STBL = 0x220557da;
 const COMBINED_TUNING = 0x62e94d38;
@@ -228,6 +230,12 @@ const out = {
   deaths: sorted(deaths),
 };
 writeFileSync(OUT, `${JSON.stringify(out)}\n`);
+// The death traits' ids alone, small enough for the save reader to tell who
+// died without loading the names (src/lib/savegame/parseSave.ts).
+writeFileSync(
+  DEATHS_OUT,
+  `${JSON.stringify({ note: 'Built by scripts/build-game-names.ts: the ghost traits the game gives a sim for how they died.', ids: Object.keys(sorted(deaths)) })}\n`,
+);
 console.log(
   `${packages.length} packages, ${strings.size} strings: ${Object.keys(traits).length} traits, ${Object.keys(skills).length} skills, ${Object.keys(tracks).length} career tracks, ${Object.keys(aspirations).length} aspirations, ${Object.keys(deaths).length} deaths (${Object.values(deaths).slice(0, 6).join(', ')}…), skill level types ${Object.keys(skillLevels).join(', ')}. Wrote ${OUT} (${(JSON.stringify(out).length / 1024).toFixed(0)} KB).`,
 );

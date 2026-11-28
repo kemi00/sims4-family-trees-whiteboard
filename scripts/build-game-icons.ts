@@ -62,7 +62,7 @@ function unpack(bytes: Uint8Array): Uint8Array {
 
 // What the board names: only these get an icon.
 const names = JSON.parse(readFileSync(NAMES, 'utf8')) as Record<string, Record<string, unknown>>;
-const wanted = new Set(['traits', 'skills', 'tracks', 'aspirations'].flatMap((k) => Object.keys(names[k] ?? {})));
+const wanted = new Set(['traits', 'skills', 'tracks', 'aspirations', 'deaths'].flatMap((k) => Object.keys(names[k] ?? {})));
 
 // Base game first, each Full build before its Deltas (a patch overrides), then the packs.
 const appData = join(gameDir, 'The Sims 4.app/Contents/Data');
@@ -244,6 +244,6 @@ rmSync(work, { recursive: true, force: true });
 ids.sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0));
 writeFileSync(
   OUT_LIST,
-  `${JSON.stringify({ note: 'Built by scripts/build-game-icons.ts from the installed game: the traits, skills, career tracks and aspirations with an icon in public/game-icons/<id>.webp.', ids })}\n`,
+  `${JSON.stringify({ note: 'Built by scripts/build-game-icons.ts from the installed game: the traits, skills, career tracks, aspirations and deaths with an icon in public/game-icons/<id>.webp.', ids })}\n`,
 );
 console.log(`${ids.length} of ${wanted.size} named items have an icon${unread ? `; ${unread} pictures couldn’t be read` : ''}.`);

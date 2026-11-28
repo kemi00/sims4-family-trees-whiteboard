@@ -1,5 +1,5 @@
 import { prestigeLevel } from './prestige.ts';
-import { DECEASED_STATE, NOT_IN_WORLD } from './constants.ts';
+import { DECEASED_STATE, NOT_IN_WORLD, hasDied } from './constants.ts';
 import { TICKS_PER_DAY } from './lifeClock.ts';
 import { dynastyKey, dynastyLabelText, dynastyNames } from './generations.ts';
 import { cardName, isPlannedSim } from './plan.ts';
@@ -237,8 +237,11 @@ export function saveRecap(before: Board, after: Board): SaveRecap {
       continue;
     }
     if (isPlannedSim(n)) continue;
-    if (o.state !== DECEASED_STATE && n.state === DECEASED_STATE) {
-      recap.died.push(sim(n));
+    // Deceased, or a ghost who plays on: both died. A premade ghost the
+    // board only now knows from their ghost trait died before play: no news.
+    if (!hasDied(o.state) && hasDied(n.state)) {
+      const beforePlay = !!n.saveSimId && n.diedAt === undefined && !!n.diedOnImport;
+      if (!beforePlay) recap.died.push(sim(n));
       continue;
     }
     if (o.gid !== n.gid && !n.treeId) recap.moved.push({ ...sim(n), from: where(o), to: where(n) });

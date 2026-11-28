@@ -2181,3 +2181,105 @@ describe('where a save household lives', () => {
     assert.equal(result.nodes[0]!.nb, 'Spice Market');
   });
 });
+
+describe('sims who died in the game', () => {
+  const worlds = [{ name: 'Willow Creek', color: '#4e79a7' }, ...world];
+  const N = 'Not in any world';
+  const BROKEN_HEART = '379066';
+  const goth = (id: string, extra: Partial<SimNode> = {}) =>
+    sim({ id, first: id, sur: 'Goth', hh: 'Goth', ohh: 'Goth', gid: 'Willow Creek||Goth', saveSimId: id, ...extra });
+  const inSave = (id: string, extra: Partial<ParsedSave['sims'][number]> = {}) => ({
+    saveSimId: id,
+    householdId: 'h-goth',
+    first: id,
+    last: 'Goth',
+    household: 'Goth',
+    age: 'Young Adult',
+    gender: 'Female',
+    world: 'Willow Creek',
+    ...extra,
+  });
+  /** Let go to roam: the game keeps her in a household of her own with no home lot. */
+  const roaming = (id: string, extra: Partial<ParsedSave['sims'][number]> = {}) =>
+    inSave(id, {
+      householdId: 'h-ghost',
+      household: '',
+      world: undefined,
+      unhoused: true,
+      death: { tick: 2_667_018, type: 95 },
+      about: { traits: [BROKEN_HEART] },
+      deathTrait: BROKEN_HEART,
+      ...extra,
+    });
+  const married: Edge[] = [{ id: 'm1', a: 'Bella', b: 'Mortimer', type: 'marriage', source: 'save', createdAt: '2026-01-01T00:00:00.000Z' }];
+  const merge = (nodes: SimNode[], sims: ParsedSave['sims'], edges: Edge[] = married, movedByHand?: Set<string>) =>
+    mergeSaveIntoBoard({
+      nodes,
+      edges,
+      groups: [...new Set(nodes.map((n) => n.gid))].map((gid) => {
+        const n = nodes.find((x) => x.gid === gid)!;
+        return { gid, hh: n.hh, world: n.world, nb: '-', color: n.color, x: 0, y: 0, w: 0, h: 0 };
+      }),
+      worlds,
+      parsed: { sims, rels: [], game: { clock: 2_700_000, playedHouseholds: ['h-goth'] } as ParsedSave['game'] },
+      seedNameKeys: new Set(),
+      movedByHand,
+      now: '2026-11-28T12:00:00.000Z',
+      nextEdgeId: () => 'v1',
+    });
+  const card = (r: ReturnType<typeof merge>, id: string) => r.nodes.find((n) => n.id === id)!;
+
+  it('makes one let go to roam deceased, dated, in the household she lived in', () => {
+    const r = merge([goth('Bella'), goth('Mortimer', { gender: 'Male' })], [roaming('Bella'), inSave('Mortimer', { gender: 'Male' })]);
+    const bella = card(r, 'Bella');
+    assert.equal(bella.state, 'Deceased');
+    assert.equal(bella.diedAt, 2_667_018);
+    assert.equal(bella.gid, 'Willow Creek||Goth');
+    // The game's household for her ghost is no home of hers: its money isn't the Goths'.
+    assert.equal(bella.hhId, undefined);
+    assert.ok(!r.nodes.some((n) => n.world === N));
+  });
+
+  it('brings one an earlier upload put in Not in any world back to her family', () => {
+    const astray = goth('Bella', { gid: `${N}||Goth`, world: N, hhId: 'h-ghost' });
+    const r = merge([astray, goth('Mortimer', { gender: 'Male' })], [roaming('Bella'), inSave('Mortimer', { gender: 'Male' })]);
+    assert.equal(card(r, 'Bella').gid, 'Willow Creek||Goth');
+    assert.equal(card(r, 'Bella').state, 'Deceased');
+  });
+
+  it('keeps a ghost the player kept in their household, as a ghost', () => {
+    const r = merge([goth('Bella')], [inSave('Bella', { death: { tick: 2_667_018, type: 95 }, about: { traits: [BROKEN_HEART] }, deathTrait: BROKEN_HEART })], []);
+    assert.equal(card(r, 'Bella').state, 'Ghost');
+    assert.equal(card(r, 'Bella').gid, 'Willow Creek||Goth');
+    assert.equal(card(r, 'Bella').hhId, 'h-goth');
+  });
+
+  it('tells a premade ghost by their ghost trait, roaming or kept', () => {
+    const r = merge(
+      [goth('Consort', { gid: `${N}||Capp`, world: N, hh: 'Capp' }), goth('Esther', { state: 'Ghost' })],
+      [
+        inSave('Consort', { householdId: 'h-capp', household: 'Capp', world: undefined, unhoused: true, about: { traits: ['101685'] }, deathTrait: '101685' }),
+        inSave('Esther', { about: { traits: ['101676'] }, deathTrait: '101676' }),
+      ],
+      [],
+    );
+    assert.equal(card(r, 'Consort').state, 'Deceased');
+    assert.equal(card(r, 'Consort').diedAt, undefined);
+    assert.equal(card(r, 'Esther').state, 'Ghost');
+  });
+
+  it('leaves the life state to the player once an upload has told the death', () => {
+    const first = merge([goth('Bella'), goth('Mortimer', { gender: 'Male' })], [roaming('Bella'), inSave('Mortimer', { gender: 'Male' })]);
+    const byHand = first.nodes.map((n) => (n.id === 'Bella' ? { ...n, state: 'Ghost' } : n));
+    const again = merge(byHand, [roaming('Bella'), inSave('Mortimer', { gender: 'Male' })]);
+    assert.equal(card(again, 'Bella').state, 'Ghost');
+  });
+
+  it('brings back to life one the game resurrected', () => {
+    const first = merge([goth('Bella'), goth('Mortimer', { gender: 'Male' })], [roaming('Bella'), inSave('Mortimer', { gender: 'Male' })]);
+    const back = merge(first.nodes, [inSave('Bella'), inSave('Mortimer', { gender: 'Male' })]);
+    assert.equal(card(back, 'Bella').state, 'Sim');
+    assert.equal(card(back, 'Bella').diedAt, undefined);
+    assert.equal(card(back, 'Bella').diedOnImport, undefined);
+  });
+});

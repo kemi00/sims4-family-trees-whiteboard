@@ -174,6 +174,7 @@ function nodeIdentity(n: SimNode) {
     bio: n.bio ?? null,
     deathCause: n.deathCause ?? null,
     deathTrait: n.deathTrait ?? null,
+    diedAt: n.diedAt ?? null,
     yearBorn: n.yearBorn ?? null,
     yearDied: n.yearDied ?? null,
   };

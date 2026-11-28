@@ -2201,3 +2201,15 @@ button.sheet-grab.sheet-grab.sheet-grab:focus-visible{outline:none;box-shadow:0 
 .editor textarea.edbio{display:block;width:100%;min-height:58px;padding:5px 6px;border:1px solid #cdd3da;border-radius:6px;font:inherit;font-size:12px;line-height:1.45;box-sizing:border-box;resize:vertical;-webkit-user-select:text;user-select:text}
 .editor textarea.edbio:focus{outline:none;border-color:#9bb4d6;box-shadow:0 0 0 3px var(--accent-ring)}
 .editor input[aria-invalid=true]{border-color:var(--danger)}
+
+/* ── a sim who died (SimEditor, SimLife) ─────────────────────────────────── */
+/* In place of the age to come: when they died, how, and the age they had. */
+.editor .eddeath{display:flex;align-items:flex-start;gap:8px;margin:8px 0 0;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--chip);font-size:11.5px;line-height:1.4;color:var(--ink-2)}
+.editor .eddeath__icon{flex:0 0 auto;font-size:15px;line-height:1.2}
+.editor .eddeath__text{display:flex;flex-direction:column;gap:1px;min-width:0}
+.editor .eddeath__text b{font-size:12px;color:var(--ink)}
+/* Deceased: what no longer changes is greyed out, as the card is faded. */
+.editor select:disabled{background:var(--chip);color:var(--ink-3);opacity:.7;cursor:default}
+.editor .edlife--gone,.editor .edabout--gone>section{opacity:.6}
+.editor .edgone{margin:10px 2px 2px;font-size:11.5px;color:var(--ink-3)}
+.editor .edchip--death{border-color:var(--line);background:var(--chip);color:var(--ink-2)}

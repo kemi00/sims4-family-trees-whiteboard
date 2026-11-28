@@ -57,6 +57,8 @@ type Props = {
   planned: boolean;
   /** Some sim on the board has these from a save: the last upload read them. */
   boardHasAbout: boolean;
+  /** Deceased: their life as it was when they died, greyed out. */
+  gone?: boolean;
 };
 
 /**
@@ -64,7 +66,7 @@ type Props = {
  * names it. Work and school with level or grade, the aspiration,
  * personality traits apart from earned ones, and skills, highest first.
  */
-export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: Props) {
+export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout, gone = false }: Props) {
   if (planned) return <p className="edempty">Planned: their life starts in your game.</p>;
   if (!n.about) return <p className="edempty">{noAboutNote(n, saveGame, boardHasAbout)}</p>;
   if (!names) {
@@ -74,13 +76,14 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
   }
   const v = aboutView(n.about, names, n.gender);
   const showWork = v.jobs.length > 0 || SCHOOL_AGE.has(n.age) || WORKING_AGE.has(n.age);
-  const empty = !v.jobs.length && !v.aspiration && !v.personality.length && !v.earned.length && !v.skills.length;
+  const empty = !v.jobs.length && !v.aspiration && !v.personality.length && !v.earned.length && !v.death && !v.skills.length;
   const when = saveGame ? whenAt(saveGame, saveGame.clock) : '';
   // One column of icons for the skills: a skill without one keeps its place, so the names line up.
   const skillIcons = v.skills.some((s) => s.icon);
 
   return (
-    <div className="edabout">
+    <div className={gone ? 'edabout edabout--gone' : 'edabout'}>
+      {gone && <p className="edgone">As they were when they died.</p>}
       {empty && <p className="edempty">Your save has nothing on their work, traits or skills yet.</p>}
       {!empty && showWork && (
         <section aria-labelledby="edWorkHead">
@@ -123,7 +126,7 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
           </p>
         </section>
       )}
-      {(v.personality.length > 0 || v.earned.length > 0) && (
+      {(v.personality.length > 0 || v.earned.length > 0 || v.death) && (
         <section aria-labelledby="edTraitsHead">
           <div className="edlabel">
             <span className="edlabel__text" id="edTraitsHead">
@@ -157,6 +160,19 @@ export function SimLife({ n, names, failed, saveGame, planned, boardHasAbout }: 
                         <span>{t.name}</span>
                       </li>
                     ))}
+                  </ul>
+                </dd>
+              </div>
+            )}
+            {v.death && (
+              <div className="edtraits__row">
+                <dt>Death</dt>
+                <dd>
+                  <ul className="edchips">
+                    <li className={v.death.icon ? 'edchip edchip--death edchip--icon' : 'edchip edchip--death'}>
+                      {v.death.icon && <GameIcon id={v.death.icon} size={16} className="edchip__icon" />}
+                      <span>{v.death.name}</span>
+                    </li>
                   </ul>
                 </dd>
               </div>

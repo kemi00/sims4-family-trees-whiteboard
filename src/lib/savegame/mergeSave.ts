@@ -1,4 +1,4 @@
-import { DECEASED_STATE, NON_BINARY, UNHOUSED_HH } from '../constants.ts';
+import { DECEASED_STATE, GHOST_STATE, NON_BINARY, UNHOUSED_HH, hasDied } from '../constants.ts';
 import { gamesMissingFromSave } from '../packs.ts';
 import { advanceSuccession } from '../succession.ts';
 import { cardName, isPlannedSim, overruledParentLinks, plannedSnapshot } from '../plan.ts';
@@ -800,6 +800,84 @@ function moveIntoUnhoused(n: SimNode, home: BoardHome): SimNode {
   return next;
 }
 
+/** Died, by the save: a death in play, or a ghost trait (a premade made dead). Pets are left as they are for now. */
+function diedInSave(sim: ParsedSaveSim): boolean {
+  return (!!sim.death || !!sim.deathTrait) && !sim.species;
+}
+
+/**
+ * Died and let go from the game's households: a ghost left to roam (Consort
+ * Capp, or Bella Goth once the player let her go), or one in an urn. The game
+ * keeps each in a household of their own with no home lot; on the board
+ * they are deceased and stay with the family they lived with. A ghost the
+ * player keeps lives on in their household (the Izadi-Gomes ghosts).
+ */
+function departed(sim: ParsedSaveSim): boolean {
+  return diedInSave(sim) && !!sim.unhoused;
+}
+
+/**
+ * A death in play the save records (ParsedSaveSim.death), on a card. The
+ * upload that first sees it makes them a ghost who plays on in their
+ * household, or deceased when the game let them go (`departed`). Later
+ * uploads of the same death leave the life state to the player. A death the
+ * save no longer has, the game having brought them back, undoes it.
+ */
+function withSaveDeath(n: SimNode, sim: ParsedSaveSim): SimNode {
+  if (sim.species) return n;
+  const diedAs = departed(sim) ? DECEASED_STATE : GHOST_STATE;
+  if (sim.death) {
+    if (n.diedAt === sim.death.tick) return n;
+    // A new death: one an earlier upload hadn't seen, or saw undone since.
+    return { ...n, diedAt: sim.death.tick, state: diedAs, diedOnImport: true };
+  }
+  if (sim.deathTrait) {
+    // A ghost the game made dead: told once, then the life state is the player's.
+    if (n.diedOnImport) return n;
+    return { ...n, state: diedAs, diedOnImport: true };
+  }
+  // Alive in the save: back to life on the board too, when an upload had them dead.
+  if (n.diedAt === undefined && !n.diedOnImport) return n;
+  const { diedAt: _back, diedOnImport: _alive, ...rest } = n;
+  return hasDied(n.state) && n.diedOnImport ? { ...rest, state: 'Sim' } : rest;
+}
+
+/**
+ * The family a sim who died lived with, for one the game let go: a living
+ * spouse or partner on the board first, then a child, then a parent, each in
+ * a household's own box in a world.
+ */
+function familyHomeOf(
+  n: SimNode,
+  nodes: SimNode[],
+  edges: readonly Edge[],
+  rels: readonly ParsedSaveRel[],
+  boardIdOf: (saveId: string) => string | undefined,
+  leaving: ReadonlySet<string>,
+): BoardHome | undefined {
+  const byId = new Map(nodes.map((x) => [x.id, x]));
+  const housed = (id: string | undefined) => {
+    const x = id === undefined ? undefined : byId.get(id);
+    return x && !leaving.has(x.id) && !hasDied(x.state) && x.world !== OTHER_WORLD && !isUnhousedGid(x.gid) ? x : undefined;
+  };
+  const other = (e: { a: string; b: string }) => (e.a === n.id ? e.b : e.a);
+  const mine = (e: { a: string; b: string }) => e.a === n.id || e.b === n.id;
+  const saveParents = rels.filter((r) => r.type === 'parent').map((r) => ({ a: boardIdOf(r.a), b: boardIdOf(r.b) }));
+  const ordered: (string | undefined)[] = [
+    ...edges.filter((e) => e.type === 'marriage' && mine(e)).map(other),
+    ...edges.filter((e) => e.type === 'romance' && mine(e)).map(other),
+    ...edges.filter((e) => e.type === 'parent' && e.a === n.id).map((e) => e.b),
+    ...saveParents.filter((e) => e.a === n.id).map((e) => e.b),
+    ...edges.filter((e) => e.type === 'parent' && e.b === n.id).map((e) => e.a),
+    ...saveParents.filter((e) => e.b === n.id).map((e) => e.a),
+  ];
+  for (const id of ordered) {
+    const kin = housed(id);
+    if (kin) return homeOf(kin);
+  }
+  return undefined;
+}
+
 function homeOf(n: SimNode): BoardHome {
   return { gid: n.gid, world: n.world, nb: n.nb, hh: n.hh, color: n.color };
 }
@@ -1167,6 +1245,8 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
   /** Save household id → its sims matched to board cards. */
   const byHousehold = new Map<string, { sim: ParsedSaveSim; id: string }[]>();
   const unhousedMatched: string[] = [];
+  /** Sims who died in play and whom the game let go (departed): placed with their family below. */
+  const departedIds: string[] = [];
   let matched = 0;
   let added = 0;
   let fromSaveCount = 0;
@@ -1190,7 +1270,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       : undefined;
     if (slot) {
       const i = nodes.indexOf(slot);
-      const patched = patchMatched(slot, sim, true, rosterOf(sim), !!parsed.dynasties, boardDynastyIds);
+      const patched = withSaveDeath(patchMatched(slot, sim, true, rosterOf(sim), !!parsed.dynasties, boardDynastyIds), sim);
       patched.plannedAs = plannedSnapshot(slot, now);
       delete patched.planLabel;
       delete patched.arrives;
@@ -1220,7 +1300,7 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         seedNameKeys.has(nameKey(found.first, found.sur)) ||
         seedNameKeys.has(nameKey(sim.first, sim.last));
       const i = nodes.findIndex((n) => n.id === found.id);
-      const patched = patchMatched(found, sim, !onRoster, rosterOf(sim), !!parsed.dynasties, boardDynastyIds);
+      const patched = withSaveDeath(patchMatched(found, sim, !onRoster, rosterOf(sim), !!parsed.dynasties, boardDynastyIds), sim);
       // A premade by the save's name has no from-save mark, whatever an
       // earlier import thought: one under a married name got it.
       if (seedNameKeys.has(nameKey(sim.first, sim.last))) delete patched.fromSave;
@@ -1228,6 +1308,13 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       claimed.add(patched.id);
       bySaveId.set(sim.saveSimId, patched);
       saveIdToBoard.set(sim.saveSimId, patched.id);
+      // Let go by the game when they died: not one of its households any more.
+      if (departed(sim)) {
+        departedIds.push(patched.id);
+        matched += 1;
+        if (patched.fromSave) fromSaveCount += 1;
+        continue;
+      }
       // A box a household may not stay in is no home for its newcomers.
       if (!isUnhousedGid(patched.gid) && (!sim.unhoused || patched.world === OTHER_WORLD)) {
         rememberHome(hhHome, sim, patched);
@@ -1297,14 +1384,12 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
       sim.unhoused && sim.generated
         ? unhousedHome(OTHER_WORLD, worlds)
         : homeForNew(sim, worlds, existingGids, hhHome, roster);
-    const made = newSaveNode(
+    const made = withSaveDeath(
+      newSaveNode(sim, isOriginal, home, packForSaveSim(home.world, nodes, input.packReference ?? []), roster),
       sim,
-      isOriginal,
-      home,
-      packForSaveSim(home.world, nodes, input.packReference ?? []),
-      roster,
     );
     const created = sim.generated ? { ...made, oplay: 'Townie' } : made;
+    if (departed(sim)) departedIds.push(created.id);
     nodes.push(created);
     claimed.add(created.id);
     bySaveId.set(sim.saveSimId, created);
@@ -1312,6 +1397,25 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
     index(created);
     added += 1;
     if (created.fromSave) fromSaveCount += 1;
+  }
+
+  // Sims the game let go when they died stay where they lived: a household's
+  // box keeps them. One the game's own household for them put in Not in any
+  // world joins their family.
+  const departedMoved: string[] = [];
+  if (departedIds.length) {
+    const leaving = new Set(departedIds);
+    const at = new Map(nodes.map((n, i) => [n.id, i]));
+    for (const id of departedIds) {
+      if (movedByHand.has(id)) continue;
+      const i = at.get(id)!;
+      const n = nodes[i]!;
+      if (n.world !== OTHER_WORLD && !isUnhousedGid(n.gid)) continue;
+      const home = familyHomeOf(n, nodes, input.edges, parsed.rels, (x) => saveIdToBoard.get(x), leaving);
+      if (!home || home.gid === n.gid) continue;
+      nodes[i] = moveInto(n, home);
+      departedMoved.push(id);
+    }
   }
 
   // Relatives the family tree keeps with no sim. A card already standing for
@@ -1694,8 +1798,9 @@ export function mergeSaveIntoBoard(input: SaveMergeInput): SaveMergeResult {
         const { about: _gone, ...rest } = nodes[i]!;
         nodes[i] = rest;
       }
-      // The household the game has them in: its money is found by it.
-      if (sim.householdId && sim.householdId !== '0') nodes[i] = { ...nodes[i]!, hhId: sim.householdId };
+      // The household the game has them in: its money is found by it. Not
+      // the one it keeps for a sim it let go: they live with their family.
+      if (sim.householdId && sim.householdId !== '0' && !departed(sim)) nodes[i] = { ...nodes[i]!, hhId: sim.householdId };
       else if (nodes[i]!.hhId) {
         const { hhId: _none, ...rest } = nodes[i]!;
         nodes[i] = rest;

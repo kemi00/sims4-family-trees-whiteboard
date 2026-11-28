@@ -172,6 +172,13 @@ export interface SimNode {
    */
   deathTrait?: string;
   /**
+   * When they died in play, in game ticks, from the save's death record.
+   * Set once, by the upload that first saw the death: their life state
+   * changed then, and is the player's afterwards. Gone if the game brings
+   * them back to life.
+   */
+  diedAt?: number;
+  /**
    * Year of birth or death typed on the board, in the board's calendar
    * years (PlannerCalendar). They come before what the save tells, for a sim
    * born or dead before play, or one the save can't date.

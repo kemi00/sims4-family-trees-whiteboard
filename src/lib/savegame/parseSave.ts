@@ -1,3 +1,4 @@
+import deathTraitsData from '../../data/deathTraits.json' with { type: 'json' };
 import { TREE_NAMES } from '../../data/treeNames.ts';
 import { homeWorld } from '../realm.ts';
 import { AGES_H, NON_BINARY } from '../constants.ts';
@@ -64,7 +65,26 @@ export type ParsedSaveSim = {
   bornInPlay?: true;
   /** Work, school, traits, skills and aspiration, as the game's ids (SimAbout). */
   about?: SimAbout;
+  /**
+   * Their death, when they died in play: the game's death record (SimData
+   * 30.7: 1 the death type, 2 the tick). Read 2026-11-28 when Bella Goth died
+   * of a broken heart: type 95 at Day 2, 5:38 AM, the time her Died milestone
+   * also has. It is 0 for the living and for premade ghosts, who were made
+   * dead. Where they are now says what they became: one the player keeps
+   * plays on as a ghost in their household; one let go to roam, or put in an
+   * urn, goes to a household of their own with no home lot (`unhoused`).
+   */
+  death?: { tick: number; type: number };
+  /**
+   * The ghost trait among their traits that says how they died (one of
+   * src/data/deathTraits.json): every sim who died has one, premade ghosts
+   * too (Consort Capp, Old Age), though only a death in play has `death`.
+   */
+  deathTrait?: string;
 };
+
+/** The traits that tell a death (scripts/build-game-names.ts). */
+const DEATH_TRAITS: ReadonlySet<string> = new Set(deathTraitsData.ids);
 
 /** Played-household aging in Game Options: No, Yes, or Only Active Household. */
 export type SavePlayedAging = 'No' | 'Yes' | 'Active';
@@ -451,6 +471,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
   let aliveTicks: number | undefined;
   let stageDays: number | undefined;
   let about: SimAbout = {};
+  let death: ParsedSaveSim['death'];
   for (const f of fields) {
     if (f.field === SIM.id && (f.wire === 0 || f.wire === 1) && f.int > 0n) {
       saveSimId = idStr(f.int);
@@ -478,6 +499,7 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
       species = SPECIES[Number(f.int)];
     } else if (f.field === SIM.trackers && f.bytes) {
       about = { ...about, ...parseTrackers(f.bytes) };
+      death = parseDeath(f.bytes) ?? death;
     } else if (f.field === SIM.aspiration && f.wire === 0 && f.int > 0n) {
       about = { ...about, aspiration: idStr(f.int) };
     } else if (f.field === SIM.creation && f.bytes) {
@@ -506,7 +528,24 @@ function parseSimBlob(blob: Uint8Array): ParsedSaveSim | null {
     ...(newborn ? { newborn: true as const } : {}),
     ...(bornInPlay ? { bornInPlay: true as const } : {}),
     ...(Object.keys(about).length ? { about } : {}),
+    ...(death ? { death } : {}),
+    ...(() => {
+      const deathTrait = about.traits?.find((t) => DEATH_TRAITS.has(t));
+      return deathTrait ? { deathTrait } : {};
+    })(),
   };
+}
+
+/** A death in play from a sim's trackers (SIM.trackers → 7): its tick and type, or none. */
+function parseDeath(trackers: Uint8Array): ParsedSaveSim['death'] | undefined {
+  const box = decodeFields(trackers).find((f) => f.field === 7 && f.bytes)?.bytes;
+  if (!box) return undefined;
+  const fields = decodeFields(box);
+  const type = fields.find((f) => f.field === 1 && f.wire === 0)?.int ?? 0n;
+  const tick = fields.find((f) => f.field === 2 && f.wire === 0)?.int ?? 0n;
+  if (type === 0n && tick === 0n) return undefined;
+  if (tick >= BigInt(Number.MAX_SAFE_INTEGER)) return undefined;
+  return { tick: Number(tick), type: Number(type) };
 }
 
 /** Traits, jobs and skills from a sim's trackers (SIM.trackers). */

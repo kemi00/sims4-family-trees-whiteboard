@@ -85,6 +85,8 @@ export type AboutView = {
   aspirationIcon?: string;
   personality: AboutTrait[];
   earned: AboutTrait[];
+  /** The ghost trait the game gave them for how they died ("Broken Heart"), as the game's trait panel shows it. */
+  death?: AboutTrait;
   skills: AboutSkill[];
 };
 
@@ -177,6 +179,11 @@ export function aboutView(about: SimAbout | undefined, names: GameNames, gender?
   }
 
   for (const id of about.traits ?? []) {
+    const died = names.deaths?.[id];
+    if (died && !view.death) {
+      const icon = iconOf(id);
+      view.death = icon ? { name: died, icon } : { name: died };
+    }
     const t = names.traits[id];
     if (!t) continue;
     const list = t[1] === 'p' ? view.personality : view.earned;

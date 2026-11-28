@@ -131,7 +131,7 @@ export type SimYears = {
 
 /** A sim's birth and death years on `cal`, from what was typed, the save, and the story's uploads. */
 export function simYears(
-  n: Pick<SimNode, 'life' | 'state' | 'yearBorn' | 'yearDied'>,
+  n: Pick<SimNode, 'life' | 'state' | 'yearBorn' | 'yearDied' | 'diedAt'>,
   cal: PlannerCalendar,
   death?: DeathWindow,
 ): SimYears {
@@ -145,9 +145,13 @@ export function simYears(
   }
   // A ghost died too: a playable one keeps their years.
   const dead = hasDied(n.state);
+  // The save's own record of a death in play: its day, not just the upload that told it.
+  const diedDay = dead && n.diedAt !== undefined ? dayOf(n.diedAt) : undefined;
   if (n.yearDied !== undefined) {
     out.died = n.yearDied;
     out.diedTyped = true;
+  } else if (diedDay !== undefined) {
+    out.died = calendarYear(diedDay, cal);
   } else if (dead && death) {
     out.died = calendarYear(death.by, cal);
     // Known to the year when the uploads either side fall in the same one.
@@ -155,10 +159,11 @@ export function simYears(
   }
   if (out.born !== undefined && out.died !== undefined) {
     // Typed years count whole years; a save's days count the years fully lived.
+    const endDay = diedDay ?? death?.by;
     out.ageAtDeath =
-      out.bornTyped || out.diedTyped || bornDay === undefined || !death
+      out.bornTyped || out.diedTyped || bornDay === undefined || endDay === undefined
         ? Math.max(0, out.died - out.born)
-        : yearsBetween(bornDay, death.by, cal);
+        : yearsBetween(bornDay, endDay, cal);
   }
   return out;
 }

@@ -16,7 +16,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
 } from 'react';
-import { AGES, DECEASED_STATE, DYNASTY_ROLES, GENDERS, LIFE_STATES, PLAYABILITY, hasDied } from '../lib/constants.ts';
+import { AGES, DECEASED_STATE, DYNASTY_ROLES, GENDERS, GHOST_STATE, LIFE_STATES, OCC, PLAYABILITY, hasDied } from '../lib/constants.ts';
 import { useCompactChrome } from '../hooks/useCompactChrome.ts';
 import { BookOpenText, CaretDown, Copy, DotsThreeVertical, Info, Trash } from '../icons.ts';
 import { useLightDismiss } from '../hooks/useLightDismiss.ts';
@@ -34,7 +34,9 @@ import {
   type FamilyGeneration,
 } from '../lib/generations.ts';
 import {
+  TICKS_PER_DAY,
   clockText,
+  dayOf,
   dayText,
   daysText,
   frozenText,
@@ -136,8 +138,32 @@ function lifeSummary(v: LifeView): string {
  * The sim's age from the last save import: born, days alive, how far into
  * the stage and the days to the next, on the save's lifespan. Read only.
  */
-function LifeFacts({ v }: { v: LifeView }) {
+function LifeFacts({ v, died }: { v: LifeView; died?: { at?: number; gone: boolean } }) {
   const stage = v.newborn ? 'Newborn' : v.stage;
+  if (died) {
+    // Their life as it ended: no stage to come, no aging to wait for.
+    const daysAt = died.at === undefined ? undefined : v.daysAlive - (v.at - died.at) / TICKS_PER_DAY;
+    const rows: [string, string][] = [
+      ['Born', bornText(v)],
+      ['Died', died.at === undefined ? 'Your save doesn’t say when' : clockText(died.at)],
+      ['Life stage', stage],
+    ];
+    if (daysAt !== undefined && daysAt >= 0) rows.push(['Days alive', daysText(daysAt)]);
+    return (
+      <div id="edLife" className={died.gone ? 'ro edlife edlife--gone' : 'ro edlife'}>
+        {rows.map(([k, val]) => (
+          <div key={k} className="edlife__row">
+            <span>{k}</span>
+            <b>{val}</b>
+          </div>
+        ))}
+        <div className="edlife__note">
+          {v.fromEarlierImport ? 'From an earlier save import, at ' : 'From your save at '}
+          {clockText(v.at)}
+        </div>
+      </div>
+    );
+  }
   const rows: [string, string][] = [
     ['Born', bornText(v)],
     ['Days alive', daysText(v.daysAlive)],
@@ -1053,8 +1079,30 @@ export function SimEditor({
    * Their age said once, as a when: "Adult in 13 days of playing the Goth
    * household" (the wait the plan uses); an elder's days and old age.
    */
+  /**
+   * Their death, said in place of an age they no longer reach: when ("Died
+   * Day 2, 5:38 AM", or by an upload's day), then how and the stage and days
+   * they had ("Broken Heart · a Young Adult, 48.9 days old").
+   */
+  const deathLine = (() => {
+    if (!hasDied(state) || isPet) return null;
+    const cause = deathCause.trim() || gameDeathOf(n, gameNames.names);
+    const year = (day: number) => (calendar ? ` (${yearLabel(calendarYear(day, calendar))})` : '');
+    const when =
+      n.diedAt !== undefined
+        ? `Died ${clockText(n.diedAt)}${year(dayOf(n.diedAt))}`
+        : death
+          ? `Died by ${dayText(death.by)}${year(death.by)}`
+          : 'Died';
+    const daysOld = n.diedAt !== undefined && n.life ? (n.diedAt - n.life.born) / TICKS_PER_DAY : undefined;
+    const stage = `${/^[AEIOU]/.test(age) ? 'an' : 'a'} ${age}${daysOld !== undefined && daysOld >= 0 ? `, ${daysText(daysOld)} old` : ''}`;
+    return { when, rest: [cause, stage].filter(Boolean).join(' · ') };
+  })();
+  /** Deceased: let go by the game, or gone before play. Their stage and playability stay as they were. */
+  const gone = state === DECEASED_STATE && !isPet;
+
   const ageLine = (() => {
-    if (!life) return '';
+    if (deathLine || !life) return '';
     if (life.elderDays !== undefined) {
       const t = lifeSummary(life);
       return life.frozen ? `${t}. ${frozenLine(life.frozen)}.` : t;
@@ -1402,7 +1450,8 @@ export function SimEditor({
               <select
                 id="edAge"
                 value={age}
-                aria-describedby={life ? 'edLifeSum' : undefined}
+                disabled={gone}
+                aria-describedby={life || deathLine ? 'edLifeSum' : undefined}
                 onChange={(e) => setAge(e.target.value)}
               >
                 {/* Not born yet is a planned child's stage; anyone else planned joins at a stage you choose, "Age not set" kept only while it is. */}
@@ -1451,7 +1500,7 @@ export function SimEditor({
             </div>
             <div>
               <label htmlFor="edPlay">Playability</label>
-              <select id="edPlay" value={oplay} onChange={(e) => setOplay(e.target.value)}>
+              <select id="edPlay" value={oplay} disabled={gone} onChange={(e) => setOplay(e.target.value)}>
                 {PLAYABILITY_OPTIONS.map((p) => (
                   <option key={p} value={p}>
                     {p}
@@ -1467,6 +1516,17 @@ export function SimEditor({
             <p id="edLifeSum" className="edwhen">
               {ageLine}
             </p>
+          )}
+          {deathLine && (
+            <div id="edLifeSum" className={gone ? 'eddeath eddeath--gone' : 'eddeath'}>
+              <span className="eddeath__icon" aria-hidden="true">
+                {OCC[state === GHOST_STATE ? GHOST_STATE : DECEASED_STATE]}
+              </span>
+              <span className="eddeath__text">
+                <b>{deathLine.when}</b>
+                {deathLine.rest && <span>{deathLine.rest}</span>}
+              </span>
+            </div>
           )}
           {!life && n.life && !isPet && n.life.stage !== n.age && (
             <div className="edhint">Changed since your save: load it again to see its days.</div>
@@ -1730,7 +1790,7 @@ export function SimEditor({
               <>
                 <label id="edLifeLabel">Age from your save</label>
                 {life ? (
-                  <LifeFacts v={life} />
+                  <LifeFacts v={life} {...(hasDied(state) ? { died: { ...(n.diedAt !== undefined ? { at: n.diedAt } : {}), gone } } : {})} />
                 ) : (
                   <div className="ro ro--muted" aria-labelledby="edLifeLabel">
                     {noLifeNote}
@@ -1797,6 +1857,7 @@ export function SimEditor({
               saveGame={saveGame}
               planned={planned}
               boardHasAbout={boardHasAbout}
+              gone={gone}
             />
           </div>
         )}

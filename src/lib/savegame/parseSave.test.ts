@@ -1079,3 +1079,35 @@ describe('what a sim does and is', () => {
     assert.equal(parseSaveGame(saveOf(encodeBytes(6, plain))).sims[0]!.about, undefined);
   });
 });
+
+describe('a death in the save', () => {
+  // Bella Goth in Slot 10 after she died of a broken heart: death type 95 at Day 2, 5:38 AM, and the game's ghost trait.
+  const packed = (field: number, ids: number[]) => encodeBytes(field, concat(...ids.map((n) => encodeVarint(n))));
+  const bellaWith = (death: Uint8Array, traits: number[]) =>
+    simBlob({
+      id: 78, householdId: 9, first: 'Bella', last: 'Goth', household: '', gender: 8192, age: 16,
+      extra: [encodeBytes(30, concat(encodeBytes(7, death), encodeBytes(10, packed(1, traits))))],
+    });
+
+  it('reads when and how a sim died in play', () => {
+    const dead = bellaWith(concat(encodeVarintField(1, 95), encodeVarintField(2, 2_667_018), encodeVarintField(3, 0)), [16850, 379066]);
+    const sim = parseSaveGame(saveOf(encodeBytes(6, dead))).sims[0]!;
+    assert.deepEqual(sim.death, { tick: 2_667_018, type: 95 });
+    assert.equal(sim.deathTrait, '379066');
+  });
+
+  it('has no death for the living, whose record is all zeros', () => {
+    const alive = bellaWith(concat(encodeVarintField(1, 0), encodeVarintField(2, 0), encodeVarintField(3, 0)), [16850]);
+    const sim = parseSaveGame(saveOf(encodeBytes(6, alive))).sims[0]!;
+    assert.equal(sim.death, undefined);
+    assert.equal(sim.deathTrait, undefined);
+  });
+
+  it('knows a premade ghost by the ghost trait alone', () => {
+    // Consort Capp: made dead, so no death record, only the Old Age ghost trait.
+    const ghost = bellaWith(concat(encodeVarintField(1, 0), encodeVarintField(2, 0)), [101685]);
+    const sim = parseSaveGame(saveOf(encodeBytes(6, ghost))).sims[0]!;
+    assert.equal(sim.death, undefined);
+    assert.equal(sim.deathTrait, '101685');
+  });
+});
